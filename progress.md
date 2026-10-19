@@ -1815,42 +1815,12 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     `--c2-dur-*`, sit under `prefers-reduced-motion` guards with matches resets.
     Docs: `loading-transitions.md` §1.17, `dashboard-views.md` §1.1,
     `desktop-responsive.md` §1.2/§1.6.
-- 1.313 Translucency: a fourth level + two always-solid pills: the
-    `translucencyLevel` flag gains **Very subtle** (`verySubtle`, leftmost in the
-    SegmentedControl; alphas `0.30/0.26` base down to `0.16/0.11` accent) for the
-    most see-through chrome, and the dashboard's **Quick links** and **New event**
-    buttons are now opaque at every level and every screen size (lg nav row + the
-    mobile FAB row alike) via the new opt-in `c2-glass-btn--solid` modifier — solid
-    `accent-6` / `brand-7` with the same hover/active ramp as the standalone round
-    FABs, and no backdrop blur. The Feature Flags preview mocks carry the modifier
-    so they match the real buttons. No schema change (`translucency_level` is already
-     a `text` column defaulting to `medium`). Docs: `feature-flags.md`,
-     `dashboard-views.md` §1.1, `desktop-responsive.md` §1.2, `AGENTS.md`.
-- 1.314 Restyled-pill redesign: the `savedEventToastVariant` **Restyled pill** is
-     restyled to match the calendar page's bottom control pill — a brand-blue
-     frosted tint honoring the `translucencyLevel` flag (floored so white copy
-     stays legible at Very subtle), a hairline edge and the floating
-     `--mantine-shadow-md`, bottom-center placement above the bottom nav, a roomier
-     ~52px height, white title + amber (`accent-3`) action verb, and a circular
-     close button anchored to the right. The pill body still runs "View event"; the
-     close button only dismisses. The internal `ActionPill` variant is renamed
-     `toast` → `glassPill` (its only consumer is the flag) and the old corner/
-     `--toast` CSS is removed. No schema change. Docs: `action-pill.md`,
-     `feature-flags.md`, `AGENTS.md`.
-- 1.315 Frosted-glass fix: the `view-transition-name`s that hold the portaled
-     floating bottom chrome above the shell footer were sitting on the **Affix
-     wrappers**, which made each wrapper a backdrop root and starved the
-     descendant `.c2-glass-surface` / `.c2-glass-fab` `backdrop-filter` — the
-     mobile control pill (Calendar / Parade / Contacts), the Parade attendance
-     bar and the calendar FAB row read as flat translucent blocks. The names now
-     ride the **glass elements themselves**: `.c2-control-pill` /
-     `.c2-attendance-bar` carry their group names, and the FAB row names each
-     glass child (`c2-fab-step` / `c2-fab-link` / `c2-fab-create` for the
-     dashboard row, `c2-fab-1…4` by position for generic `FloatingToolbar` FABs)
-     so the whole row keeps its transition z-order with frost intact. The dead
-     `c2-control-pill-affix` / `c2-attendance-bar-affix` Affix classes are
-     dropped. No schema change. Docs: `dashboard-views.md` §1.1,
-     `loading-transitions.md` §1.14.
+- 1.313 Dashboard tab preview is transition-aware: `DashboardView` reports pending
+    router transitions to `DashboardScreen`, so an optimistic `previewView` no
+    longer reverts after a fixed 6 s window while the tab URL is still catching
+    up. Soft dashboard navigations also strip one-shot `refresh`, `edit`, `event`,
+    and `_eventCal` params, allowing tab URLs to prefetch cleanly. Docs:
+    `dashboard-views.md` §1.7, `loading-transitions.md` §1.13.2.
 
 ## 1.4 Open items & next steps
 

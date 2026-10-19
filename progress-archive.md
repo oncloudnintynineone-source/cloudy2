@@ -9377,35 +9377,3 @@ the button). Switched to `pop-bottom-right`: it now unfurls upward from the
 More tile's corner, matching `QuickLinksMenu`'s `position === "top-end" ?
 "pop-bottom-right"` pattern. Other `pop-top-right` sites (UserMenu, EventSearch
 popover, AuditLog popover) open *below* their triggers and stay correct.
-
-## 1.315 Frosted-glass fix: view-transition names on the glass, not the wrapper
-
-The named view-transition groups added to hold the portaled floating bottom
-chrome above the shell footer put their `view-transition-name` on the **Affix
-wrapper** elements (`.c2-control-pill-affix`, `.c2-attendance-bar-affix`,
-`.c2-fab-cluster`). A non-`none` `view-transition-name` makes its element a
-**backdrop root**, so every `backdrop-filter` descendant then sampled only the
-(empty) wrapper interior instead of the page behind it — the frosted surfaces
-rendered as flat translucent blocks with no blur. Affected: the mobile control
-pill on Calendar / Parade State / Contacts (`.c2-glass-surface.c2-control-pill`),
-the Parade attendance mode bar (`.c2-glass-surface.c2-attendance-bar`) and the
-Calendar FAB row (`.c2-period-pill` plus any frosted `.c2-glass-fab`).
-
-Confirmed in-browser: naming an ancestor wrapper kills a descendant's blur;
-naming the element itself keeps it (the shell navbar/footer, which put the name
-on the glass element inline, were never affected — matching the bug report).
-
-**Fix.** The names now ride the glass elements themselves:
-- `.c2-control-pill` → `view-transition-name: c2-control-pill-affix`;
-  `.c2-attendance-bar` → `c2-attendance-bar-affix`.
-- FAB row per-child names (self-named, so blur survives AND the whole row keeps
-  its transition z-order): `.c2-period-pill` → `c2-fab-step`; the dashboard's
-  Quick-links / New-event solid pills get `c2-fab-link` / `c2-fab-create`
-  classes; generic `FloatingToolbar` `.c2-glass-fab` children are named by
-  position (`c2-fab-1…4` via `:nth-child`). `::view-transition-group(...)`
-  holds all of them at `z-index: 110` (attendance bar 120), no animation.
-- The dead `c2-control-pill-affix` / `c2-attendance-bar-affix` Affix classes are
-  removed from the three `mobilePill` Affixes and the attendance-bar Affix.
-
-No schema change. Docs: `docs/dashboard-views.md` 1.1,
-`docs/loading-transitions.md` 1.14.

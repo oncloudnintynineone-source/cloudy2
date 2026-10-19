@@ -62,8 +62,6 @@ function TickerIndicatorPreview({ value }: { value: PinnedTickerIndicator }) {
 /** A composite mock of the translucent surfaces — a frosted chrome row with the
  *  date-nav buttons and the mobile bottom cluster (`[<|>][LINK][CREATE]`) —
  *  over a two-tone checker, so the selected opacity is visible before saving.
- *  The Quick links / New event mocks carry `c2-glass-btn--solid` exactly like the
- *  real buttons, so they stay opaque at every level.
  *  `aria-hidden`: the preview is illustrative, not interactive. */
 function TranslucencyPreview({ value }: { value: TranslucencyLevel }) {
   return (
@@ -72,19 +70,19 @@ function TranslucencyPreview({ value }: { value: TranslucencyLevel }) {
         <span className={`c2-glass-preview-btn c2-glass-btn c2-glass--${value}`} />
         <span className={`c2-glass-preview-btn c2-glass-btn c2-glass--${value}`} />
         <span
-          className="c2-glass-preview-btn c2-glass-btn c2-glass-btn--solid c2-glass-fab--accent"
+          className={`c2-glass-preview-btn c2-glass-btn c2-glass--${value} c2-glass-fab--accent`}
         />
         <span
-          className="c2-glass-preview-btn c2-glass-btn c2-glass-btn--solid c2-glass-fab--brand"
+          className={`c2-glass-preview-btn c2-glass-btn c2-glass--${value} c2-glass-fab--brand`}
         />
       </div>
       <div className="c2-glass-preview-fabs">
         <span className={`c2-glass-preview-fab c2-glass-fab c2-glass--${value}`} />
         <span
-          className="c2-glass-preview-fab c2-glass-fab c2-glass-btn--solid c2-glass-fab--accent"
+          className={`c2-glass-preview-fab c2-glass-fab c2-glass--${value} c2-glass-fab--accent`}
         />
         <span
-          className="c2-glass-preview-fab c2-glass-fab c2-glass-btn--solid c2-glass-fab--brand"
+          className={`c2-glass-preview-fab c2-glass-fab c2-glass--${value} c2-glass-fab--brand`}
         />
       </div>
     </div>

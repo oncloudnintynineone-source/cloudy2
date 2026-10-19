@@ -1025,7 +1025,7 @@ export function EventForm({
     showActionPill({
       title: savedTitle,
       label: "View event",
-      variant: variant === "pillRestyle" ? "glassPill" : "default",
+      variant: variant === "pillRestyle" ? "toast" : "default",
       onAction: () => onViewSaved?.(eventId),
     });
   };

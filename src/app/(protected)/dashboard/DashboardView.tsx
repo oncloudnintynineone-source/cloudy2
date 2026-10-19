@@ -850,6 +850,8 @@ function DashboardViewMenuItem({
   );
 }
 
+const ONE_SHOT_PARAMS = ["refresh", "edit", "event", "_eventCal"];
+
 function DashboardViewImpl({
   month,
   date,
@@ -900,7 +902,22 @@ function DashboardViewImpl({
   // DashboardScreen, which revalidates in place. Mutations call `revalidate()`
   // instead of `router.refresh()` (which no longer carries data), and a
   // context-change fetch drives the grid skeleton via `isNavigating`.
-  const { revalidate, isNavigating, setPreviewView, applyViewTab } = useDashboardData();
+  const {
+    revalidate,
+    isNavigating,
+    setPreviewView,
+    reportNavigationPending,
+    applyViewTab,
+  } = useDashboardData();
+  const navigationTransitionSeenRef = useRef(false);
+  useEffect(() => {
+    if (isPending) {
+      navigationTransitionSeenRef.current = true;
+    } else if (navigationTransitionSeenRef.current) {
+      navigationTransitionSeenRef.current = false;
+      reportNavigationPending(false);
+    }
+  }, [isPending, reportNavigationPending]);
   // The active tab's renderer kind (Month/Week (H)/…). Booleans, the skeleton
   // chain and the period label key off this exactly like the old `view` prop.
   const view: ViewMode = activeView.kind;
@@ -2271,9 +2288,21 @@ function DashboardViewImpl({
   // `--c2-zoom-anim`), animated by `animateZoom` in step with the scroll; the
   // same expression drives the pinned weekday strip (MonthWeekdayStrip).
 
+  // Soft dashboard navigations should never carry one-shot params: they mint a
+  // unique cache key, block tab prefetch, and can make a later action snap back
+  // to the previous URL state. The modal strip effects still handle the initial
+  // deep-link cleanup; this keeps every subsequent href clean.
   const buildParams = useCallback(
     (updates: Record<string, string | null>) => {
       const params = new URLSearchParams(searchParams.toString());
+      for (const key of ONE_SHOT_PARAMS) {
+        params.delete(key);
+      }
+      // Preserve an optimistic tab tap when a date/month navigation is issued
+      // before the tab URL has committed.
+      if (updates.view === undefined && shownTabId !== activeView.id) {
+        params.set("view", shownTabId);
+      }
       for (const [key, value] of Object.entries(updates)) {
         if (value === null || value === "") {
           params.delete(key);
@@ -2283,7 +2312,7 @@ function DashboardViewImpl({
       }
       return params;
     },
-    [searchParams],
+    [searchParams, shownTabId, activeView.id],
   );
 
   const buildHref = useCallback(
@@ -2305,11 +2334,12 @@ function DashboardViewImpl({
       if (plainHref === currentHref) {
         return;
       }
+      reportNavigationPending(true);
       startTransition(() => {
         router.push(plainHref);
       });
     },
-    [buildHref, router, startTransition, pathname, searchParams],
+    [buildHref, router, startTransition, pathname, searchParams, reportNavigationPending],
   );
 
   // A data-neutral URL update — an in-month day/week move. A plain push, never a
@@ -2333,14 +2363,11 @@ function DashboardViewImpl({
   // Warm the client-router cache for every tab's target URL, so a tap's
   // `router.push` is served instantly (and `useSearchParams` catches up, letting
   // the optimistic preview clear). The data itself is already warm from the
-  // preload; this only warms the route. Skipped while a one-shot deep-link
-  // param is in the URL (its href is never a real cache key). Best-effort.
+  // preload; this only warms the route. `buildParams` strips one-shot params, so
+  // a deep-link URL still produces clean prefetch targets. Best-effort.
   const prefetchedHrefsRef = useRef("");
   useEffect(() => {
     if (typeof navigator !== "undefined" && navigator.onLine === false) return;
-    if (searchParams.has("event") || searchParams.has("edit") || searchParams.has("refresh")) {
-      return;
-    }
     const hrefs: string[] = [];
     for (const tab of tabs) {
       if (tab.id === activeView.id) {
@@ -3329,27 +3356,11 @@ function DashboardViewImpl({
       >
         <IconChevronRight size={18} />
       </ActionIcon>
-      {/* Event search: the calendar page owns the trigger (the header no longer
-          carries one). Same 36px squircle family as the period chevrons, parked
-          right beside "New event"; it opens the shell-owned modal, zooming out
-          of this button. */}
-      <ActionIcon
-        size={36}
-        variant="default"
-        className="c2-glass-btn"
-        aria-label="Search events"
-        title="Search events"
-        onPointerEnter={searchPanel.preloadSearch}
-        onFocus={searchPanel.preloadSearch}
-        onClick={(e) => searchPanel.openSearch(e.currentTarget.getBoundingClientRect())}
-      >
-        <IconSearch size={18} />
-      </ActionIcon>
       {/* Desktop: the "New event" FAB lives in the nav row instead of the
           bottom corner (the FAB is hidden at lg, below). */}
       <Button
         visibleFrom="lg"
-        className="c2-glass-btn c2-glass-btn--solid c2-glass-fab--brand c2-glass-btn--bordered"
+        className="c2-glass-btn c2-glass-fab--brand"
         __vars={{ "--button-height": "36px" }}
         leftSection={<IconPlus size={16} />}
         disabled={!googleConfigured}
@@ -3374,7 +3385,7 @@ function DashboardViewImpl({
               visibleFrom="lg"
               variant="light"
               color="accent"
-              className="c2-glass-btn c2-glass-btn--solid c2-glass-fab--accent c2-glass-btn--bordered"
+              className="c2-glass-btn c2-glass-fab--accent"
               __vars={{ "--button-height": "36px" }}
               leftSection={<IconLink size={16} />}
               aria-label="Quick links"
@@ -3454,11 +3465,7 @@ function DashboardViewImpl({
   // (bottomChromeHeight) feeds the FAB offset and the page pads so the last
   // content row clears the whole stack.
   const mobilePill = (
-    <Affix
-      hiddenFrom="lg"
-      position={{ bottom: pillBottomOffset, left: 16, right: 16 }}
-      zIndex={110}
-    >
+    <Affix hiddenFrom="lg" position={{ bottom: pillBottomOffset, left: 16, right: 16 }} zIndex={100}>
       <Box ref={bottomBarRef} className="c2-glass-surface c2-control-pill">
         <Group align="center" gap="xs" wrap="nowrap">
           <Text
@@ -3470,9 +3477,9 @@ function DashboardViewImpl({
           >
             {periodLabel}
           </Text>
-          {/* Search rides the pill (left of the filter circle) below `lg` — the
-              calendar page is the only place search is reachable; tapping opens
-              the shell-owned modal from this circle. */}
+          {/* Search rides the pill (left of the filter circle) below `lg` —
+              the header search icon hides on the calendar at this width, and
+              tapping opens the shell-owned modal from this circle. */}
           <ActionIcon
             radius="50%"
             size={36}
@@ -3480,8 +3487,6 @@ function DashboardViewImpl({
             className="c2-glass-btn"
             aria-label="Search events"
             title="Search events"
-            onPointerEnter={searchPanel.preloadSearch}
-            onFocus={searchPanel.preloadSearch}
             onClick={(e) =>
               searchPanel.openSearch(e.currentTarget.getBoundingClientRect())
             }
@@ -5047,13 +5052,12 @@ function DashboardViewImpl({
         // Affix portals to <body>, so a wrapper element could not hide it. The
         // row floats right-anchored above the control pill: the period-step
         // chevrons `[< | >]` pill left, then the amber Quick-links **pill
-        // button** (`c2-glass-fab--accent` + `c2-glass-btn--solid`) when the org
-        // has links, and the New-event **pill button** (`c2-glass-fab--brand` +
-        // `c2-glass-btn--solid` — the same solid brand-blue as the lg nav-row
-        // button) parked on the right. Both are opaque at every
-        // `translucencyLevel`, and every pill carries `c2-glass-btn--bordered`
-        // (the grey hairline ring that matches the pill containers) and matches
-        // the control pill's measured height.
+        // button** (`c2-glass-fab--accent`) when the org has links, and the
+        // New-event **pill button** (`c2-glass-fab--brand` — the same
+        // brand-blue tint as the lg nav-row button) parked on the right. Every
+        // pill carries `c2-glass-btn--bordered` (the grey hairline ring that
+        // matches the pill containers) and matches the control pill's measured
+        // height.
         <FloatingToolbar hiddenFrom="lg" bottomOffset={fabBottomOffset}>
           <Box ref={fabStackRef} style={{ display: "flex", gap: "var(--mantine-spacing-xs)", alignItems: "center" }}>
             <Box
@@ -5102,7 +5106,7 @@ function DashboardViewImpl({
                 position="top-end"
                 trigger={
                   <Button
-                    className="c2-fab-link c2-glass-btn c2-glass-btn--solid c2-glass-fab--accent c2-glass-btn--bordered"
+                    className="c2-glass-btn c2-glass-fab--accent c2-glass-btn--bordered"
                     aria-label="Quick links"
                     radius="999px"
                     w={56}
@@ -5114,7 +5118,7 @@ function DashboardViewImpl({
               />
             )}
             <Button
-              className="c2-fab-create c2-glass-btn c2-glass-btn--solid c2-glass-fab--brand c2-glass-btn--bordered"
+              className="c2-glass-btn c2-glass-fab--brand c2-glass-btn--bordered"
               aria-label="New event"
               radius="999px"
               w={56}

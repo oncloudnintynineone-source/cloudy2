@@ -129,43 +129,6 @@ html {
   animation: none;
 }
 
-/*
-  Floating bottom controls are portaled to <body>, so without a name they sit
-  in the root view-transition group and their element z-index cannot lift them
-  above the named shell-footer group during route transitions. Give them their
-  own groups, above the bottom nav.
-
-  CRITICAL: a `view-transition-name` must ride the **glass element itself**,
-  never an Affix wrapper that merely contains it. A non-`none`
-  `view-transition-name` makes its element a backdrop root, so a named ancestor
-  starves every `backdrop-filter` descendant of its real backdrop — the frosted
-  pill/buttons then render as a flat translucent block. So `.c2-control-pill` /
-  `.c2-attendance-bar` carry their group names directly (below), and the FAB
-  row names each glass child individually (`c2-fab-*`, below) rather than
-  naming the `.c2-fab-cluster` Affix root. Keep each group unanimated so the
-  glass controls' own entrance animations remain the backdrop-filter root.
-*/
-/* Control-pill / attendance-bar group names live on the glass elements:
-   `.c2-control-pill` and `.c2-attendance-bar` (see their rules below). The FAB
-   row's per-child names (`c2-fab-step`, `c2-fab-link`, `c2-fab-create`,
-   `c2-fab-1…4`) are declared with their element rules too. */
-::view-transition-group(c2-control-pill-affix),
-::view-transition-group(c2-fab-step),
-::view-transition-group(c2-fab-link),
-::view-transition-group(c2-fab-create),
-::view-transition-group(c2-fab-1),
-::view-transition-group(c2-fab-2),
-::view-transition-group(c2-fab-3),
-::view-transition-group(c2-fab-4) {
-  animation: none;
-  z-index: 110;
-}
-
-::view-transition-group(c2-attendance-bar-affix) {
-  animation: none;
-  z-index: 120;
-}
-
 /* Let clicks reach the live page while the transition overlay is up. */
 ::view-transition {
   pointer-events: none;
@@ -1054,10 +1017,9 @@ html {
   beats Mantine's runtime-injected variant background/colour/border rules. Tints
   preserve each surface's colour language: neutral surfaces keep the body tone,
   amber Quick links (`--accent`), brand-blue New event (`--brand`); the
-   **standalone** round FABs (`--accent` / `--brand` / `--teal` without
-   `.c2-glass-btn`) are **solid**, so their colour reads at full strength over any
-   content, and so are the dashboard's Quick links / New event pills
-   (`c2-glass-btn--solid`); every other glass button keeps the frosted tint.
+  **standalone** round FABs (`--accent` / `--brand` / `--teal` without
+  `.c2-glass-btn`) are **solid**, so their colour reads at full strength over any
+  content, while the dashboard's glass buttons keep the frosted tint.
   The backdrop blur lets the content read through, while the blur + shadow keep
   the controls legible over any content. No border: the frosted edge is carried
   by   the shadow alone (a hard ring read as an off outline, especially in dark
@@ -1065,14 +1027,12 @@ html {
   floating buttons that must match the floating pill containers' edge.
 
   The opacity is admin-adjustable via the `translucencyLevel` feature flag: the
-  `[data-c2-glass]` attribute (on <html>) or the explicit `.c2-glass--{verySubtle|
-  subtle|medium|strong}` modifier sets the `--c2g-*` alphas, which the neutral visual
+  `[data-c2-glass]` attribute (on <html>) or the explicit `.c2-glass--{subtle|
+  medium|strong}` modifier sets the `--c2g-*` alphas, which the neutral visual
   rules below consume. The base rules carry the `medium` defaults, so an
   unmatched level still renders medium rather than solid. Medium is the shipped
-  look; Very subtle is the most see-through, Subtle more see-through, Strong nearly
-  solid. Low-end devices fall back to tint only. The header, overlays and the
-  standalone round FABs are opaque (see above), as are the Quick links / New event
-  pills (`c2-glass-btn--solid`), which ignore the level entirely.
+  look; Subtle is more see-through, Strong nearly solid. Low-end devices fall
+  back to tint only. Only the standalone round FABs are opaque (see above).
 */
 /* Token base (the `medium` defaults). The level modifiers below override the
    alphas; the low-end tier switches `--c2g-blur` off entirely (tint only). */
@@ -1129,11 +1089,6 @@ html {
   border: 1px solid var(--mantine-color-default-border);
   box-shadow: var(--mantine-shadow-md);
   padding: 6px 10px;
-  /* Group name on the glass element itself (never the Affix wrapper — see the
-     view-transition note at the top of the file), so route-change transitions
-     hold the pill above the named `c2-shell-footer` group without starving its
-     `backdrop-filter`. */
-  view-transition-name: c2-control-pill-affix;
   /* Below `lg` this full-width pill floats over the Week (Grid) viewport, which
      runs flush to the bottom nav (`weekgrid-page-pad`) — so its frosted band
      must not swallow taps on the grid content beneath it. The surface passes
@@ -1147,9 +1102,9 @@ html {
   pointer-events: auto;
 }
 
-/* Keyboard-driven lift (Contacts): while the OS keyboard is up the Affix root
-   moves to sit just above its top edge (inset measured from the visual
-   viewport); this transition rides that `bottom` change both ways. */
+/* Focus-triggered lift (Contacts): while the pill's search field holds focus
+   the OS keyboard covers the bottom of the screen, so the Affix root moves to
+   mid-viewport; this transition rides that `bottom` change both ways. */
 .c2-pill-lift {
   transition: bottom 260ms ease;
 }
@@ -1159,45 +1114,6 @@ html {
   border: 1px solid var(--mantine-color-default-border);
   box-shadow: var(--mantine-shadow-md);
   padding: 0 4px;
-  /* Group name on the glass step pill itself (never the FAB Affix wrapper). */
-  view-transition-name: c2-fab-step;
-}
-
-/* Attendance mode bar (Parade State): group name on the glass bar itself. */
-.c2-attendance-bar {
-  view-transition-name: c2-attendance-bar-affix;
-}
-
-/* Per-child view-transition names for the mobile FAB row's two solid pills
-   (dashboard), so the whole row is held above the shell footer during route
-   transitions. Names ride the buttons themselves, never the Affix wrapper —
-   a name on the wrapper would be a backdrop root and kill the child frost. */
-.c2-fab-link {
-  view-transition-name: c2-fab-link;
-}
-
-.c2-fab-create {
-  view-transition-name: c2-fab-create;
-}
-
-/* Generic FloatingToolbar FABs (settings tables, etc.): name each `.c2-glass-fab`
-   by its position in the cluster. The dashboard FAB row nests its children in a
-   plain Box (not a `.c2-glass-fab`), so its step/link/create elements are named
-   above instead; the desktop minimized-draft FAB matches position 1. */
-.c2-fab-cluster .c2-glass-fab:nth-child(1) {
-  view-transition-name: c2-fab-1;
-}
-
-.c2-fab-cluster .c2-glass-fab:nth-child(2) {
-  view-transition-name: c2-fab-2;
-}
-
-.c2-fab-cluster .c2-glass-fab:nth-child(3) {
-  view-transition-name: c2-fab-3;
-}
-
-.c2-fab-cluster .c2-glass-fab:nth-child(4) {
-  view-transition-name: c2-fab-4;
 }
 
 .c2-glass-fab {
@@ -1244,13 +1160,6 @@ html {
    !important beats that rule's transparent border. */
 .c2-glass-btn--bordered {
   border: 1px solid var(--mantine-color-default-border) !important;
-}
-
-/* The mobile FAB row's create + quick-links pills float over the grid rather
-   than sit inside the pinned chrome, so they get a deeper lift than the nav-row
-   buttons that share the same hairline ring. */
-.c2-fab-cluster .c2-glass-btn--bordered {
-  box-shadow: var(--mantine-shadow-lg) !important;
 }
 
 .c2-glass-fab:hover,
@@ -1379,45 +1288,6 @@ html {
 
 .c2-glass-fab--teal:not(.c2-glass-btn):active {
   background: #097b5a !important;
-}
-
-/* Opt-in: fully opaque action pills. The dashboard's Quick links and New event
-   buttons (lg nav row and the mobile FAB row alike) read at a slightly softened
-   brand/amber strength at every screen size and every `translucencyLevel` — no
-   tint, no backdrop blur: `accent-5` / `brand-6` with one step lighter on hover
-   and one step darker on active. Declared after the tint rules, so the
-   equal-specificity `!important` wins on source order and the `:hover` /
-   `:active` forms outrank `.c2-glass-fab--accent` / `--brand` by their extra
-   class. */
-.c2-glass-btn--solid {
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
-}
-
-.c2-glass-btn--solid.c2-glass-fab--accent {
-  background: var(--mantine-color-accent-5) !important;
-  color: var(--mantine-color-accent-9) !important;
-}
-
-.c2-glass-btn--solid.c2-glass-fab--accent:hover {
-  background: var(--mantine-color-accent-4) !important;
-}
-
-.c2-glass-btn--solid.c2-glass-fab--accent:active {
-  background: var(--mantine-color-accent-6) !important;
-}
-
-.c2-glass-btn--solid.c2-glass-fab--brand {
-  background: var(--mantine-color-brand-6) !important;
-  color: var(--mantine-color-white) !important;
-}
-
-.c2-glass-btn--solid.c2-glass-fab--brand:hover {
-  background: var(--mantine-color-brand-5) !important;
-}
-
-.c2-glass-btn--solid.c2-glass-fab--brand:active {
-  background: var(--mantine-color-brand-7) !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1557,20 +1427,6 @@ html {
    `.c2-glass--*` classes are the explicit form the Settings preview uses.
    Placed after the base rules so a single class wins;
    Medium equals the base defaults above. */
-[data-c2-glass="verySubtle"],
-.c2-glass--verySubtle {
-  --c2g-base-l: 0.3;
-  --c2g-base-d: 0.26;
-  --c2g-hover-l: 0.42;
-  --c2g-hover-d: 0.36;
-  --c2g-active-l: 0.55;
-  --c2g-active-d: 0.48;
-  --c2g-accent-l: 0.16;
-  --c2g-accent-d: 0.11;
-  --c2g-brand-l: 0.5;
-  --c2g-brand-d: 0.42;
-}
-
 [data-c2-glass="subtle"],
 .c2-glass--subtle {
   --c2g-base-l: 0.45;
@@ -2087,12 +1943,17 @@ html {
   }
 }
 
-/* Double Booking admin target picker (docs/user-clashes.md §1.8): full column
-   width on mobile and content-sized from the 40em desktop band on. */
+/* Double Booking page header (docs/user-clashes.md §1.8): the title + admin
+   target picker stack on mobile (picker full column width) and split into a
+   title-left / content-sized picker-right row from the 40em desktop band on. */
 .c2-db-head {
   display: flex;
   flex-direction: column;
   gap: var(--mantine-spacing-sm);
+}
+
+.c2-db-title {
+  min-width: 0;
 }
 
 .c2-db-picker {
@@ -2105,6 +1966,10 @@ html {
     justify-content: space-between;
     align-items: flex-end;
     gap: var(--mantine-spacing-md);
+  }
+
+  .c2-db-title {
+    flex: 1 1 auto;
   }
 
   /* The admin target control is content-sized (a "Select" button + optional
@@ -2376,10 +2241,6 @@ html {
   transition runs the full `--c2-pill-duration`, so a "empty" countdown drains
   in step with the auto-dismiss timer and a "fill" growth completes exactly
   when the fill is full.
-
-  The `glassPill` variant (Settings → Feature Flags → Saved-event confirmation,
-  "Restyled pill") drops the sweep and renders as a frosted confirmation styled
-  like the calendar page's bottom control pill — see the `--glass` rules below.
 */
 .c2-action-pill-host {
   position: fixed;
@@ -2455,93 +2316,58 @@ html {
   color: var(--c2-pill-dark);
 }
 
-/* "glassPill" variant: a confirmation styled like the calendar page's bottom
-   control pill — a frosted surface (brand-blue tinted, so it reads over the
-   near-white grid instead of blending), a hairline edge and the floating shadow,
-   sitting bottom-center above the bottom nav. No two-tone sweep: the body button
-   runs the action ("View event") and a circular close button anchored to the
-   right only dismisses. The host carries no transform so the pill's
-   `backdrop-filter` keeps its frost (see the FAB-cluster note above); its buttons
-   re-enable pointer events. */
-.c2-action-pill-host--glass {
+/* "toast" variant: a confirmation read, not a countdown. Light surface + border
+   (no two-tone sweep), a green success rail, single-line copy with the action
+   verb in the pill's dark color. The host nests into the notification corners
+   — top-center on mobile, bottom-right on desktop — instead of bottom-center,
+   so the pill sits where users expect toast feedback (Notifications' own
+   positions, AppProviders.tsx). */
+.c2-action-pill-host--toast {
+  top: calc(var(--mantine-spacing-sm) + env(safe-area-inset-top));
+  bottom: auto;
+}
+
+.c2-action-pill--toast {
+  background: var(--mantine-color-body);
+  color: var(--mantine-color-text);
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-md);
+}
+
+/* Success rail on the leading edge. */
+.c2-action-pill--toast::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
   left: 0;
-  right: 0;
-  transform: none;
-  display: flex;
-  justify-content: center;
-  /* The base host's `max-width` + `left/right:0` would left-anchor the pill
-     (off-center); drop it and pad instead, so `justify-content: center` gives
-     exact bottom-center placement. `.c2-action-pill`'s own `max-width: 100%`
-     still guards overflow. */
-  max-width: none;
-  padding: 0 var(--mantine-spacing-md);
-  box-sizing: border-box;
-  pointer-events: none;
+  width: calc(0.25rem * var(--mantine-scale));
+  background: var(--mantine-color-green-6);
 }
 
-.c2-action-pill--glass {
-  /* Brand-blue frosted tint — overrides `.c2-glass-surface`'s neutral body-tint
-     by source order (both `!important`), so the confirmation reads clearly over
-     the near-white calendar grid instead of blending into it. The level-aware
-     brand alpha feeds the tint; the `max()` floor holds white copy legible even
-     at Very subtle, where that alpha drops to 0.50. */
-  background: light-dark(
-    rgba(13, 71, 161, max(var(--c2g-brand-l), 0.78)),
-    rgba(13, 71, 161, max(var(--c2g-brand-d), 0.55))
-  ) !important;
-  color: var(--mantine-color-white);
-  border: 1px solid light-dark(rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.18));
-  border-radius: 999px;
-  box-shadow: var(--mantine-shadow-md);
-  /* Roomier than the base pill: 36px close + 16px vertical padding = 52px. */
-  min-height: 52px;
-  padding: 8px 10px 8px 16px;
-  justify-content: space-between;
-  /* Let the circular close button's lift shadow escape the pill (the radius
-     still clips the background). */
-  overflow: visible;
-  pointer-events: auto;
-}
-
-.c2-action-pill--glass .c2-action-pill-body {
-  flex: 1 1 auto;
-  background: transparent;
-  border: none;
-  border-radius: 999px;
-  color: inherit;
-  cursor: pointer;
-  /* Nudge the copy clear of the rounded edge so the hover wash reads. */
-  padding: 0 8px;
-  font-family: inherit;
-  /* Cross-fade the hover wash like the calendar glass buttons. */
-  transition: background-color var(--c2-dur-micro) ease;
-}
-
-.c2-action-pill--glass .c2-action-pill-body:hover {
-  background: rgba(255, 255, 255, 0.12);
-}
-
-.c2-action-pill--glass .c2-action-pill-body:focus-visible {
-  outline: 2px solid var(--mantine-color-accent-3);
-  outline-offset: 2px;
-}
-
-.c2-action-pill--glass .c2-action-pill-copy {
+.c2-action-pill--toast .c2-action-pill-copy {
   flex-direction: row;
   gap: var(--mantine-spacing-sm);
-  padding: 0;
-  text-align: left;
+  padding: var(--mantine-spacing-xs) var(--mantine-spacing-md);
 }
 
-.c2-action-pill--glass .c2-action-pill-title {
+.c2-action-pill--toast .c2-action-pill-title {
   font-size: var(--mantine-font-size-sm);
-  font-weight: var(--mantine-font-weight-semibold);
   opacity: 1;
 }
 
-.c2-action-pill--glass .c2-action-pill-label {
-  font-size: var(--mantine-font-size-sm);
-  color: var(--mantine-color-accent-3);
+.c2-action-pill--toast .c2-action-pill-label {
+  color: var(--c2-pill-dark);
+}
+
+@media (min-width: 40em) {
+  .c2-action-pill-host--toast {
+    top: auto;
+    bottom: var(--app-floating-bottom-offset);
+    right: 16px;
+    left: auto;
+    transform: none;
+  }
 }
 
 /* Entrance: quick pop-in from just below the resting spot. */

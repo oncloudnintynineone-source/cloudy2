@@ -4,6 +4,8 @@ import {
   candidateKeyForUrl,
   classifyDashboardFetch,
   planDashboardSwitch,
+  PREVIEW_STALL_MS,
+  previewRevertDelayMs,
   resolveDashboardNavigation,
   type DashboardNavigationInput,
 } from "./navigation";
@@ -83,6 +85,38 @@ describe("candidateKeyForUrl", () => {
     expect(candidateKeyForUrl(record, { view: null, month: "2026-10", date: null })).toBe(
       "tab-1|2026-10",
     );
+  });
+});
+
+describe("previewRevertDelayMs", () => {
+  it("keeps the preview while a router transition is pending", () => {
+    expect(
+      previewRevertDelayMs({
+        previewView: "tab-b",
+        urlView: "tab-a",
+        navigationPending: true,
+      }),
+    ).toBe(PREVIEW_STALL_MS);
+  });
+
+  it("reverts immediately when navigation has ended and the URL still mismatches", () => {
+    expect(
+      previewRevertDelayMs({
+        previewView: "tab-b",
+        urlView: "tab-a",
+        navigationPending: false,
+      }),
+    ).toBe(0);
+  });
+
+  it("does not revert when the URL already matches the preview", () => {
+    expect(
+      previewRevertDelayMs({
+        previewView: "tab-b",
+        urlView: "tab-b",
+        navigationPending: true,
+      }),
+    ).toBeNull();
   });
 });
 

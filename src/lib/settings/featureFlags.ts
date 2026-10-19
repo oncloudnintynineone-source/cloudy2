@@ -77,7 +77,7 @@ export const savedEventToastVariantFlag: FeatureFlagDef<"savedEventToastVariant"
   defaultValue: "pill",
 };
 
-export const TRANSLUCENCY_LEVEL_OPTIONS = ["verySubtle", "subtle", "medium", "strong"] as const;
+export const TRANSLUCENCY_LEVEL_OPTIONS = ["subtle", "medium", "strong"] as const;
 export type TranslucencyLevel = (typeof TRANSLUCENCY_LEVEL_OPTIONS)[number];
 
 export const translucencyLevelFlag: FeatureFlagDef<"translucencyLevel", TranslucencyLevel> = {
@@ -86,14 +86,12 @@ export const translucencyLevelFlag: FeatureFlagDef<"translucencyLevel", Transluc
   description:
     "Frosted-glass transparency of the page's overlapping surfaces — sticky " +
     "calendar chrome, bottom navigation, sidebar, floating controls and buttons. " +
-    "Very subtle is the most see-through, Subtle more see-through, Strong nearly " +
-    "solid (each surface keeps its own colour). The header and overlays (modals, " +
-    "menus, tooltips, toasts) stay opaque, as do the Quick links and New event " +
-    "buttons. Low-end devices fall back to a tint without blur. Toggle to compare " +
+    "Subtle is more see-through, Strong is nearly solid (each surface keeps its " +
+    "own colour). The header and overlays (modals, menus, tooltips, toasts) stay " +
+    "opaque. Low-end devices fall back to a tint without blur. Toggle to compare " +
     "the levels live, then keep the one you want.",
   options: TRANSLUCENCY_LEVEL_OPTIONS,
   optionLabels: {
-    verySubtle: "Very subtle",
     subtle: "Subtle",
     medium: "Medium",
     strong: "Strong",

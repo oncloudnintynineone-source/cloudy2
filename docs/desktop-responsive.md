@@ -219,9 +219,8 @@ viewport edges**) bottom-most with the period label left + circular
 filter/date/view-menu/fullscreen buttons right, and above it the
 **right-anchored FAB row** — the `[< | >]` **step pill** (`.c2-period-pill`,
 height matched to the control pill's), the **Quick-links pill button**
-(`c2-glass-fab--accent` + `c2-glass-btn--solid`, amber), and the **New-event pill button**
-(`c2-glass-btn` + `c2-glass-fab--brand` + `c2-glass-btn--solid`, solid brand-blue
-like the lg nav-row button),
+(`c2-glass-fab--accent`, amber), and the **New-event pill button**
+(`c2-glass-btn` + `c2-glass-fab--brand`, brand-blue like the lg nav-row button),
 both with the `c2-glass-btn--bordered` grey ring
 (`dashboard-views.md` §1.1).
 Below `lg` the tab strip row is **dropped** (a full row of chrome) and the pill

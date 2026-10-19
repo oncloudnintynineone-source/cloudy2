@@ -29,6 +29,7 @@ import {
 import {
   candidateKeyForUrl,
   classifyDashboardFetch,
+  previewRevertDelayMs,
   resolveDashboardNavigation,
 } from "@/lib/dashboard/navigation";
 import { isUuid } from "@/lib/uuid";
@@ -62,15 +63,6 @@ interface DashboardScreenProps {
  * and (when nothing is cached to fall back on) shows a retryable error instead.
  */
 const DASHBOARD_LOAD_TIMEOUT_MS = 20_000;
-
-/**
- * How long an optimistic tab tap survives without the URL catching up. The
- * preview is normally cleared the moment `?view=` matches the tapped tab; if
- * the navigation never lands (offline / stalled push) this bounds how long the
- * displayed view can diverge from the URL, so a later action can't silently
- * snap back to the URL's tab. Mirrors `NAV_TAP_REVERT_MS`.
- */
-const PREVIEW_REVERT_MS = 6000;
 
 function inputFromParams(params: URLSearchParams) {
   return {
@@ -189,8 +181,17 @@ export function DashboardScreen({
   // context can move before the URL navigation commits — a warm tab paints
   // instantly instead of waiting on the RSC round-trip that updates
   // `useSearchParams`. Cleared when the URL catches up (see the sync below), or
-  // by a revert timeout if the push never lands.
+  // when the router transition ends without the URL matching.
   const [previewView, setPreviewView] = useState<string | null>(null);
+  // Whether `DashboardView` is currently running a dashboard router transition.
+  // The preview may legitimately lead the URL while this is true.
+  const navigationPendingRef = useRef(false);
+  const [navigationPending, setNavigationPending] = useState(false);
+  const reportNavigationPending = useCallback((pending: boolean) => {
+    if (navigationPendingRef.current === pending) return;
+    navigationPendingRef.current = pending;
+    setNavigationPending(pending);
+  }, []);
 
   const view = searchParams.get("view");
   const month = searchParams.get("month");
@@ -232,14 +233,22 @@ export function DashboardScreen({
   if (previewView !== null && view === previewView) {
     setPreviewView(null);
   }
-  // Revert window: a tap whose navigation never lands must not strand the
+  // Revert rule: a tap whose navigation never lands must not strand the
   // displayed view away from the URL, or a later action (which builds its href
-  // from `searchParams`) would snap back to the URL's tab.
+  // from `searchParams`) would snap back to the URL's tab. While a router
+  // transition is pending, the optimistic tab may legitimately lead the URL;
+  // once it ends without the URL catching up, clear immediately.
   useEffect(() => {
-    if (previewView === null) return;
-    const timer = window.setTimeout(() => setPreviewView(null), PREVIEW_REVERT_MS);
+    const delay = previewRevertDelayMs({
+      previewView,
+      urlView: view,
+      navigationPending,
+    });
+    if (delay === null) return;
+
+    const timer = window.setTimeout(() => setPreviewView(null), delay);
     return () => window.clearTimeout(timer);
-  }, [previewView]);
+  }, [previewView, view, navigationPending]);
 
   useReportActivity(refreshing, "dashboard:refresh");
 
@@ -637,9 +646,10 @@ export function DashboardScreen({
       // around the data fetch.
       isNavigating,
       setPreviewView,
+      reportNavigationPending,
       applyViewTab,
     }),
-    [revalidate, isNavigating, setPreviewView, applyViewTab],
+    [revalidate, isNavigating, setPreviewView, reportNavigationPending, applyViewTab],
   );
 
   // `_eventCal`/`event` are deliberately absent from the request key, so a deep

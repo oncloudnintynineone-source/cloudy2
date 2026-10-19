@@ -240,7 +240,7 @@ response ships — the visible render is never delayed by a stale-entry refresh.
 
 ### 1.5.1 Force refresh (manual, one-shot)
 
-The **header's "Force refresh"** button (immediately left of the profile menu; the ⋮
+The **header's "Force refresh"** button (right of Search, left of the profile menu; the ⋮
 calendar kebab no longer hosts it) bypasses
 the freshness windows and re-fetches fresh data on demand — on every page. It is a **full
 page reload** of the current URL carrying a **one-shot URL nonce** (`?refresh=<epoch-ms>`),

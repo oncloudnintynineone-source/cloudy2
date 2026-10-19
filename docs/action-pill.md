@@ -19,9 +19,9 @@ next" moment (e.g. **View event** after a save, or an undo action).
 - A single `<button type="button">` that floats fixed at the bottom of the viewport.
   The `default` variant sits centered at the bottom edge. On mobile it sits above
   the bottom nav (via `--app-floating-bottom-offset`), on desktop 16px from the
-  edge. The `glassPill` variant also sits bottom-center, but renders as a frosted
-  confirmation styled like the calendar page's bottom control pill (see §1.3). It
-  is rendered from the app root, so it survives route navigations.
+  edge. The `toast` variant instead nests into the notification corners
+  (top-center on mobile, bottom-right on desktop — see §1.3). It is rendered
+  from the app root, so it survives route navigations.
 - Clicking the pill dismisses it and runs the configured `onAction`.
 - Only one pill shows at a time; a new `show(...)` replaces the current one.
 - The pill **stores** `onAction` in provider state, so the callback must not read
@@ -76,7 +76,7 @@ const id = show({
   onAction: () => openDetail(),// runs on click (pill dismisses first)
   duration: 5000,             // ms; default 5000
   direction: "empty",         // "empty" | "fill"; default "empty"
-  variant: "default",         // "default" | "glassPill"; default "default"
+  variant: "default",         // "default" | "toast"; default "default"
   lightColor: "var(--mantine-color-brand-3)", // optional override
   darkColor: "var(--mantine-color-brand-7)",  // optional override
 });
@@ -89,18 +89,13 @@ The `variant` is the presentation, independent of the sweep and the timer:
 - **`"default"`** — the classic two-tone pill: dark body, white copy, light
   sweep (§1.2). Right for *timed/auto* actions where the sweep reads as a
   countdown (the SW-update "Reload", which auto-applies when the fill fills).
-- **`"glassPill"`** — a confirmation styled like the calendar page's bottom
-  control pill: a **brand-blue frosted tint** (so it reads clearly over the
-  near-white calendar grid rather than blending in), a hairline edge and the
-  floating `--mantine-shadow-md`, bottom-center placement, a roomier ~52px
-  height, no sweep fill, and a circular close button anchored to the right. The
-  title is white and the action verb amber (`--mantine-color-accent-3`). The
-  pill body still runs `onAction` (e.g. "View event"); the close button only
-  dismisses. The `"empty"` auto-dismiss timer still runs, just without the
-  visible drain (§ [globals.css](src/app/globals.css)
-  `.c2-action-pill-host--glass` / `.c2-action-pill--glass`). The blue tint is
-  level-aware (the `translucencyLevel` brand alpha) but floored so white copy
-  stays legible at Very subtle.
+- **`"toast"`** — a confirmation, not a countdown: light surface + border,
+  a green success rail, no sweep fill, single-line copy (title + the action
+  verb as plain text in the pill's dark color). The host relocates to the
+  notification corners (top-center on mobile, bottom-right on desktop) so it
+  nests where the app already shows toasts (§ [globals.css](src/app/globals.css)
+  `.c2-action-pill-host--toast` / `.c2-action-pill--toast`). The `"empty"`
+  auto-dismiss timer still runs, just without the visible drain.
 
 ## 1.4 Lifecycle
 
@@ -117,7 +112,7 @@ The `variant` is the presentation, independent of the sweep and the timer:
 
 | File | Role |
 | ---- | ---- |
-| `src/components/ActionPill.tsx` | `ActionPillProvider`, `useActionPill()`, the pill host + view (`variant: "default" \| "glassPill"`) |
+| `src/components/ActionPill.tsx` | `ActionPillProvider`, `useActionPill()`, the pill host + view (`variant: "default" \| "toast"`) |
 | `src/components/AppProviders.tsx` | Mounts `ActionPillProvider` at the app root |
 | `src/app/globals.css` | `.c2-action-pill*` styles, fill clip + motion, `--toast` variant + corner placement |
 | `src/app/(protected)/dashboard/EventForm.tsx` | Post-save confirmation dispatch (`savedEventToastVariant`) |

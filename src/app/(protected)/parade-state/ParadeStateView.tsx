@@ -48,6 +48,7 @@ import {
 import { AgendaSwipeHint } from "@/components/AgendaSwipeHint";
 import { EmptyState } from "@/components/EmptyState";
 import { FilterButton } from "@/components/FilterButton";
+import { PageHeader } from "@/components/PageHeader";
 import { useReportActivity } from "@/components/ActivityBar";
 import { useColdStartContent } from "@/components/ColdStartReady";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
@@ -739,11 +740,7 @@ export function ParadeStateView({
   // attendance buttons, floating at the bottom inset 16px from the viewport
   // edges. The attendance mode bar floats above it (see `mobileAttendanceBar`).
   const mobilePill = (
-    <Affix
-      hiddenFrom="lg"
-      position={{ bottom: "var(--app-floating-bottom-offset)", left: 16, right: 16 }}
-      zIndex={110}
-    >
+    <Affix hiddenFrom="lg" position={{ bottom: "var(--app-floating-bottom-offset)", left: 16, right: 16 }} zIndex={100}>
       <Box className="c2-glass-surface c2-control-pill">
         <Group align="center" gap="xs" wrap="nowrap">
           <Text
@@ -837,7 +834,7 @@ export function ParadeStateView({
     <Affix
       hiddenFrom="lg"
       position={{ bottom: attendanceBarBottomOffset, left: 16, right: 16 }}
-      zIndex={120}
+      zIndex={100}
     >
       <Box
         className={`c2-glass-surface c2-attendance-bar${
@@ -878,6 +875,7 @@ export function ParadeStateView({
         } as CSSProperties
       }
     >
+      <PageHeader title="Parade State" subtitle="Roster whereabouts and attendance, by day." />
       {/* The pinned chrome: at lg+ the day-nav row (+ the attendance mode bar
           when in attendance mode) stuck under the app header as one unit — the
           shared sticky-chrome recipe (docs/dashboard-views.md, SettingsTabs):

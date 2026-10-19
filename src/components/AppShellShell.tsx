@@ -23,6 +23,7 @@ import {
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarLeftExpand,
   IconRefresh,
+  IconSearch,
   IconSettings,
   IconUsersGroup,
 } from "@tabler/icons-react";
@@ -550,11 +551,9 @@ export function AppShellShell({
   // parse, or network wait on the click. It also stays mounted after the first
   // open so the shrink-out animation can play.
   const [searchLoaded, setSearchLoaded] = useState(false);
-  // The search trigger's rect at open time; the modal zooms out of / shrinks into it.
-  // The trigger now lives on the calendar page (the lg+ nav-row squircle or the mobile
-  // control pill), so ⌘/Ctrl-K reuses the rect of the most recently used one.
+  // The search icon's rect at open time; the modal zooms out of / shrinks into it.
   const [searchOriginRect, setSearchOriginRect] = useState<Rect | null>(null);
-  const lastSearchOriginRef = useRef<Rect | null>(null);
+  const searchButtonRef = useRef<HTMLButtonElement>(null);
   const router = useRouter();
 
   // Preload the modal's chunk and, once it lands, mount the modal closed so the
@@ -591,30 +590,32 @@ export function AppShellShell({
     };
   }, [preloadSearchModal]);
 
-  // Open the search modal, growing it out of the tapped trigger (calendar-page
-  // nav-row squircle at lg+, the floating control pill below `lg`). Mounts the
-  // lazy chunk if the preload hasn't landed yet (the dynamic loading fallback
-  // covers that race).
+  // Open the search modal, growing it out of the header button (or the passed
+  // rect). Mounts the lazy chunk if the preload hasn't landed yet (the dynamic
+  // loading fallback covers that race).
   const openSearch = useCallback((originRect: Rect | null) => {
-    const rect = originRect && originRect.width > 0 && originRect.height > 0 ? originRect : null;
-    lastSearchOriginRef.current = rect;
-    setSearchOriginRect(rect);
+    setSearchOriginRect(originRect);
     setSearchLoaded(true);
     setSearchOpen(true);
   }, []);
 
-  // Search triggers live on the calendar page; they open this shell-owned modal
-  // and can warm its chunk on hover/focus through the context provided below.
-  const searchPanelValue: SearchPanelValue = useMemo(
-    () => ({ openSearch, preloadSearch: preloadSearchModal }),
-    [openSearch, preloadSearchModal],
-  );
+  // The calendar page's floating bottom control pill carries its own search
+  // trigger below `lg` (the header icon hides there); it opens this shell-owned
+  // modal through the context provided below.
+  const searchPanelValue: SearchPanelValue = useMemo(() => ({ openSearch }), [openSearch]);
 
   // Desktop keyboard shortcut: ⌘/Ctrl-K opens search from anywhere in the shell.
-  // There is no header trigger anymore, so the zoom origin is the last-used
-  // calendar trigger (or the modal's own center on the first press).
+  // Below `lg` on the calendar the header trigger is `display:none`, so its rect
+  // is zero-sized — pass null there and let the modal zoom from its center.
   useHotkeys([
-    ["mod+K", () => openSearch(lastSearchOriginRef.current), { preventDefault: true }],
+    [
+      "mod+K",
+      () => {
+        const rect = searchButtonRef.current?.getBoundingClientRect() ?? null;
+        openSearch(rect && rect.width > 0 && rect.height > 0 ? rect : null);
+      },
+      { preventDefault: true },
+    ],
   ]);
 
   // The header button's rect at open time: the panel modal zooms out of /
@@ -1211,9 +1212,24 @@ export function AppShellShell({
                   indicator={pinnedTickerIndicator}
                 />
                 <Group gap={isNarrow ? 2 : "xs"} wrap="nowrap">
-                  {/* No search trigger here: event search is launched from the
-                    calendar page (the lg+ nav-row squircle beside New event, or
-                    the floating control pill below `lg`) and via ⌘/Ctrl-K. */}
+                  {/* Below `lg` on the calendar page the pill's own search
+                      circle takes over, so the header icon hides there;
+                      everywhere else (and at lg+) the header trigger stays. */}
+                  <ActionIcon
+                    ref={searchButtonRef}
+                    variant="transparent"
+                    c="white"
+                    size="lg"
+                    hiddenFrom={isDashboard ? "lg" : undefined}
+                    aria-label="Search events"
+                    onPointerEnter={preloadSearchModal}
+                    onFocus={preloadSearchModal}
+                    onPointerDown={preloadSearchModal}
+                    onTouchStart={preloadSearchModal}
+                    onClick={(e) => openSearch(e.currentTarget.getBoundingClientRect())}
+                  >
+                    <IconSearch size={18} />
+                  </ActionIcon>
                   <HeaderRefreshButton
                     onRefresh={handleForceRefresh}
                     disabled={isDashboard && !googleConfigured}

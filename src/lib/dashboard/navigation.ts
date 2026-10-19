@@ -312,6 +312,35 @@ export function resolveDashboardNavigation(input: DashboardNavigationInput): Das
 }
 
 /**
+ * How long an optimistic tab tap may survive while its router transition is
+ * still pending but the URL has not caught up. This is only a safety net for a
+ * transition that never resolves; the normal revert happens as soon as the
+ * transition ends without the URL matching the tapped tab.
+ */
+export const PREVIEW_STALL_MS = 20_000;
+
+/**
+ * Pure revert rule for the optimistic tab preview.
+ *
+ * Returns null when the preview should stay, or a timeout in milliseconds when
+ * it should be cleared. A pending router transition keeps the preview; once the
+ * transition is finished and the URL still disagrees, the preview is dropped
+ * immediately.
+ */
+export function previewRevertDelayMs({
+  previewView,
+  urlView,
+  navigationPending,
+}: {
+  previewView: string | null;
+  urlView: string | null;
+  navigationPending: boolean;
+}): number | null {
+  if (previewView === null || urlView === previewView) return null;
+  return navigationPending ? PREVIEW_STALL_MS : 0;
+}
+
+/**
  * The fetch-decision the URL asks for, given the held record and warm cache:
  * `skip` (covered, warm-fresh, or a pending preview), `swap` (a data-equivalent
  * tab that can be answered by the held record's data without a read — the

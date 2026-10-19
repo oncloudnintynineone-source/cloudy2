@@ -133,7 +133,9 @@ doc content here.
   tab in strip order (the last-viewed tab is not remembered). A tab
   tap is **optimistic**: it sets `previewView` in `DashboardDataContext`, so
   `DashboardScreen` paints a warm tab without waiting on the RSC round-trip that updates
-  `useSearchParams` (each tab's URL is also `router.prefetch`ed). A **+** at the end of the
+  `useSearchParams` (each tab's URL is also `router.prefetch`ed). The preview is
+  transition-aware: it survives while `DashboardView` reports a pending router
+  transition and reverts when that transition ends without the URL catching up. A **+** at the end of the
   tab strip opens the quick Add-view dialog, and the trailing **Manage views** gear (tooltip)
   opens the manage modal — an Add-view button, subtle ↑/↓ reorder, a per-row **Edit** dialog
   (name + type + an **Edit filters…** button that switches to the view and opens its filter
@@ -145,8 +147,7 @@ doc content here.
   buttons right, inset 16px from the viewport edges) bottom-most, with the
   right-anchored FAB row (`[<|>]` step pill + Quick-links **pill button** —
   amber `c2-glass-fab--accent` — + New-event **pill button** —
-  brand-blue `c2-glass-fab--brand`; both `c2-glass-btn--solid`, so they stay opaque
-  at every translucency level, and all `c2-glass-btn--bordered` grey ring
+  brand-blue `c2-glass-fab--brand` tint; all `c2-glass-btn--bordered` grey ring
   and pill-height) floating above it — for thumb reach; pinned
   strips dock under the name strip (`chromeOffset` = `topChromeHeight`),
   bounded grids run flush to the bottom nav, and page pads clear the pill/FAB
@@ -192,11 +193,8 @@ doc content here.
   the wizard's Other settings step). Titles render via the `pinnedHeader` template target
   (panel list: `pinned`). Design: [docs/pinned-events.md](docs/pinned-events.md);
   flags: [docs/feature-flags.md](docs/feature-flags.md).
-- **Event search:** the **calendar page** owns the trigger — the control pill's
-  search circle left of the filter button below `lg`, and a 36px squircle in the
-  nav row immediately left of **New event** at `lg`+ (both via
-  `SearchPanelContext`; ⌘/Ctrl-K also opens it from anywhere in the shell) — and
-  it opens a
+- **Event search:** header icon (calendar page below `lg`: the control pill's
+  search circle left of the filter button, via `SearchPanelContext`) opens a
   **lazy-loaded** (`dynamic` + `ssr: false`) modal
   that free-text searches every department calendar **directly via Google Calendar**
   (`events.list` `q` — bypasses the month cache), rendered in `@mantine/schedule`'s
@@ -344,16 +342,14 @@ doc content here.
   `src/lib/settings/featureFlags.ts` (the last Settings tab auto-renders its control), resolve
   the value server-side and pass it down as a prop. Flags are **global** (no per-user override),
   default to today's behavior, and every flip is audited. Flags: `pinnedTickerIndicator`
-   ([`pinned-events.md`](docs/pinned-events.md) §1.4); `savedEventToastVariant` — the four
-   post-save event-confirmation presentations (classic two-tone pill / restyled **frosted
-   bottom pill** styled like the calendar control pill with a circular close / toast + action /
-   plain toast), resolved into `DashboardSharedConfig` → `EventForm`
-   ([`action-pill.md`](docs/action-pill.md)); and `translucencyLevel` — the app-wide frosted-glass
-   opacity (very subtle / subtle / medium / strong) for the page's overlapping surfaces (sticky
-   calendar chrome, bottom nav, sidebar, floating controls; the header and overlays stay opaque,
-   and the standalone round FABs plus the dashboard's Quick links / New event pills
-   (`c2-glass-btn--solid`) are solid at every level),
-   published on `<html>` as `data-c2-glass` by the shell
+  ([`pinned-events.md`](docs/pinned-events.md) §1.4); `savedEventToastVariant` — the four
+  post-save event-confirmation presentations (classic pill / restyled pill / toast + action /
+  plain toast), resolved into `DashboardSharedConfig` → `EventForm`
+  ([`action-pill.md`](docs/action-pill.md)); and `translucencyLevel` — the app-wide frosted-glass
+  opacity (subtle / medium / strong) for the page's overlapping surfaces (sticky
+  calendar chrome, bottom nav, sidebar, floating controls; the header and overlays stay opaque,
+  and the standalone round FABs are solid while the dashboard's glass buttons stay frosted),
+  published on `<html>` as `data-c2-glass` by the shell
    ([`dashboard-views.md`](docs/dashboard-views.md) §1.1); `reorderDrag` — the
    reorder interaction for the manageable lists ([`reorder.md`](docs/reorder.md));
    and `bottomNavVariant` — the mobile footer's always-scrolling rail tile

@@ -41,6 +41,12 @@ export interface DashboardDataValue {
    */
   setPreviewView: (viewId: string | null) => void;
   /**
+   * Tell the data layer whether a dashboard router transition is currently in
+   * flight. The optimistic tab preview stays while a navigation is pending and
+   * reverts only when the transition ends without the URL catching up.
+   */
+  reportNavigationPending: (pending: boolean) => void;
+  /**
    * Patch one tab's definition (name / kind) in the held snapshot so a Manage-
    * views edit paints instantly, before the authoritative `revalidate()` read
    * lands. A no-op when the tab is unknown to the held record.
