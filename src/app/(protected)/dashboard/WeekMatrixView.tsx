@@ -98,8 +98,8 @@ export interface WeekMatrixViewProps {
   controlsAnchorRef?: RefObject<HTMLDivElement | null>;
   /**
    * The dashboard's right FAB row (below `lg`: `[<|>]` period-step pill +
-   * New-event pill button): clamps the zoom/pan cluster so it never parks
-   * behind it on this document-scrolling matrix.
+   * Quick-links / New-event 56px circles): clamps the zoom/pan cluster so it
+   * never parks behind it on this document-scrolling matrix.
    */
   bottomBarrierRef?: RefObject<HTMLElement | null> | null;
 }

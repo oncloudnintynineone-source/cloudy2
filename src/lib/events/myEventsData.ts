@@ -14,7 +14,7 @@
  * is needed).
  */
 
-import { deletedEventIds, listMyCreatedEvents } from "@/lib/audit/queries";
+import { latestDeleteTimes, latestEventEditTimes, listMyCreatedEvents } from "@/lib/audit/queries";
 import { formatInstantToNaive, monthsInRange } from "@/lib/events/datetime";
 import { createdEventSummary } from "@/lib/events/history";
 import {
@@ -33,8 +33,13 @@ export interface MyEventsData {
   windowStart: string;
   /** Last day of the window (`YYYY-MM-DD`). */
   windowEnd: string;
-  /** Combined live + deleted rows, newest first. */
+  /** Combined live + deleted rows, last-edit first (start-date fallback). */
   rows: MyEventRow[];
+}
+
+/** Naive `YYYY-MM-DD HH:mm` last-edit key (UTC+8 wall clock), null when unknown. */
+function lastEditKey(time: Date | undefined): string | null {
+  return time ? formatInstantToNaive(time).slice(0, 16) : null;
 }
 
 export async function buildMyEventsData(params: {
@@ -59,16 +64,23 @@ export async function buildMyEventsData(params: {
     listMyCreatedEvents(params.userId),
   ]);
 
+  const myLive = live.filter((event) => event.payload.creatorId === params.userId);
+  const liveIds = new Set(
+    myLive.map((event) => event.payload.eventId).filter((id): id is string => id !== null),
+  );
+  const summaries = auditCreates.flatMap((row) => {
+    const summary = createdEventSummary(row.details);
+    return summary === null ? [] : [summary];
+  });
+
+  const [editTimes, deleteTimes] = await Promise.all([
+    latestEventEditTimes([...liveIds]),
+    latestDeleteTimes([...new Set(summaries.map((summary) => summary.eventId))]),
+  ]);
+
   const active: MyEventRow[] = [];
-  const liveIds = new Set<string>();
-  for (const event of live) {
+  for (const event of myLive) {
     const payload = event.payload;
-    if (payload.creatorId !== params.userId) {
-      continue;
-    }
-    if (payload.eventId) {
-      liveIds.add(payload.eventId);
-    }
     const departmentNames = [
       ...new Set(
         payload.inviteeDepartmentIds
@@ -85,21 +97,17 @@ export async function buildMyEventsData(params: {
         todayYear,
       ),
       sortKey: payload.allDay ? `${event.start.slice(0, 10)} 00:00` : event.start.slice(0, 16),
+      editKey: lastEditKey(payload.eventId ? editTimes.get(payload.eventId) : undefined),
       departments: departmentNames,
       deleted: false,
       color: event.color,
     });
   }
 
-  const summaries = auditCreates.flatMap((row) => {
-    const summary = createdEventSummary(row.details);
-    return summary === null ? [] : [summary];
-  });
-  const deletedIds = await deletedEventIds([...new Set(summaries.map((summary) => summary.eventId))]);
-
   const deleted: MyEventRow[] = [];
   for (const summary of summaries) {
-    if (!deletedIds.has(summary.eventId) || liveIds.has(summary.eventId)) {
+    const deleteTime = deleteTimes.get(summary.eventId);
+    if (!deleteTime || liveIds.has(summary.eventId)) {
       continue;
     }
     const startDate = summary.time.slice(0, 10);
@@ -112,6 +120,7 @@ export async function buildMyEventsData(params: {
       title: summary.title ?? "Untitled event",
       time: humanizeMyEventTime(summary.time, todayYear),
       sortKey: auditTimeSortKey(summary.time),
+      editKey: lastEditKey(deleteTime),
       departments: summary.departments,
       deleted: true,
       color: "gray",

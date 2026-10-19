@@ -18,6 +18,7 @@ import {
   isNotNull,
   lte,
   lt,
+  max,
   or,
   sql,
   type SQL,
@@ -349,19 +350,68 @@ export async function listMyCreatedEvents(userId: string): Promise<AuditLog[]> {
     .orderBy(desc(auditLogs.createdAt), desc(auditLogs.id));
 }
 
-/** The subset of `eventIds` that has a recorded `event.delete` row (deleted events). */
-export async function deletedEventIds(eventIds: string[]): Promise<Set<string>> {
+/**
+ * Latest `event.delete` time per logical event id (deleted events). The key set
+ * is exactly the ids that have a recorded delete row; the value is the newest
+ * delete's `created_at` (My Events orders deleted rows by it).
+ */
+export async function latestDeleteTimes(eventIds: string[]): Promise<Map<string, Date>> {
   if (eventIds.length === 0) {
-    return new Set();
+    return new Map();
   }
   const rows = await db
-    .selectDistinct({ eventId: sql<string | null>`${auditLogs.details}->>'eventId'` })
+    .select({
+      eventId: sql<string | null>`${auditLogs.details}->>'eventId'`,
+      latest: max(auditLogs.createdAt),
+    })
     .from(auditLogs)
     .where(
       and(
         eq(auditLogs.action, AUDIT_ACTIONS.eventDelete),
         inArray(sql`${auditLogs.details}->>'eventId'`, eventIds),
       ),
-    );
-  return new Set(rows.map((row) => row.eventId).filter((id): id is string => Boolean(id)));
+    )
+    .groupBy(sql`${auditLogs.details}->>'eventId'`);
+  return toLatestTimes(rows);
+}
+
+/**
+ * Newest recorded audit row per logical event id — the last in-app edit, for
+ * My Events ordering. Matches every `entity_type='calendar'` row carrying
+ * `details.eventId`: the `event.create`/`event.update`/`event.delete` rows
+ * plus `event.participantNotify` side-effect rows, which land in the same
+ * minute as their mutation, so the minute-precision key is unaffected. Reads
+ * no retention window, matching `listMyCreatedEvents` / `latestDeleteTimes`
+ * (rows are purged only by the audit page's on-read rotation).
+ */
+export async function latestEventEditTimes(eventIds: string[]): Promise<Map<string, Date>> {
+  if (eventIds.length === 0) {
+    return new Map();
+  }
+  const rows = await db
+    .select({
+      eventId: sql<string | null>`${auditLogs.details}->>'eventId'`,
+      latest: max(auditLogs.createdAt),
+    })
+    .from(auditLogs)
+    .where(
+      and(
+        eq(auditLogs.entityType, "calendar"),
+        inArray(sql`${auditLogs.details}->>'eventId'`, eventIds),
+      ),
+    )
+    .groupBy(sql`${auditLogs.details}->>'eventId'`);
+  return toLatestTimes(rows);
+}
+
+function toLatestTimes(
+  rows: Array<{ eventId: string | null; latest: Date | null }>,
+): Map<string, Date> {
+  const times = new Map<string, Date>();
+  for (const row of rows) {
+    if (row.eventId && row.latest) {
+      times.set(row.eventId, row.latest);
+    }
+  }
+  return times;
 }

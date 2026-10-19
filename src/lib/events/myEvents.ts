@@ -20,6 +20,8 @@ export interface MyEventRow {
   time: string;
   /** Naive sort key (`YYYY-MM-DD HH:mm`) — the event's start. */
   sortKey: string;
+  /** Naive last-edit key (`YYYY-MM-DD HH:mm`), or null when the event has no audit rows. */
+  editKey: string | null;
   /** Department names the event is tagged on. */
   departments: string[];
   /** True when a later delete row exists for this event. */
@@ -100,11 +102,18 @@ export function humanizeMyEventTime(time: string, todayYear: string): string {
 }
 
 /**
- * Merge the live (active) and audit (deleted) rows into one newest-first list,
- * dropping a deleted row when the same logical event is still live.
+ * Merge the live (active) and audit (deleted) rows into one list ordered by
+ * last edit (newest first), dropping a deleted row when the same logical event
+ * is still live. Rows without an audit-backed `editKey` fall back to their
+ * start (`sortKey`); ties break on start (newest first), then key.
  */
 export function mergeMyEvents(active: MyEventRow[], deleted: MyEventRow[]): MyEventRow[] {
   const liveIds = new Set(active.map((row) => row.eventId).filter((id): id is string => id !== null));
   const deletedOnly = deleted.filter((row) => row.eventId === null || !liveIds.has(row.eventId));
-  return [...active, ...deletedOnly].sort((a, b) => b.sortKey.localeCompare(a.sortKey));
+  return [...active, ...deletedOnly].sort(
+    (a, b) =>
+      (b.editKey ?? b.sortKey).localeCompare(a.editKey ?? a.sortKey) ||
+      b.sortKey.localeCompare(a.sortKey) ||
+      a.key.localeCompare(b.key),
+  );
 }

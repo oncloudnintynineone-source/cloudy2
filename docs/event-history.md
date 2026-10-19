@@ -89,9 +89,10 @@ sequenceDiagram
 
 ## 1.4 My Events page
 
-`/my-events` lists the events the signed-in user organized, newest first, over an
-adjustable **±-months window** (default ±3; `±3 / ±6 / ±12`, selected with the same
-`NoKeyboardSelect` control the KAH Status page uses and reflected in `?range=`).
+`/my-events` lists the events the signed-in user organized, last-edit first
+(newest recorded edit on top), over an adjustable **±-months window** (default ±3;
+`±3 / ±6 / ±12`, selected with the same `NoKeyboardSelect` control the KAH Status
+page uses and reflected in `?range=`).
 It is a **union of two sources** (`buildMyEventsData`,
 `src/lib/events/myEventsData.ts`):
 
@@ -100,15 +101,22 @@ It is a **union of two sources** (`buildMyEventsData`,
   `createdBy`), not just on the audit actor — so this catches events created
   "on behalf of" a user and events older than audit retention.
 - **Deleted** events, from the user's own `event.create` rows that have a paired
-  `event.delete` row (`deletedEventIds`) and are not still live, range-filtered by
-  the leading `YYYY-MM-DD` of the snapshot `time`. Shown with a red **Deleted**
+  `event.delete` row (`latestDeleteTimes`) and are not still live, range-filtered
+  by the leading `YYYY-MM-DD` of the snapshot `time`. Shown with a red **Deleted**
   badge. Because live reads can't see deleted events, this is what makes deleted
   events trackable (within audit retention).
 
-Rows are deduped by group id (live wins) and sorted newest-first
-(`mergeMyEvents`). Each row links to `/event-history/<eventId>`; legacy rows with
-no group id render unlinked. Pagination is `?page=` (page size 20), applied in
-memory since the combined set is bounded by the window + retention.
+Rows are deduped by group id (live wins) and sorted **last-edit first**
+(`mergeMyEvents`): a live row orders by the newest `created_at` of its audit rows
+(`latestEventEditTimes` — every `entity_type='calendar'` row carrying the event
+id, i.e. `event.create`/`event.update`/`event.delete` plus the same-minute
+`event.participantNotify` side-effect rows), a deleted row by its `event.delete`
+time (`latestDeleteTimes`). Rows with no recorded audit
+rows (older than any remaining audit history, or edited directly in Google
+Calendar) fall back to the event's start time; ties break on start (newest first),
+then key. Each row links to `/event-history/<eventId>`; legacy rows with no group
+id render unlinked. Pagination is `?page=` (page size 20), applied in memory since
+the combined set is bounded by the window + retention.
 
 Rows render in the shared one-line row style (the EventSearchModal list recipe,
 `docs/event-search.md`): one bordered container of 1px-separated rows, each a
@@ -120,7 +128,10 @@ always ride a red bar and keep a small inline red
 `21 Aug · 14:00 – 15:30`, year only off the current year, same-month all-day
 spans collapse) while `sortKey` stays the naive `YYYY-MM-DD HH:mm` — live
 all-day rows normalize to `00:00` so live/deleted all-day events interleave
-consistently within a day.
+consistently within a day. The ordering itself uses the row's `editKey` (the
+naive `YYYY-MM-DD HH:mm` of the last recorded edit — the audit row's
+`created_at` formatted in the app's UTC+8) and falls back to `sortKey` when the
+event has no audit history.
 
 ## 1.5 Authorization & privacy
 
@@ -167,7 +178,8 @@ Reads in `src/lib/audit/queries.ts`:
 | -------- | ----- |
 | `listEventHistory(eventId, retentionDays)` | `entity_type='calendar' AND details->>'eventId'=$1` (+ window), `order by created_at asc, id asc` |
 | `listMyCreatedEvents(userId)` | all `action='event.create' AND actor_id=$1`, `order by created_at desc, id desc` (deleted candidates, retention-bounded) |
-| `deletedEventIds(eventIds)` | distinct `details->>'eventId'` from `action='event.delete'` for the given ids |
+| `latestDeleteTimes(eventIds)` | `max(created_at)` per `details->>'eventId'` from `action='event.delete'` for the given ids (key set = deleted ids) |
+| `latestEventEditTimes(eventIds)` | `max(created_at)` per `details->>'eventId'` from `entity_type='calendar'` for the given ids — every calendar row with the event id (create/update/delete + same-minute `event.participantNotify` side-effects); last in-app edit; no retention window, like its siblings |
 
 `buildMyEventsData` (`src/lib/events/myEventsData.ts`) combines the live
 `fetchRangeEvents` read (organizer = the user) with those audit reads into one
@@ -220,7 +232,7 @@ functions, `buildMyEventsData`, both route pages, and the client views.
 | `src/app/(protected)/my-events/MyEventsView.tsx` | Client view + range selector + pagination |
 | `src/components/AuditDetails.tsx` | Shared `details` renderer (audit log + history) |
 | `src/app/(protected)/dashboard/EventDetail.tsx` | The standalone History button |
-| `src/lib/audit/queries.ts` | `listEventHistory`, `listMyCreatedEvents`, `deletedEventIds` |
+| `src/lib/audit/queries.ts` | `listEventHistory`, `listMyCreatedEvents`, `latestDeleteTimes`, `latestEventEditTimes` |
 | `src/lib/events/myEventsData.ts` | My Events union builder (live + audit) |
 | `src/lib/events/history.ts` | Pure snapshot parsers (unit-tested) |
 | `src/lib/events/myEvents.ts` / `myEventsRange.ts` | Pure list shaping + window helpers (unit-tested) |

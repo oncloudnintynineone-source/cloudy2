@@ -218,11 +218,11 @@ a frosted **control pill** (`.c2-control-pill`, an Affix inset **16px from the
 viewport edges**) bottom-most with the period label left + circular
 filter/date/view-menu/fullscreen buttons right, and above it the
 **right-anchored FAB row** — the `[< | >]` **step pill** (`.c2-period-pill`,
-height matched to the control pill's), the **Quick-links pill button**
-(`c2-glass-fab--accent`, amber), and the **New-event pill button**
+sized by its 56px chevron circles), the **Quick-links circle button**
+(`c2-glass-fab--accent`, amber), and the **New-event circle button**
 (`c2-glass-btn` + `c2-glass-fab--brand`, brand-blue like the lg nav-row button),
-both with the `c2-glass-btn--bordered` grey ring
-(`dashboard-views.md` §1.1).
+both 56px circles with the `c2-glass-btn--bordered` grey ring — the whole row
+is one height (`dashboard-views.md` §1.1).
 Below `lg` the tab strip row is **dropped** (a full row of chrome) and the pill
 instead **carries the compact four-squares view-menu button** (the mobile view
 menu, [`dashboard-views.md`](dashboard-views.md) §1.1).
