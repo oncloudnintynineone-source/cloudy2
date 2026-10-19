@@ -4096,13 +4096,17 @@ function DashboardViewImpl({
                     events={agendaTabEvents}
                     // The view root is an unstyled Box, so the shared boxed look of
                     // the other views comes from here. The nav row above already
-                    // shows the day, so only the stock per-day group header is kept.
+                    // shows the day, so the AgendaView's own range and per-day date
+                    // headers are hidden.
                     style={{
                       border: "1px solid var(--mantine-color-default-border)",
                       borderRadius: "var(--mantine-radius-md)",
                       overflow: "hidden",
                     }}
-                    styles={{ agendaViewHeader: { display: "none" } }}
+                    styles={{
+                      agendaViewHeader: { display: "none" },
+                      agendaViewDateHeader: { display: "none" },
+                    }}
                     // The user's entries get the amber bar/tint + bold title
                     // (c2-my-agenda-event, globals.css); time order is kept.
                     renderEvent={renderMyAgendaEvent}
@@ -4731,7 +4735,10 @@ function DashboardViewImpl({
                   rangeStart={agendaViewDate}
                   rangeEnd={agendaViewDate}
                   events={agendaModalEvents}
-                  styles={{ agendaViewHeader: { display: "none" } }}
+                  styles={{
+                    agendaViewHeader: { display: "none" },
+                    agendaViewDateHeader: { display: "none" },
+                  }}
                   renderEvent={renderMyAgendaEvent}
                   onEventClick={(event, e) => {
                     if (isOptimisticStandIn(event as CalendarEvent)) return;

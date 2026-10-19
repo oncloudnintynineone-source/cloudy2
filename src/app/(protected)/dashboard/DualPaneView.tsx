@@ -678,6 +678,7 @@ export function DualPaneView({
                 }}
                 styles={{
                   agendaViewHeader: { display: "none" },
+                  agendaViewDateHeader: { display: "none" },
                   // The card fills the pane; a long day list scrolls inside it
                   // rather than leaving blank space below a short card. The body
                   // is a scroll container nested inside the swipe container, and
