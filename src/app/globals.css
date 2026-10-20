@@ -1103,9 +1103,9 @@ html {
   pointer-events: auto;
 }
 
-/* Focus-triggered lift (Contacts): while the pill's search field holds focus
-   the OS keyboard covers the bottom of the screen, so the Affix root moves to
-   mid-viewport; this transition rides that `bottom` change both ways. */
+/* Keyboard lift (Contacts): while the OS keyboard is up the Affix root moves to
+   its measured top edge (plus a gap), and slides back when the keyboard closes;
+   this transition rides that `bottom` change both ways. */
 .c2-pill-lift {
   transition: bottom 260ms ease;
 }
