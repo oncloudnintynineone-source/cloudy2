@@ -1837,6 +1837,14 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     All dependent geometry (`fabStackHeight` → `--c2-bottom-chrome-height` page
     pads, zoom/pan bottom barrier) is `ResizeObserver`-measured, so the taller
     row auto-adapts. Docs: `dashboard-views.md` §1.1, `desktop-responsive.md` §1.2.
+- 1.316 Contacts search pill lift is keyboard-measured, not guessed: the mobile
+    pill's focus lift used `bottom: 40vh`, which floats far above the keys on
+    devices whose viewport doesn't shrink with the keyboard (and stayed lifted
+    after a swipe-down dismiss). It now rides `useKeyboardInset`
+    (`src/lib/ui/keyboardInset.ts`, already unit-tested) — the settled
+    `visualViewport` keyboard band + a 16px gap — so the pill lands just above
+    the keyboard and drops back as soon as it closes, focus or not
+    (`docs/dashboard-views.md` §1.1).
 
 ## 1.4 Open items & next steps
 

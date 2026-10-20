@@ -31,6 +31,7 @@ import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import { PageHeader } from "@/components/PageHeader";
 import { FAB_SIZE } from "@/components/FloatingToolbar";
 import { filterContacts, NO_DEPARTMENT_FILTER } from "@/lib/contacts/filter";
+import { useKeyboardInset } from "@/lib/ui/keyboardInset";
 import { buildContactsVcf } from "@/lib/contacts/vcf";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import type { Rect } from "@/lib/motion/origin";
@@ -90,12 +91,14 @@ export function ContactList({
   // lg+ keeps the search/filter bar in the sticky top chrome; below `lg` the
   // controls move to the floating bottom pill (calendar-page pattern).
   const isDesktop = useMediaQuery(DESKTOP_MEDIA_QUERY);
-  // Focus-triggered lift: while the search input holds focus the OS keyboard
-  // covers the bottom of the screen, so the pill floats up above the keyboard
-  // zone; blur (tapping away) drops it back. Tapping the pill's filter/export
-  // circles doesn't reliably blur a focused input on mobile, so those handlers
-  // blur it explicitly (see `searchInputRef`) to drop the keyboard + lift.
-  const [searchLifted, setSearchLifted] = useState(false);
+  // Keyboard-driven lift: the pill floats up to just above the OS keyboard while
+  // it is up (measured from `visualViewport`, not a guessed `vh` fraction), and
+  // drops back the moment the keyboard closes — even if the search field keeps
+  // focus (swipe-down dismiss never fires `blur`). Tapping the pill's
+  // filter/export circles doesn't reliably blur a focused input on mobile, so
+  // those handlers blur it explicitly (see `searchInputRef`) to close the
+  // keyboard and let the pill settle back down.
+  const keyboardInset = useKeyboardInset();
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [confirmOpened, { open: openConfirm, close: closeConfirm }] = useDisclosure(false);
   const [downloading, setDownloading] = useState(false);
@@ -171,17 +174,20 @@ export function ContactList({
   // The floating control pill (below `lg` only, calendar-page pattern): a
   // rounded search field (flexible width) + the circular filter and download
   // triggers, inset 16px from the viewport edges. (The old standalone export
-  // FAB is gone — the download circle rides inside the pill.) While the
-  // search field holds focus (the user is typing and the OS keyboard covers
-  // the bottom of the screen), the pill lifts to mid-viewport so the textbox
-  // keeps its view; blur drops it back.
+  // FAB is gone — the download circle rides inside the pill.) While the OS
+  // keyboard is up it covers the bottom of the screen, so the pill lifts to the
+  // measured keyboard top plus a 16px gap — a fixed `vh` fraction overshoots on
+  // devices whose viewport doesn't shrink with the keyboard.
   const pillHeightPx = 58;
   const mobilePill = (
     <Affix
       hiddenFrom="lg"
       className="c2-pill-lift"
       position={{
-        bottom: searchLifted ? "40vh" : "var(--app-floating-bottom-offset)",
+        bottom:
+          keyboardInset > 0
+            ? `calc(${keyboardInset}px + 16px)`
+            : "var(--app-floating-bottom-offset)",
         left: 16,
         right: 16,
       }}
@@ -200,8 +206,6 @@ export function ContactList({
             placeholder="Search by name, shortname, or phone"
             value={search}
             onChange={(e) => setSearch(e.currentTarget.value)}
-            onFocus={() => setSearchLifted(true)}
-            onBlur={() => setSearchLifted(false)}
             style={{ flex: 1, minWidth: 0 }}
           />
           {filterGroups.length > 0 && (
@@ -390,8 +394,8 @@ export function ContactList({
       )}
 
       {/* The floating control pill (below `lg` only): rounded search field +
-          filter + download circles, lifted above the keyboard zone while
-          typing (see the pill const above). */}
+          filter + download circles, lifted to the measured keyboard top while
+          the OS keyboard is up (see the pill const above). */}
       {mobilePill}
 
       <FilterModal
