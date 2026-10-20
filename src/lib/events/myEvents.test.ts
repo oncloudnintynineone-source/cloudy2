@@ -13,6 +13,7 @@ function row(partial: Partial<MyEventRow> & { key: string; sortKey: string }): M
     eventId: partial.key,
     title: partial.key,
     time: "",
+    editKey: null,
     departments: [],
     deleted: false,
     color: "blue",
@@ -79,7 +80,7 @@ describe("humanizeMyEventTime", () => {
 });
 
 describe("mergeMyEvents", () => {
-  it("drops a deleted row shadowed by a live one and orders newest first", () => {
+  it("drops a deleted row shadowed by a live one and falls back to start order without audit history", () => {
     const active = [row({ key: "a", sortKey: "2026-08-10 09:00" })];
     const deleted = [
       row({ key: "a", sortKey: "2026-08-10 09:00", deleted: true }),
@@ -89,6 +90,31 @@ describe("mergeMyEvents", () => {
     expect(merged.map((entry) => entry.key)).toEqual(["b", "a"]);
     expect(merged.find((entry) => entry.key === "b")?.deleted).toBe(true);
     expect(merged.filter((entry) => entry.key === "a")).toHaveLength(1);
+  });
+
+  it("ranks by last edit, ahead of start order", () => {
+    const active = [
+      row({ key: "a", sortKey: "2026-08-01 09:00", editKey: "2026-08-20 10:00" }),
+      row({ key: "b", sortKey: "2026-08-19 09:00" }),
+    ];
+    expect(mergeMyEvents(active, []).map((entry) => entry.key)).toEqual(["a", "b"]);
+  });
+
+  it("ranks a deleted row by its delete time", () => {
+    const active = [row({ key: "a", sortKey: "2026-08-18 09:00", editKey: "2026-08-19 08:00" })];
+    const deleted = [
+      row({ key: "b", sortKey: "2026-08-01 09:00", editKey: "2026-08-20 09:00", deleted: true }),
+    ];
+    expect(mergeMyEvents(active, deleted).map((entry) => entry.key)).toEqual(["b", "a"]);
+  });
+
+  it("breaks equal edit keys by start (newest first), then key", () => {
+    const active = [
+      row({ key: "c", sortKey: "2026-08-02 09:00", editKey: "2026-08-20 10:00" }),
+      row({ key: "a", sortKey: "2026-08-05 09:00", editKey: "2026-08-20 10:00" }),
+      row({ key: "b", sortKey: "2026-08-04 09:00", editKey: "2026-08-20 10:00" }),
+    ];
+    expect(mergeMyEvents(active, []).map((entry) => entry.key)).toEqual(["a", "b", "c"]);
   });
 
   it("keeps legacy deleted rows without a group id", () => {

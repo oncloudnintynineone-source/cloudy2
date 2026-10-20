@@ -121,8 +121,8 @@ export interface DualPaneViewProps {
   chromeOffset: number;
   /**
    * The dashboard's right FAB row (below `lg`: `[<|>]` period-step pill +
-   * New-event pill button): clamps the month pane's zoom/pan cluster so it
-   * never parks behind it.
+   * Quick-links / New-event 56px circles): clamps the month pane's zoom/pan
+   * cluster so it never parks behind it.
    */
   bottomBarrierRef?: RefObject<HTMLElement | null> | null;
 }

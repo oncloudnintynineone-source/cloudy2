@@ -119,7 +119,7 @@ export function GridNavControls({
   layoutKey?: string | number | boolean;
   /**
    * Optional element that owns the viewport's bottom-right corner (the
-   * dashboard's right FAB row (chevron pill + create pill) below `lg`): the
+   * dashboard's right FAB row (chevron pill + create circle) below `lg`): the
    * visible slice is clamped to its top, so the cluster never parks
    * behind it on document-scrolling grids.
    */

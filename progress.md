@@ -1831,6 +1831,22 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     searches skeleton-load (label + placeholder pills while fetching) instead of
     appearing out of nowhere; history moved to the chrome (prefetched at mount,
     refreshed on open). Docs: `event-search.md` §1.9/§1.10/§1.12.
+- 1.315 My Events ordering is by last edit: rows sort by the newest recorded
+    audit row (`latestEventEditTimes` for live rows; `latestDeleteTimes` —
+    newest `event.delete` `created_at` per group id, replacing `deletedEventIds`
+    — for deleted rows), falling back to the event's start date when no audit
+    history remains. Pure sort key is the new `editKey` field (naive UTC+8) on
+    `MyEventRow`; `mergeMyEvents` breaks ties on start (newest first), then key.
+    Docs: `event-history.md` §1.4/§1.7.
+- 1.316 The mobile FAB row (below `lg`) is now one uniform height of **56px
+    circles**: the Quick-links and New-event buttons were 56px wide × pill-height
+    (~50px) capsules — read as "not fully circular" — and are now true 56×56
+    circles (`radius="50%"`, fixed `h={56}`); the `[< | >]` step pill's chevron
+    circles grew 36 → 56px (icons 18 → 24px) and its inline
+    `minHeight={bottomChromeHeight}` was dropped so the pill hugs its circles.
+    All dependent geometry (`fabStackHeight` → `--c2-bottom-chrome-height` page
+    pads, zoom/pan bottom barrier) is `ResizeObserver`-measured, so the taller
+    row auto-adapts. Docs: `dashboard-views.md` §1.1, `desktop-responsive.md` §1.2.
 
 ## 1.4 Open items & next steps
 

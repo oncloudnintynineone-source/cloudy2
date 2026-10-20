@@ -145,10 +145,11 @@ doc content here.
   and the date controls move to **floating bottom rows** — a frosted
   control pill (period label left + circular **search**/filter/date/view/**fullscreen**
   buttons right, inset 16px from the viewport edges) bottom-most, with the
-  right-anchored FAB row (`[<|>]` step pill + Quick-links **pill button** —
-  amber `c2-glass-fab--accent` — + New-event **pill button** —
-  brand-blue `c2-glass-fab--brand` tint; all `c2-glass-btn--bordered` grey ring
-  and pill-height) floating above it — for thumb reach; pinned
+   right-anchored FAB row (`[<|>]` step pill whose 56px chevron circles size it
+   + Quick-links **circle button** — amber `c2-glass-fab--accent` — + New-event
+   **circle button** — brand-blue `c2-glass-fab--brand` tint; the tinted circles
+   are 56px with the `c2-glass-btn--bordered` grey ring, so the whole row is one
+   height) floating above it — for thumb reach; pinned
   strips dock under the name strip (`chromeOffset` = `topChromeHeight`),
   bounded grids run flush to the bottom nav, and page pads clear the pill/FAB
   row; at `lg`+ one box (tabs + nav row) pins top.

@@ -211,15 +211,17 @@ string maps to the first tab of that kind.
   (the fullscreen button is `FullscreenButton`, the same inline toggle the
   floating lg-only `FullscreenToggle` uses); above it floats the
   **right-anchored FAB row** — the `[< | >]` **period-step
-  pill** (`.c2-period-pill`, its height driven inline to match the control
-   pill's), then the **Quick-links pill button** (`c2-glass-fab--accent`, amber —
-   shown only when the org has links) and the **New-event pill button**
+  pill** (`.c2-period-pill`, sized by its 56px chevron circles), then the
+   **Quick-links circle button** (`c2-glass-fab--accent`, amber —
+   shown only when the org has links) and the **New-event circle button**
    (`c2-glass-btn` + `c2-glass-fab--brand` — the same brand-blue tint as the lg
    nav-row button — + `c2-glass-btn--bordered`, the grey hairline ring matching
-   the pill containers) parked on the **right**. The row sits at
+   the pill containers) parked on the **right**. Every control is a **56px
+   circle** (the step pill hugs its chevron circles, so the whole row is one
+   height). The row sits at
   `bottom: calc(--app-floating-bottom-offset + pillH + 12px)`. All ride the
-  same frosted treatment (`c2-glass-surface`) with pill radius + hairline
-  edge, so grid content scrolls *under* them. The pill fades + rises in on
+  same frosted treatment (`c2-glass-surface`) with pill/circle radius +
+  hairline edge, so grid content scrolls *under* them. The pill fades + rises in on
   first paint (`c2-glass-enter`; the FAB row via `c2-fab-cluster`) — see
   [`loading-transitions.md`](loading-transitions.md) §1.17. The grid
   starts under the top strip: the pinned strips (Week (H) day strip / hour

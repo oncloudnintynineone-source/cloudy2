@@ -1000,9 +1000,9 @@ function DashboardViewImpl({
   // In immersive mode the hidden bottom nav frees its clearance: the floating
   // clusters drop to the bare safe-area offset. Undefined keeps
   // FloatingToolbar's default var (the var lives on :root — the Affix portals
-  // to <body>, outside any class scope). Below `lg` the full-width control pill
-  // owns the bottom strip, so the right FAB row (chevron pill + create pill)
-  // floats above it: base + measured pill height + gap.
+   // to <body>, outside any class scope). Below `lg` the full-width control pill
+   // owns the bottom strip, so the right FAB row (chevron pill + create circle)
+   // floats above it: base + measured pill height + gap.
   const fabBottomOffset = immersiveMode.active
     ? isDesktop
       ? "var(--app-floating-bottom-offset-immersive)"
@@ -3459,8 +3459,8 @@ function DashboardViewImpl({
   // The floating control pill (below `lg` only): the period label (centered in
   // the space left of the circular search / filter / date / view-menu /
   // fullscreen buttons on the right), floating at the bottom with the same 16px
-  // viewport-edge clearance as the FAB toolbar (thumb-zone reach), with the FAB
-  // row (chevron pill + quick-links pill + create pill) above it. Frosted like
+   // viewport-edge clearance as the FAB toolbar (thumb-zone reach), with the FAB
+   // row (chevron pill + quick-links circle + create circle) above it. Frosted like
   // the top strip; the grid scrolls beneath it. Its measured height
   // (bottomChromeHeight) feeds the FAB offset and the page pads so the last
   // content row clears the whole stack.
@@ -3595,10 +3595,10 @@ function DashboardViewImpl({
         {
           marginTop: "calc(-1 * var(--app-shell-padding))",
           // The pill's measured height + the gap + the right FAB row (chevron
-          // pill + create pill, both pill-height) floating above it, minus the
-          // FAB diameter the pad formula already adds — consumed by the page-pad
-          // classes (globals.css) so document-scrolling grids clear the whole
-          // bottom stack. 0 at lg (no pill).
+          // pill + Quick-links / create circles, all 56px tall) floating above
+          // it, minus the FAB diameter the pad formula already adds — consumed
+          // by the page-pad classes (globals.css) so document-scrolling grids
+          // clear the whole bottom stack. 0 at lg (no pill).
           "--c2-bottom-chrome-height": isDesktop
             ? "0px"
             : `${bottomChromeHeight + 12 + fabStackHeight - FAB_SIZE}px`,
@@ -5058,32 +5058,26 @@ function DashboardViewImpl({
         // row replace these FABs. hiddenFrom sits on the toolbar itself: its
         // Affix portals to <body>, so a wrapper element could not hide it. The
         // row floats right-anchored above the control pill: the period-step
-        // chevrons `[< | >]` pill left, then the amber Quick-links **pill
-        // button** (`c2-glass-fab--accent`) when the org has links, and the
-        // New-event **pill button** (`c2-glass-fab--brand` — the same
+        // chevrons `[< | >]` pill left, then the amber Quick-links **circle**
+        // button (`c2-glass-fab--accent`) when the org has links, and the
+        // New-event **circle** button (`c2-glass-fab--brand` — the same
         // brand-blue tint as the lg nav-row button) parked on the right. Every
-        // pill carries `c2-glass-btn--bordered` (the grey hairline ring that
-        // matches the pill containers) and matches the control pill's measured
-        // height.
+        // control is a 56px circle (the chevron pill hugs its 56px circles,
+        // so the whole row is one height) and the tinted circles carry
+        // `c2-glass-btn--bordered` (the grey hairline ring that matches the
+        // pill containers).
         <FloatingToolbar hiddenFrom="lg" bottomOffset={fabBottomOffset}>
           <Box ref={fabStackRef} style={{ display: "flex", gap: "var(--mantine-spacing-xs)", alignItems: "center" }}>
-            <Box
-              className="c2-glass-surface c2-period-pill"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                minHeight: bottomChromeHeight ? `${bottomChromeHeight}px` : undefined,
-              }}
-            >
+            <Box className="c2-glass-surface c2-period-pill" style={{ display: "flex", alignItems: "center" }}>
               <Group align="center" gap={0} wrap="nowrap">
                 <ActionIcon
-                  size={36}
+                  size={56}
                   radius="50%"
                   variant="transparent"
                   aria-label={periodStepLabel("Previous")}
                   onClick={() => navigatePeriod(-1)}
                 >
-                  <IconChevronLeft size={18} />
+                  <IconChevronLeft size={24} />
                 </ActionIcon>
                 <Box
                   aria-hidden
@@ -5094,19 +5088,19 @@ function DashboardViewImpl({
                   }}
                 />
                 <ActionIcon
-                  size={36}
+                  size={56}
                   radius="50%"
                   variant="transparent"
                   aria-label={periodStepLabel("Next")}
                   onClick={() => navigatePeriod(1)}
                 >
-                  <IconChevronRight size={18} />
+                  <IconChevronRight size={24} />
                 </ActionIcon>
               </Group>
             </Box>
             {/* Quick links: the same menu the lg nav row launches, moved here
-                as an amber pill beside the New-event pill (the pill it used to
-                occupy now carries the fullscreen toggle). */}
+                as an amber circle beside the New-event circle (the pill it used
+                to occupy now carries the fullscreen toggle). */}
             {quickLinks.length > 0 && (
               <QuickLinksMenu
                 links={quickLinks}
@@ -5115,9 +5109,9 @@ function DashboardViewImpl({
                   <Button
                     className="c2-glass-btn c2-glass-fab--accent c2-glass-btn--bordered"
                     aria-label="Quick links"
-                    radius="999px"
+                    radius="50%"
                     w={56}
-                    h={bottomChromeHeight || 50}
+                    h={56}
                   >
                     <IconLink size={24} />
                   </Button>
@@ -5127,9 +5121,9 @@ function DashboardViewImpl({
             <Button
               className="c2-glass-btn c2-glass-fab--brand c2-glass-btn--bordered"
               aria-label="New event"
-              radius="999px"
+              radius="50%"
               w={56}
-              h={bottomChromeHeight || 50}
+              h={56}
               onClick={(e) =>
                 openCreate(
                   isAgenda ? headerDate : isDual ? shownDate : today,
