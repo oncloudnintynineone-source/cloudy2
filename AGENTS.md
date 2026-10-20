@@ -195,13 +195,17 @@ doc content here.
   flags: [docs/feature-flags.md](docs/feature-flags.md).
 - **Event search (calendar-only):** the shell header's "Search events" button at
   `lg`+ (below `lg`: the calendar control pill's search circle left of the filter
-  button, via `SearchPanelContext`) opens a
-  **lazy-loaded** (`dynamic` + `ssr: false`) modal
-  that free-text searches every department calendar **directly via Google Calendar**
-  (`events.list` `q` — bypasses the month cache), rendered in `@mantine/schedule`'s
-  `AgendaView`; tapping deep-links `/dashboard?date=…&event=…&_eventCal=<calendar id>` to
-  the shared `EventDetail`. `q` matches `summary`/`location`/`description`, not the
-  compressed notes. Design: [docs/event-search.md](docs/event-search.md).
+  button, via `SearchPanelContext`) opens a modal whose **chrome is always
+  mounted** (zoom-from-trigger transition like `PinnedEventsPanel`) while only the
+  **body is lazy-loaded** (`dynamic` + `ssr: false`, skeleton fallback inside the
+  open dialog; chunk idle-preloaded + near-signal `preloadEventSearchBody()`), so
+  the open animation never races the chunk. It free-text searches every
+  department calendar through the **cache-backed month read** (`readCalendarRange`
+  + Fuse rank), rendered as a flat relevance list; recent-search pills skeleton-load
+  first and hide once results exist; tapping deep-links
+  `/dashboard?date=…&event=…&_eventCal=<calendar id>` to the shared `EventDetail`.
+  Matching covers title/location/event type/calendar name, not the compressed notes.
+  Design: [docs/event-search.md](docs/event-search.md).
 - **Event clash warnings (pre-submit, notify-only):** the review step runs read-only
   `checkEventClashes` (`src/lib/events/clashActions.ts`), re-resolving the candidate via the
   shared `writeContext.ts` chain, reading overlaps from the cache (`clashQuery.ts`, never raw

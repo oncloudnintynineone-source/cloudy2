@@ -1818,9 +1818,19 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
 - 1.313 Dashboard tab preview is transition-aware: `DashboardView` reports pending
     router transitions to `DashboardScreen`, so an optimistic `previewView` no
     longer reverts after a fixed 6 s window while the tab URL is still catching
-    up. Soft dashboard navigations also strip one-shot `refresh`, `edit`, `event`,
+    up. Soft dashboard navigations also strip one-shot `refresh`, `event`,
     and `_eventCal` params, allowing tab URLs to prefetch cleanly. Docs:
     `dashboard-views.md` §1.7, `loading-transitions.md` §1.13.2.
+- 1.314 Search modal restructured to kill the jarring first open: the Modal chrome
+    (responsive size + zoom-from-trigger transition) is static and always mounted
+    (the `PinnedEventsPanel` pattern), and only the body (`EventSearchBody.tsx`) is
+    lazy-loaded with a skeleton fallback painted *inside* the already-animating
+    dialog — the zoom plays exactly once and content swaps in place. The shell's
+    `searchLoaded` gate and the placeholder-Modal skeleton are gone; the header
+    trigger's near signals now call the exported `preloadEventSearchBody()`. Recent
+    searches skeleton-load (label + placeholder pills while fetching) instead of
+    appearing out of nowhere; history moved to the chrome (prefetched at mount,
+    refreshed on open). Docs: `event-search.md` §1.9/§1.10/§1.12.
 
 ## 1.4 Open items & next steps
 

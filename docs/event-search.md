@@ -65,7 +65,7 @@ get every matching event across every department, best matches first.
 flowchart LR
  subgraph SHELL["AppShellShell (client)"]
  B["header 'Search events' button (lg+)<br/>+ pill search circle (below lg)"]
- M["EventSearchModal<br/>dynamic(ssr: false)"]
+  M["EventSearchModal chrome<br/>(static Modal + zoom transition)<br/>+ lazy EventSearchBody"]
  SPIN["row spinner<br/>(useTransition isPending)"]
  end
  subgraph ACTION["Server action (search.ts)"]
@@ -182,18 +182,23 @@ fuzzily — see the `{ value, fuzzy: false }` field in §1.11.
 
 `EventSearchModal` (`src/components/EventSearchModal.tsx`):
 
-- Loaded with `dynamic(() => import(...), { ssr: false, loading: () =>
-  <EventSearchModalSkeleton /> })`, so the modal — its `DatePickerInput` and
-  other heavy imports — never contributes to the shell's first paint. The
-  dependency-free skeleton fallback paints an immediate dialog for a click that
-  races the chunk download. The chunk is **prefetched in the background** —
-  `requestIdleCallback(cb, { timeout: 2000 })` after the shell's first paint,
-  plus the desktop `⌘/Ctrl-K` hotkey (the runtime Loadable's `.preload()`,
-  reached through a cast since the TS type omits it). The
-  `searchLoaded` flag is set when the preload promise resolves, so the modal
-  **mounts closed** the moment the chunk lands: the first open is then a pure
-  `opened` flip (no mount, parse, or network on the click), and it stays mounted
-  afterward so the shrink-out plays and repeat opens don't reload the chunk.
+- Split chrome/body so the open animation never races the chunk download. The
+  chrome — the `Modal` itself, its responsive size and the zoom-from-trigger
+  `transitionProps` — is **static and always mounted** (Mantine core is already
+  in the shell bundle), exactly like `PinnedEventsPanel`: `opened` is passed
+  straight through, so the zoom-out plays on *every* open, including a click
+  that beats the chunk. Only the body (`EventSearchBody.tsx` — the toolbar,
+  `DatePickerInput`s, recents and results) is lazy:
+  `dynamic(() => import("./EventSearchBody"), { ssr: false, loading: () =>
+  <EventSearchBodySkeleton /> })` renders a dependency-free skeleton *inside*
+  the already-animating dialog, and the real content swaps in place when the
+  chunk lands — no placeholder modal, no second animation. The body chunk is
+  **prefetched in the background**: `requestIdleCallback(cb, { timeout: 2000 })`
+  on chrome mount, plus the header trigger's near signals (hover/focus/
+  pointer-down/touch-start) calling the exported `preloadEventSearchBody()`.
+  The Modal unmounts its children on close (Mantine's default `keepMounted:
+  false`), so the search state resets for free on every reopen; the chrome
+  stays mounted and keeps the history list (§1.10).
 - Owned by `AppShellShell` and **calendar-only**: at `lg`+ the shell header's
   "Search events" button opens it; below `lg` the floating control pill's own
   search circle (left of the filter button) does. Both are triggers into the
@@ -207,7 +212,10 @@ fuzzily — see the `{ value, fuzzy: false }` field in §1.11.
   and a date-filter `ActionIcon` that opens a popover with the From/To
   `DatePickerInput`s (cleared → server defaults) and a Reset, badge-counting a
   non-default window. Below it the recent-search badges scroll as one
-  horizontal chip row and are **hidden once results exist**; a result-count +
+  horizontal chip row and are **hidden once results exist** — while the history
+  is still loading the row shows the label plus a few skeleton pills (with a
+  `LoadingStatus`), so the badges never pop in out of nowhere; an empty history
+  collapses the section. A result-count +
   active-range caption (from the resolved window, not the result extremes) with
   a Clear action heads the list. Results render as a **flat list in relevance
   order** — each row a colored stripe + title + a date/time/all-day line, plus
@@ -267,11 +275,14 @@ removes it.
   `getSearchHistory`, `recordSearchHistory` (fire-and-forget after a successful
   search), `removeSearchHistory`. The virtual break-glass admin (`id ===
   "admin"`, no `users` row) returns an empty history and no-op writes.
-- **Modal wiring**: `EventSearchModal` fetches history on every open (so
-  queries run on other devices surface here), records a query + updates the
-  local badge list optimistically after a successful search, and removes both
-  server-side and locally on ×. History is *not* cleared by the close/reset
-  path (which only resets the query/results).
+- **Modal wiring**: the history lives in the chrome (`EventSearchModal.tsx`),
+  prefetched once when the chrome mounts (long before the first open, so the
+  pills are usually warm) and refreshed on every open (so queries run on other
+  devices surface here); the body only renders pills from the `history` prop.
+  The body records a query + updates the badge list optimistically after a
+  successful search via `onRecordSearch`/`onRemoveSearch`, which also write
+  server-side. History is *not* cleared by the close/reset path (which only
+  resets the query/results).
 
 This history is a convenience shortcut, not a results cache — a badge re-runs
 the cache-backed search with the current (defaulted) date window.
@@ -320,9 +331,10 @@ The shared `src/lib/search/fuzzy.ts` wraps Fuse.js once for the whole app
 | `src/lib/google/real.ts` | `events.list({ ..., q })` implementation (retained) |
 | `src/lib/google/stub.ts` | `searchEvents` → `[]` |
 | `src/app/(protected)/dashboard/EventDetail.tsx` | The shared detail modal the deep link lands on (unchanged) |
-| `src/components/EventSearchModal.tsx` | Lazy-loaded search modal + toolbar + flat relevance list + history badges + row-spinner deep link |
-| `src/components/EventSearchModalSkeleton.tsx` | Dependency-free `dynamic` loading fallback dialog |
-| `src/components/AppShellShell.tsx` | Desktop header "Search events" trigger + ⌘/Ctrl-K + modal mount + origin rect + chunk preload + `SearchPanelContext` provider |
+| `src/components/EventSearchModal.tsx` | Search modal chrome: always-mounted `Modal` + zoom transition + history state + body chunk preload |
+| `src/components/EventSearchBody.tsx` | Lazy body: toolbar + flat relevance list + history badges + row-spinner deep link |
+| `src/components/EventSearchBodySkeleton.tsx` | Dependency-free body loading fallback painted inside the open chrome |
+| `src/components/AppShellShell.tsx` | Desktop header "Search events" trigger + ⌘/Ctrl-K + always-mounted modal + origin rect + near-signal body preload + `SearchPanelContext` provider |
 | `src/lib/ui/searchPanel.ts` | `SearchPanelContext` — the calendar's search triggers (desktop header + mobile pill) → shell-owned modal |
 
 Related docs:

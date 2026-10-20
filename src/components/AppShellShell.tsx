@@ -30,13 +30,12 @@ import {
 } from "@tabler/icons-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
 
 import { PinnedEventsPanel } from "@/components/PinnedEventsPanel";
 import { PinnedEventsTicker } from "@/components/PinnedEventsTicker";
 import { NavRouteWarmer } from "@/components/NavRouteWarmer";
-import EventSearchModalSkeleton from "@/components/EventSearchModalSkeleton";
+import EventSearchModal, { preloadEventSearchBody } from "@/components/EventSearchModal";
 import { ColdStartReadyBar, useColdStartReady } from "@/components/ColdStartReady";
 import {
   ACTIVITY_MIN_HOLD_MS,
@@ -60,22 +59,6 @@ import {
   type NavItem,
 } from "@/components/navChrome";
 
-// Lazy-loaded so the search modal (its AgendaView + DatePicker imports) stays
-// out of the shell's initial bundle — it only loads once the user opens search.
-// The lightweight skeleton is the fallback for a click that races the chunk
-// download, so the tap always paints an immediate dialog.
-const EventSearchModal = dynamic(() => import("@/components/EventSearchModal"), {
-  ssr: false,
-  loading: () => <EventSearchModalSkeleton />,
-});
-
-// `next/dynamic` returns a `React.ComponentType`, but the runtime Loadable also
-// carries a `.preload()` static that fetches the chunk without mounting. Preload
-// in the background so the modal's first open is instant rather than a
-// chunk-download round trip. Returns the preload promise (when available) so the
-// caller can mount the modal closed as soon as the chunk lands.
-const preloadSearchModalChunk = () =>
-  (EventSearchModal as unknown as { preload?: () => Promise<unknown> }).preload?.();
 import { UserMenu } from "@/components/UserMenu";
 import { BANNER_HEIGHT_PX, type BannerConfig } from "@/lib/banner/banner";
 import { BOTTOM_NAV_HEIGHT, RAIL_ORDER, RAIL_TILE_WIDTHS } from "@/lib/bottomNav";
@@ -547,56 +530,19 @@ export function AppShellShell({
   // shell stays mounted across the navigation, so the modal survives it).
   const [pinnedOpen, setPinnedOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
-  // The lazy search modal is mounted as soon as its chunk preloads (kept closed
-  // until opened) so the first open is an instant prop flip — no mount, chunk
-  // parse, or network wait on the click. It also stays mounted after the first
-  // open so the shrink-out animation can play.
-  const [searchLoaded, setSearchLoaded] = useState(false);
+  // The search modal chrome is always mounted (like PinnedEventsPanel); only
+  // its body chunk is lazy. The modal stays in the tree so the zoom-out and
+  // shrink-back animations always play.
   // The search trigger's rect at open time; the modal zooms out of / shrinks into it.
   const [searchOriginRect, setSearchOriginRect] = useState<Rect | null>(null);
   const searchButtonRef = useRef<HTMLButtonElement>(null);
   const router = useRouter();
 
-  // Preload the modal's chunk and, once it lands, mount the modal closed so the
-  // first open pays nothing. Called at idle and on every near signal (hover,
-  // focus, pointer-down/touch-start, hotkey) — a promise that resolves
-  // repeatedly is harmless.
-  const preloadSearchModal = useCallback(() => {
-    const promise = preloadSearchModalChunk();
-    if (promise) {
-      promise.then(() => setSearchLoaded(true)).catch(() => undefined);
-    }
-  }, []);
-
-  // Preload shortly after first paint (idle, so it never competes with the
-  // launch-critical work). The deadline keeps it from being starved on a busy
-  // phone; the search triggers' hover/touch signals are nearer triggers.
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    const hasIdle = typeof window.requestIdleCallback === "function";
-    let id: number;
-    if (hasIdle) {
-      id = window.requestIdleCallback(preloadSearchModal, { timeout: 2000 });
-    } else {
-      id = window.setTimeout(preloadSearchModal, 0);
-    }
-    return () => {
-      if (hasIdle) {
-        window.cancelIdleCallback(id);
-      } else {
-        window.clearTimeout(id);
-      }
-    };
-  }, [preloadSearchModal]);
-
   // Open the search modal, growing it out of the passed trigger rect (or the
-  // viewport center when null). Mounts the lazy chunk if the preload hasn't
-  // landed yet (the dynamic loading fallback covers that race).
+  // viewport center when null). If the lazy body chunk hasn't preloaded yet,
+  // the dialog still opens instantly with a skeleton body that swaps in place.
   const openSearch = useCallback((originRect: Rect | null) => {
     setSearchOriginRect(originRect);
-    setSearchLoaded(true);
     setSearchOpen(true);
   }, []);
 
@@ -1227,10 +1173,10 @@ export function AppShellShell({
                       fz="sm"
                       leftSection={<IconSearch size={16} />}
                       styles={{ root: { backgroundColor: "var(--mantine-color-brand-8)" } }}
-                      onPointerEnter={preloadSearchModal}
-                      onFocus={preloadSearchModal}
-                      onPointerDown={preloadSearchModal}
-                      onTouchStart={preloadSearchModal}
+                       onPointerEnter={preloadEventSearchBody}
+                       onFocus={preloadEventSearchBody}
+                       onPointerDown={preloadEventSearchBody}
+                       onTouchStart={preloadEventSearchBody}
                       onClick={(e) => openSearch(e.currentTarget.getBoundingClientRect())}
                     >
                       Search events
@@ -1314,13 +1260,11 @@ export function AppShellShell({
                     <StatusAnnouncer />
                     {children}
                     <PinnedEventsPanel seedEvents={pinnedEvents} />
-                    {searchLoaded && (
-                      <EventSearchModal
-                        opened={searchOpen}
-                        onClose={() => setSearchOpen(false)}
-                        originRect={searchOriginRect}
-                      />
-                    )}
+                    <EventSearchModal
+                      opened={searchOpen}
+                      onClose={() => setSearchOpen(false)}
+                      originRect={searchOriginRect}
+                    />
                   </SearchPanelContext.Provider>
                 </PinnedPanelContext.Provider>
             </ImmersiveModeContext.Provider>
