@@ -1162,6 +1162,25 @@ html {
   border: 1px solid var(--mantine-color-default-border) !important;
 }
 
+/*
+  Button label centering. Mantine 9 puts `text-box-trim: trim-both` +
+  `text-box-edge: cap alphabetic` on the label span, but Chromium only trims a
+  *content-sized* box — Mantine's label is `display: flex; height: 100%`, so the
+  trim is inert and the flex centres the line box (ascent + descent) instead of
+  the ink. On the compact 36px nav-row pills ("New event", "Quick links") the
+  words then read ~0.6px high next to the dead-centre icon. Shrinking the label to
+  its trimmed box would centre the ink but clips the glyphs (the label is
+  `overflow: hidden`), so nudge the line box down instead — padding shifts the
+  line box by half its value. Measured in Chrome with the 14px button font: 1.5px
+  puts the ink centre 0.16px under the icon centre at every size (18.16 vs 18.0
+  in a 36px pill, 21.66 vs 21.5 in 43px, 17.16 vs 17.0 in 34px) — optically
+  balanced for lowercase-heavy labels — with nothing clipped. The hook class
+  comes from the theme's Button classNames (src/lib/theme.ts).
+*/
+.c2-button-label {
+  padding-top: 1.5px;
+}
+
 .c2-glass-fab:hover,
 .c2-glass-btn:hover {
   background: light-dark(

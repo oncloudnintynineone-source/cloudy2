@@ -75,6 +75,11 @@ export const theme = createTheme({
     ScheduleEvent: {
       classNames: { event: "c2-schedule-event", eventInner: "c2-event-inner" },
     },
+    // Shared hook on every Button's label span, used by the centering rule in
+    // globals.css (see the `.c2-button-label` block).
+    Button: {
+      classNames: { label: "c2-button-label" },
+    },
     // Overlays (modals, menus, popovers, tooltips) deliberately stay opaque:
     // the `translucencyLevel` glass applies to page-level surfaces only (header,
     // sticky calendar chrome, bottom nav, sidebar, floating controls, FABs).
