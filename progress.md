@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.302 (fixed rail order)** is shipped.
+- All work through changelog **1.319 (accessible event-wizard minimize)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -1872,6 +1872,14 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     `MotionModal` now visibly grow past 1× then settle under `playful`; the
     Settings preview adds a mock dialog that replays the bounce. Docs:
     `docs/motion.md` §1.3/§1.4/§1.6.
+- 1.319 Event-wizard minimize is accessible and restyled: the header
+    minimize/discard controls are 44px labelled targets (minimize advertises Esc),
+    minimizing moves focus to a new docked `EventDraftBar` in the frosted-pill
+    language (Resume action + per-kind detail + 44px discard), minimize/restore/
+    discard are announced, discard always confirms, and starting another wizard
+    while a draft exists prompts instead of silently replacing it. Docs:
+    `docs/event-lifecycle.md` §1.4.3, `docs/accessibility.md` §1.6,
+    `docs/desktop-responsive.md` §1.7, `docs/user-guide.md` §1.4.1.
 
 ## 1.4 Open items & next steps
 

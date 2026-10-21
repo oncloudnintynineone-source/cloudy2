@@ -495,7 +495,7 @@ Per-view mechanics (all client-side — no cache or server impact):
   On touch-first devices only (`(pointer: coarse)`,
   `COARSE_POINTER_MEDIA_QUERY` in `src/lib/theme.ts`) a small centered caption
   — "Swipe left or right to change day" — sits beneath the list, styled like
-  the wizard's "Tap outside to minimize" hint (xs, dimmed, `pointer-events:
+  the wizard's "Tap outside or press Esc to minimize" hint (xs, dimmed, `pointer-events:
   none`). It is shown at most **once per browser session**: a `sessionStorage`
   flag (`cloudy2.agenda-swipe-hint`) is set on the first successful swipe, so
   the caption never returns once the gesture is discovered. A swipe arms a

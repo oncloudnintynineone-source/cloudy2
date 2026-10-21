@@ -12,7 +12,8 @@ announcements, and the text alternatives on count badges.
 - [1.3 Loading announcements](#13-loading-announcements)
 - [1.4 Count badges & text alternatives](#14-count-badges--text-alternatives)
 - [1.5 Reorder controls](#15-reorder-controls)
-- [1.6 File index & related docs](#16-file-index--related-docs)
+- [1.6 Modal minimize, draft bar & focus transfer](#16-modal-minimize-draft-bar--focus-transfer)
+- [1.7 File index & related docs](#17-file-index--related-docs)
 
 ## 1.1 Skip-to-content link
 
@@ -58,6 +59,7 @@ Current call sites (mostly `DashboardView`, plus a few others noted below):
 | Timeline zoom in/out | `"Zoom 125%"` |
 | Pinch-to-zoom (touch; also `DashboardView` + `DualPaneView`) | the same zoom string, announced once on release (`"Columns 150%"` for the Week (Grid)'s axis) — the discrete zoom buttons remain the keyboard/screen-reader path |
 | Wizard step change (`EventForm`) | `"Step N of M: <name>"` |
+| Wizard minimize / restore / confirmed discard (`DashboardView`) | `"Event form minimized. Your draft is kept."` / `"Event form restored."` / `"Event draft discarded."` |
 | Cold-start readiness (`ColdStartReady`) | `"Calendar up to date"` |
 
 ## 1.3 Loading announcements
@@ -110,7 +112,26 @@ none` lets a touch drag start instead of scrolling, and
 `prefers-reduced-motion` disables the FLIP animation. See
 [`reorder.md`](reorder.md) §1.6.
 
-## 1.6 File index & related docs
+## 1.6 Modal minimize, draft bar & focus transfer
+
+The event wizard minimizes without discarding. Its header minimize / discard
+controls are 44px `ActionIcon`s with accessible names and tooltips; the minimize
+control also advertises `aria-keyshortcuts="Escape"` (Escape and outside taps
+minimize too).
+
+- On minimize, focus moves to the draft bar's **Resume draft** action, whose
+  accessible name includes the draft kind and event title
+  (`eventDraftPresentation`, `src/lib/events/draft.ts`), so keyboard and
+  screen-reader users are not left on a hidden dialog.
+- The bar (`EventDraftBar`) is a `role="group"` labelled "Minimized event draft".
+  Resume and discard are separate 44px buttons; discard first asks for
+  confirmation (with **Keep editing** focused first).
+- Restoring re-enters the modal's focus trap. A completed discard moves focus to
+  `#main-content`, because the bar's discard trigger unmounts with the draft.
+- Starting another wizard while a draft exists prompts instead of replacing it
+  ("Discard draft and continue?").
+
+## 1.7 File index & related docs
 
 | File | Role |
 | ---- | ---- |
@@ -122,6 +143,7 @@ none` lets a touch drag start instead of scrolling, and
 | `src/app/globals.css` | `.c2-sr-only` + `.c2-skip-link` styles |
 | `src/app/(protected)/dashboard/DashboardView.tsx` | View/period/filter/zoom announcements |
 | `src/app/(protected)/dashboard/EventForm.tsx` | Wizard step announcements |
+| `src/app/(protected)/dashboard/EventDraftBar.tsx` | Minimized-draft bar, resume/discard targets |
 | `src/components/ColdStartReady.tsx` | Cold-start readiness announcement |
 
 Related docs:

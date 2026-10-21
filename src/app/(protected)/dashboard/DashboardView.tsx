@@ -63,7 +63,6 @@ import {
   IconChevronDown,
   IconChevronLeft,
   IconChevronRight,
-  IconChevronUp,
   IconLayoutGrid,
   IconLink,
   IconPlus,
@@ -85,6 +84,7 @@ import {
   monthGridRows,
 } from "./calendarSkeleton";
 import { formatWeekLabel } from "./clientDateTime";
+import { EventDraftBar } from "./EventDraftBar";
 import { EmptyState } from "@/components/EmptyState";
 import { FilterButton } from "@/components/FilterButton";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
@@ -96,13 +96,9 @@ import {
   DESKTOP_WIDE_MEDIA_QUERY,
   NARROW_MEDIA_QUERY,
 } from "@/lib/theme";
-import {
-  FAB_ICON_SIZE,
-  FAB_SIZE,
-  FloatingActionButton,
-  FloatingToolbar,
-} from "@/components/FloatingToolbar";
+import { FAB_SIZE, FloatingToolbar } from "@/components/FloatingToolbar";
 import { LoadingStatus } from "@/components/LoadingStatus";
+import { MotionModal } from "@/components/MotionModal";
 import { QuickLinksMenu } from "@/components/QuickLinksMenu";
 import type { DashboardSnapshot } from "@/lib/dashboard/snapshot";
 import { eventsOnDay } from "@/lib/events/agenda";
@@ -361,6 +357,11 @@ interface FormState {
       in create mode — the "duplicate" flow. */
   templateEvent: CalendarEvent | null;
   defaultDate: string;
+}
+
+interface PendingFormStart {
+  state: FormState;
+  originRect: Rect | null;
 }
 
 const DAY_SWIPE_THRESHOLD = 48;
@@ -1137,16 +1138,28 @@ function DashboardViewImpl({
         }
       : null,
   );
-  // Facebook-bubble minimize: the form modal collapses into a floating circle
-  // while `formMinimized` is true. The modal stays mounted (`keepMounted`) so
-  // the draft survives.
+  // Minimize: the wizard collapses into the docked draft bar while
+  // `formMinimized` is true. The modal stays mounted (`keepMounted`) so the
+  // draft survives.
   const [formMinimized, setFormMinimized] = useState(false);
+  // A form start (new/edit/duplicate) requested while another draft is still
+  // open. Confirming the discard prompt applies it; cancelling keeps the draft.
+  const [pendingFormStart, setPendingFormStart] = useState<PendingFormStart | null>(null);
+  const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
+  // Focus lands on the draft bar's resume action after minimizing, so keyboard
+  // and screen-reader users are not left on a hidden modal.
+  const resumeDraftRef = useRef<HTMLButtonElement | null>(null);
   const formIsOpen = formState !== null;
-  // The "Tap outside to minimize" caption is anchored to the bottom of the
-  // viewport (not the dialog's bottom), so its position never depends on the
-  // dialog's measured size — resizing between wizard steps or opening the
-  // modal can't make it jump.
+  // The "Tap outside or press Esc to minimize" caption is anchored to the
+  // bottom of the viewport (not the dialog's bottom), so its position never
+  // depends on the dialog's measured size — resizing between wizard steps or
+  // opening the modal can't make it jump.
   const hintVisible = formIsOpen && !formMinimized;
+  useEffect(() => {
+    if (formMinimized) {
+      resumeDraftRef.current?.focus({ preventScroll: true });
+    }
+  }, [formMinimized]);
   const [agendaDate, setAgendaDate] = useState<string | null>(null);
   // Direction of the last in-modal day change, so the new agenda can slide in
   // from the swipe/chevron direction (1 = next day, -1 = previous day,
@@ -1246,8 +1259,7 @@ function DashboardViewImpl({
     setPrevEditLinkId(initialEditEventId);
     const found = resolveDeepLinkEvent(initialEditEventId);
     if (found) {
-      setFormMinimized(false);
-      setFormState({ event: found, templateEvent: null, defaultDate: found.start.slice(0, 10) });
+      applyDeepLinkEdit(found);
     }
     setEditLinkFailed(found === null);
     setPendingEditLinkId(found === null ? initialEditEventId : null);
@@ -1257,8 +1269,7 @@ function DashboardViewImpl({
     if (found) {
       setPendingEditLinkId(null);
       setEditLinkFailed(false);
-      setFormMinimized(false);
-      setFormState({ event: found, templateEvent: null, defaultDate: found.start.slice(0, 10) });
+      applyDeepLinkEdit(found);
     }
   }
   const [filterOpened, { open: openFilter, close: closeFilter }] = useDisclosure(false);
@@ -2722,9 +2733,6 @@ function DashboardViewImpl({
     { axis: "lock", axisThreshold: 8, threshold: 10, filterTaps: true },
   );
 
-  // Draggable minimized bubble: pointer-based so it works for both mouse and
-  // touch. A tap (movement under the threshold) restores the form; a drag
-  // repositions the pill, clamped to the viewport.
   // Same group semantics as `activeFilterCount`: a partial Calendars
   // selection, any Users selection and any Event Types selection each count
   // as one active filter group.
@@ -2876,25 +2884,109 @@ function DashboardViewImpl({
     openCreateView();
   }
 
-  function openCreate(dateValue: string, originRect: Rect | null = null) {
+  /** Apply a form start now (the draft, if any, has already been cleared). */
+  function startForm(start: PendingFormStart) {
     captureModalViewport();
     setFormMinimized(false);
-    setFormOriginRect(originRect);
-    setFormState({ event: null, templateEvent: null, defaultDate: dateValue });
+    setFormOriginRect(start.originRect);
+    setFormState(start.state);
+  }
+
+  /**
+   * Start a wizard, but never silently replace a live draft: if one is open
+   * (minimized or otherwise), stash the request behind the discard prompt.
+   */
+  function requestFormStart(start: PendingFormStart) {
+    if (formState !== null) {
+      setPendingFormStart(start);
+      setDiscardConfirmOpen(true);
+      return;
+    }
+    startForm(start);
+  }
+
+  /**
+   * A deep link re-opens the wizard during render. Guard it the same way, but
+   * defer the viewport capture / focus work to the confirm handler.
+   */
+  function applyDeepLinkEdit(found: CalendarEvent) {
+    const start: PendingFormStart = {
+      state: { event: found, templateEvent: null, defaultDate: found.start.slice(0, 10) },
+      originRect: null,
+    };
+    if (formState !== null) {
+      // Keep the discard prompt the only open modal so Escape cancels just it.
+      setDetailEvent(null);
+      setAgendaDate(null);
+      setPendingFormStart(start);
+      setDiscardConfirmOpen(true);
+      return;
+    }
+    setFormMinimized(false);
+    setFormState(start.state);
+  }
+
+  function openCreate(dateValue: string, originRect: Rect | null = null) {
+    requestFormStart({
+      state: { event: null, templateEvent: null, defaultDate: dateValue },
+      originRect,
+    });
   }
 
   function closeForm() {
+    setDiscardConfirmOpen(false);
     setFormMinimized(false);
     setFormState(null);
   }
 
+  function restoreForm() {
+    if (!formMinimized) {
+      return;
+    }
+    setFormMinimized(false);
+    announce("Event form restored.");
+  }
+
   function minimizeForm() {
-    // Shrink into the floating bubble (bottom-right) instead of wherever the
-    // form was opened from; the draft stays alive in the keepMounted modal.
-    // Used by the header chevron, outside clicks and Escape — none of them
-    // discard the draft.
+    // Collapse into the docked draft bar (not the originating button); the
+    // draft stays alive in the keepMounted modal. The header chevron, outside
+    // clicks and Escape all reach this — none of them discard the draft.
     setFormOriginRect(null);
     setFormMinimized(true);
+    announce("Event form minimized. Your draft is kept.");
+  }
+
+  function requestDiscard() {
+    setPendingFormStart(null);
+    setDiscardConfirmOpen(true);
+  }
+
+  function cancelDiscard() {
+    setDiscardConfirmOpen(false);
+    setPendingFormStart(null);
+    if (formMinimized) {
+      // The prompt may have been opened from a now-closed detail modal; land
+      // focus back on the draft bar rather than wherever its trigger was.
+      requestAnimationFrame(() => {
+        resumeDraftRef.current?.focus({ preventScroll: true });
+      });
+    }
+  }
+
+  function confirmDiscard() {
+    const pending = pendingFormStart;
+    setDiscardConfirmOpen(false);
+    closeForm();
+    announce("Event draft discarded.");
+    if (pending) {
+      startForm(pending);
+      return;
+    }
+    // The discard trigger (the draft bar) unmounts with the form; move focus to
+    // the dashboard's main landmark instead of leaving it on <body>.
+    requestAnimationFrame(() => {
+      document.getElementById("main-content")?.focus({ preventScroll: true });
+    });
   }
 
   // Keep the Agenda tab's local day in sync with the URL (setState during
@@ -4765,21 +4857,21 @@ function DashboardViewImpl({
           setPendingDetailLinkId(null);
         }}
         onEdit={(event, originRect) => {
-          captureModalViewport();
           setDetailEvent(null);
-          setFormMinimized(false);
-          setFormOriginRect(originRect);
-          setFormState({ event, templateEvent: null, defaultDate: today });
+          requestFormStart({
+            state: { event, templateEvent: null, defaultDate: today },
+            originRect,
+          });
         }}
         onDuplicate={(event, originRect) => {
-          captureModalViewport();
           setDetailEvent(null);
-          setFormMinimized(false);
-          setFormOriginRect(originRect);
-          setFormState({
-            event: null,
-            templateEvent: event,
-            defaultDate: event.start.slice(0, 10),
+          requestFormStart({
+            state: {
+              event: null,
+              templateEvent: event,
+              defaultDate: event.start.slice(0, 10),
+            },
+            originRect,
           });
         }}
         onDeleted={() => {
@@ -4803,6 +4895,7 @@ function DashboardViewImpl({
       <Modal.Root
         opened={formIsOpen && !formMinimized}
         onClose={minimizeForm}
+        closeOnEscape={!discardConfirmOpen}
         keepMounted
         centered
         // A fixed vertical gutter keeps the centered wizard's top/bottom gaps
@@ -4817,7 +4910,7 @@ function DashboardViewImpl({
       >
         <Modal.Overlay />
         <Modal.Content>
-          <Modal.Header>
+          <Modal.Header py={8}>
             <Modal.Title>
               {formState?.event
                 ? "Edit event"
@@ -4826,26 +4919,32 @@ function DashboardViewImpl({
                   : "New event"}
             </Modal.Title>
             <Group gap="xs" ml="auto">
-              <ActionIcon
-                variant="subtle"
-                color="gray"
-                size="sm"
-                aria-label="Minimize event form"
-                onClick={minimizeForm}
-              >
-                <IconChevronDown size={16} />
-              </ActionIcon>
+              <Tooltip label="Minimize (Esc)" position="bottom">
+                <ActionIcon
+                  variant="subtle"
+                  color="gray"
+                  size="xl"
+                  aria-label="Minimize event form"
+                  aria-keyshortcuts="Escape"
+                  onClick={minimizeForm}
+                >
+                  <IconChevronDown size={20} />
+                </ActionIcon>
+              </Tooltip>
               {/* Custom X: Modal.CloseButton would route through onClose (which
-                  now minimizes), but the close button must discard the draft. */}
-              <ActionIcon
-                variant="subtle"
-                color="gray"
-                size="sm"
-                aria-label="Close and discard draft"
-                onClick={closeForm}
-              >
-                <IconX size={16} />
-              </ActionIcon>
+                  minimizes), but this control must discard the draft — after
+                  the shared confirmation. */}
+              <Tooltip label="Discard draft" position="bottom">
+                <ActionIcon
+                  variant="subtle"
+                  color="gray"
+                  size="xl"
+                  aria-label="Discard draft"
+                  onClick={requestDiscard}
+                >
+                  <IconX size={20} />
+                </ActionIcon>
+              </Tooltip>
             </Group>
           </Modal.Header>
           <Modal.Body>
@@ -4889,13 +4988,12 @@ function DashboardViewImpl({
         </Modal.Content>
       </Modal.Root>
 
-      {/* "Tap outside to minimize" hint, anchored to the viewport bottom (not
-          the dialog's) so its position is stable regardless of dialog size.
-          It lives outside the Paper deliberately — the Paper clips anything
-          inside it (overflow-y) — and portals to <body> (like the restore
-          bubble's Affix) so its z-index competes at the root level: 260 puts
-          it above the modal's 250 overlay and below the 300 bubble,
-          cross-fading with the modal's own 250ms transitions.
+      {/* "Tap outside or press Esc to minimize" hint, anchored to the viewport
+          bottom (not the dialog's) so its position is stable regardless of
+          dialog size. It lives outside the Paper deliberately — the Paper
+          clips anything inside it (overflow-y) — and portals to <body> so its
+          z-index competes at the root level: 260 puts it above the modal's 250
+          overlay, cross-fading with the modal's own 250ms transitions.
           pointer-events: none, so tapping the caption lands on the overlay
           → minimizes, which is what it advertises. */}
       <Portal>
@@ -4917,30 +5015,52 @@ function DashboardViewImpl({
             userSelect: "none",
           }}
         >
-          Tap outside to minimize
+          Tap outside or press Esc to minimize
         </Text>
       </Portal>
 
       {formState && formMinimized && (
-        <FloatingToolbar zIndex={300} bottomOffset={fabBottomOffset}>
-          <FloatingActionButton
-            aria-label="Restore event form"
-            onClick={() => setFormMinimized(false)}
-          >
-            <IconChevronUp size={FAB_ICON_SIZE} />
-          </FloatingActionButton>
-          <ActionIcon
-            radius="50%"
-            w={FAB_SIZE}
-            h={FAB_SIZE}
-            variant="default"
-            aria-label="Discard draft"
-            onClick={closeForm}
-          >
-            <IconX size={FAB_ICON_SIZE} />
-          </ActionIcon>
-        </FloatingToolbar>
+        <EventDraftBar
+          kind={formState.event ? "edit" : formState.templateEvent ? "duplicate" : "create"}
+          title={
+            formState.event
+              ? (formState.event.payload.rawTitle ?? formState.event.title)
+              : formState.templateEvent
+                ? (formState.templateEvent.payload.rawTitle ?? formState.templateEvent.title)
+                : null
+          }
+          bottomOffset={fabBottomOffset ?? "var(--app-floating-bottom-offset)"}
+          onResume={restoreForm}
+          onDiscard={requestDiscard}
+          resumeRef={resumeDraftRef}
+        />
       )}
+
+      <MotionModal
+        opened={discardConfirmOpen}
+        onClose={cancelDiscard}
+        title={pendingFormStart ? "Discard draft and continue?" : "Discard draft?"}
+        centered
+        size="sm"
+        withCloseButton={false}
+        zIndex={400}
+      >
+        <Stack gap="md">
+          <Text size="sm">
+            {pendingFormStart
+              ? "Starting another event will discard your current draft. This cannot be undone."
+              : "Your unsaved event details will be lost. This cannot be undone."}
+          </Text>
+          <Group justify="flex-end" gap="xs">
+            <Button variant="default" size="lg" onClick={cancelDiscard}>
+              Keep editing
+            </Button>
+            <Button color="red" size="lg" onClick={confirmDiscard}>
+              {pendingFormStart ? "Discard and continue" : "Discard draft"}
+            </Button>
+          </Group>
+        </Stack>
+      </MotionModal>
 
       <DateSelectorModal
         opened={pickerOpened}

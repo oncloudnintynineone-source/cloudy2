@@ -15,6 +15,9 @@ month cache is covered in [`events-cache.md`](events-cache.md).
 - [1.2 Goals & non-goals](#12-goals--non-goals)
 - [1.3 Architecture overview](#13-architecture-overview)
 - [1.4 The staged wizard](#14-the-staged-wizard)
+  - [1.4.1 Step details](#141-step-details)
+  - [1.4.2 Deep links back to the event](#142-deep-links-back-to-the-event)
+  - [1.4.3 Minimize, the draft bar & discard safety](#143-minimize-the-draft-bar--discard-safety)
 - [1.5 Guards & validation](#15-guards--validation)
 - [1.6 Target derivation](#16-target-derivation)
 - [1.7 The notes block](#17-the-notes-block)
@@ -156,8 +159,10 @@ Mechanics worth knowing:
  `100dvh - 88px` (2 × 44px gutter) box, and `WIZARD_BODY_HEIGHT_MOBILE` =
  `calc(100dvh - 164px)` fills it — the 88px of gutters plus the modal's own chrome
  (sticky header ~60px + body bottom padding ~16px = 76px). Equal ~44px gutters
- remain, and the "Tap outside to minimize" caption sits in the bottom gutter (it
- stays at the viewport bottom; the header's minimize chevron / X also stay).
+ remain, and the "Tap outside or press Esc to minimize" caption sits in the bottom
+ gutter (it stays at the viewport bottom; the header's minimize chevron / X also
+ stay). The header controls are 44px targets and the header keeps its ~60px height
+ with `py={8}`.
  `100dvh` shrinking with the on-screen keyboard just shortens the body.
   - **Desktop height**: the centered modal's body grows with the viewport up to
  `min(68dvh, 720px, calc(100dvh - 200px))` so a tall screen is actually used up to a
@@ -319,6 +324,47 @@ active tab's month range exclude it — without adding it to the grid's filtered
   `defaultDate`, `range`, `creatorId` = the acting session user (every role — no admin
   on-behalf), `ownerOnlyEdits` = false, and no self chip: the attendee list starts
   empty.
+
+### 1.4.3 Minimize, the draft bar & discard safety
+
+The wizard minimizes without losing the draft. Tapping the overlay, pressing
+**Escape**, or the header minimize control (`IconChevronDown`, a 44px labelled
+`ActionIcon` with `aria-keyshortcuts="Escape"`) hides the modal while
+`keepMounted` keeps its state alive. A frosted **draft bar** (`EventDraftBar`) then
+docks where the floating FAB row sits — above the mobile control pill, and centred
+(max 560px) near the bottom edge on desktop. It reuses the house
+`.c2-glass-surface` / `.c2-control-pill` styling, so the minimized state reads as
+the same glass language as the rest of the calendar.
+
+- **Resume** is the whole left region: a 44px labelled action with the per-kind
+  detail (`New event`, the event title, or `Copy of <title>`) from the pure
+  `eventDraftPresentation` (`src/lib/events/draft.ts`). Focus moves to it as soon as
+  the form minimizes, so keyboard and screen-reader users are never stranded on the
+  hidden dialog.
+- **Discard** is the trailing 44px control. Both it and the header X open the shared
+  `MotionModal` prompt ("Discard draft?", with **Keep editing** focused first). A
+  confirmed discard announces through the polite live region and moves focus to
+  `#main-content` once the prompt and form close.
+- **Overriding a draft** never happens silently: starting another New event / Edit /
+  Duplicate (including a `?edit=` deep link) while a draft exists turns the prompt into
+  "Discard draft and continue?" and the requested form starts only on confirm.
+- **Minimize, restore and discard** are all announced (`"Event form minimized…"`,
+  `"Event form restored."`, `"Event draft discarded."`) rather than changing the screen
+  silently.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Open
+  Open --> Minimized: tap outside / Esc / header chevron
+  Minimized --> Open: Resume draft
+  Open --> DiscardPrompt: header X
+  Minimized --> DiscardPrompt: bar discard
+  Open --> DiscardPrompt: another form requested
+  DiscardPrompt --> Open: Keep editing
+  DiscardPrompt --> Closed: Discard
+  DiscardPrompt --> Open: Discard and continue
+  Open --> Closed: Save
+```
 
 ## 1.5 Guards & validation
 

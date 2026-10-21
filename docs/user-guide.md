@@ -144,8 +144,9 @@ attend:
  (locks editing to you; admins always keep it).
 7. **Review** — a summary with a live calendar-title preview, then Create.
 
-Tapping outside the wizard minimizes it to a floating bubble — your draft survives
-until you resume or discard it.
+Tapping outside the wizard (or pressing **Esc**) minimizes it to a **draft bar** docked
+above the bottom controls — your draft survives until you resume it or confirm a
+discard. Starting a different event while a draft exists asks before replacing it.
 
 ### 1.4.2 Viewing and editing
 

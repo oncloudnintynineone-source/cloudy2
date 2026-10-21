@@ -9377,3 +9377,42 @@ the button). Switched to `pop-bottom-right`: it now unfurls upward from the
 More tile's corner, matching `QuickLinksMenu`'s `position === "top-end" ?
 "pop-bottom-right"` pattern. Other `pop-top-right` sites (UserMenu, EventSearch
 popover, AuditLog popover) open *below* their triggers and stay correct.
+
+## 1.319 Accessible event-wizard minimize + docked draft bar
+
+The wizard's minimize path was the last ad-hoc control cluster on the calendar:
+two 22px header icons and a Facebook-style pair of floating circles. Replaced
+with a labelled, focus-managed flow in the house glass language.
+
+- **Header controls.** Minimize and discard are `ActionIcon size="xl"` (44px)
+  with tooltips, accessible names, and `aria-keyshortcuts="Escape"` on minimize.
+  `Modal.Header` gets `py={8}` so the ~60px chrome height assumed by
+  `WIZARD_BODY_HEIGHT_MOBILE` does not change.
+- **Draft bar.** New `EventDraftBar` (dashboard) renders on `formMinimized`: a
+  portaled `Affix` at the existing `fabBottomOffset` (above the mobile control
+  pill; bottom-inset on desktop), max 560px and centred, reusing
+  `.c2-glass-surface` / `.c2-control-pill` and the `c2-fab-cluster` entrance at
+  page z-index 100 so other modals cover it correctly. The left 44px Resume
+  action shows the kind icon and per-kind detail (`New event` / the event title
+  / `Copy of <title>`) from the pure `eventDraftPresentation`
+  (`src/lib/events/draft.ts`, unit-tested); the trailing 44px trash control
+  discards.
+- **Focus + announcements.** `minimizeForm` moves focus to the Resume action
+  (effect on `formMinimized`) and announces `"Event form minimized. Your draft
+  is kept."`; restore announces `"Event form restored."`; a confirmed discard
+  announces `"Event draft discarded."` and — because the bar trigger unmounts —
+  focuses `#main-content`. Escape still minimizes.
+- **Discard safety.** Header X and the bar's discard both open a `MotionModal`
+  ("Discard draft?", `withCloseButton={false}`, Keep editing first / red
+  discard). `pendingFormStart` extends the same prompt to overrides: New/Edit/
+  Duplicate and `?edit=` deep links no longer silently replace a live draft; the
+  requested form starts only on "Discard and continue".
+- **Caption.** "Tap outside or press Esc to minimize" replaces the old caption;
+  docs references were updated.
+
+Verification: `pnpm lint` clean, `pnpm typecheck` clean, `pnpm test` 1518/1518
+(114 files, including the new `draft.test.ts`).
+
+Docs: `event-lifecycle.md` §1.4/§1.4.3, `accessibility.md` §1.2/§1.6,
+`desktop-responsive.md` §1.7, `user-guide.md` §1.4.1, `dashboard-views.md` §1.1,
+`eventFormLayout.ts` comment.

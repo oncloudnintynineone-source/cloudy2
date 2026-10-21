@@ -393,7 +393,11 @@ The event form's **Timestamp step** pairs Start/End side by side in a 2-column
 modal stays `centered` at every width (see event-lifecycle.md §1.4): on phones it sets
 `yOffset="44px"`, so Mantine centers inside a `100dvh - 88px` box and the body
 (`WIZARD_BODY_HEIGHT_MOBILE` = `calc(100dvh - 164px)`) fills it — equal ~44px top/bottom
-gutters remain, and the "Tap outside to minimize" caption sits in the bottom gutter. On
+gutters remain, and the "Tap outside or press Esc to minimize" caption sits in the bottom
+gutter. The header's minimize / discard controls are 44px targets (`py={8}` on the header
+keeps the ~60px chrome height the body math assumes). Minimized, the wizard becomes the
+`EventDraftBar` — a centred, max-560px frosted bar docked above the mobile control pill
+(bottom-inset on desktop) with a 44px Resume action and a 44px discard control. On
 the desktop shell
 the centered modal's body grows with the viewport up to
 `min(68dvh, 720px, calc(100dvh - 200px))`. The body height never depends on the active

@@ -13,7 +13,7 @@
  *   modal's own chrome (sticky header ~60px + body bottom padding ~16px =
  *   76px) gives `calc(100dvh - 88px - 76px)` = `calc(100dvh - 164px)`. That
  *   keeps the top/bottom gutters equal (~44px each) and leaves room for the
- *   "Tap outside to minimize" caption at the bottom.
+ *   "Tap outside or press Esc to minimize" caption at the bottom.
  * - Desktop: the centered modal's body grows with the viewport up to
  *   68dvh / 720px so a tall screen is actually used.
  */
