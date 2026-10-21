@@ -55,9 +55,17 @@ bar whenever the `bannerConfig` prop is non-null:
   via `title`.
 - It **measures its own height after layout** and reports it through the
   `ShellChromeContext` (provided by `AppShellShell`) into `--app-banner-height`,
-  set **inline** on the AppShell root. The `calc(56px + var(--app-banner-height))`
-  chain lives on `.app-shell-root` in `src/app/globals.css` — no class toggling —
-  so main padding, navbar and all sticky chrome follow automatically.
+  set **inline** on the AppShell root. The
+  `calc(env(safe-area-inset-top) + 56px + var(--app-banner-height))` chain lives
+  on `.app-shell-root` in `src/app/globals.css` — no class toggling — and mirrors
+  the `AppShell` `header.height` prop exactly, so main padding, the navbar's
+  `top` and all sticky chrome follow automatically. It is the single source of
+  truth for the offset: the installed-PWA viewport sync must not override it with
+  a measured header height (see [pwa-offline.md](pwa-offline.md) §1.19). At `lg`
+  the navbar is bottom-anchored (`height: auto; bottom: 0` at desktop, lifted by
+  the standalone visual-viewport gap), so a banner toggle
+  only moves its `top` and the sidebar always reaches the viewport bottom —
+  including when the banner is disabled.
 
 ### 1.3.1 Known from first paint — no reservation trade-off
 

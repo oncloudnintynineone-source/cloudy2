@@ -762,6 +762,17 @@ diverge (rotation, resume, keyboard teardown) the footer stays on the visible
 bottom instead of the layout bottom. `visualViewport` `scroll` is listened to in
 addition to `resize`.
 
+The sync deliberately does **not** write `--app-shell-header-offset`. That offset
+comes from the banner-aware CSS chain on `.app-shell-root`
+(`env(safe-area-inset-top) + 56px + var(--app-banner-height)`), which mirrors the
+`AppShell` `header.height` prop exactly, so the sidebar/main padding can never
+drift from `bannerActive`. An earlier measured override there beat the CSS chain
+and left the desktop sidebar short of the viewport bottom in an installed PWA
+when the announcement banner was disabled. At `lg` the desktop sidebar is now
+bottom-anchored (`height: auto; bottom: var(--app-shell-visual-bottom-gap, 0px)`)
+instead of height-mathed from
+`100dvh`/`--app-shell-vh`; the hidden mobile navbar needs no height handling.
+
 **Limits.** Installed PWAs (WebAPKs) did not get edge-to-edge at all until a 2026
 Chromium fix (`issues.chromium.org/407420295`); whether it applies depends on the
 device's Chrome version, and no app-side change can force it. In **three-button**

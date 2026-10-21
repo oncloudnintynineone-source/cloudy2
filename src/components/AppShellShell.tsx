@@ -1015,14 +1015,7 @@ export function AppShellShell({
       el.style.setProperty("--app-shell-visual-bottom-gap", `${bottomGap}px`);
 
       if (!immersive) {
-        const header = el.querySelector<HTMLElement>(":scope > header");
         const footer = el.querySelector<HTMLElement>(":scope > footer");
-        if (header) {
-          el.style.setProperty(
-            "--app-shell-header-offset",
-            `${header.getBoundingClientRect().height}px`,
-          );
-        }
         // The collapsed (desktop) footer is only translated off-screen, so its
         // measured height is still 56px. Writing that as the inline footer
         // offset would shorten the navbar by 56px (a custom property declared
@@ -1031,6 +1024,10 @@ export function AppShellShell({
         // the bottom / huge calendar bottom padding" bug. Below lg the footer
         // genuinely occupies that space, so only measure it while mobile; on
         // desktop remove the override and let Mantine's 0px cascade apply.
+        // The header offset is deliberately NOT written here: it comes from the
+        // banner-aware CSS chain on `.app-shell-root` (globals.css), so it can
+        // never drift from `bannerActive`; a measured override used to leave
+        // the desktop/sidebar short of the viewport bottom in an installed PWA.
         if (footer && !isDesktop) {
           el.style.setProperty(
             "--app-shell-footer-offset",
@@ -1040,23 +1037,20 @@ export function AppShellShell({
           el.style.removeProperty("--app-shell-footer-offset");
         }
       } else {
-        el.style.removeProperty("--app-shell-header-offset");
         el.style.removeProperty("--app-shell-footer-offset");
       }
     };
 
     sync();
-    // React to header/footer box changes (banner appearing, safe-area insets,
-    // iOS chrome shifting) via a ResizeObserver instead of a perpetual poll.
-    // Observing the elements' boxes covers everything the old 500ms interval
-    // caught without forcing layout reads twice a second on an idle shell.
-    const header = el.querySelector<HTMLElement>(":scope > header");
+    // React to footer box changes (safe-area insets, iOS chrome shifting) via a
+    // ResizeObserver instead of a perpetual poll. Observing the element's box
+    // covers everything the old 500ms interval caught without forcing layout
+    // reads twice a second on an idle shell.
     const footer = el.querySelector<HTMLElement>(":scope > footer");
     const ro =
       typeof ResizeObserver === "function" ? new ResizeObserver(() => sync()) : null;
-    if (ro) {
-      if (header) ro.observe(header);
-      if (footer) ro.observe(footer);
+    if (ro && footer) {
+      ro.observe(footer);
     }
     window.addEventListener("resize", sync);
     const onOrientation = () => setTimeout(sync, 400);
@@ -1075,7 +1069,6 @@ export function AppShellShell({
       el.classList.remove("app-shell-standalone");
       el.style.removeProperty("--app-shell-vh");
       el.style.removeProperty("--app-shell-visual-bottom-gap");
-      el.style.removeProperty("--app-shell-header-offset");
       el.style.removeProperty("--app-shell-footer-offset");
     };
   }, [immersive, isDesktop]);
