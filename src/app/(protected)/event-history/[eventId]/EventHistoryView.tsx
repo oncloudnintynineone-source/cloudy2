@@ -12,7 +12,7 @@ import { actionLabel, actorLabel, formatAuditDetails, formatLogTimestamp } from 
 import { CONTENT_ENTER_CLASS, useContentEnter } from "@/lib/loading/contentEnter";
 import { useLiveRouteRefresh } from "@/lib/loading/liveRefresh";
 import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
-import { MOTION } from "@/lib/motion/timing";
+import { useMotion } from "@/components/MotionProvider";
 import type { AuditLog } from "@/db/schema";
 
 import { EventHistorySkeleton } from "./EventHistorySkeleton";
@@ -100,6 +100,7 @@ export function EventHistoryView({
  * (`src/components/clashCards.tsx`).
  */
 function HistoryEntry({ row }: { row: AuditLog }) {
+  const motion = useMotion();
   const [open, setOpen] = useState(false);
   const regionId = useId();
   const summary = changeSummary(row.details, row.entityName ?? null);
@@ -137,7 +138,7 @@ function HistoryEntry({ row }: { row: AuditLog }) {
               flexShrink: 0,
               marginTop: 2,
               transform: open ? "rotate(180deg)" : undefined,
-              transition: `transform ${MOTION.micro}ms ease`,
+              transition: `transform ${motion.duration.micro}ms ${motion.easing.out}`,
             }}
             aria-hidden
           />
@@ -146,7 +147,7 @@ function HistoryEntry({ row }: { row: AuditLog }) {
       <Collapse
         expanded={open}
         id={regionId}
-        transitionDuration={MOTION.popover}
+        transitionDuration={motion.duration.popover}
         keepMounted={false}
       >
         <Box mt="xs">

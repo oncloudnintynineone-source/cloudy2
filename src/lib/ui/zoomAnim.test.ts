@@ -1,24 +1,28 @@
 import { describe, expect, it } from "vitest";
 
-import { cubicBezier, zoomEase } from "./zoomAnim";
+import { cubicBezier, EASE_OUT } from "@/lib/motion/tokens";
+import { STANDARD_MOTION } from "@/lib/motion/profile";
 
 describe("cubicBezier", () => {
   it("is the identity for a linear curve", () => {
-    const linear = cubicBezier(0, 0, 1, 1);
+    const linear = cubicBezier([0, 0, 1, 1]);
     for (const x of [0, 0.1, 0.3, 0.5, 0.7, 0.9, 1]) {
       expect(linear(x)).toBeCloseTo(x, 5);
     }
   });
 
   it("clamps outside [0, 1]", () => {
-    expect(zoomEase(-1)).toBe(0);
-    expect(zoomEase(0)).toBe(0);
-    expect(zoomEase(1)).toBe(1);
-    expect(zoomEase(2)).toBe(1);
+    const easeOut = cubicBezier(EASE_OUT);
+    expect(easeOut(-1)).toBe(0);
+    expect(easeOut(0)).toBe(0);
+    expect(easeOut(1)).toBe(1);
+    expect(easeOut(2)).toBe(1);
   });
 });
 
-describe("zoomEase", () => {
+describe("the standard zoom easing", () => {
+  const zoomEase = cubicBezier(STANDARD_MOTION.easingCurves.out);
+
   it("matches the CSS cubic-bezier(0.22, 1, 0.36, 1): a fast ease-out", () => {
     const easeOutCubic = (x: number) => 1 - (1 - x) ** 3;
     expect(zoomEase(0.25)).toBeGreaterThan(easeOutCubic(0.25));

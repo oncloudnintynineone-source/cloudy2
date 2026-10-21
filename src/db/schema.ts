@@ -454,6 +454,14 @@ export const settings = pgTable(
      */
     bottomNavVariant: text("bottom_nav_variant").notNull().default("medium"),
     /**
+     * App-wide motion profile (Settings → Feature Flags): `calm`, `standard`
+     * (default), `snappy` or `playful`. Scales every animation's duration,
+     * travel distance and stagger, and sets the easing family + bounce. One of
+     * the keys in `FEATURE_FLAGS` (`src/lib/settings/featureFlags.ts`); the
+     * registry's default backs the column default. See docs/motion.md.
+     */
+    motionProfile: text("motion_profile").notNull().default("standard"),
+    /**
      * Daily parade-state email (Settings → Parade State Email): when enabled,
      * the selected roster users receive one snapshot on each configured weekday
      * once the configured send time has passed (Singapore time). The trigger is

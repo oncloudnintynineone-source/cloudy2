@@ -26,6 +26,7 @@ import { Box, Paper, ScrollArea, Text, UnstyledButton, useMantineTheme } from "@
 import { useMediaQuery, useMergedRef } from "@mantine/hooks";
 
 import { GridNavControls } from "@/components/GridNavControls";
+import { useMotion } from "@/components/MotionProvider";
 import { buildWeekLanes } from "@/lib/events/weekMatrix";
 import type { WeekSpan } from "@/lib/events/weekMatrix";
 import type { CalendarEvent } from "@/lib/events/queries";
@@ -146,6 +147,7 @@ export function WeekMatrixView({
   controlsAnchorRef,
   bottomBarrierRef,
 }: WeekMatrixViewProps) {
+  const motion = useMotion();
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
   // Drag-to-pan + edge pan buttons + pinch-to-zoom (same story as the Day/Week
@@ -243,6 +245,7 @@ export function WeekMatrixView({
       animateZoom(owner, {
         from: oldZoom,
         to: zoom,
+        motion,
         apply: (z) => owner.style.setProperty("--c2-zoom-anim", String(z)),
         onStart: tracker.capture,
         onScroll: () => tracker.apply(),
@@ -250,7 +253,7 @@ export function WeekMatrixView({
       });
     }
     remeasureGridPan();
-  }, [zoom, remeasureGridPan]);
+  }, [zoom, remeasureGridPan, motion]);
 
   const laneMap = useMemo(
     () => buildWeekLanes(events, days, memberships),

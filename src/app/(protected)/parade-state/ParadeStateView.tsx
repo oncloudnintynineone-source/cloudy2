@@ -58,7 +58,7 @@ import type { CalendarEvent } from "@/lib/events/queries";
 import { CONTENT_ENTER_CLASS, useContentEnter } from "@/lib/loading/contentEnter";
 import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
 import { type Rect } from "@/lib/motion/origin";
-import { MOTION } from "@/lib/motion/timing";
+import { useMotion } from "@/components/MotionProvider";
 import { departmentPathLabels, departmentTreeRows } from "@/lib/roster/hierarchy";
 import { buildEventsByUser, eventCoversDay, toParadeEvent } from "@/lib/parade/dayEvents";
 import { buildParadeSections, type ParadeSection } from "@/lib/parade/sections";
@@ -159,6 +159,7 @@ export function ParadeStateView({
   isAdmin = false,
   weekStartsOn = "monday",
 }: ParadeStateViewProps) {
+  const motion = useMotion();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -506,7 +507,7 @@ export function ParadeStateView({
     attendanceBarExitTimer.current = window.setTimeout(() => {
       attendanceBarExitTimer.current = null;
       setAttendanceBarClosing(false);
-    }, MOTION.micro);
+    }, motion.duration.micro);
   }
 
   function toggleAttendance(userId: string) {
@@ -589,8 +590,8 @@ export function ParadeStateView({
         position="bottom-end"
         transitionProps={{
           transition: "pop-top-right",
-          duration: MOTION.popover,
-          timingFunction: "ease",
+          duration: motion.duration.popover,
+          timingFunction: motion.easing.out,
         }}
       >
         <Menu.Target>

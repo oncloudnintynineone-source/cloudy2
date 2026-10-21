@@ -29,7 +29,7 @@ import {
   defaultSearchTo,
   SEARCH_MIN_QUERY_LENGTH,
 } from "@/lib/events/searchRange";
-import { MOTION } from "@/lib/motion/timing";
+import { useMotion } from "@/components/MotionProvider";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 
 import { EmptyState } from "./EmptyState";
@@ -80,6 +80,7 @@ export default function EventSearchBody({
   onRemoveSearch,
   onClose,
 }: EventSearchBodyProps) {
+  const motion = useMotion();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -275,8 +276,8 @@ export default function EventSearchBody({
           closeOnClickOutside={false}
           transitionProps={{
             transition: "pop-top-right",
-            duration: MOTION.popover,
-            timingFunction: "ease",
+            duration: motion.duration.popover,
+            timingFunction: motion.easing.out,
           }}
         >
           <Menu.Target>

@@ -362,8 +362,13 @@ doc content here.
    width (`wide` 96px / `medium` 84px default / `tight` 72px; fixed tiles,
    wider screens reveal more), in the fixed original nav order (`RAIL_ORDER`
    — `src/lib/bottomNav.ts`) in the shell
-   ([`desktop-responsive.md`](docs/desktop-responsive.md) §1.2). Design:
-   [docs/feature-flags.md](docs/feature-flags.md).
+    ([`desktop-responsive.md`](docs/desktop-responsive.md) §1.2); and
+    `motionProfile` — the app-wide animation cadence (`calm` / `standard`
+    default / `snappy` / `playful`) scaling every duration, distance and
+    stagger and setting the easing family, published on `<html>` as `:root:root`
+    `--c2-*` vars by the shell and read by JS via `useMotion()`
+    ([`motion.md`](docs/motion.md)). Design:
+    [docs/feature-flags.md](docs/feature-flags.md).
 - **Templates:** display-name template + **structured recipes** (`src/lib/settings/titleRecipe.ts`,
   no free text beyond an optional per-segment Text field) with per-target assignments
   (incl. `pinned`/`pinnedHeader` and the push bodies `notifyCreated`/`notifyAdded`).

@@ -2,7 +2,7 @@
 
 import { Menu, useMantineTheme } from "@mantine/core";
 
-import { MOTION } from "@/lib/motion/timing";
+import { useMotion } from "@/components/MotionProvider";
 import type { QuickLinkMenuItem } from "@/lib/quickLinks/types";
 
 import { QuickLinkIcon } from "./QuickLinkIcon";
@@ -26,6 +26,7 @@ interface QuickLinksMenuProps {
  */
 export function QuickLinksMenu({ links, trigger, position }: QuickLinksMenuProps) {
   const theme = useMantineTheme();
+  const motion = useMotion();
   return (
     <Menu
       shadow="md"
@@ -33,8 +34,8 @@ export function QuickLinksMenu({ links, trigger, position }: QuickLinksMenuProps
       position={position}
       transitionProps={{
         transition: position === "top-end" ? "pop-bottom-right" : "pop-top-right",
-        duration: MOTION.popover,
-        timingFunction: "ease",
+        duration: motion.duration.popover,
+        timingFunction: motion.easing.out,
       }}
       styles={{ item: { padding: "10px 12px", fontSize: "var(--mantine-font-size-md)" } }}
     >

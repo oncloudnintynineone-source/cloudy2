@@ -68,6 +68,7 @@ describe("normalizeFeatureFlags", () => {
       translucencyLevel: "medium",
       reorderDrag: "drag",
       bottomNavVariant: "medium",
+      motionProfile: "standard",
     });
   });
 
@@ -79,6 +80,7 @@ describe("normalizeFeatureFlags", () => {
       translucencyLevel: "medium",
       reorderDrag: "drag",
       bottomNavVariant: "medium",
+      motionProfile: "standard",
     });
   });
 });
@@ -90,6 +92,7 @@ describe("isFeatureFlagKey", () => {
     expect(isFeatureFlagKey("translucencyLevel")).toBe(true);
     expect(isFeatureFlagKey("reorderDrag")).toBe(true);
     expect(isFeatureFlagKey("bottomNavVariant")).toBe(true);
+    expect(isFeatureFlagKey("motionProfile")).toBe(true);
     expect(isFeatureFlagKey("notAFlag")).toBe(false);
   });
 });
@@ -121,6 +124,7 @@ describe("validateFeatureFlags", () => {
         translucencyLevel: "strong",
         reorderDrag: "arrowsDrag",
         bottomNavVariant: "wide",
+        motionProfile: "playful",
       }),
     ).toEqual({});
   });

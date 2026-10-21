@@ -12,13 +12,9 @@ import {
   recordSearchHistory,
   removeSearchHistory,
 } from "@/lib/events/searchHistoryActions";
-import {
-  modalContentWidth,
-  scaleFromRect,
-  transformOriginFromRect,
-  type Rect,
-} from "@/lib/motion/origin";
-import { MOTION } from "@/lib/motion/timing";
+import { modalContentWidth, type Rect } from "@/lib/motion/origin";
+import { modalZoomTransitionProps } from "@/lib/motion/transitions";
+import { useMotion } from "@/components/MotionProvider";
 
 import EventSearchBodySkeleton from "./EventSearchBodySkeleton";
 
@@ -139,20 +135,11 @@ export default function EventSearchModal({
   // app's standard grow/shrink animation; mirror PinnedEventsPanel).
   // Resize-subscribed viewport (Mantine hook) rather than a raw window read
   // during render.
+  const motion = useMotion();
   const viewportSize = useViewportSize();
   const viewport = { w: viewportSize.width, h: viewportSize.height };
   const contentWidth = modalContentWidth(viewport, isNarrow ? 380 : isDesktop ? 620 : 440);
-  const transitionProps = {
-    transition: {
-      in: { opacity: 1, transform: "scale(1)" },
-      out: { opacity: 0, transform: `scale(${scaleFromRect(originRect, contentWidth)})` },
-      common: { transformOrigin: transformOriginFromRect(originRect, viewport, "center") },
-      transitionProperty: "transform, opacity",
-    },
-    duration: MOTION.modalZoom,
-    exitDuration: MOTION.modalZoomExit,
-    timingFunction: "cubic-bezier(0.3, 1.2, 0.4, 1)",
-  } as const;
+  const transitionProps = modalZoomTransitionProps(motion, originRect, viewport, contentWidth);
 
   return (
     <Modal

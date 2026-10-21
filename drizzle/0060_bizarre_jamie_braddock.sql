@@ -1,0 +1,1 @@
+ALTER TABLE "settings" ADD COLUMN "motion_profile" text DEFAULT 'standard' NOT NULL;

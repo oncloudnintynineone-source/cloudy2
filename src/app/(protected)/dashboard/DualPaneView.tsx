@@ -51,6 +51,7 @@ import "@mantine/schedule/styles.css";
 import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
 
 import { GridNavControls } from "@/components/GridNavControls";
+import { useMotion } from "@/components/MotionProvider";
 import { FULLSCREEN_BUTTON_SIZE, FULLSCREEN_EDGE_INSET } from "@/components/FullscreenToggle";
 import { eventsOnDay } from "@/lib/events/agenda";
 import type { CalendarEvent } from "@/lib/events/queries";
@@ -170,6 +171,7 @@ export function DualPaneView({
   chromeOffset,
   bottomBarrierRef,
 }: DualPaneViewProps) {
+  const motion = useMotion();
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
 
@@ -233,12 +235,13 @@ export function DualPaneView({
     animateZoom(owner, {
       from: oldZoom,
       to: monthZoom,
+      motion,
       apply: (z) => owner.style.setProperty("--c2-zoom-anim", String(z)),
       onStart: tracker.capture,
       onScroll: () => tracker.apply(),
       onDone: () => owner.style.removeProperty("--c2-zoom-anim"),
     });
-  }, [monthZoom]);
+  }, [monthZoom, motion]);
 
   // The month grid renders the month's natural week rows (`monthGridRows`,
   // 4–6, no consistent-weeks padding), and Mantine sizes each row from
@@ -560,7 +563,9 @@ export function DualPaneView({
               backgroundColor: dragging
                 ? "var(--mantine-color-accent-6)"
                 : "var(--mantine-color-default-border)",
-              transition: dragging ? undefined : "background-color 150ms ease",
+              transition: dragging
+                ? undefined
+                : `background-color ${motion.duration.micro}ms ${motion.easing.out}`,
             }}
           />
         </Box>

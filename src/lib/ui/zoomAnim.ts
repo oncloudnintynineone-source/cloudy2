@@ -1,6 +1,7 @@
 "use client";
 
-import { MOTION } from "@/lib/motion/timing";
+import { cubicBezier } from "@/lib/motion/tokens";
+import { STANDARD_MOTION, type MotionTokens } from "@/lib/motion/profile";
 
 /**
  * Dashboard grid zoom animation.
@@ -20,40 +21,11 @@ import { MOTION } from "@/lib/motion/timing";
  * cancels the previous (and clears any lingering override). Motion is collapsed
  * entirely under `prefers-reduced-motion: reduce` or the `c2-low-end` tier
  * (matching the CSS `html.c2-low-end *` override), so JS and CSS never disagree.
+ *
+ * The duration and easing come from the active `MotionTokens` (the caller's
+ * `useMotion()`), so the zoom follows the same clock as the CSS gutter morph it
+ * rides alongside.
  */
-
-/** Matches `--c2-dur-standard` (and `MOTION.zoom`) in globals.css. */
-const DURATION_MS = MOTION.zoom;
-
-/**
- * Cubic-bezier evaluator (Newton–Raphson solve for `t` at a given `x`). Used so
- * the JS animation's progress curve is the literal CSS
- * `cubic-bezier(0.22, 1, 0.36, 1)` — a plain ease-out drifts against the CSS
- * transitions that remain (e.g. the gutter margin).
- */
-export function cubicBezier(x1: number, y1: number, x2: number, y2: number): (x: number) => number {
-  const coefA = (a: number, b: number) => 1 - 3 * b + 3 * a;
-  const coefB = (a: number, b: number) => 3 * b - 6 * a;
-  const coefC = (a: number) => 3 * a;
-  const calc = (t: number, a: number, b: number) =>
-    ((coefA(a, b) * t + coefB(a, b)) * t + coefC(a)) * t;
-  const slope = (t: number, a: number, b: number) =>
-    3 * coefA(a, b) * t * t + 2 * coefB(a, b) * t + coefC(a);
-  return (x: number) => {
-    if (x <= 0) return 0;
-    if (x >= 1) return 1;
-    let t = x;
-    for (let i = 0; i < 8; i++) {
-      const s = slope(t, x1, x2);
-      if (s === 0) break;
-      t -= (calc(t, x1, x2) - x) / s;
-    }
-    return calc(t, y1, y2);
-  };
-}
-
-/** The dashboard zoom easing — matches the house `cubic-bezier(0.22, 1, 0.36, 1)`. */
-export const zoomEase = cubicBezier(0.22, 1, 0.36, 1);
 
 export interface ZoomAnimation {
   /** Zoom level the animation starts from (the previous target). */
@@ -78,6 +50,8 @@ export interface ZoomAnimation {
   overrideVar?: string;
   /** Called once when the animation settles (e.g. clear the override var). */
   onDone?: () => void;
+  /** Active motion tokens; defaults to the standard profile. */
+  motion?: MotionTokens;
 }
 
 /**
@@ -189,7 +163,16 @@ export function cancelZoomAnimation(owner: HTMLElement, varName = "--c2-zoom-ani
  */
 export function animateZoom(
   owner: HTMLElement,
-  { from, to, apply, onStart, onScroll, overrideVar = "--c2-zoom-anim", onDone }: ZoomAnimation,
+  {
+    from,
+    to,
+    apply,
+    onStart,
+    onScroll,
+    overrideVar = "--c2-zoom-anim",
+    onDone,
+    motion = STANDARD_MOTION,
+  }: ZoomAnimation,
 ): void {
   cancelZoomAnimation(owner, overrideVar);
   // Restore the start size, capture the start geometry, then either snap or
@@ -197,13 +180,15 @@ export function animateZoom(
   // sees the old content/viewport sizes.
   apply(from);
   onStart?.();
-  if (from === to || motionDisabled()) {
+  const duration = motion.duration.zoom;
+  if (from === to || duration <= 0 || motionDisabled()) {
     apply(to);
     onScroll(to);
     onDone?.();
     return;
   }
   onScroll(from);
+  const ease = cubicBezier(motion.easingCurves.out);
   const start = performance.now();
   const track = (id: number) => {
     const vars = inFlight.get(owner) ?? new Map<string, number>();
@@ -217,8 +202,8 @@ export function animateZoom(
     }
   };
   const step = (now: number) => {
-    const t = Math.min(1, (now - start) / DURATION_MS);
-    const z = from + (to - from) * zoomEase(t);
+    const t = Math.min(1, (now - start) / duration);
+    const z = from + (to - from) * ease(t);
     apply(z);
     onScroll(z);
     if (t < 1) {

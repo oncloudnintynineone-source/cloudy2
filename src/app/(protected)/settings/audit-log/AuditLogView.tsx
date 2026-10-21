@@ -40,7 +40,7 @@ import type { AuditFilters } from "@/lib/audit/queries";
 import { CONTENT_ENTER_CLASS, useContentEnter } from "@/lib/loading/contentEnter";
 import { useLiveRouteRefresh } from "@/lib/loading/liveRefresh";
 import { type Rect } from "@/lib/motion/origin";
-import { MOTION } from "@/lib/motion/timing";
+import { useMotion } from "@/components/MotionProvider";
 import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import type { AuditLog } from "@/db/schema";
@@ -107,6 +107,7 @@ export function AuditLogView({
   retentionDays,
   renderedAt,
 }: AuditLogViewProps) {
+  const motion = useMotion();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -455,8 +456,8 @@ export function AuditLogView({
             closeOnClickOutside={false}
             transitionProps={{
               transition: "pop-top-right",
-              duration: MOTION.popover,
-              timingFunction: "ease",
+              duration: motion.duration.popover,
+              timingFunction: motion.easing.out,
             }}
           >
             <Menu.Target>

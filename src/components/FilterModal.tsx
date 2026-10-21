@@ -22,13 +22,9 @@ import {
   resolveFilterApply,
   type FilterApplyGroup,
 } from "@/lib/filters/resolveFilterApply";
-import {
-  modalContentWidth,
-  scaleFromRect,
-  transformOriginFromRect,
-  type Rect,
-} from "@/lib/motion/origin";
-import { MOTION } from "@/lib/motion/timing";
+import { modalContentWidth, type Rect } from "@/lib/motion/origin";
+import { modalZoomTransitionProps } from "@/lib/motion/transitions";
+import { useMotion } from "@/components/MotionProvider";
 import { NARROW_MEDIA_QUERY, BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { buildUserGroups, type PickerGroup } from "@/lib/users/userSelect";
 
@@ -206,23 +202,14 @@ export function FilterModal({
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
   const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY);
+  const motion = useMotion();
 
   // The modal zooms out of / shrinks back into the trigger button (the app's
   // standard grow/shrink animation; mirror the other zoom modals).
   const viewportSize = useViewportSize();
   const viewport = { w: viewportSize.width, h: viewportSize.height };
   const contentWidth = modalContentWidth(viewport, isNarrow ? 300 : isDesktop ? 440 : 380);
-  const transitionProps = {
-    transition: {
-      in: { opacity: 1, transform: "scale(1)" },
-      out: { opacity: 0, transform: `scale(${scaleFromRect(originRect, contentWidth)})` },
-      common: { transformOrigin: transformOriginFromRect(originRect, viewport, "center") },
-      transitionProperty: "transform, opacity",
-    },
-    duration: MOTION.modalZoom,
-    exitDuration: MOTION.modalZoomExit,
-    timingFunction: "cubic-bezier(0.3, 1.2, 0.4, 1)",
-  } as const;
+  const transitionProps = modalZoomTransitionProps(motion, originRect, viewport, contentWidth);
 
   return (
     <Modal
@@ -256,6 +243,7 @@ function FilterModalBody({
   FilterModalProps,
   "groups" | "values" | "onApply" | "onClose" | "collapsedGroupLabels" | "hint"
 >) {
+  const motion = useMotion();
   const [draft, setDraft] = useState<Record<string, string[]>>(() => initialDraft(groups, values));
   // Collapsed groups start hidden and expand per-group; the toggle is local
   // to the dialog session (re-opening resets to the collapsed start).
@@ -380,7 +368,7 @@ function FilterModalBody({
                         size={14}
                         style={{
                           transform: shown ? "rotate(180deg)" : undefined,
-                          transition: `transform ${MOTION.micro}ms ease`,
+                          transition: `transform ${motion.duration.micro}ms ${motion.easing.out}`,
                         }}
                       />
                     }

@@ -2,16 +2,20 @@
 
 import { useCallback, useEffect, useRef } from "react";
 
+import { useMotion } from "@/components/MotionProvider";
+
 /**
  * Minimal CSS FLIP for locally-reordered rows (no animation library — this app
- * is CSS-first; durations mirror `--c2-dur-standard`, eased out).
+ * is CSS-first; duration and easing come from the active `MotionTokens`, so the
+ * slide follows the same clock as every other transition).
  *
  * Usage: attach `containerRef` to an element that contains one or more lists
  * marked `data-flip-container`; every row inside carries a stable
  * `data-flip-id`. On reorder call `snapshot()` BEFORE mutating the list, then
  * call `play()` on the frame after React has re-rendered. Rows that changed
  * position translate from their old spot to the new one; everything else stays
- * put. Disabled under `prefers-reduced-motion` (rows just swap instantly).
+ * put. Disabled under `prefers-reduced-motion` or the `c2-low-end` tier (rows
+ * just swap instantly).
  *
  * Some surfaces render the same rows twice (a mobile card list and a desktop
  * table) — each list is its own `data-flip-container`, measured separately.
@@ -19,15 +23,14 @@ import { useCallback, useEffect, useRef } from "react";
  * and the hidden twin can't corrupt the visible one.
  */
 
-/** Eased-out slide duration (ms), mirroring the app's standard cadence. */
-const FLIP_DURATION_MS = 220;
-const EASE_OUT = "cubic-bezier(0.22, 1, 0.36, 1)";
-
-function reducedMotion(): boolean {
+function motionDisabled(): boolean {
   if (typeof window === "undefined") {
     return true;
   }
-  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  return (
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches ||
+    document.documentElement.classList.contains("c2-low-end")
+  );
 }
 
 interface ListRects {
@@ -36,6 +39,7 @@ interface ListRects {
 }
 
 export function useFlipReorder() {
+  const motion = useMotion();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const snapshotsRef = useRef<ListRects[]>([]);
   const timersRef = useRef<number[]>([]);
@@ -62,7 +66,8 @@ export function useFlipReorder() {
   /** Animate rows from their snapshot position into their current one. Call
    *  after the reorder has rendered. */
   const play = useCallback(() => {
-    if (reducedMotion()) {
+    const duration = motion.duration.standard;
+    if (duration <= 0 || motionDisabled()) {
       return;
     }
     // Invert: start each moved row where it was, per list.
@@ -101,16 +106,16 @@ export function useFlipReorder() {
         element.style.willChange = "";
       }
     };
-    const timer = window.setTimeout(finish, FLIP_DURATION_MS + 60);
+    const timer = window.setTimeout(finish, duration + 60);
     timersRef.current.push(timer);
     for (const group of groups) {
       void group.list.offsetHeight;
     }
     for (const element of all) {
-      element.style.transition = `transform ${FLIP_DURATION_MS}ms ${EASE_OUT}`;
+      element.style.transition = `transform ${duration}ms ${motion.easing.out}`;
       element.style.transform = "translateY(0)";
     }
-  }, []);
+  }, [motion]);
 
   // Clear any leftover timers/transforms on unmount.
   useEffect(() => {

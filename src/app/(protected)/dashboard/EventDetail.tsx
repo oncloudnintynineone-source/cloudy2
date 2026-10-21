@@ -40,13 +40,9 @@ import {
   type OptimisticRemoveOp,
 } from "@/lib/events/optimistic";
 import { eventRefFromCalendarEvent } from "@/lib/events/targets";
-import {
-  modalContentWidth,
-  scaleFromRect,
-  transformOriginFromRect,
-  type Rect,
-} from "@/lib/motion/origin";
-import { MOTION } from "@/lib/motion/timing";
+import { modalContentWidth, type Rect } from "@/lib/motion/origin";
+import { modalZoomTransitionProps } from "@/lib/motion/transitions";
+import { useMotion } from "@/components/MotionProvider";
 import { BUTTON_LOADER_PROPS, NARROW_MEDIA_QUERY } from "@/lib/theme";
 import { formatDateTime } from "./clientDateTime";
 
@@ -136,20 +132,11 @@ export function EventDetail({
   // the clicked element's rect (see src/lib/motion/origin.ts). The modal
   // widens xs (320px) -> sm (380px) -> md (440px): xs on very small phones,
   // sm on regular mobile, md at lg, matching the shrink scale.
+  const motion = useMotion();
   const viewportSize = useViewportSize();
   const viewport = { w: viewportSize.width, h: viewportSize.height };
   const contentWidth = modalContentWidth(viewport, isNarrow ? 320 : isDesktop ? 440 : 380);
-  const transitionProps = {
-    transition: {
-      in: { opacity: 1, transform: "scale(1)" },
-      out: { opacity: 0, transform: `scale(${scaleFromRect(originRect, contentWidth)})` },
-      common: { transformOrigin: transformOriginFromRect(originRect, viewport, "center") },
-      transitionProperty: "transform, opacity",
-    },
-    duration: MOTION.modalZoom,
-    exitDuration: MOTION.modalZoomExit,
-    timingFunction: "cubic-bezier(0.3, 1.2, 0.4, 1)",
-  } as const;
+  const transitionProps = modalZoomTransitionProps(motion, originRect, viewport, contentWidth);
 
   const showEvent = event ?? displayEvent;
   const payload = showEvent?.payload;

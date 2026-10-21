@@ -122,13 +122,9 @@ import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
 import { canWarmRoutes } from "@/lib/pwa/warmup";
 import { departmentPathLabels, departmentTreeRows } from "@/lib/roster/hierarchy";
 import { useColdStartContent } from "@/components/ColdStartReady";
-import {
-  modalContentWidth,
-  scaleFromRect,
-  transformOriginFromRect,
-  type Rect,
-} from "@/lib/motion/origin";
-import { MOTION } from "@/lib/motion/timing";
+import { modalContentWidth, type Rect } from "@/lib/motion/origin";
+import { modalFormTransitionProps, modalZoomTransitionProps } from "@/lib/motion/transitions";
+import { useMotion } from "@/components/MotionProvider";
 import {
   buildScheduleResources,
   expandScheduleEvents,
@@ -710,11 +706,11 @@ function measuredWidth(root: Element, cssWidth: string): number {
 
 /**
  * Duration of the grid swipe on a view/date change. Mirrors the CSS
- * `--c2-dur-standard` (250ms); the animation is driven through the Web
- * Animations API rather than a CSS class so restarting it needs no forced
- * reflow of the whole grid (see the slide effect in `DashboardView`).
+ * `--c2-dur-standard`; the animation is driven through the Web Animations API
+ * rather than a CSS class so restarting it needs no forced reflow of the whole
+ * grid (see the slide effect in `DashboardView`). The actual value comes from
+ * the active `MotionTokens` so it tracks the profile.
  */
-const VIEW_SLIDE_MS = 250;
 
 /**
  * The active zoom multiplier as a CSS expression: the JS-animated override
@@ -894,6 +890,7 @@ function DashboardViewImpl({
   calendarNames,
   currentUserName,
 }: DashboardViewProps) {
+  const motion = useMotion();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -1710,15 +1707,15 @@ function DashboardViewImpl({
           { opacity: 0, transform: "translateY(8px)" },
           { opacity: 1, transform: "translateY(0)" },
         ],
-        { duration: VIEW_SLIDE_MS, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
+        { duration: motion.duration.standard, easing: motion.easing.out },
       );
       return;
     }
     el.animate([{ transform: `translateX(${dir * 10}%)` }, { transform: "translateX(0)" }], {
-      duration: VIEW_SLIDE_MS,
-      easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+      duration: motion.duration.standard,
+      easing: motion.easing.out,
     });
-  }, [activeView.id, slidePeriodKey, shownTabId, tabs, isDesktop]);
+  }, [activeView.id, slidePeriodKey, shownTabId, tabs, isDesktop, motion]);
 
   // Device-local "where you are": persist the resolved date/month anchor, the
   // Day/Week (H) + Month-grid zooms and the Dual Pane split to the per-device
@@ -1766,35 +1763,18 @@ function DashboardViewImpl({
   // its own modal's matching content width.
   const agendaContentWidth = modalContentWidth(viewport, isNarrow ? 320 : isDesktop ? 440 : 380);
   const formContentWidth = modalContentWidth(viewport, formModalWidthPx);
-  const agendaTransitionProps = {
-    transition: {
-      in: { opacity: 1, transform: "scale(1)" },
-      out: {
-        opacity: 0,
-        transform: `scale(${scaleFromRect(agendaOriginRect, agendaContentWidth)})`,
-      },
-      common: { transformOrigin: transformOriginFromRect(agendaOriginRect, viewport, "center") },
-      transitionProperty: "transform, opacity",
-    },
-    duration: MOTION.modalZoom,
-    exitDuration: MOTION.modalZoomExit,
-    timingFunction: "cubic-bezier(0.3, 1.2, 0.4, 1)",
-  } as const;
-  const formTransitionProps = {
-    transition: {
-      in: { opacity: 1, transform: "scale(1)" },
-      out: {
-        opacity: 0,
-        transform: `scale(${scaleFromRect(formOriginRect, formContentWidth, 0.5)})`,
-      },
-      common: {
-        transformOrigin: transformOriginFromRect(formOriginRect, viewport, "bottom right"),
-      },
-      transitionProperty: "transform, opacity",
-    },
-    duration: MOTION.modalForm,
-    timingFunction: "ease",
-  } as const;
+  const agendaTransitionProps = modalZoomTransitionProps(
+    motion,
+    agendaOriginRect,
+    viewport,
+    agendaContentWidth,
+  );
+  const formTransitionProps = modalFormTransitionProps(
+    motion,
+    formOriginRect,
+    viewport,
+    formContentWidth,
+  );
 
   // Nav-row labels derive from the optimistic `shown*` chrome so the period
   // text moves the instant a control is tapped. The grid/ruler branches below
@@ -3042,6 +3022,7 @@ function DashboardViewImpl({
         animateZoom(owner, {
           from: oldZoom,
           to: zoom,
+          motion,
           apply: (z) => owner.style.setProperty("--c2-zoom-anim", String(z)),
           onStart: tracker.capture,
           onScroll: () => tracker.apply(),
@@ -3079,6 +3060,7 @@ function DashboardViewImpl({
     scheduleResources,
     weekSlotWidthValue,
     daySlotWidthValue,
+    motion,
   ]);
 
   // Month-grid zoom re-anchor: widening the grid (ZOOM_VAR above) would
@@ -3107,13 +3089,14 @@ function DashboardViewImpl({
       animateZoom(owner, {
         from: oldZoom,
         to: monthZoom,
+        motion,
         apply: (z) => owner.style.setProperty("--c2-zoom-anim", String(z)),
         onStart: tracker.capture,
         onScroll: () => tracker.apply(),
         onDone: () => owner.style.removeProperty("--c2-zoom-anim"),
       });
     }
-  }, [view, gridLoading, monthZoom]);
+  }, [view, gridLoading, monthZoom, motion]);
 
   // Week (Grid) row-zoom re-anchor: the zoom changes the hour-row height, so
   // the vertical scroll would otherwise keep the same pixel offset and visibly
@@ -3148,13 +3131,14 @@ function DashboardViewImpl({
     animateZoom(owner, {
       from: oldZoom,
       to: gridWeekRowZoom,
+      motion,
       apply: (z) => owner.style.setProperty("--c2-row-zoom-anim", String(z)),
       onStart: tracker.capture,
       onScroll: () => tracker.apply(),
       overrideVar: "--c2-row-zoom-anim",
       onDone: () => owner.style.removeProperty("--c2-row-zoom-anim"),
     });
-  }, [view, gridLoading, gridWeekRowZoom, isDesktop, topChromeHeight]);
+  }, [view, gridLoading, gridWeekRowZoom, isDesktop, topChromeHeight, motion]);
 
   // Week (Grid) column-zoom re-anchor: widening the day columns would otherwise
   // keep the same scrollLeft, so the day under the viewport's center drifts.
@@ -3186,13 +3170,14 @@ function DashboardViewImpl({
       animateZoom(owner, {
         from: oldZoom,
         to: gridWeekColZoom,
+        motion,
         apply: (z) => owner.style.setProperty("--c2-zoom-anim", String(z)),
         onStart: tracker.capture,
         onScroll: () => tracker.apply(),
         onDone: () => owner.style.removeProperty("--c2-zoom-anim"),
       });
     }
-  }, [view, gridLoading, gridWeekColZoom]);
+  }, [view, gridLoading, gridWeekColZoom, motion]);
 
   // Week (Grid) at lg: the scroller is lifted behind the chrome, but the
   // library's mount `startScrollTime` positions the target slot at the scroller
@@ -3526,8 +3511,8 @@ function DashboardViewImpl({
               withinPortal
               transitionProps={{
                 transition: "pop-bottom-right",
-                duration: MOTION.popover,
-                timingFunction: "ease",
+                duration: motion.duration.popover,
+                timingFunction: motion.easing.out,
               }}
               styles={{
                 dropdown: { maxHeight: "min(60vh, 380px)", overflowY: "auto" },
@@ -3728,8 +3713,8 @@ function DashboardViewImpl({
               withinPortal
               transitionProps={{
                 transition: "pop-top-right",
-                duration: MOTION.popover,
-                timingFunction: "ease",
+                duration: motion.duration.popover,
+                timingFunction: motion.easing.out,
               }}
               styles={{
                 dropdown: { maxHeight: "min(60vh, 380px)", overflowY: "auto" },
@@ -4927,7 +4912,7 @@ function DashboardViewImpl({
             zIndex: 260,
             color: "rgba(255, 255, 255, 0.85)",
             opacity: hintVisible ? 1 : 0,
-            transition: `opacity ${MOTION.fade}ms ease`,
+            transition: `opacity ${motion.duration.fade}ms ${motion.easing.out}`,
             pointerEvents: "none",
             userSelect: "none",
           }}
@@ -5010,7 +4995,7 @@ function DashboardViewImpl({
           onClose={closeCreateView}
           title="Add view"
           centered
-          transitionProps={{ transition: "pop", duration: MOTION.popover, timingFunction: "ease" }}
+          transitionProps={{ transition: "pop", duration: motion.duration.popover, timingFunction: motion.easing.out }}
         >
           <Stack>
             <FocusTrap.InitialFocus />

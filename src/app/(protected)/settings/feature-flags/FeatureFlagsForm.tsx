@@ -10,9 +10,11 @@ import {
   FEATURE_FLAGS,
   validateFeatureFlags,
   type FeatureFlagKey,
+  type MotionProfile,
   type PinnedTickerIndicator,
   type TranslucencyLevel,
 } from "@/lib/settings/featureFlags";
+import { motionStyleVars, resolveMotion } from "@/lib/motion/profile";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { showValidationFailure } from "@/lib/ui/validationFeedback";
@@ -89,6 +91,22 @@ function TranslucencyPreview({ value }: { value: TranslucencyLevel }) {
   );
 }
 
+/** A small replayable set of animations (badge pop, chip settle, pill entrance)
+ *  that re-runs whenever the selected profile changes, so the cadence, easing and
+ *  bounce are visible before saving. The wrapper carries the profile's `--c2-*`
+ *  vars inline so the preview reflects the *unsaved* selection. `aria-hidden`:
+ *  the preview is illustrative, not interactive. */
+function MotionPreview({ value }: { value: MotionProfile }) {
+  const vars = motionStyleVars(resolveMotion(value));
+  return (
+    <div className="c2-motion-preview" style={vars} key={value} aria-hidden>
+      <span className="c2-motion-preview-badge c2-badge-tick">3</span>
+      <span className="c2-motion-preview-chip c2-chip-settle">Settle</span>
+      <span className="c2-motion-preview-pill c2-glass-surface">Reveal</span>
+    </div>
+  );
+}
+
 /** Feature-specific live preview; null for flags without one. The page/control
  *  rendering stays generic — a future flag adds its preview renderer here. */
 function previewFor(key: FeatureFlagKey, value: string) {
@@ -97,6 +115,9 @@ function previewFor(key: FeatureFlagKey, value: string) {
   }
   if (key === "translucencyLevel") {
     return <TranslucencyPreview value={value as TranslucencyLevel} />;
+  }
+  if (key === "motionProfile") {
+    return <MotionPreview value={value as MotionProfile} />;
   }
   return null;
 }

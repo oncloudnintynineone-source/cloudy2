@@ -143,12 +143,36 @@ export const bottomNavVariantFlag: FeatureFlagDef<"bottomNavVariant", BottomNavV
   defaultValue: "medium",
 };
 
+export const MOTION_PROFILE_OPTIONS = ["calm", "standard", "snappy", "playful"] as const;
+export type MotionProfile = (typeof MOTION_PROFILE_OPTIONS)[number];
+
+export const motionProfileFlag: FeatureFlagDef<"motionProfile", MotionProfile> = {
+  key: "motionProfile",
+  label: "Motion profile",
+  description:
+    "How the app's animations move — every transition, reveal and modal zoom " +
+    "follows one shared cadence. Calm is slower and softer, Standard is the " +
+    "tuned default, Snappy is fast and crisp with no overshoot, and Playful " +
+    "travels further with a springier pop. Reduced-motion and low-end devices " +
+    "always collapse the motion regardless of this setting. Toggle to compare " +
+    "the profiles live, then keep the one you want.",
+  options: MOTION_PROFILE_OPTIONS,
+  optionLabels: {
+    calm: "Calm",
+    standard: "Standard",
+    snappy: "Snappy",
+    playful: "Playful",
+  },
+  defaultValue: "standard",
+};
+
 export const FEATURE_FLAGS = [
   pinnedTickerIndicatorFlag,
   savedEventToastVariantFlag,
   translucencyLevelFlag,
   reorderDragFlag,
   bottomNavVariantFlag,
+  motionProfileFlag,
 ] as const;
 export type FeatureFlagKey = (typeof FEATURE_FLAGS)[number]["key"];
 

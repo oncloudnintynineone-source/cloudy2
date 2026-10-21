@@ -19,7 +19,7 @@ import { signOut } from "next-auth/react";
 
 import { APP_VERSION } from "@/lib/appVersion";
 import { clearAllDashboardSnapshots } from "@/lib/dashboard/localStore";
-import { MOTION } from "@/lib/motion/timing";
+import { useMotion } from "@/components/MotionProvider";
 import { clearAllSavedPages } from "@/lib/pwa/client";
 import { clearUiState } from "@/lib/ui/uiStateClient";
 
@@ -56,6 +56,7 @@ const SCHEMES: { value: Scheme; label: string; icon: typeof IconSun }[] = [
 ];
 
 export function UserMenu({ name, role, phone }: UserMenuProps) {
+  const motion = useMotion();
   const [accessOpen, setAccessOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [preferencesOpen, setPreferencesOpen] = useState(false);
@@ -116,8 +117,8 @@ export function UserMenu({ name, role, phone }: UserMenuProps) {
         withinPortal
         transitionProps={{
           transition: "pop-top-right",
-          duration: MOTION.popover,
-          timingFunction: "ease",
+          duration: motion.duration.popover,
+          timingFunction: motion.easing.out,
         }}
       >
         <Menu.Target>

@@ -20,8 +20,9 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { buildEventDeepLink } from "@/lib/events/deepLink";
 import { fetchPinnedEvents, type PinnedEvent } from "@/lib/events/pinned";
-import { modalContentWidth, scaleFromRect, transformOriginFromRect } from "@/lib/motion/origin";
-import { MOTION } from "@/lib/motion/timing";
+import { modalContentWidth } from "@/lib/motion/origin";
+import { modalZoomTransitionProps } from "@/lib/motion/transitions";
+import { useMotion } from "@/components/MotionProvider";
 import { NARROW_MEDIA_QUERY } from "@/lib/theme";
 import { usePinnedPanel } from "@/lib/ui/pinnedPanel";
 
@@ -84,22 +85,13 @@ export function PinnedEventsPanel({ seedEvents = null }: PinnedEventsPanelProps)
   // app's standard grow/shrink animation. It is `centered` with a fixed size,
   // so the content center is the viewport center and the transform-origin can
   // derive purely from the trigger's rect (see src/lib/motion/origin.ts).
+  const motion = useMotion();
   const viewportSize = useViewportSize();
   const viewport = { w: viewportSize.width, h: viewportSize.height };
   // The panel widens md (440px) -> lg (620px) at lg, so the shrink-to-target
   // scale must use the matching content width.
   const contentWidth = modalContentWidth(viewport, isNarrow ? 380 : isDesktop ? 620 : 440);
-  const transitionProps = {
-    transition: {
-      in: { opacity: 1, transform: "scale(1)" },
-      out: { opacity: 0, transform: `scale(${scaleFromRect(originRect, contentWidth)})` },
-      common: { transformOrigin: transformOriginFromRect(originRect, viewport, "center") },
-      transitionProperty: "transform, opacity",
-    },
-    duration: MOTION.modalZoom,
-    exitDuration: MOTION.modalZoomExit,
-    timingFunction: "cubic-bezier(0.3, 1.2, 0.4, 1)",
-  } as const;
+  const transitionProps = modalZoomTransitionProps(motion, originRect, viewport, contentWidth);
 
   const openEventDay = (event: PinnedEvent) => {
     closePanel();

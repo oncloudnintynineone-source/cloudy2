@@ -11,7 +11,7 @@ import { Box } from "@mantine/core";
 import { useLinkStatus } from "next/link";
 
 import { useReportActivity } from "@/components/ActivityBar";
-import { MOTION } from "@/lib/motion/timing";
+import { useMotion } from "@/components/MotionProvider";
 
 export interface NavItem {
   href: string;
@@ -49,10 +49,16 @@ export const NAV_ICON_STYLE: React.CSSProperties = {
  * the button itself.
  */
 export function PendingDim({ busyKey, children }: { busyKey: string; children: React.ReactNode }) {
+  const motion = useMotion();
   const { pending } = useLinkStatus();
   useReportActivity(pending, busyKey);
   return (
-    <Box style={{ opacity: pending ? 0.55 : 1, transition: `opacity ${MOTION.fade}ms ease` }}>
+    <Box
+      style={{
+        opacity: pending ? 0.55 : 1,
+        transition: `opacity ${motion.duration.fade}ms ${motion.easing.out}`,
+      }}
+    >
       {children}
     </Box>
   );

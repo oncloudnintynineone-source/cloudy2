@@ -50,13 +50,53 @@ html {
 }
 
 /*
-  Motion cadence — mirrors src/lib/motion/timing.ts (keep in sync). CSS
-  keyframes can't read that TS module, so the few custom animation durations
-  below reference these custom properties instead of raw literals.
+  Motion cadence — the CSS mirror of src/lib/motion/tokens.ts + profile.ts.
+  Keyframes and transitions can't read the TS module, so every duration, easing
+  and distance below references a custom property instead of a raw literal. The
+  protected layout re-publishes the active `motionProfile` as a `:root:root`
+  block (higher specificity) that overrides these standard defaults; this block
+  is the pre-hydration / `/login` fallback. A parity test (src/lib/motion/
+  profile.test.ts) keeps the standard values here in sync with resolveMotion.
+  See docs/motion.md.
 */
 :root {
-  --c2-dur-standard: 250ms;
-  --c2-dur-micro: 200ms;
+  --c2-dur-instant: 0ms;
+  --c2-dur-micro: 120ms;
+  --c2-dur-quick: 160ms;
+  --c2-dur-standard: 220ms;
+  --c2-dur-emphasized: 260ms;
+  --c2-dur-deliberate: 480ms;
+  --c2-dur-ambient: 1400ms;
+  --c2-dur-spin: 900ms;
+  --c2-dur-popover: 220ms;
+  --c2-dur-modalZoom: 240ms;
+  --c2-dur-modalZoomExit: 200ms;
+  --c2-dur-modalForm: 240ms;
+  --c2-dur-fade: 220ms;
+  --c2-dur-zoom: 220ms;
+  --c2-dur-pillProgress: 5000ms;
+
+  --c2-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --c2-ease-in: cubic-bezier(0.55, 0, 1, 0.45);
+  --c2-ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --c2-ease-emphasized: cubic-bezier(0.2, 0, 0, 1);
+  --c2-ease-pop: cubic-bezier(0.34, 1.18, 0.64, 1);
+  --c2-ease-linear: cubic-bezier(0, 0, 1, 1);
+
+  --c2-dist-xs: 4px;
+  --c2-dist-sm: 8px;
+  --c2-dist-md: 16px;
+  --c2-dist-lg: 24px;
+  --c2-dist-xl: 48px;
+
+  --c2-scale-chip: 0.94;
+  --c2-scale-pop: 0.96;
+  --c2-scale-fab: 0.82;
+  --c2-scale-badge: 0.72;
+  --c2-scale-badgePeak: 1.06;
+  --c2-scale-tabActive: 0.92;
+
+  --c2-stagger: 40ms;
 }
 
 @keyframes content-enter {
@@ -87,11 +127,11 @@ html {
 }
 
 ::view-transition-old(.c2-page-out) {
-  animation: c2-page-out calc(var(--c2-dur-standard) * 0.6) ease-in both;
+  animation: c2-page-out calc(var(--c2-dur-standard) * 0.6) var(--c2-ease-in) both;
 }
 
 ::view-transition-new(.c2-page-in) {
-  animation: c2-page-in var(--c2-dur-standard) ease-out both;
+  animation: c2-page-in var(--c2-dur-emphasized) var(--c2-ease-out) both;
 }
 
 /* Keep the persistent shell anchored during the content transition. */
@@ -149,7 +189,7 @@ html {
 @keyframes wizard-step-enter {
   from {
     opacity: 0;
-    transform: translateX(calc(var(--slide-dir, 1) * 24px));
+    transform: translateX(calc(var(--slide-dir, 1) * var(--c2-dist-lg)));
   }
   to {
     opacity: 1;
@@ -174,23 +214,25 @@ html {
   bottom: 0;
   left: 0;
   right: 0;
-  height: 0;
+  height: calc(0.25rem * var(--mantine-scale));
   opacity: 0;
+  transform: scaleY(0);
+  transform-origin: top;
   overflow: hidden;
   z-index: 20;
   pointer-events: none;
   transition:
-    height 230ms ease,
-    opacity 220ms ease;
+    transform var(--c2-dur-standard) var(--c2-ease-in),
+    opacity var(--c2-dur-standard) var(--c2-ease-in);
 }
 
 .c2-activity-bar-active {
-  height: calc(0.25rem * var(--mantine-scale));
   background: var(--mantine-color-accent-6);
   opacity: 1;
+  transform: scaleY(1);
   transition:
-    height 120ms ease-out,
-    opacity 120ms ease-out;
+    transform var(--c2-dur-quick) var(--c2-ease-out),
+    opacity var(--c2-dur-quick) var(--c2-ease-out);
 }
 
 /* Traveling light: a warm-white comet head sweeps left → right across the
@@ -227,7 +269,7 @@ html {
 
 @media (prefers-reduced-motion: no-preference) {
   .c2-activity-bar-active::after {
-    animation: c2-activity-travel 1.4s linear infinite;
+    animation: c2-activity-travel var(--c2-dur-ambient) var(--c2-ease-linear) infinite;
   }
 }
 
@@ -258,7 +300,7 @@ html {
 @media (prefers-reduced-motion: no-preference) {
   .c2-icon-spin {
     transform-origin: center;
-    animation: c2-icon-spin 0.9s linear infinite;
+    animation: c2-icon-spin var(--c2-dur-spin) var(--c2-ease-linear) infinite;
   }
 }
 
@@ -291,7 +333,7 @@ html {
 
 @media (prefers-reduced-motion: no-preference) {
   .c2-ready-bar {
-    animation: c2-ready-grow var(--c2-dur-standard) ease-out;
+    animation: c2-ready-grow var(--c2-dur-standard) var(--c2-ease-out);
   }
 }
 
@@ -325,7 +367,7 @@ html {
      On mobile there is no cap, so the pill fills the free width (no wasted
      gap) and the title truncates inside it. */
   flex: 1 1 auto;
-  transition: background-color var(--c2-dur-micro) ease;
+  transition: background-color var(--c2-dur-micro) var(--c2-ease-out);
 }
 
 /* Non-interactive mock used on the Feature Flags page's live preview; renders
@@ -532,7 +574,7 @@ html {
 
 @media (prefers-reduced-motion: no-preference) {
   .c2-ticker-enter {
-    animation: c2-ticker-in 320ms cubic-bezier(0.22, 1, 0.36, 1);
+    animation: c2-ticker-in var(--c2-dur-emphasized) var(--c2-ease-out);
   }
 }
 
@@ -544,7 +586,7 @@ html {
 @keyframes agenda-slide-in-next {
   from {
     opacity: 0.3;
-    transform: translateX(48px);
+    transform: translateX(var(--c2-dist-xl));
   }
   to {
     opacity: 1;
@@ -555,7 +597,7 @@ html {
 @keyframes agenda-slide-in-prev {
   from {
     opacity: 0.3;
-    transform: translateX(-48px);
+    transform: translateX(calc(-1 * var(--c2-dist-xl)));
   }
   to {
     opacity: 1;
@@ -573,19 +615,19 @@ html {
 
 @media (prefers-reduced-motion: no-preference) {
   .content-enter {
-    animation: content-enter 200ms ease-out;
+    animation: content-enter var(--c2-dur-quick) var(--c2-ease-out);
   }
 
   .agenda-slide-next {
-    animation: agenda-slide-in-next var(--c2-dur-standard) cubic-bezier(0.22, 1, 0.36, 1);
+    animation: agenda-slide-in-next var(--c2-dur-standard) var(--c2-ease-out);
   }
 
   .agenda-slide-prev {
-    animation: agenda-slide-in-prev var(--c2-dur-standard) cubic-bezier(0.22, 1, 0.36, 1);
+    animation: agenda-slide-in-prev var(--c2-dur-standard) var(--c2-ease-out);
   }
 
   .wizard-step-enter {
-    animation: wizard-step-enter var(--c2-dur-standard) cubic-bezier(0.22, 1, 0.36, 1);
+    animation: wizard-step-enter var(--c2-dur-standard) var(--c2-ease-out);
   }
 
   /* Dashboard zoom (docs/dashboard-views.md §1.7). The grid width/slot is driven
@@ -593,26 +635,26 @@ html {
      scroll re-anchor share one clock; this class only animates the canvas's
      gutter `margin-inline` as it morphs to/from the shell edges. */
   .c2-gutter-anim {
-    transition: margin-inline var(--c2-dur-standard) cubic-bezier(0.22, 1, 0.36, 1);
+    transition: margin-inline var(--c2-dur-zoom) var(--c2-ease-out);
   }
 
   /* Empty-state reveal (shared EmptyState component): the block fades/rises in
      on mount and the icon rides a beat behind, so an empty panel reads as
      arriving rather than switching on. */
   .c2-empty-state {
-    animation: c2-empty-enter var(--c2-dur-standard) cubic-bezier(0.22, 1, 0.36, 1);
+    animation: c2-empty-enter var(--c2-dur-standard) var(--c2-ease-out);
   }
 
   .c2-empty-state-icon {
-    animation: c2-empty-enter var(--c2-dur-micro) cubic-bezier(0.22, 1, 0.36, 1) both;
-    animation-delay: 70ms;
+    animation: c2-empty-enter var(--c2-dur-quick) var(--c2-ease-out) both;
+    animation-delay: var(--c2-stagger);
   }
 }
 
 @keyframes c2-empty-enter {
   from {
     opacity: 0;
-    transform: translateY(calc(0.5rem * var(--mantine-scale)));
+    transform: translateY(var(--c2-dist-sm));
   }
 }
 
@@ -626,7 +668,7 @@ html {
   opacity: 0.5;
   /* Fade between fresh and not-loaded instead of snapping (the desktop tab
      strip and the mobile view-selector menu rows share this class). */
-  transition: opacity var(--c2-dur-micro) ease;
+  transition: opacity var(--c2-dur-micro) var(--c2-ease-out);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -655,7 +697,7 @@ html {
   border-radius: var(--mantine-radius-sm);
   background: light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-6));
   overflow: hidden;
-  transition: transform 140ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform var(--c2-dur-micro) var(--c2-ease-out);
 }
 
 .c2-viewp-thumb svg {
@@ -755,7 +797,7 @@ html {
   instead of a hard jump (docs/loading-transitions.md §1.13).
 */
 .c2-settings-tabs [role="tab"] {
-  transition: background-color var(--c2-dur-micro) ease;
+  transition: background-color var(--c2-dur-micro) var(--c2-ease-out);
 }
 
 .c2-settings-tabs [role="tab"][data-active] {
@@ -765,13 +807,13 @@ html {
 @keyframes c2-tabs-active-enter {
   from {
     background-color: transparent;
-    transform: scale(0.92);
+    transform: scale(var(--c2-scale-tabActive));
   }
 }
 
 @media (prefers-reduced-motion: no-preference) {
   .c2-settings-tabs [role="tab"][data-active] {
-    animation: c2-tabs-active-enter var(--c2-dur-micro) cubic-bezier(0.22, 1, 0.36, 1);
+    animation: c2-tabs-active-enter var(--c2-dur-quick) var(--c2-ease-out);
   }
 }
 
@@ -864,7 +906,7 @@ html {
    can't parse the at-rule (the build fails). Sticky chrome offsets recompute
    instantly; the growing header covers the visible reflow. */
 .app-shell-root > header {
-  transition: height var(--c2-dur-standard) ease;
+  transition: height var(--c2-dur-standard) var(--c2-ease-out);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1107,7 +1149,7 @@ html {
    its measured top edge (plus a gap), and slides back when the keyboard closes;
    this transition rides that `bottom` change both ways. */
 .c2-pill-lift {
-  transition: bottom 260ms ease;
+  transition: bottom var(--c2-dur-standard) var(--c2-ease-out);
 }
 
 .c2-period-pill {
@@ -1127,7 +1169,7 @@ html {
   /* Hover/active (and the tinted frosted↔accent/brand/teal swaps) cross-fade
      instead of cutting; the tint modifiers below only set `background`, so this
      transition rides their state changes too. */
-  transition: background-color var(--c2-dur-micro) ease;
+  transition: background-color var(--c2-dur-micro) var(--c2-ease-out);
 }
 
 /* Frosted control for page-level buttons sitting on the frosted surfaces (the
@@ -1151,7 +1193,7 @@ html {
   -webkit-backdrop-filter: var(--c2g-blur);
   backdrop-filter: var(--c2g-blur);
   /* Same hover/active cross-fade as `.c2-glass-fab` (see above). */
-  transition: background-color var(--c2-dur-micro) ease;
+  transition: background-color var(--c2-dur-micro) var(--c2-ease-out);
 }
 
 /* Opt-in hairline edge for a standalone glass button that floats on its own
@@ -1334,25 +1376,25 @@ html {
 @keyframes c2-fab-enter {
   from {
     opacity: 0;
-    transform: scale(0.82);
+    transform: scale(var(--c2-scale-fab));
   }
 }
 
 @media (prefers-reduced-motion: no-preference) {
   .c2-fab-cluster :is(.c2-glass-fab, .c2-glass-btn, .c2-glass-surface) {
-    animation: c2-fab-enter var(--c2-dur-standard) cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation: c2-fab-enter var(--c2-dur-emphasized) var(--c2-ease-pop) both;
   }
 
   .c2-fab-cluster :is(.c2-glass-fab, .c2-glass-btn, .c2-glass-surface):nth-child(2) {
-    animation-delay: 50ms;
+    animation-delay: var(--c2-stagger);
   }
 
   .c2-fab-cluster :is(.c2-glass-fab, .c2-glass-btn, .c2-glass-surface):nth-child(3) {
-    animation-delay: 100ms;
+    animation-delay: calc(var(--c2-stagger) * 2);
   }
 
   .c2-fab-cluster :is(.c2-glass-fab, .c2-glass-btn, .c2-glass-surface):nth-child(4) {
-    animation-delay: 150ms;
+    animation-delay: calc(var(--c2-stagger) * 3);
   }
 }
 
@@ -1367,7 +1409,7 @@ html {
 @keyframes c2-glass-enter {
   from {
     opacity: 0;
-    transform: translateY(calc(0.5rem * var(--mantine-scale)));
+    transform: translateY(var(--c2-dist-sm));
   }
 }
 
@@ -1380,7 +1422,7 @@ html {
 @keyframes c2-icon-swap {
   from {
     opacity: 0;
-    transform: scale(0.7);
+    transform: scale(var(--c2-scale-badge));
   }
 }
 
@@ -1394,15 +1436,15 @@ html {
 @media (prefers-reduced-motion: no-preference) {
   .c2-control-pill,
   .c2-attendance-bar {
-    animation: c2-glass-enter var(--c2-dur-standard) cubic-bezier(0.22, 1, 0.36, 1);
+    animation: c2-glass-enter var(--c2-dur-emphasized) var(--c2-ease-out);
   }
 
   .c2-icon-swap {
-    animation: c2-icon-swap var(--c2-dur-micro) cubic-bezier(0.22, 1, 0.36, 1);
+    animation: c2-icon-swap var(--c2-dur-quick) var(--c2-ease-out);
   }
 
   .c2-fade-in {
-    animation: c2-fade-in var(--c2-dur-micro) ease;
+    animation: c2-fade-in var(--c2-dur-micro) var(--c2-ease-out);
   }
 }
 
@@ -1410,17 +1452,17 @@ html {
    target state carries the transition, so it never vanishes in one frame). */
 .c2-attendance-bar-closing {
   opacity: 0;
-  transform: translateY(calc(0.5rem * var(--mantine-scale)));
+  transform: translateY(var(--c2-dist-sm));
   pointer-events: none;
   transition:
-    opacity var(--c2-dur-micro) ease,
-    transform var(--c2-dur-micro) ease;
+    opacity var(--c2-dur-quick) var(--c2-ease-in),
+    transform var(--c2-dur-quick) var(--c2-ease-in);
 }
 
 /* Bottom-nav rail edge affordance: the fade + chevron dissolves when the rail
    reaches that extreme instead of snapping out of the layout. */
 .c2-rail-edge {
-  transition: opacity var(--c2-dur-micro) ease;
+  transition: opacity var(--c2-dur-micro) var(--c2-ease-out);
 }
 
 .c2-rail-edge--hidden {
@@ -1563,6 +1605,50 @@ html {
   width: 44px;
   height: 44px;
   border-radius: 50%;
+}
+
+/* Motion-profile preview: a badge pop, a chip settle and a pill reveal, all
+   driven by the selected profile's `--c2-*` vars (set inline on the wrapper).
+   The wrapper is remounted on every value change so the animations replay. */
+.c2-motion-preview {
+  display: flex;
+  align-items: center;
+  gap: var(--mantine-spacing-md);
+  padding: var(--mantine-spacing-sm);
+  border-radius: var(--mantine-radius-md);
+  background: var(--mantine-color-gray-0);
+}
+
+.c2-motion-preview-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--mantine-color-accent-5);
+  color: var(--mantine-color-white);
+  font-size: var(--mantine-font-size-sm);
+}
+
+.c2-motion-preview-chip {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: var(--mantine-color-brand-8);
+  color: var(--mantine-color-white);
+  font-size: var(--mantine-font-size-sm);
+}
+
+.c2-motion-preview-pill {
+  display: inline-block;
+  padding: 6px 14px;
+  border-radius: var(--mantine-radius-md);
+  font-size: var(--mantine-font-size-sm);
+  animation: c2-glass-enter var(--c2-dur-emphasized) var(--c2-ease-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .c2-motion-preview-pill {
+    animation: none;
+  }
 }
 
 /* Centered max-width wrapper for list-style pages (settings, contacts,
@@ -1833,7 +1919,7 @@ html {
 @keyframes c2-chip-settle {
   from {
     opacity: 0;
-    transform: scale(0.94);
+    transform: scale(var(--c2-scale-chip));
   }
 }
 
@@ -1845,11 +1931,11 @@ html {
 
 @media (prefers-reduced-motion: no-preference) {
   .c2-chip-settle {
-    animation: c2-chip-settle var(--c2-dur-standard) cubic-bezier(0.22, 1, 0.36, 1);
+    animation: c2-chip-settle var(--c2-dur-standard) var(--c2-ease-pop);
   }
 
   .c2-chip-settle-agenda {
-    animation: c2-chip-settle-agenda var(--c2-dur-standard) ease-out;
+    animation: c2-chip-settle-agenda var(--c2-dur-standard) var(--c2-ease-out);
   }
 }
 
@@ -1952,14 +2038,14 @@ html {
 
 @media (prefers-reduced-motion: no-preference) {
   .c2-login-card {
-    animation: c2-login-enter 500ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation: c2-login-enter var(--c2-dur-deliberate) var(--c2-ease-out) both;
   }
 }
 
 @keyframes c2-login-enter {
   from {
     opacity: 0;
-    transform: translateY(calc(1rem * var(--mantine-scale)));
+    transform: translateY(var(--c2-dist-md));
   }
 }
 
@@ -2033,17 +2119,17 @@ html {
 @keyframes c2-badge-tick {
   from {
     opacity: 0;
-    transform: scale(0.72);
+    transform: scale(var(--c2-scale-badge));
   }
   70% {
-    transform: scale(1.06);
+    transform: scale(var(--c2-scale-badgePeak));
   }
 }
 
 @media (prefers-reduced-motion: no-preference) {
   .c2-nav-badge,
   .c2-badge-tick {
-    animation: c2-badge-tick var(--c2-dur-micro) cubic-bezier(0.22, 1, 0.36, 1);
+    animation: c2-badge-tick var(--c2-dur-quick) var(--c2-ease-pop);
   }
 }
 
@@ -2069,13 +2155,13 @@ html {
     transform: translateX(0);
   }
   50% {
-    transform: translateX(0.25rem);
+    transform: translateX(var(--c2-dist-xs));
   }
 }
 
 @media (prefers-reduced-motion: no-preference) {
   .c2-rail-hint {
-    animation: c2-rail-nudge var(--c2-dur-standard) ease-in-out 2;
+    animation: c2-rail-nudge var(--c2-dur-standard) var(--c2-ease-in-out) 2;
   }
 }
 
@@ -2089,7 +2175,7 @@ html {
   padding: calc(0.4rem * var(--mantine-scale)) calc(0.5rem * var(--mantine-scale));
   margin-inline: calc(-0.5rem * var(--mantine-scale));
   border-radius: var(--mantine-radius-sm);
-  transition: background-color 120ms ease;
+  transition: background-color var(--c2-dur-micro) var(--c2-ease-out);
 }
 
 .c2-clash-row:hover {
@@ -2124,7 +2210,7 @@ html {
   border-radius: var(--mantine-radius-sm);
   overflow: hidden;
   text-decoration: none;
-  transition: filter 120ms ease;
+  transition: filter var(--c2-dur-micro) var(--c2-ease-out);
 }
 
 .c2-clash-bar:hover {
@@ -2328,7 +2414,7 @@ html {
   justify-content: center;
   background: var(--c2-pill-light);
   clip-path: inset(0 calc(100% - var(--c2-pill-progress, 0%)) 0 0);
-  transition: clip-path var(--c2-pill-duration, 5000ms) linear;
+  transition: clip-path var(--c2-pill-duration, var(--c2-dur-pillProgress)) var(--c2-ease-linear);
   pointer-events: none;
 }
 
@@ -2394,13 +2480,13 @@ html {
 @keyframes c2-pill-enter {
   from {
     opacity: 0;
-    transform: translateY(calc(0.75rem * var(--mantine-scale))) scale(0.96);
+    transform: translateY(calc(0.75rem * var(--mantine-scale))) scale(var(--c2-scale-pop));
   }
 }
 
 @media (prefers-reduced-motion: no-preference) {
   .c2-action-pill {
-    animation: c2-pill-enter var(--c2-dur-standard) cubic-bezier(0.22, 1, 0.36, 1);
+    animation: c2-pill-enter var(--c2-dur-emphasized) var(--c2-ease-pop);
   }
 }
 
@@ -2411,8 +2497,8 @@ html {
   transform: translateY(calc(0.75rem * var(--mantine-scale))) scale(0.98);
   pointer-events: none;
   transition:
-    opacity var(--c2-dur-micro) ease,
-    transform var(--c2-dur-micro) ease;
+    opacity var(--c2-dur-quick) var(--c2-ease-in),
+    transform var(--c2-dur-quick) var(--c2-ease-in);
 }
 
 /* Reduced motion: no pop-in/fade and no fill sweep — the pill appears

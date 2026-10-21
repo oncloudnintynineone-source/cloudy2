@@ -21,7 +21,7 @@ import {
 import { clashEntryTimeLabel, clashTypeLabel, clashWhenLabel } from "@/lib/events/clashDisplay";
 import type { EventClashEntry } from "@/lib/events/clashActions";
 import type { Rect } from "@/lib/motion/origin";
-import { MOTION } from "@/lib/motion/timing";
+import { useMotion } from "@/components/MotionProvider";
 
 /**
  * The shared amber clash/double-booking report card. Collapsed by default to a
@@ -56,6 +56,7 @@ export function ClashCard({
   defaultOpen?: boolean;
   live?: boolean;
 }) {
+  const motion = useMotion();
   const [open, setOpen] = useState(defaultOpen);
   const regionId = useId();
   return (
@@ -100,7 +101,7 @@ export function ClashCard({
                     flexShrink: 0,
                     marginTop: 2,
                     transform: open ? "rotate(180deg)" : undefined,
-                    transition: `transform ${MOTION.micro}ms ease`,
+                    transition: `transform ${motion.duration.micro}ms ${motion.easing.out}`,
                   }}
                   aria-hidden
                 />

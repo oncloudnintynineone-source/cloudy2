@@ -3,11 +3,14 @@ import { cookies } from "next/headers";
 
 import { AppShellShell } from "@/components/AppShellShell";
 import { ColdStartReadyProvider } from "@/components/ColdStartReady";
+import { MotionProvider } from "@/components/MotionProvider";
 import { googleCalendarConfigured } from "@/lib/google";
+import { motionCssText, resolveMotion } from "@/lib/motion/profile";
 import { requireSession } from "@/lib/session";
 import { getBanner, getSettings } from "@/lib/settings/queries";
 import {
   bottomNavVariantFlag,
+  motionProfileFlag,
   pinnedTickerIndicatorFlag,
   resolveFlagValue,
   translucencyLevelFlag,
@@ -32,38 +35,50 @@ export default async function ProtectedLayout({ children }: { children: React.Re
   // hydration mismatch). The shell writes every toggle back to the cookie.
   const uiState = decodeUiState((await cookies()).get(UI_STATE_COOKIE)?.value);
   const isAdmin = session.user.role === "admin";
+  // The org-wide motion profile is published as CSS custom properties on
+  // `:root` (server-rendered, so no hydration flash) and handed to the client
+  // as `MotionProvider` tokens for Mantine/JS animations. `:root:root` wins
+  // over the standard fallback block in globals.css. See docs/motion.md.
+  const motion = resolveMotion(
+    resolveFlagValue(motionProfileFlag, settings.featureFlags.motionProfile),
+  );
   return (
-    <ColdStartReadyProvider>
-      <AppShellShell
-        role={session.user.role}
-        name={session.user.name ?? ""}
-        phone={session.user.phone}
-        googleConfigured={googleCalendarConfigured()}
-        sidebarCollapsed={uiState?.sidebarCollapsed === true}
-        bannerConfig={bannerConfig}
-        pinnedTickerIndicator={resolveFlagValue(
-          pinnedTickerIndicatorFlag,
-          settings.featureFlags.pinnedTickerIndicator,
-        )}
-        translucencyLevel={resolveFlagValue(
-          translucencyLevelFlag,
-          settings.featureFlags.translucencyLevel,
-        )}
-        bottomNavVariant={resolveFlagValue(
-          bottomNavVariantFlag,
-          settings.featureFlags.bottomNavVariant,
-        )}
-        kahNavSlot={
-          // Admins always see KAH Status (all groups) — skip the membership probe.
-          isAdmin ? null : (
-            <Suspense fallback={null}>
-              <ShellKahNav userId={session.user.id} />
-            </Suspense>
-          )
-        }
-      >
-        {children}
-      </AppShellShell>
-    </ColdStartReadyProvider>
+    <>
+      <style dangerouslySetInnerHTML={{ __html: motionCssText(motion) }} />
+      <MotionProvider motion={motion}>
+        <ColdStartReadyProvider>
+          <AppShellShell
+            role={session.user.role}
+            name={session.user.name ?? ""}
+            phone={session.user.phone}
+            googleConfigured={googleCalendarConfigured()}
+            sidebarCollapsed={uiState?.sidebarCollapsed === true}
+            bannerConfig={bannerConfig}
+            pinnedTickerIndicator={resolveFlagValue(
+              pinnedTickerIndicatorFlag,
+              settings.featureFlags.pinnedTickerIndicator,
+            )}
+            translucencyLevel={resolveFlagValue(
+              translucencyLevelFlag,
+              settings.featureFlags.translucencyLevel,
+            )}
+            bottomNavVariant={resolveFlagValue(
+              bottomNavVariantFlag,
+              settings.featureFlags.bottomNavVariant,
+            )}
+            kahNavSlot={
+              // Admins always see KAH Status (all groups) — skip the membership probe.
+              isAdmin ? null : (
+                <Suspense fallback={null}>
+                  <ShellKahNav userId={session.user.id} />
+                </Suspense>
+              )
+            }
+          >
+            {children}
+          </AppShellShell>
+        </ColdStartReadyProvider>
+      </MotionProvider>
+    </>
   );
 }
