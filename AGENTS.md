@@ -366,9 +366,10 @@ doc content here.
     `motionProfile` — the app-wide animation cadence (`calm` / `standard`
     default / `snappy` / `playful`) scaling every duration, distance and
     stagger and setting the easing family, published on `<html>` as `:root:root`
-    `--c2-*` vars by the shell and read by JS via `useMotion()`; plain dialogs
-    render through the shared `MotionModal`, and Collapse/Accordion pass
-    `transitionDuration` so they follow the same clock
+    `--c2-*` vars by the shell and read by JS via `useMotion()`; modal/dialog/
+    popover entrances use the profile's `pop` curve (so `playful` overshoots)
+    while exits stay on `out`, plain dialogs render through the shared
+    `MotionModal`, and Collapse/Accordion pass `transitionDuration`
     ([`motion.md`](docs/motion.md)). Design:
     [docs/feature-flags.md](docs/feature-flags.md).
 - **Templates:** display-name template + **structured recipes** (`src/lib/settings/titleRecipe.ts`,

@@ -1866,6 +1866,12 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     bar `height`→`scaleY`, shortened `content-enter`, `pop` entrances, tokenized
     badge/rail/clash/pill literals). `src/lib/motion/timing.ts` removed. Docs:
     `docs/motion.md`.
+- 1.318 `playful` now actually overshoots on overlays: modal/dialog/popover
+    transitions carry per-state timing — `in` uses the profile's `pop` curve,
+    `out` stays on the non-bouncy `out` curve. Zoom/form modals and every plain
+    `MotionModal` now visibly grow past 1× then settle under `playful`; the
+    Settings preview adds a mock dialog that replays the bounce. Docs:
+    `docs/motion.md` §1.3/§1.4/§1.6.
 
 ## 1.4 Open items & next steps
 

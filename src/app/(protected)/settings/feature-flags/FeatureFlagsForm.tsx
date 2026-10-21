@@ -106,6 +106,10 @@ function MotionPreview({ value }: { value: MotionProfile }) {
       <span className="c2-motion-preview-badge c2-badge-tick">3</span>
       <span className="c2-motion-preview-chip c2-chip-settle">Settle</span>
       <span className="c2-motion-preview-pill c2-glass-surface">Reveal</span>
+      <span className="c2-motion-preview-modal">
+        <span className="c2-motion-preview-modal-bar" />
+        <span className="c2-motion-preview-modal-line" />
+      </span>
     </div>
   );
 }

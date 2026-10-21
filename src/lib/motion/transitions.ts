@@ -7,24 +7,55 @@ import { type MotionTokens } from "@/lib/motion/profile";
  * the CSS animations — no per-component literals.
  */
 
-/** Menus, popovers and dropdowns (Mantine's built-in `pop` transition). */
+/**
+ * Menus, popovers and dropdowns. Recreates Mantine's built-in `pop` shape
+ * (scale + short rise) but splits the curves: the enter uses the profile's
+ * `pop` (so `playful` overshoots), the exit uses the non-bouncy `out`.
+ */
 export function popoverTransitionProps(motion: MotionTokens) {
   return {
-    transition: "pop" as const,
+    transition: {
+      in: {
+        opacity: 1,
+        transform: "scale(1)",
+        transitionTimingFunction: motion.easing.pop,
+      },
+      out: {
+        opacity: 0,
+        transform: `scale(0.9) translateY(${motion.distance.sm}px)`,
+        transitionTimingFunction: motion.easing.out,
+      },
+      common: { transformOrigin: "center center" },
+      transitionProperty: "transform, opacity",
+    },
     duration: motion.duration.popover,
     timingFunction: motion.easing.out,
   };
 }
 
 /**
- * Simple dialogs/confirmations that keep Mantine's plain fade but follow the
- * active profile's clock and out-curve. Used by the plain `<Modal>` surfaces;
- * the grow-from-trigger modals use `modalZoomTransitionProps` /
- * `modalFormTransitionProps` instead.
+ * Plain dialogs/confirmations: a fade plus a small scale so the profile's
+ * bounce is visible. `playful` starts further down (0.82×) and overshoots past
+ * 1× before settling; other profiles start at 0.94×. Enter uses `pop`, exit
+ * uses the non-bouncy `out`.
  */
 export function fadeTransitionProps(motion: MotionTokens) {
+  const startScale = motion.profile === "playful" ? 0.82 : 0.94;
   return {
-    transition: "fade" as const,
+    transition: {
+      in: {
+        opacity: 1,
+        transform: "scale(1)",
+        transitionTimingFunction: motion.easing.pop,
+      },
+      out: {
+        opacity: 0,
+        transform: `scale(${startScale})`,
+        transitionTimingFunction: motion.easing.out,
+      },
+      common: { transformOrigin: "center" },
+      transitionProperty: "transform, opacity",
+    },
     duration: motion.duration.popover,
     timingFunction: motion.easing.out,
   };
@@ -32,8 +63,9 @@ export function fadeTransitionProps(motion: MotionTokens) {
 
 /**
  * "Grow from the tapped element" modal: opens by scaling up from the trigger's
- * rect, closes by shrinking back into it. Entrances use the profile's out-curve
- * (never the bouncy pop), so the shrink-out never overshoots past its origin.
+ * rect, closes by shrinking back into it. The enter uses the profile's `pop`
+ * curve (playful overshoots past full size); the exit keeps the non-bouncy
+ * `out` curve so the shrink never kicks back.
  */
 export function modalZoomTransitionProps(
   motion: MotionTokens,
@@ -45,10 +77,15 @@ export function modalZoomTransitionProps(
 ) {
   return {
     transition: {
-      in: { opacity: 1, transform: "scale(1)" },
+      in: {
+        opacity: 1,
+        transform: "scale(1)",
+        transitionTimingFunction: motion.easing.pop,
+      },
       out: {
         opacity: 0,
         transform: `scale(${scaleFromRect(originRect, contentWidth, scaleFallback)})`,
+        transitionTimingFunction: motion.easing.out,
       },
       common: {
         transformOrigin: transformOriginFromRect(originRect, viewport, fallbackOrigin),
@@ -64,7 +101,8 @@ export function modalZoomTransitionProps(
 /**
  * The full event-form modal (bottom-right origin, slightly slower). Same
  * grow-from-target mechanic as the zoom modals but with its own duration and a
- * larger shrink scale so the form never collapses to a dot.
+ * larger shrink scale so the form never collapses to a dot. Enter uses `pop`;
+ * exit uses `out`.
  */
 export function modalFormTransitionProps(
   motion: MotionTokens,
@@ -74,10 +112,15 @@ export function modalFormTransitionProps(
 ) {
   return {
     transition: {
-      in: { opacity: 1, transform: "scale(1)" },
+      in: {
+        opacity: 1,
+        transform: "scale(1)",
+        transitionTimingFunction: motion.easing.pop,
+      },
       out: {
         opacity: 0,
         transform: `scale(${scaleFromRect(originRect, contentWidth, 0.5)})`,
+        transitionTimingFunction: motion.easing.out,
       },
       common: {
         transformOrigin: transformOriginFromRect(originRect, viewport, "bottom right"),

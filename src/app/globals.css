@@ -1645,8 +1645,46 @@ html {
   animation: c2-glass-enter var(--c2-dur-emphasized) var(--c2-ease-out);
 }
 
+/* A mock dialog so the admin can see the modal enter curve: `playful` scales
+   from 0.82x and the pop curve carries it past 1x before it settles. */
+.c2-motion-preview-modal {
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  width: 92px;
+  height: 58px;
+  padding: 10px;
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-md);
+  background: var(--mantine-color-body);
+  box-shadow: var(--mantine-shadow-sm);
+  animation: c2-motion-preview-modal-in var(--c2-dur-emphasized) var(--c2-ease-pop);
+}
+
+.c2-motion-preview-modal-bar,
+.c2-motion-preview-modal-line {
+  display: block;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--mantine-color-gray-3);
+}
+
+.c2-motion-preview-modal-bar {
+  width: 55%;
+  background: var(--mantine-color-brand-4);
+}
+
+@keyframes c2-motion-preview-modal-in {
+  from {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .c2-motion-preview-pill {
+  .c2-motion-preview-pill,
+  .c2-motion-preview-modal {
     animation: none;
   }
 }

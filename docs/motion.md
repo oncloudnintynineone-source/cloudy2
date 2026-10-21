@@ -72,7 +72,10 @@ drifting against CSS transitions still in flight.
 
 `bounce` becomes the `pop` curve `[0.34, 1 + 0.4·bounce, 0.64, 1]` — a y2
 overshoot. Overshoot is only ever applied to **entrances**; exits stay on the
-non-bouncy curves so modals never snap back.
+non-bouncy curves so modals never snap back. Modal, dialog and popover
+factories express this asymmetrically by putting `transitionTimingFunction` in
+the transition's `in`/`out` style objects: `in` uses `pop` (so `playful` opens
+past 1× and settles), `out` uses `out` (so closing never kicks back).
 
 `STANDARD_MOTION` is the pre-hydration fallback and the `/login` default (login
 is intentionally hardcoded to standard). A parity test
@@ -95,7 +98,9 @@ The `(protected)` layout resolves the flag and publishes it two ways:
 `src/lib/motion/transitions.ts` turns the tokens into the shared Mantine
 transition factories (`modalZoomTransitionProps`, `modalFormTransitionProps`,
 `popoverTransitionProps`, `fadeTransitionProps`, …) so the primary modal/menu
-surfaces use the same clock.
+surfaces use the same clock. Mantine applies the transition's `in`/`out` state
+styles after the shared timing function, so each factory can give the enter and
+exit different curves without a second transition component.
 
 Plain dialogs use the shared `MotionModal` (`src/components/MotionModal.tsx`),
 which defaults to `fadeTransitionProps` but still honors an explicit
@@ -123,6 +128,7 @@ The audit replaced the rough edges that made motion feel jerky:
 | Activity bar animated `height` | `transform: scaleY` | layout-triggering height animation is janky; transform is GPU-cheap |
 | `content-enter` reveal | shortened to `quick` | content appeared too slowly |
 | FAB/chip entrances | `pop` easing | felt flat without a settle |
+| Modal/dialog/popover enter | `pop` curve on `in` only | `playful` visibly grows past full size, then settles |
 | Modal exits | non-bouncy curves | overshoot on exit looked like a bounce-back |
 | Badge tick, rail nudge, clash rows, pill progress | tokenized durations/easings | raw `120ms ease`/`500ms` literals drifted from the system |
 
