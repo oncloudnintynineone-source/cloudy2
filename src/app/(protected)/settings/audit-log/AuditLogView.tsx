@@ -9,7 +9,6 @@ import {
   Divider,
   Group,
   Menu,
-  Modal,
   Pagination,
   Paper,
   Pill,
@@ -20,6 +19,7 @@ import {
   useMantineTheme,
   VisuallyHidden,
 } from "@mantine/core";
+import { MotionModal } from "@/components/MotionModal";
 import { DatePickerInput } from "@mantine/dates";
 import { useDisclosure, useMediaQuery } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
@@ -794,7 +794,7 @@ export function AuditLogView({
         originRect={filtersOriginRect}
       />
 
-      <Modal
+      <MotionModal
         opened={purgeOpened}
         onClose={closePurge}
         title="Delete old audit logs"
@@ -817,9 +817,9 @@ export function AuditLogView({
             Delete
           </Button>
         </Group>
-      </Modal>
+      </MotionModal>
 
-      <Modal
+      <MotionModal
         opened={exportOpened}
         onClose={closeExport}
         title="Export audit log"
@@ -841,7 +841,7 @@ export function AuditLogView({
             Download
           </Button>
         </Group>
-      </Modal>
+      </MotionModal>
 
       {/* Mobile-only: at lg the "Export" button in the filter row replaces the
           FAB. hiddenFrom sits on the toolbar itself: its Affix portals to
@@ -868,7 +868,7 @@ function LogDetailModal({ row, onClose }: LogDetailModalProps) {
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
   return (
-    <Modal
+    <MotionModal
       opened={row !== null}
       onClose={onClose}
       title="Log details"
@@ -908,7 +908,7 @@ function LogDetailModal({ row, onClose }: LogDetailModalProps) {
           <AuditDetails details={row.details} />
         </Stack>
       ) : null}
-    </Modal>
+    </MotionModal>
   );
 }
 

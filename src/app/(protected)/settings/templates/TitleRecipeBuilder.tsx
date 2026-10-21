@@ -7,7 +7,6 @@ import {
   Button,
   Divider,
   Group,
-  Modal,
   Paper,
   ScrollArea,
   Stack,
@@ -16,6 +15,7 @@ import {
   Tooltip,
   useMantineTheme,
 } from "@mantine/core";
+import { MotionModal } from "@/components/MotionModal";
 import { useMediaQuery } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import {
@@ -559,7 +559,7 @@ export function TitleRecipeBuilder({
         </Button>
       </Group>
 
-      <Modal
+      <MotionModal
         opened={pickerOpen}
         onClose={() => setPickerOpen(false)}
         title="Add a field"
@@ -579,9 +579,9 @@ export function TitleRecipeBuilder({
             />
           </Stack>
         </ScrollArea.Autosize>
-      </Modal>
+      </MotionModal>
 
-      <Modal
+      <MotionModal
         opened={editingIndex !== null}
         onClose={() => setEditingIndex(null)}
         title={editingRow ? rowSummary(editingRow) : "Field options"}
@@ -597,7 +597,7 @@ export function TitleRecipeBuilder({
             }}
           />
         )}
-      </Modal>
+      </MotionModal>
     </Stack>
   );
 }

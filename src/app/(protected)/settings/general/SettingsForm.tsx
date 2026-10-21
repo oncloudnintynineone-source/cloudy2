@@ -1,7 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { Button, Group, Modal, NumberInput, Paper, Stack, Text } from "@mantine/core";
+import {
+  Button,
+  Group,
+  NumberInput,
+  Paper,
+  Stack,
+  Text,
+} from "@mantine/core";
+import { MotionModal } from "@/components/MotionModal";
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
 import { IconAlertTriangle } from "@tabler/icons-react";
@@ -132,7 +140,7 @@ export function SettingsForm({ retentionDays }: SettingsFormProps) {
         </Stack>
       </Paper>
 
-      <Modal
+      <MotionModal
         opened={purgeOpened}
         onClose={() => setPurgeOpened(false)}
         title="Purge calendar cache"
@@ -156,7 +164,7 @@ export function SettingsForm({ retentionDays }: SettingsFormProps) {
             Purge
           </Button>
         </Group>
-      </Modal>
+      </MotionModal>
     </>
   );
 }

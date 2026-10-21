@@ -59,6 +59,7 @@ import { CONTENT_ENTER_CLASS, useContentEnter } from "@/lib/loading/contentEnter
 import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
 import { type Rect } from "@/lib/motion/origin";
 import { useMotion } from "@/components/MotionProvider";
+import { fadeTransitionProps } from "@/lib/motion/transitions";
 import { departmentPathLabels, departmentTreeRows } from "@/lib/roster/hierarchy";
 import { buildEventsByUser, eventCoversDay, toParadeEvent } from "@/lib/parade/dayEvents";
 import { buildParadeSections, type ParadeSection } from "@/lib/parade/sections";
@@ -1147,7 +1148,13 @@ export function ParadeStateView({
         originRect={pickerOriginRect}
         weekStartsOn={weekStartsOn}
       />
-      <Modal opened={resetOpened} onClose={closeResetConfirm} title="Clear all dates" centered>
+      <Modal
+        opened={resetOpened}
+        onClose={closeResetConfirm}
+        title="Clear all dates"
+        centered
+        transitionProps={fadeTransitionProps(motion)}
+      >
         <Text>Clear attendance checks for every date? This cannot be undone.</Text>
         <Group justify="flex-end" mt="md">
           <Button variant="default" onClick={closeResetConfirm}>

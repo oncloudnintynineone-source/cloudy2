@@ -4,7 +4,7 @@ import { useLayoutEffect, useRef, type RefObject } from "react";
 
 /**
  * Global CSS class (declared in `src/app/globals.css`) that fades content
- * in over ~300ms after a loading skeleton, inside the
+ * in over ~160ms after a loading skeleton, inside the
  * `prefers-reduced-motion: no-preference` guard. The class is always present
  * on the content container in the markup: on a cold mount it comes with the
  * SSR HTML and plays on first paint — no JS, no hydration flash.

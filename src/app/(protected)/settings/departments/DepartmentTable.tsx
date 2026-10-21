@@ -17,8 +17,10 @@ import { notifications } from "@mantine/notifications";
 import { IconPlus, IconSitemap } from "@tabler/icons-react";
 
 import { EmptyState } from "@/components/EmptyState";
+import { useMotion } from "@/components/MotionProvider";
 import type { Calendar } from "@/db/schema";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
+import { fadeTransitionProps } from "@/lib/motion/transitions";
 import { deleteDepartment, moveDepartment, reorderDepartments } from "@/lib/roster/actions";
 import {
   buildDepartmentTree,
@@ -57,6 +59,7 @@ interface DepartmentTableProps {
 }
 
 export function DepartmentTable({ departments, reorderDrag }: DepartmentTableProps) {
+  const motion = useMotion();
   const refreshAfterSave = useActivityRefresh("departments:save");
   const dragEnabled = isReorderDragEnabled(reorderDrag);
   const arrowsEnabled = isReorderArrowsEnabled(reorderDrag);
@@ -396,7 +399,13 @@ export function DepartmentTable({ departments, reorderDrag }: DepartmentTablePro
         onRequestDelete={requestDelete}
       />
 
-      <Modal opened={confirmOpened} onClose={closeConfirm} title="Delete department" centered>
+      <Modal
+        opened={confirmOpened}
+        onClose={closeConfirm}
+        title="Delete department"
+        centered
+        transitionProps={fadeTransitionProps(motion)}
+      >
         <Text>
           Delete &quot;{deleting?.name}&quot;? This removes the Google Calendar and unassigns its
           users.

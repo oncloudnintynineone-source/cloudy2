@@ -15,10 +15,13 @@ import {
   BASE_DURATIONS_MS,
   BASE_SCALES,
   BASE_STAGGER_MS,
+  EASE_CRISP,
   EASE_IN,
   EASE_IN_OUT,
   EASE_EMPHASIZED,
   EASE_LINEAR,
+  EASE_OUT,
+  EASE_SOFT,
   type Curve,
   curveToCss,
 } from "./tokens";
@@ -40,10 +43,10 @@ interface ProfileParams {
 }
 
 const PROFILES: Record<MotionProfile, ProfileParams> = {
-  calm: { speed: 1.2, distance: 1, stagger: 1.25, bounce: 0, outCurve: [0.25, 0.8, 0.35, 1] },
-  standard: { speed: 1, distance: 1, stagger: 1, bounce: 0.45, outCurve: [0.22, 1, 0.36, 1] },
-  snappy: { speed: 0.8, distance: 0.8, stagger: 0.75, bounce: 0, outCurve: [0.2, 0.9, 0.2, 1] },
-  playful: { speed: 1, distance: 1.15, stagger: 1.1, bounce: 1, outCurve: [0.22, 1, 0.36, 1] },
+  calm: { speed: 1.2, distance: 1, stagger: 1.25, bounce: 0, outCurve: EASE_SOFT },
+  standard: { speed: 1, distance: 1, stagger: 1, bounce: 0.45, outCurve: EASE_OUT },
+  snappy: { speed: 0.8, distance: 0.8, stagger: 0.75, bounce: 0, outCurve: EASE_CRISP },
+  playful: { speed: 1, distance: 1.15, stagger: 1.1, bounce: 1, outCurve: EASE_OUT },
 };
 
 /** `bounce` → a cubic-bezier whose y2 overshoots 1 (entrances only). */
@@ -136,7 +139,7 @@ export function resolveMotion(
       xl: Math.round(BASE_DISTANCES_PX.xl * params.distance),
     },
     scale: { ...BASE_SCALES },
-    stagger: Math.round(BASE_STAGGER_MS * params.stagger),
+    stagger: opts.disabled ? 0 : Math.round(BASE_STAGGER_MS * params.stagger),
   };
 }
 

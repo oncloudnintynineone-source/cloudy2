@@ -148,6 +148,7 @@ function HistoryEntry({ row }: { row: AuditLog }) {
         expanded={open}
         id={regionId}
         transitionDuration={motion.duration.popover}
+        transitionTimingFunction={motion.easing.out}
         keepMounted={false}
       >
         <Box mt="xs">

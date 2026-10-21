@@ -5,7 +5,6 @@ import {
   ActionIcon,
   Button,
   Group,
-  Modal,
   Paper,
   ScrollArea,
   Stack,
@@ -14,6 +13,7 @@ import {
   Tooltip,
   useMantineTheme,
 } from "@mantine/core";
+import { MotionModal } from "@/components/MotionModal";
 import { useMediaQuery } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { IconFilter, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
@@ -236,7 +236,7 @@ export function EditViewsModal({
   }
 
   return (
-    <Modal
+    <MotionModal
       opened={opened}
       onClose={close}
       title="Manage views"
@@ -393,7 +393,7 @@ export function EditViewsModal({
         )}
       </Stack>
 
-      <Modal
+      <MotionModal
         opened={editing !== null}
         onClose={() => setEditing(null)}
         title="Edit view"
@@ -460,9 +460,9 @@ export function EditViewsModal({
             </Button>
           </Group>
         </Stack>
-      </Modal>
+      </MotionModal>
 
-      <Modal
+      <MotionModal
         opened={deleting !== null}
         onClose={() => setDeleting(null)}
         title="Delete view"
@@ -488,7 +488,7 @@ export function EditViewsModal({
             </Button>
           </Group>
         </Stack>
-      </Modal>
-    </Modal>
+      </MotionModal>
+    </MotionModal>
   );
 }

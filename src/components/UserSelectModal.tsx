@@ -6,13 +6,13 @@ import {
   Badge,
   Button,
   Group,
-  Modal,
   Stack,
   Text,
   TextInput,
   UnstyledButton,
   useMantineTheme,
 } from "@mantine/core";
+import { MotionModal } from "@/components/MotionModal";
 import { useMediaQuery } from "@mantine/hooks";
 import { IconSearch, IconX } from "@tabler/icons-react";
 
@@ -80,7 +80,7 @@ export function UserSelectModal({
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
   const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY);
   return (
-    <Modal
+    <MotionModal
       opened={opened}
       onClose={onClose}
       title={title}
@@ -109,7 +109,7 @@ export function UserSelectModal({
         single={single}
         allowEmptyConfirm={allowEmptyConfirm}
       />
-    </Modal>
+    </MotionModal>
   );
 }
 

@@ -34,6 +34,7 @@ import {
 
 import { PickerField, type PickerBadgeItem } from "@/components/PickerField";
 import { useActionPill } from "@/components/ActionPill";
+import { useMotion } from "@/components/MotionProvider";
 import { TimeChipSelector } from "@/components/TimeChipSelector";
 import { UserSelectModal } from "@/components/UserSelectModal";
 import {
@@ -267,6 +268,7 @@ export function EventForm({
   onOptimisticRollback,
   optimisticHome,
 }: EventFormProps) {
+  const motion = useMotion();
   const isEdit = event !== null;
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
@@ -1499,6 +1501,7 @@ export function EventForm({
                         key={section.id}
                         variant="separated"
                         chevronPosition="left"
+                        transitionDuration={motion.duration.popover}
                         value={openSectionIds.includes(section.id) ? section.id : null}
                         onChange={(value) =>
                           // Each folder is its own single-item Accordion sharing

@@ -112,7 +112,12 @@ export function ClashCard({
           {summaryBelow}
         </Stack>
       </Group>
-      <Collapse expanded={open} id={regionId}>
+      <Collapse
+        expanded={open}
+        id={regionId}
+        transitionDuration={motion.duration.popover}
+        transitionTimingFunction={motion.easing.out}
+      >
         <Stack gap="sm" mt="xs">
           {children}
         </Stack>

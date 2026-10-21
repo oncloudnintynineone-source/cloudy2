@@ -1,7 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { Button, Group, Modal, NumberInput, Stack, Text, TextInput } from "@mantine/core";
+import {
+  Button,
+  Group,
+  NumberInput,
+  Stack,
+  Text,
+  TextInput,
+} from "@mantine/core";
+import { MotionModal } from "@/components/MotionModal";
 import { useForm } from "@mantine/form";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
@@ -174,7 +182,7 @@ export function KahGroupForm({ group, defaultPercentage, pickerUsers, onDone }: 
           </Button>
         </Group>
 
-        <Modal
+        <MotionModal
           opened={confirmOpened}
           onClose={closeConfirm}
           title="Delete KAH group"
@@ -200,7 +208,7 @@ export function KahGroupForm({ group, defaultPercentage, pickerUsers, onDone }: 
               </Button>
             </Group>
           </Stack>
-        </Modal>
+        </MotionModal>
 
         {/* Rendered only while open so the draft re-seeds from the current
             selection every time (the FilterModalBody pattern); z-300 stacks

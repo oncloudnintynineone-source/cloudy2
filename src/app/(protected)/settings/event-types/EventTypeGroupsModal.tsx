@@ -17,6 +17,8 @@ import {
 import { notifications } from "@mantine/notifications";
 import { IconCheck, IconPencil, IconPlus, IconTrash, IconX } from "@tabler/icons-react";
 
+import { useMotion } from "@/components/MotionProvider";
+import { fadeTransitionProps } from "@/lib/motion/transitions";
 import {
   createEventTypeGroup,
   deleteEventTypeGroup,
@@ -72,6 +74,7 @@ export function EventTypeGroupsModal({
   reorderDrag,
   onMutated,
 }: EventTypeGroupsModalProps) {
+  const motion = useMotion();
   const [newName, setNewName] = useState("");
   const dragEnabled = isReorderDragEnabled(reorderDrag);
   const arrowsEnabled = isReorderArrowsEnabled(reorderDrag);
@@ -221,7 +224,14 @@ export function EventTypeGroupsModal({
   }
 
   return (
-    <Modal opened={opened} onClose={close} title="Event type groups" centered size="md">
+    <Modal
+      opened={opened}
+      onClose={close}
+      title="Event type groups"
+      centered
+      size="md"
+      transitionProps={fadeTransitionProps(motion)}
+    >
       <Stack ref={containerRef}>
         <Text size="sm" c="dimmed">
           Groups are the categories event types appear under in the event form. Reorder them with
@@ -424,6 +434,7 @@ export function EventTypeGroupsModal({
         title="Delete event type group"
         centered
         size="sm"
+        transitionProps={fadeTransitionProps(motion)}
       >
         <Stack>
           <Text>Delete &quot;{deleting?.name}&quot;?</Text>

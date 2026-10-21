@@ -10,7 +10,21 @@ import { type MotionTokens } from "@/lib/motion/profile";
 /** Menus, popovers and dropdowns (Mantine's built-in `pop` transition). */
 export function popoverTransitionProps(motion: MotionTokens) {
   return {
-    transition: "pop",
+    transition: "pop" as const,
+    duration: motion.duration.popover,
+    timingFunction: motion.easing.out,
+  };
+}
+
+/**
+ * Simple dialogs/confirmations that keep Mantine's plain fade but follow the
+ * active profile's clock and out-curve. Used by the plain `<Modal>` surfaces;
+ * the grow-from-trigger modals use `modalZoomTransitionProps` /
+ * `modalFormTransitionProps` instead.
+ */
+export function fadeTransitionProps(motion: MotionTokens) {
+  return {
+    transition: "fade" as const,
     duration: motion.duration.popover,
     timingFunction: motion.easing.out,
   };

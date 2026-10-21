@@ -13,6 +13,7 @@ import {
 } from "@mantine/core";
 import { IconCheck, IconCopy } from "@tabler/icons-react";
 
+import { useMotion } from "@/components/MotionProvider";
 import { WEBHOOK_ACTIONS } from "@/lib/webhooks/payload";
 
 const ACTIONS = [
@@ -124,8 +125,13 @@ function ExampleBlock({
  * would otherwise drag ~230 KB of zlib polyfills into this client chunk.
  */
 export function PayloadReference({ exampleJson }: { exampleJson: ExamplePayloads }) {
+  const motion = useMotion();
   return (
-    <Accordion variant="separated" mb="xl">
+    <Accordion
+      variant="separated"
+      mb="xl"
+      transitionDuration={motion.duration.popover}
+    >
       <Accordion.Item value="schema">
         <Accordion.Control>Integration guide — payload schema</Accordion.Control>
         <Accordion.Panel>

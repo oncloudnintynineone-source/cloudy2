@@ -7,6 +7,8 @@ import { notifications } from "@mantine/notifications";
 import { clearAllDashboardSnapshots } from "@/lib/dashboard/localStore";
 import type { WeekStart } from "@/lib/events/datetime";
 import { getWeekStart, setWeekStart } from "@/lib/userPrefs/actions";
+import { useMotion } from "@/components/MotionProvider";
+import { fadeTransitionProps } from "@/lib/motion/transitions";
 
 interface PreferencesModalProps {
   opened: boolean;
@@ -20,6 +22,7 @@ interface PreferencesModalProps {
  * their fetch sets rebuild with the new first day.
  */
 export function PreferencesModal({ opened, onClose }: PreferencesModalProps) {
+  const motion = useMotion();
   const [value, setValue] = useState<WeekStart | null>(null);
   const [busy, setBusy] = useState(false);
   const [loadError, setLoadError] = useState(false);
@@ -82,7 +85,14 @@ export function PreferencesModal({ opened, onClose }: PreferencesModalProps) {
   }, []);
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Preferences" centered size="sm">
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      title="Preferences"
+      centered
+      size="sm"
+      transitionProps={fadeTransitionProps(motion)}
+    >
       <Stack gap="md">
         <Stack gap={2}>
           <Text size="sm" fw={500}>

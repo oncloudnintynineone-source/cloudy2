@@ -20,9 +20,11 @@ import { notifications } from "@mantine/notifications";
 import { IconCopy, IconPencil, IconTrash } from "@tabler/icons-react";
 
 import { useActivityRefresh } from "@/components/ActivityBar";
+import { useMotion } from "@/components/MotionProvider";
 import { NoKeyboardSelect } from "@/components/NoKeyboardSelect";
 import { ROW_ACTION_ICON_SIZE, ROW_ACTION_SIZE } from "@/components/reorderUpDown";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
+import { fadeTransitionProps } from "@/lib/motion/transitions";
 import { defaultNotificationRecipe } from "@/lib/events/notifyRecipes";
 import {
   deleteEventTitleTemplate,
@@ -204,6 +206,7 @@ export function TemplatesManager({
   previewEventTypes,
   reorderDrag,
 }: TemplatesManagerProps) {
+  const motion = useMotion();
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
   const refreshAfterSave = useActivityRefresh("templates:save");
@@ -417,6 +420,7 @@ export function TemplatesManager({
         title="Master event title"
         centered
         size={isDesktop ? "md" : "sm"}
+        transitionProps={fadeTransitionProps(motion)}
       >
         <TitleRecipeBuilder
           mode="master"
@@ -435,6 +439,7 @@ export function TemplatesManager({
         title={creating ? "Add template" : editing ? `Edit ${editing.label}` : "Template"}
         centered
         size={isDesktop ? "md" : "sm"}
+        transitionProps={fadeTransitionProps(motion)}
       >
         <TitleRecipeBuilder
           key={creating ? "create" : (editing?.id ?? "edit")}
@@ -478,6 +483,7 @@ export function TemplatesManager({
         title="Delete template"
         centered
         size="sm"
+        transitionProps={fadeTransitionProps(motion)}
       >
         <Stack>
           <Text>Delete &ldquo;{deleting?.label}&rdquo;? Events already saved are untouched.</Text>
@@ -519,6 +525,7 @@ function AssignmentsDialog({
   isDesktop: boolean;
   onSaved: () => void;
 }) {
+  const motion = useMotion();
   const [values, setValues] = useState<Record<string, string>>(() =>
     Object.fromEntries(
       EVENT_TITLE_ASSIGNMENT_TARGETS.map((target) => [target, assignments[target] ?? ""]),
@@ -566,6 +573,7 @@ function AssignmentsDialog({
       title="Assign templates to targets"
       centered
       size={isDesktop ? "md" : "sm"}
+      transitionProps={fadeTransitionProps(motion)}
     >
       <Stack>
         <Text size="sm" c="dimmed">
@@ -626,6 +634,7 @@ function NameTemplateDialog({
   previewUsers: { name: string; shortname: string | null; departmentName: string | null }[];
   onSaved: () => void;
 }) {
+  const motion = useMotion();
   const [draft, setDraft] = useState(nameTemplate);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -668,7 +677,14 @@ function NameTemplateDialog({
   };
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Display name template" centered size="sm">
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      title="Display name template"
+      centered
+      size="sm"
+      transitionProps={fadeTransitionProps(motion)}
+    >
       <Stack>
         <Text size="sm" c="dimmed">
           Compose fully qualified names from a user&apos;s name and department.

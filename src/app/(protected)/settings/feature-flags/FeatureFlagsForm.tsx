@@ -10,11 +10,14 @@ import {
   FEATURE_FLAGS,
   validateFeatureFlags,
   type FeatureFlagKey,
-  type MotionProfile,
   type PinnedTickerIndicator,
   type TranslucencyLevel,
 } from "@/lib/settings/featureFlags";
-import { motionStyleVars, resolveMotion } from "@/lib/motion/profile";
+import {
+  motionStyleVars,
+  resolveMotion,
+  type MotionProfile,
+} from "@/lib/motion/profile";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { showValidationFailure } from "@/lib/ui/validationFeedback";

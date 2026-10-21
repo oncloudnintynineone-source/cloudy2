@@ -41,7 +41,11 @@ import {
 } from "@/lib/events/optimistic";
 import { eventRefFromCalendarEvent } from "@/lib/events/targets";
 import { modalContentWidth, type Rect } from "@/lib/motion/origin";
-import { modalZoomTransitionProps } from "@/lib/motion/transitions";
+import {
+  fadeTransitionProps,
+  modalZoomTransitionProps,
+  popoverTransitionProps,
+} from "@/lib/motion/transitions";
 import { useMotion } from "@/components/MotionProvider";
 import { BUTTON_LOADER_PROPS, NARROW_MEDIA_QUERY } from "@/lib/theme";
 import { formatDateTime } from "./clientDateTime";
@@ -402,7 +406,14 @@ export function EventDetail({
       </Modal>
 
       {!readOnly && showEvent && (
-        <Modal opened={confirmOpen} onClose={close} title="Delete event" centered size="sm">
+        <Modal
+          opened={confirmOpen}
+          onClose={close}
+          title="Delete event"
+          centered
+          size="sm"
+          transitionProps={fadeTransitionProps(motion)}
+        >
           <Text>Delete &quot;{showEvent.title}&quot;?</Text>
           <Group justify="flex-end" mt="md">
             <Button variant="default" onClick={close}>
@@ -465,8 +476,9 @@ function CalendarExportMenuItems({ event }: { event: CalendarEvent }) {
  * department calendars or the audit log.
  */
 function AddToCalendarMenu({ event }: { event: CalendarEvent }) {
+  const motion = useMotion();
   return (
-    <Menu position="bottom-end" zIndex={400}>
+    <Menu position="bottom-end" zIndex={400} transitionProps={popoverTransitionProps(motion)}>
       <Menu.Target>
         <Tooltip label="Add to other Calendars" position="top">
           <ActionIcon
@@ -499,8 +511,9 @@ function EventActionsMenu({
   event: CalendarEvent;
   onDuplicate: (event: CalendarEvent, originRect: Rect | null) => void;
 }) {
+  const motion = useMotion();
   return (
-    <Menu position="bottom-end" zIndex={400}>
+    <Menu position="bottom-end" zIndex={400} transitionProps={popoverTransitionProps(motion)}>
       <Menu.Target>
         <Tooltip label="More actions" position="top">
           <ActionIcon variant="light" color="gray" size="xl" aria-label="More actions">

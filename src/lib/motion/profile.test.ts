@@ -16,6 +16,7 @@ describe("resolveMotion", () => {
     for (const value of Object.values(disabled.duration)) {
       expect(value).toBe(0);
     }
+    expect(disabled.stagger).toBe(0);
   });
 
   it("scales travel distance and stagger", () => {

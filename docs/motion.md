@@ -1,10 +1,10 @@
 # 1. Motion System
 
-A single, tunable animation language for the whole app. Every transition,
-reveal and modal zoom reads one shared set of tokens — durations, easing curves,
-travel distances, scale factors and a sibling stagger — so the app can be
-re-tuned in one place and an admin can switch the whole app's cadence live via
-the `motionProfile` feature flag.
+A single, tunable animation language for the whole app. Every app-level
+transition, reveal and modal zoom reads one shared set of tokens — durations,
+easing curves, travel distances, scale factors and a sibling stagger — so the
+app can be re-tuned in one place and an admin can switch the whole app's cadence
+live via the `motionProfile` feature flag.
 
 ## Table of contents
 
@@ -94,7 +94,14 @@ The `(protected)` layout resolves the flag and publishes it two ways:
 
 `src/lib/motion/transitions.ts` turns the tokens into the shared Mantine
 transition factories (`modalZoomTransitionProps`, `modalFormTransitionProps`,
-`popoverTransitionProps`, …) so every modal/menu uses the same clock.
+`popoverTransitionProps`, `fadeTransitionProps`, …) so the primary modal/menu
+surfaces use the same clock.
+
+Plain dialogs use the shared `MotionModal` (`src/components/MotionModal.tsx`),
+which defaults to `fadeTransitionProps` but still honors an explicit
+`transitionProps`. Grow-from-trigger dialogs keep using `<Modal>` with the zoom
+factories; menus use `popoverTransitionProps`; `Collapse`/`Accordion` pass
+`transitionDuration` + (for Collapse) `transitionTimingFunction`.
 
 ## 1.5 Reduced motion & low-end devices
 
@@ -126,8 +133,9 @@ the tokens.
 
 - **CSS:** reference `var(--c2-dur-*)`, `var(--c2-ease-*)`, `var(--c2-dist-*)`,
   `var(--c2-scale-*)` — never a raw `ms` or `cubic-bezier(...)`.
-- **Mantine:** use a factory from `src/lib/motion/transitions.ts` (or
-  `useMotion()` for a one-off `transitionDuration`).
+- **Mantine:** use a factory from `src/lib/motion/transitions.ts` (plain dialogs:
+  render `MotionModal`; menus: `popoverTransitionProps`; or `useMotion()` for a
+  one-off `transitionDuration`).
 - **JS tween:** pass `useMotion()` into the tween and use `cubicBezier(motion.easingCurves.out)`
   so the curve matches the CSS.
 
@@ -137,8 +145,9 @@ the tokens.
 | ---- | ---- |
 | `src/lib/motion/tokens.ts` | base durations/easings/distances/scales + `cubicBezier` evaluator |
 | `src/lib/motion/profile.ts` | profiles, `resolveMotion`, `motionCssText`, `motionStyleVars`, `STANDARD_MOTION` |
-| `src/lib/motion/transitions.ts` | shared Mantine transition factories |
+| `src/lib/motion/transitions.ts` | shared Mantine transition factories (`fade`, `pop`, zoom) |
 | `src/components/MotionProvider.tsx` | `useMotion()` context |
+| `src/components/MotionModal.tsx` | profile-aware plain `Modal` (fade by default) |
 | `src/app/(protected)/layout.tsx` | resolves `motionProfile`, publishes `:root:root` vars, wraps in `MotionProvider` |
 | `src/app/globals.css` | standard `:root` fallback + every `--c2-*` consumer |
 | `src/lib/motion/profile.test.ts` | profile scaling + CSS parity |

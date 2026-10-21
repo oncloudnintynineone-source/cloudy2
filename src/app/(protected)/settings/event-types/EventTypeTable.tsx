@@ -5,13 +5,13 @@ import {
   Badge,
   Button,
   Group,
-  Modal,
   Paper,
   Stack,
   Table,
   Text,
   useMantineTheme,
 } from "@mantine/core";
+import { MotionModal } from "@/components/MotionModal";
 
 import { useDisclosure, useMediaQuery } from "@mantine/hooks";
 import { IconCalendarEvent, IconCategory2, IconFolder, IconPlus } from "@tabler/icons-react";
@@ -291,7 +291,7 @@ export function EventTypeTable({ types, groups, reorderDrag }: EventTypeTablePro
         </>
       )}
 
-      <Modal
+      <MotionModal
         opened={formOpened}
         onClose={closeForm}
         title={editing ? "Edit event type" : "Add event type"}
@@ -308,7 +308,7 @@ export function EventTypeTable({ types, groups, reorderDrag }: EventTypeTablePro
             refreshAfterSave();
           }}
         />
-      </Modal>
+      </MotionModal>
 
       <EventTypeGroupsModal
         opened={groupsOpened}

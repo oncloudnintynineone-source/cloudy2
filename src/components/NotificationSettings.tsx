@@ -5,12 +5,12 @@ import {
   Button,
   Group,
   Loader,
-  Modal,
   Stack,
   Switch,
   Text,
   useMantineTheme,
 } from "@mantine/core";
+import { MotionModal } from "@/components/MotionModal";
 import { useMediaQuery } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 
@@ -289,7 +289,7 @@ export function NotificationSettings({ opened, onClose }: NotificationSettingsPr
       (browser?.permission === "granted" && browser?.subscribed === false));
 
   return (
-    <Modal
+    <MotionModal
       opened={opened}
       onClose={onClose}
       title="Notifications"
@@ -436,6 +436,6 @@ export function NotificationSettings({ opened, onClose }: NotificationSettingsPr
           )}
         </Stack>
       )}
-    </Modal>
+    </MotionModal>
   );
 }

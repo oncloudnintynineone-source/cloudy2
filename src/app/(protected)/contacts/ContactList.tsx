@@ -9,12 +9,12 @@ import {
   Box,
   Button,
   Group,
-  Modal,
   Paper,
   Stack,
   Text,
   TextInput,
 } from "@mantine/core";
+import { MotionModal } from "@/components/MotionModal";
 import { useClipboard, useDisclosure, useMediaQuery } from "@mantine/hooks";
 import {
   IconCheck,
@@ -409,7 +409,7 @@ export function ContactList({
         hint="Filters combine with the search box."
       />
 
-      <Modal
+      <MotionModal
         opened={confirmOpened}
         onClose={closeConfirm}
         title="Export contacts"
@@ -434,7 +434,7 @@ export function ContactList({
             Download
           </Button>
         </Group>
-      </Modal>
+      </MotionModal>
     </Stack>
   );
 }

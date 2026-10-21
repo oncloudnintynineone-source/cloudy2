@@ -1855,15 +1855,17 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     `visualViewport` keyboard band + a 16px gap — so the pill lands just above
     the keyboard and drops back as soon as it closes, focus or not
     (`docs/dashboard-views.md` §1.1).
-- 1.317 App-wide **motion system**: every animation now reads one shared token
-    set (`src/lib/motion/tokens.ts` + `profile.ts`) instead of scattered `ms`
-    literals. An org-wide `motionProfile` feature flag (`calm`/`standard`/
-    `snappy`/`playful`) scales duration, distance and stagger and sets the
-    easing family + bounce; the shell publishes `:root:root` `--c2-*` vars and
-    wraps in `MotionProvider` (`useMotion()`), with a live preview on Settings
-    → Feature Flags. Smoothness fixes (activity bar `height`→`scaleY`, shortened
-    `content-enter`, `pop` entrances, tokenized badge/rail/clash/pill literals).
-    `src/lib/motion/timing.ts` removed. Docs: `docs/motion.md`.
+- 1.317 App-wide **motion system**: app-level animations, the primary
+    overlays, and every plain dialog (via the shared `MotionModal`) now read
+    one shared token set (`src/lib/motion/tokens.ts` + `profile.ts`) instead of
+    scattered `ms` literals. An org-wide `motionProfile` feature flag
+    (`calm`/`standard`/`snappy`/`playful`) scales duration, distance and
+    stagger and sets the easing family + bounce; the shell publishes
+    `:root:root` `--c2-*` vars and wraps in `MotionProvider` (`useMotion()`),
+    with a live preview on Settings → Feature Flags. Smoothness fixes (activity
+    bar `height`→`scaleY`, shortened `content-enter`, `pop` entrances, tokenized
+    badge/rail/clash/pill literals). `src/lib/motion/timing.ts` removed. Docs:
+    `docs/motion.md`.
 
 ## 1.4 Open items & next steps
 

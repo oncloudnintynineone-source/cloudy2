@@ -2,7 +2,16 @@
 
 import { useState } from "react";
 import { useForm } from "@mantine/form";
-import { Button, Checkbox, Grid, Group, Modal, Stack, Text, TextInput } from "@mantine/core";
+import {
+  Button,
+  Checkbox,
+  Grid,
+  Group,
+  Stack,
+  Text,
+  TextInput,
+} from "@mantine/core";
+import { MotionModal } from "@/components/MotionModal";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 
@@ -306,7 +315,7 @@ export function EventTypeForm({ eventType, groups, onDone }: EventTypeFormProps)
           </Button>
         </Group>
 
-        <Modal
+        <MotionModal
           opened={confirmOpened}
           onClose={closeConfirm}
           title="Delete event type"
@@ -329,7 +338,7 @@ export function EventTypeForm({ eventType, groups, onDone }: EventTypeFormProps)
               </Button>
             </Group>
           </Stack>
-        </Modal>
+        </MotionModal>
       </Stack>
     </form>
   );

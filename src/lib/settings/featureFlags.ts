@@ -9,6 +9,8 @@
  * Kept free of I/O and types so it unit-tests without a database.
  */
 
+import { MOTION_PROFILE_OPTIONS, type MotionProfile } from "@/lib/motion/profile";
+
 export interface FeatureFlagDef<TKey extends string = string, TOption extends string = string> {
   /** Must match the `settings` column name (camelCase) the flag is stored in. */
   key: TKey;
@@ -142,9 +144,6 @@ export const bottomNavVariantFlag: FeatureFlagDef<"bottomNavVariant", BottomNavV
   },
   defaultValue: "medium",
 };
-
-export const MOTION_PROFILE_OPTIONS = ["calm", "standard", "snappy", "playful"] as const;
-export type MotionProfile = (typeof MOTION_PROFILE_OPTIONS)[number];
 
 export const motionProfileFlag: FeatureFlagDef<"motionProfile", MotionProfile> = {
   key: "motionProfile",
