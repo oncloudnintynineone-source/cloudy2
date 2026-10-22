@@ -4897,6 +4897,7 @@ function DashboardViewImpl({
         onClose={minimizeForm}
         closeOnEscape={!discardConfirmOpen}
         keepMounted
+        keepMountedMode="display-none"
         centered
         // A fixed vertical gutter keeps the centered wizard's top/bottom gaps
         // equal (Mantine centers inside a `100dvh - 2*gutter` box) and leaves
@@ -4905,7 +4906,10 @@ function DashboardViewImpl({
         // stay equal instead of collapsing to the bottom edge.
         yOffset="44px"
         size={isNarrow ? "xs" : isDesktopWide ? "lg" : isDesktop ? "md" : "sm"}
-        zIndex={250}
+        // While minimized, the mounted modal root must drop out of the floating
+        // control layer so the docked draft bar remains visible with the month
+        // chevrons / Create / Quick-links FABs.
+        zIndex={formMinimized ? 1 : 250}
         transitionProps={formTransitionProps}
       >
         <Modal.Overlay />
@@ -5045,21 +5049,19 @@ function DashboardViewImpl({
         withCloseButton={false}
         zIndex={400}
       >
-        <Stack gap="md">
-          <Text size="sm">
-            {pendingFormStart
-              ? "Starting another event will discard your current draft. This cannot be undone."
-              : "Your unsaved event details will be lost. This cannot be undone."}
-          </Text>
-          <Group justify="flex-end" gap="xs">
-            <Button variant="default" size="lg" onClick={cancelDiscard}>
-              Keep editing
-            </Button>
-            <Button color="red" size="lg" onClick={confirmDiscard}>
-              {pendingFormStart ? "Discard and continue" : "Discard draft"}
-            </Button>
-          </Group>
-        </Stack>
+        <Text size="sm">
+          {pendingFormStart
+            ? "Starting another event will discard your current draft. This cannot be undone."
+            : "Your unsaved event details will be lost. This cannot be undone."}
+        </Text>
+        <Group justify="flex-end" mt="md">
+          <Button variant="default" onClick={cancelDiscard}>
+            Keep editing
+          </Button>
+          <Button color="red" onClick={confirmDiscard}>
+            {pendingFormStart ? "Discard and continue" : "Discard draft"}
+          </Button>
+        </Group>
       </MotionModal>
 
       <DateSelectorModal

@@ -397,7 +397,8 @@ gutters remain, and the "Tap outside or press Esc to minimize" caption sits in t
 gutter. The header's minimize / discard controls are 44px targets (`py={8}` on the header
 keeps the ~60px chrome height the body math assumes). Minimized, the wizard becomes the
 `EventDraftBar` — a centred, max-560px frosted bar docked above the mobile control pill
-(bottom-inset on desktop) with a 44px Resume action and a 44px discard control. On
+(bottom-inset on desktop) at the floating-control z-index, with a 44px Resume action and
+a 44px discard control. On
 the desktop shell
 the centered modal's body grows with the viewport up to
 `min(68dvh, 720px, calc(100dvh - 200px))`. The body height never depends on the active

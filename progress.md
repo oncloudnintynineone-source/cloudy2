@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.319 (accessible event-wizard minimize)** is shipped.
+- All work through changelog **1.320 (minimized draft-bar layer + confirmation-dialog sizing)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -1880,6 +1880,11 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     while a draft exists prompts instead of silently replacing it. Docs:
     `docs/event-lifecycle.md` §1.4.3, `docs/accessibility.md` §1.6,
     `docs/desktop-responsive.md` §1.7, `docs/user-guide.md` §1.4.1.
+- 1.320 Minimized draft bar now stays in the calendar floating-control layer: the
+    mounted wizard modal root drops to z-index `1` while minimized, and the discard
+    confirmation uses the house `size="sm"` confirmation pattern with default button
+    sizes. Docs: `docs/event-lifecycle.md` §1.4.3, `docs/desktop-responsive.md` §1.7,
+    `docs/accessibility.md` §1.6.
 
 ## 1.4 Open items & next steps
 

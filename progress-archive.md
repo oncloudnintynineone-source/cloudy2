@@ -9416,3 +9416,21 @@ Verification: `pnpm lint` clean, `pnpm typecheck` clean, `pnpm test` 1518/1518
 Docs: `event-lifecycle.md` §1.4/§1.4.3, `accessibility.md` §1.2/§1.6,
 `desktop-responsive.md` §1.7, `user-guide.md` §1.4.1, `dashboard-views.md` §1.1,
 `eventFormLayout.ts` comment.
+
+## 1.320 Minimized draft-bar layer + confirmation-dialog sizing
+
+The docked draft bar was already styled like the floating controls, but the mounted
+wizard modal root stayed at modal z-index `250` while minimized. That could cover the
+draft bar and make it disappear from the bottom-control layer.
+
+- **Layer fix.** The wizard `Modal.Root` now uses `zIndex={formMinimized ? 1 : 250}`
+  and `keepMountedMode="display-none"`, so the hidden minimized modal root no longer
+  competes with the z-100 control layer.
+- **Confirmation sizing.** The discard confirmation now matches the house confirmation
+  pattern: `size="sm"`, `Text size="sm"`, and default-size buttons rather than oversized
+  `size="lg"` buttons.
+
+Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` pass.
+
+Docs: `event-lifecycle.md` §1.4.3, `desktop-responsive.md` §1.7,
+`accessibility.md` §1.6.

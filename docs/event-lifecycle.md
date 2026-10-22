@@ -330,11 +330,13 @@ active tab's month range exclude it — without adding it to the grid's filtered
 The wizard minimizes without losing the draft. Tapping the overlay, pressing
 **Escape**, or the header minimize control (`IconChevronDown`, a 44px labelled
 `ActionIcon` with `aria-keyshortcuts="Escape"`) hides the modal while
-`keepMounted` keeps its state alive. A frosted **draft bar** (`EventDraftBar`) then
-docks where the floating FAB row sits — above the mobile control pill, and centred
+`keepMounted` keeps its state alive, but the minimized modal root drops to z-index `1`
+so it cannot cover the floating control layer. A frosted **draft bar** (`EventDraftBar`)
+then docks where the floating FAB row sits — above the mobile control pill, and centred
 (max 560px) near the bottom edge on desktop. It reuses the house
-`.c2-glass-surface` / `.c2-control-pill` styling, so the minimized state reads as
-the same glass language as the rest of the calendar.
+`.c2-glass-surface` / `.c2-control-pill` styling and the same z-index as the month
+chevrons / Create / Quick-links controls, so the minimized state reads as part of the
+calendar chrome rather than a separate overlay.
 
 - **Resume** is the whole left region: a 44px labelled action with the per-kind
   detail (`New event`, the event title, or `Copy of <title>`) from the pure

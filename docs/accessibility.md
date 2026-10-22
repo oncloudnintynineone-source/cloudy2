@@ -125,7 +125,9 @@ minimize too).
   screen-reader users are not left on a hidden dialog.
 - The bar (`EventDraftBar`) is a `role="group"` labelled "Minimized event draft".
   Resume and discard are separate 44px buttons; discard first asks for
-  confirmation (with **Keep editing** focused first).
+  confirmation (with **Keep editing** focused first). While minimized, the mounted
+  wizard modal root drops to z-index `1`, so the draft bar stays in the same visible
+  floating-control layer as the month chevrons / Create / Quick-links buttons.
 - Restoring re-enters the modal's focus trap. A completed discard moves focus to
   `#main-content`, because the bar's discard trigger unmounts with the draft.
 - Starting another wizard while a draft exists prompts instead of replacing it
