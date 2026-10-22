@@ -60,16 +60,7 @@ split around the arrow: the **columns** pair above the right pan arrow and the
 **rows** pair below (each behind its own divider), anchored so the arrow's center
 sits on the grid's **visible-slice center**, like the other clusters (§1.7 of
 [`dashboard-views.md`](dashboard-views.md#17-timeline-and-column-zoom-day-week-h-week-d-and-week-grid)).
-For the single-axis clusters the **whole widget is centered** on the
-visible-slice center — the zoom pair above, the right pan arrow below — and the
-left pan arrow stays edge-anchored at that same center (so on these views the
-right pan arrow now rides below the left one); the right arrow only renders when
-that edge can scroll, and the pair slot above does not depend on
-`canScrollRight`. In the two-axis cluster the arrow sits in the **middle**
-(columns pair above, rows pair below) and its slot + dividers are reserved
-(hidden, space kept) when the grid fits without overflowing. Either way nothing
-shifts when the arrow appears or disappears
-while panning. Unlike the pan
+For the single-axis clusters the **whole widget is centered** on the visible-slice center — the zoom pair above, the right pan arrow below — and the left pan arrow stays edge-anchored at that same center (so on these views the right pan arrow now rides below the left one); the right arrow only renders when that edge can scroll. **Every cluster reserves the arrow slot and its divider** (an inert same-size spacer, divider `visibility: hidden`) when the grid fits without overflowing, so nothing shifts when the arrow appears or disappears while panning or zooming. The single-axis cluster previously sized itself from `canScrollRight` (88px → 145px), which made the zoom pair jump up ~28px the moment a zoom-in pushed the grid past fit-width — the controls slid out from under the finger exactly on the tap that caused it. The anchoring math is pure and unit-tested in `src/lib/ui/gridNavGeometry.ts` (which asserts the cluster's `top` is identical with the arrow present or absent); when the visible slice is shorter than the cluster, the **zoom pair** is centered in the slice and the reserved arrow slot overflows evenly. Unlike the pan
 arrows, the zoom pair(s) render whenever the schedule/grid is shown — zoom is
 useful even when the grid fits without overflowing.
 
@@ -142,6 +133,7 @@ the Day/Week (H)/Month content `Box` (`weekBoxRef`) and the Week (D) `Paper`
 | ---- | ---- |
 | `src/lib/ui/gridPan.ts` | `useGridPan` hook (drag, edge state, `panTo`) |
 | `src/lib/ui/layoutRect.ts` | `layoutRect` — transform-free element rect for the control anchors |
+| `src/lib/ui/gridNavGeometry.ts` | Pure cluster geometry: the reserved-slot cluster heights and the anchored/clamped `top` (unit-tested) |
 | `src/components/GridNavControls.tsx` | Day/Week (H) + Week (D) + Month right-edge cluster: zoom +/− + right pan, plus left-edge pan |
 
 Related docs:

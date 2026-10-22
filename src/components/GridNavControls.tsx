@@ -4,15 +4,15 @@ import { type RefObject, useLayoutEffect, useState } from "react";
 import { ActionIcon, Box } from "@mantine/core";
 import { IconTriangleFilled, IconZoomIn, IconZoomOut } from "@tabler/icons-react";
 import { layoutRect } from "@/lib/ui/layoutRect";
+import {
+  CLUSTER_GAP,
+  CONTROL_BUTTON_SIZE as BUTTON_SIZE,
+  DIVIDER_HEIGHT,
+  EDGE_INSET,
+  singleAxisCluster,
+  twoAxisCluster,
+} from "@/lib/ui/gridNavGeometry";
 import { MAX_ZOOM, MIN_ZOOM } from "@/lib/ui/slotZoom";
-
-// Shared geometry for the edge controls: 40px round buttons; inside the right
-// cluster an 8px gap between elements and a 1px divider between the zoom
-// pair(s) and the pan arrow. The cluster's height and anchor derive from these.
-const BUTTON_SIZE = 40;
-const CLUSTER_GAP = 8;
-const DIVIDER_HEIGHT = 1;
-const EDGE_INSET = 8;
 
 /**
  * Floating grid-navigation controls for the dashboard's wide grids: the zoom
@@ -28,19 +28,23 @@ const EDGE_INSET = 8;
  * widget can never overlap itself. The left pan arrow stays edge-anchored on
  * the left so "scroll left" still reads from the left edge; the right edge
  * hosts the zoom pair(s) and the right pan arrow together. Single-axis views
- * (Day/Week (H)/Month) center the WHOLE cluster — the zoom pair above, the
- * right pan arrow below — on the grid's visible-slice center; the left pan
+ * (Day/Week (H)/Week (D)/Month) center the WHOLE cluster — the zoom pair above,
+ * the right pan arrow below — on the grid's visible-slice center; the left pan
  * arrow stays edge-anchored at that center, so the right pan arrow now rides
  * below it. The two-axis view (Week (Grid)) is already symmetric: the primary
  * (columns) pair sits ABOVE the right pan arrow and the secondary (rows) pair
- * BELOW it, anchored so the arrow's center lands on the anchor center. In the
- * two-axis case the arrow slot (plus its dividers) does not depend on
+ * BELOW it, anchored so the arrow's center lands on the anchor center. In
+ * BOTH shapes the arrow slot (and its divider) does not depend on
  * `canScrollRight` — it is reserved and hidden when the grid fits without
- * overflowing — so nothing shifts when the arrow appears or disappears while
- * panning. The zoom pair(s) render whenever the grid is shown (zoom is useful
- * even when it fits without overflowing); the pan arrows render only when that
- * edge can scroll. Subdued circular grey with filled triangles: intentionally
- * lighter than the date-nav chevrons so the controls read as secondary chrome.
+ * overflowing, so nothing shifts when the arrow appears or disappears while
+ * panning or zooming (the single-axis cluster used to size itself from the
+ * arrow, which made the zoom pair jump up ~28px the moment a zoom-in made the
+ * grid overflow). The anchoring math is pure and unit-tested in
+ * `src/lib/ui/gridNavGeometry.ts`. The zoom pair(s) render whenever the grid is
+ * shown (zoom is useful even when the grid fits without overflowing); the pan
+ * arrows render only when that edge can scroll. Subdued circular grey with
+ * filled triangles: intentionally lighter than the date-nav chevrons so the
+ * controls read as secondary chrome.
  *
  * The controls are `position: fixed` and their anchor is measured on view load
  * and re-measured on window resize, anchor size change, or a `layoutKey` flip
@@ -169,7 +173,10 @@ export function GridNavControls({
       setPos({
         center: onScreen ? (visibleTop + visibleBottom) / 2 : window.innerHeight / 2,
         left: Math.min(rect.left + EDGE_INSET, anchorCenterX),
-        right: Math.min(window.innerWidth - rect.right + EDGE_INSET, window.innerWidth - anchorCenterX),
+        right: Math.min(
+          window.innerWidth - rect.right + EDGE_INSET,
+          window.innerWidth - anchorCenterX,
+        ),
         visibleTop: onScreen ? visibleTop : 0,
         visibleBottom: onScreen ? visibleBottom : window.innerHeight,
       });
@@ -195,63 +202,26 @@ export function GridNavControls({
     return null;
   }
 
-  // The right-edge cluster's top edge, per shape:
+  // The right-edge cluster's top edge, per shape (both shapes reserve the pan
+  // arrow slot, so the height is fixed and the zoom pair(s) hold still whether
+  // or not the arrow renders — see src/lib/ui/gridNavGeometry.ts):
   //
-  // Single-axis (Day/Week (H)/Month): center anchor. The whole cluster — the
-  // zoom pair above, the right pan arrow below (when it renders) — is centered
-  // on the grid's visible-slice center and clamped to the visible bounds, so
-  // it never bleeds past either edge. On strips shorter than the cluster it
-  // overflows evenly around the center. The left pan arrow keeps its own
-  // center anchor, so it no longer lines up with the right one.
+  // Single-axis (Day/Week (H)/Week (D)/Month): the zoom pair above the arrow
+  // slot, the whole cluster centered on the grid's visible-slice center and
+  // clamped to the visible bounds. The left pan arrow keeps its own center
+  // anchor, so the right pan arrow rides below it.
   //
-  // Two-axis (Week (Grid)): the pan arrow sits in the MIDDLE of the cluster
-  // (primary/columns pair above, secondary/rows pair below), so the anchor is
-  // the arrow slot's center at `pos.center`. The arrow slot and its two
-  // divider slots are always reserved (hidden, space kept) when the grid
-  // fits without overflowing — the cluster height is fixed — so the pairs
-  // never shift as the arrow appears/disappears while panning.
-  const isTwoAxis = secondaryZoom !== undefined;
-  // Two-axis cluster height: 5 button slots (4 zoom + 1 reserved arrow) +
-  // 2 reserved divider slots + 6 gaps.
-  const TWO_AXIS_CLUSTER_HEIGHT =
-    BUTTON_SIZE * 5 + DIVIDER_HEIGHT * 2 + CLUSTER_GAP * 6;
-  // The reserved arrow slot's center, from the cluster's top edge: primary
-  // pair (2 buttons + their gap), gap + divider + gap to the slot, half a
-  // button.
-  const ARROW_CENTER_FROM_TOP =
-    BUTTON_SIZE * 2 + CLUSTER_GAP * 3 + DIVIDER_HEIGHT + BUTTON_SIZE / 2;
-
-  let clusterTop: number;
-  if (isTwoAxis) {
-    const sliceHeight = pos.visibleBottom - pos.visibleTop;
-    clusterTop =
-      TWO_AXIS_CLUSTER_HEIGHT > sliceHeight
-        ? (pos.visibleTop + pos.visibleBottom) / 2 - TWO_AXIS_CLUSTER_HEIGHT / 2
-        : Math.max(
-            pos.visibleTop,
-            Math.min(pos.center - ARROW_CENTER_FROM_TOP, pos.visibleBottom - TWO_AXIS_CLUSTER_HEIGHT),
-          );
-  } else {
-    const itemCount = 2 + (canScrollRight ? 1 : 0);
-    const dividerCount = canScrollRight ? 1 : 0;
-    const clusterHeight =
-      BUTTON_SIZE * itemCount +
-      CLUSTER_GAP * (itemCount + dividerCount - 1) +
-      DIVIDER_HEIGHT * dividerCount;
-    // Center the WHOLE cluster (zoom pair + pan arrow) on the grid's
-    // visible-slice center, then clamp so it never bleeds past either edge. On
-    // strips shorter than the cluster it overflows evenly around the center
-    // rather than being pinned to one edge. The left pan arrow stays at
-    // `pos.center`, so the right pan arrow now rides below it.
-    const sliceHeight = pos.visibleBottom - pos.visibleTop;
-    clusterTop =
-      clusterHeight > sliceHeight
-        ? (pos.visibleTop + pos.visibleBottom) / 2 - clusterHeight / 2
-        : Math.max(
-            pos.visibleTop,
-            Math.min(pos.center - clusterHeight / 2, pos.visibleBottom - clusterHeight),
-          );
-  }
+  // Two-axis (Week (Grid)): the arrow sits in the MIDDLE (columns pair above,
+  // rows pair below), anchored on the reserved arrow slot's center.
+  const clusterTop = secondaryZoom
+    ? twoAxisCluster(
+        { visibleTop: pos.visibleTop, visibleBottom: pos.visibleBottom, center: pos.center },
+        canScrollRight,
+      ).top
+    : singleAxisCluster(
+        { visibleTop: pos.visibleTop, visibleBottom: pos.visibleBottom, center: pos.center },
+        canScrollRight,
+      ).top;
 
   const renderDivider = (hidden = false) => (
     <Box
@@ -260,9 +230,9 @@ export function GridNavControls({
         width: 24,
         height: DIVIDER_HEIGHT,
         borderRadius: 1,
-        // Two-axis case: the dividers flanking the reserved arrow slot keep
-        // their space (hidden) when the arrow isn't there, so the zoom pairs
-        // never shift.
+        // Both shapes: the divider(s) flanking the reserved arrow slot keep their
+        // space (hidden) when the arrow isn't there, so the zoom pair(s) never
+        // shift when it appears or disappears.
         visibility: hidden ? "hidden" : undefined,
         backgroundColor: "color-mix(in srgb, var(--mantine-color-gray-5) 60%, transparent)",
       }}
@@ -394,12 +364,8 @@ export function GridNavControls({
         ) : (
           <>
             {renderZoomPair(onZoomIn, onZoomOut, canZoomIn, canZoomOut, label?.toLowerCase() ?? "")}
-            {canScrollRight && (
-              <>
-                {renderDivider()}
-                {rightPanArrow}
-              </>
-            )}
+            {renderDivider(!canScrollRight)}
+            {canScrollRight ? rightPanArrow : arrowSlotSpacer}
           </>
         )}
       </Box>

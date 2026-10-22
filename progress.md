@@ -1885,6 +1885,16 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     confirmation uses the house `size="sm"` confirmation pattern with default button
     sizes. Docs: `docs/event-lifecycle.md` §1.4.3, `docs/desktop-responsive.md` §1.7,
     `docs/accessibility.md` §1.6.
+- 1.321 **Zoom/pan cluster no longer jumps when zooming in**: the single-axis
+    `GridNavControls` cluster sized itself from `canScrollRight`, so the instant a
+    zoom-in overflowed the grid and the right pan arrow appeared, the cluster grew
+    88px → 145px and the re-centered zoom pair slid up ~28px out from under the
+    finger. Both cluster shapes now **reserve** the arrow slot + divider (inert
+    spacer, hidden divider) exactly like the two-axis Week (Grid) cluster, so the
+    zoom pair's position is fixed regardless of the arrow; on a visible slice
+    shorter than the cluster the zoom pair is centered in the slice instead of the
+    whole cluster. Geometry extracted into pure, unit-tested
+    `src/lib/ui/gridNavGeometry.ts`. Docs: `docs/grid-pan.md` §1.2, §1.4.
 
 ## 1.4 Open items & next steps
 
