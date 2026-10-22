@@ -136,6 +136,7 @@ import {
   subscribeAgendaSwipeHint,
 } from "@/lib/ui/agendaSwipeHint";
 import { announce } from "@/lib/ui/announcer";
+import { useCalendarChromeHide } from "@/lib/ui/calendarChromeHide";
 import { DUAL_SPLIT_DEFAULT, clampDualSplit } from "@/lib/ui/dualSplit";
 import { useGridPan } from "@/lib/ui/gridPan";
 import { useImmersiveMode } from "@/lib/ui/immersiveMode";
@@ -1413,6 +1414,16 @@ function DashboardViewImpl({
   const advanceWeekRulerRef = useRef<((x: number, slot: number) => void) | null>(null);
   const advanceDayRulerRef = useRef<((x: number, slot: number) => void) | null>(null);
   const weekBoxRef = useRef<HTMLDivElement | null>(null);
+  // The mobile floating chrome (bottom control pill + FAB row) hides while the
+  // user is touching or scrolling the calendar pane and slides back when the
+  // interaction stops — the pane is `weekBoxRef`; the pill/FAB are portaled
+  // and the pan/zoom clusters are siblings, so they can't self-trigger.
+  // Mobile only (`enabled` detaches at `lg`+); a tab switch forces it back.
+  const chromeHidden = useCalendarChromeHide({
+    enabled: !isDesktop,
+    paneRef: weekBoxRef,
+    resetKey: shownTabId,
+  });
   // The grid/skeleton wrapper that plays the directional swipe on a view (tab)
   // switch. It stays mounted (a keyed remount would lose scroll state), so the
   // animation is restarted by toggling a class (see the layout effect below).
@@ -3543,7 +3554,14 @@ function DashboardViewImpl({
   // content row clears the whole stack.
   const mobilePill = (
     <Affix hiddenFrom="lg" position={{ bottom: pillBottomOffset, left: 16, right: 16 }} zIndex={100}>
-      <Box ref={bottomBarRef} className="c2-glass-surface c2-control-pill">
+      {/* `c2-chrome-hide-able` + `c2-chrome-hidden`: the pill fades/slides away
+          while the user interacts with the calendar pane and returns when the
+          interaction stops (useCalendarChromeHide); the CSS carries the
+          pointer-events cutoff so a hidden pill never catches taps. */}
+      <Box
+        ref={bottomBarRef}
+        className={`c2-glass-surface c2-control-pill c2-chrome-hide-able${chromeHidden ? " c2-chrome-hidden" : ""}`}
+      >
         <Group align="center" gap="xs" wrap="nowrap">
           <Text
             fw={600}
@@ -5174,7 +5192,11 @@ function DashboardViewImpl({
         // `c2-glass-btn--bordered` (the grey hairline ring that matches the
         // pill containers).
         <FloatingToolbar hiddenFrom="lg" bottomOffset={fabBottomOffset}>
-          <Box ref={fabStackRef} style={{ display: "flex", gap: "var(--mantine-spacing-xs)", alignItems: "center" }}>
+          <Box
+            ref={fabStackRef}
+            className={`c2-chrome-hide-able${chromeHidden ? " c2-chrome-hidden" : ""}`}
+            style={{ display: "flex", gap: "var(--mantine-spacing-xs)", alignItems: "center" }}
+          >
             <Box className="c2-glass-surface c2-period-pill" style={{ display: "flex", alignItems: "center" }}>
               <Group align="center" gap={0} wrap="nowrap">
                 <ActionIcon

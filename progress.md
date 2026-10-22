@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.320 (minimized draft-bar layer + confirmation-dialog sizing)** is shipped.
+- All work through changelog **1.323 (mobile floating chrome stays hidden until the touch really lifts)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -1895,6 +1895,28 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     shorter than the cluster the zoom pair is centered in the slice instead of the
     whole cluster. Geometry extracted into pure, unit-tested
     `src/lib/ui/gridNavGeometry.ts`. Docs: `docs/grid-pan.md` §1.2, §1.4.
+- 1.322 **Mobile floating calendar chrome auto-hides on interaction** (below `lg`):
+    the bottom control pill + FAB row fade/sink away while the user touches the
+    calendar pane (even without scrolling) or scrolls it either axis, and slide back
+    when the interaction stops (last pointer up AND scroll settled via `scrollend` +
+    150ms debounce fallback); a tab switch forces them back. Pure unit-tested
+    `advanceChromeHide` state machine + `useCalendarChromeHide`
+    (    `src/lib/ui/calendarChromeHide.ts`); the pane-scoped `pointerdown` capture can't
+    self-trigger (pill/FAB are portaled, clusters are siblings); hidden rows drop
+    `pointer-events` incl. buttons; no reflow (Affix-fixed), always on (no flag).
+    Docs: `docs/dashboard-views.md` §1.1 (floating-chrome auto-hide bullet).
+- 1.323 **Fix: mobile floating chrome stayed hidden until the touch really
+    lifts** — the 1.322 handler treated `pointercancel` as a pointer release, but on
+    touch that event fires when the browser takes over a scroll *while the finger is
+    still down* (and no `pointerup` follows), so the chrome reappeared the instant
+    scrolling settled mid-touch. Contact is now tracked per input type: **touch** via
+    `touchend` / `TouchEvent.touches.length` (`pointercancel` and `touchcancel` no
+    longer clear it — only `touchend` dropping the count to 0 reveals), **mouse/pen**
+    via the `pointerdown`/`pointerup` pair (a non-touch `pointercancel` is a genuine
+    release). Reveal = last finger/pointer lifted AND scroll settled, so the rows stay
+    hidden through the scroll, momentum and any hold-still. Pure `advanceChromeHide`
+    reworked + re-tested (`src/lib/ui/calendarChromeHide.test.ts`). Docs:
+    `docs/dashboard-views.md` §1.1 (auto-hide bullet), `AGENTS.md`.
 
 ## 1.4 Open items & next steps
 

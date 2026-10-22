@@ -238,10 +238,66 @@ string maps to the first tab of that kind.
   zoom/pan clusters clamp their visible slice to the FAB row's top edge
   (`bottomBarrierRef` on `GridNavControls`); the floating `FullscreenToggle`
   anchors below the top strip **at `lg`+ only** (`visibleFrom="lg"`) — below `lg`
-  the control pill's inline `FullscreenButton` is the fullscreen path. At `lg`+
-  everything is unchanged: one chrome box pinned top
-  (tab strip + nav row incl. chevrons, New event and Quick links), FABs and
-  pill hidden.
+   the control pill's inline `FullscreenButton` is the fullscreen path. At `lg`+
+   everything is unchanged: one chrome box pinned top
+   (tab strip + nav row incl. chevrons, New event and Quick links), FABs and
+   pill hidden.
+- **Floating chrome auto-hide (below `lg`).** While the user is **touching the
+   calendar view pane** (even without any scrolling) or **scrolling it** in
+   either direction (document scroll, the month/week/day horizontal pan, Week
+   (Grid) hour rows, Month & Agenda panes), the two floating rows (control pill
+   + FAB row) fade out and sink away so the grid owns the whole viewport. They
+   slide back **only once the interaction has fully stopped**: the last
+   finger/pointer has lifted **AND** the scrolling has settled — so the chrome
+   stays hidden through the scroll, the momentum, and any hold-still, and does
+   **not** reappear merely because scrolling stopped while a finger is still
+   down. Settling is a `scrollend` on the scroller — caught on the pane for the
+   internal ScrollArea viewports (it bubbles) and on the `document` capture
+   phase for document scrolling — with a 150 ms debounce after the last
+   `scroll` event as the fallback where `scrollend` doesn't exist.
+   The visibility transition is the pure, unit-tested `advanceChromeHide` state
+   machine in `src/lib/ui/calendarChromeHide.ts`; `useCalendarChromeHide` only
+   wires the DOM events into it: a `touchstart` + `pointerdown` capture on the
+   pane (the triggers), the touch/pointer **contact** listeners on `document`,
+   `scroll` capture on the pane + `window`, and the two `scrollend` sites; a
+   tab switch (`shownTabId`) forces the chrome back via a `reset` event.
+   ```mermaid
+   stateDiagram-v2
+     [*] --> Visible
+     Visible --> Hidden : touch/press in the pane / any scroll
+     Hidden --> Hidden : a finger or pointer still down / scroll unsettled
+     Hidden --> Visible : last finger/pointer lifted AND scroll settled
+     Hidden --> Visible : tab switch (reset)
+   ```
+   "**The pane**" is the `weekBoxRef` content box — every grid and the pinned
+   day/hour strips live in it. The pill and FAB row are `Affix`-portaled to
+   `<body>` and the pan/zoom + fullscreen clusters are **siblings** of the box,
+   so the pane-scoped **trigger** can never self-fire: tapping a pill button
+   (or the zoom cluster) keeps the chrome up. **Contact tracking, by contrast,
+   is screen-wide** (on `document`): once hidden, the chrome stays hidden while
+   *any* finger/pointer is down, even if it slides off the pane onto the bottom
+   nav. Contact is tracked per input type because the two event systems disagree
+   about when a touch gesture ends: **touch** uses `TouchEvent.touches.length`
+   (authoritative finger count, updated on `touchstart`/`touchend`) — the
+   pointer-events `pointercancel` fires when the browser takes over a touch to
+   drive a native scroll *while the finger is still down* (and no `pointerup`
+   follows), so it must **not** read as a release, and `touchcancel` likewise
+   leaves the count unchanged; only `touchend` (dropping the count to 0)
+   reveals. **Mouse/pen** use the `pointerdown`/`pointerup` pair (a non-touch
+   `pointercancel` is a genuine release). The counts are clamped at zero so a
+   stray release and a multi-touch gesture both settle correctly. *Known
+   limitation:* this relies on `touchend` firing on finger-lift (true on modern
+   Chrome/Android + iOS 16.4+); a browser that fires `touchcancel` and
+   suppresses `touchend` would leave the chrome hidden until the next
+   touch-lift or a tab switch. Motion: `--c2-dur-quick` / `--c2-ease-out`
+   opacity + a `--c2-dist-sm` sink (`.c2-chrome-hide-able` / `.c2-chrome-hidden`
+   in `globals.css`, the "target state carries the transition" recipe),
+   instant under `prefers-reduced-motion`. The hidden state drops
+   `pointer-events` on the row **and** its buttons (overriding the pill's
+   tap-through rule) so a hidden pill never catches stray taps. The rows are
+   `Affix`-fixed, so hiding causes **no reflow** (the measured
+   `--c2-bottom-chrome-height` pads are unchanged). Desktop (`lg`+) is
+   untouched; the behavior is always on (no feature flag).
 - **Bottom control pill reuse (Parade State / Contacts).** Below `lg` both
   pages shed their sticky top chrome and ride the same `.c2-control-pill`
   Affix recipe (inset 16, zIndex 100; 50px on Parade, 58px on Contacts):

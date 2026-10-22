@@ -150,9 +150,17 @@ doc content here.
    **circle button** — brand-blue `c2-glass-fab--brand` tint; the tinted circles
    are 56px with the `c2-glass-btn--bordered` grey ring, so the whole row is one
    height) floating above it — for thumb reach; pinned
-  strips dock under the name strip (`chromeOffset` = `topChromeHeight`),
-  bounded grids run flush to the bottom nav, and page pads clear the pill/FAB
-  row; at `lg`+ one box (tabs + nav row) pins top.
+   strips dock under the name strip (`chromeOffset` = `topChromeHeight`),
+   bounded grids run flush to the bottom nav, and page pads clear the pill/FAB
+   row; at `lg`+ one box (tabs + nav row) pins top. The mobile floating rows
+   **auto-hide while the user touches the calendar pane** (touch alone, or any
+   scroll, either axis) and slide back only when the last finger/pointer is
+   lifted AND the scroll has settled — they stay hidden through the scroll,
+   momentum and any hold-still. Touch contact is tracked via `touchend` /
+   `touches.length`, **never** `pointercancel` (that fires mid-scroll while the
+   finger is down). Pure `advanceChromeHide` state machine +
+   `useCalendarChromeHide` in `src/lib/ui/calendarChromeHide.ts` (mobile only,
+   always on, no reflow — the rows are `Affix`-fixed).
   Month
   grids zoom from fit-to-width (`src/lib/ui/monthZoom.ts`,
   `dashboard.monthZoom`); Week (D) is a custom matrix (`buildWeekLanes`). Entry highlights:
