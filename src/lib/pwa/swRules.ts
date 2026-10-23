@@ -58,13 +58,14 @@ const EXCLUDED_EXACT = new Set(["/login"]);
  * Routes that must always be read from the network — never the SWR
  * document/RSC caches. The audit log is a diagnostic stream whose rows change
  * with every mutation anywhere in the app, so a cached copy is stale by
- * definition. `My Events` and the per-event history page are the same: they are
- * built from audit rows that change with every event mutation. Their clients
- * self-refresh on entry and on the header's Force refresh (`useLiveRouteRefresh`),
- * and each server render carries a `renderedAt` the client uses to tell a live
- * payload from a replayed one.
+ * definition. `My Events` is the same: it is built from audit rows that change
+ * with every event mutation. Its client self-refreshes on entry and on the
+ * header's Force refresh (`useLiveRouteRefresh`), and each server render
+ * carries a `renderedAt` the client uses to tell a live payload from a
+ * replayed one. (The per-event history is now a modal fetched fresh per open,
+ * so it needs no route here.)
  */
-const ALWAYS_FRESH_PREFIXES = ["/settings/audit-log", "/my-events", "/event-history"] as const;
+const ALWAYS_FRESH_PREFIXES = ["/settings/audit-log", "/my-events"] as const;
 
 /** Whether a path is on the always-fresh list (the exact path or a subpath). */
 export function isAlwaysFreshPath(pathname: string): boolean {

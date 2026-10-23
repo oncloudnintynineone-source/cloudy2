@@ -16,7 +16,6 @@ import {
 } from "@mantine/core";
 import { useDisclosure, useMediaQuery, useViewportSize } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { useRouter } from "next/navigation";
 import {
   IconBrandGoogle,
   IconCalendarEvent,
@@ -28,6 +27,7 @@ import {
   IconTrash,
 } from "@tabler/icons-react";
 
+import { EventHistoryModal } from "@/components/EventHistoryModal";
 import { LoadingStatus } from "@/components/LoadingStatus";
 import { deleteEvent, type EventActionOk } from "@/lib/events/actions";
 import { buildEventIcs, buildGoogleCalendarUrl, icsFileName } from "@/lib/events/calendarExport";
@@ -116,6 +116,10 @@ export function EventDetail({
 }: EventDetailProps) {
   const [confirmOpen, { open, close }] = useDisclosure(false);
   const [deleting, setDeleting] = useState(false);
+  // The shared history modal, opened by the History button (stacked above this
+  // modal via zIndex, replacing the old navigation to the history page).
+  const [historyEventId, setHistoryEventId] = useState<string | null>(null);
+  const [historyOrigin, setHistoryOrigin] = useState<Rect | null>(null);
   // Keep the last non-null event so the closing (shrink) animation still has
   // content while `opened` is already false. The render-time adjustment below
   // only replaces it when a *new* event arrives — a close (event → null) keeps
@@ -130,7 +134,6 @@ export function EventDetail({
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
   const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY);
-  const router = useRouter();
   // The modal is `centered` with a fixed size, so its content center is the
   // viewport center; the transform-origin can therefore be derived purely from
   // the clicked element's rect (see src/lib/motion/origin.ts). The modal
@@ -360,7 +363,10 @@ export function EventDetail({
                       color="gray"
                       size="xl"
                       aria-label="View event history"
-                      onClick={() => router.push(`/event-history/${payload.eventId}`)}
+                      onClick={(event) => {
+                        setHistoryOrigin(event.currentTarget.getBoundingClientRect());
+                        setHistoryEventId(payload.eventId);
+                      }}
                     >
                       <IconHistory size={22} />
                     </ActionIcon>
@@ -430,6 +436,13 @@ export function EventDetail({
           </Group>
         </Modal>
       )}
+
+      <EventHistoryModal
+        eventId={historyEventId}
+        onClose={() => setHistoryEventId(null)}
+        originRect={historyOrigin}
+        zIndex={300}
+      />
     </>
   );
 }

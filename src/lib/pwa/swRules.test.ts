@@ -100,11 +100,9 @@ describe("swRules", () => {
       expect(isAlwaysFreshPath("/settings/audit-log/export")).toBe(true);
     });
 
-    it("matches My Events and per-event history routes", () => {
+    it("matches My Events exactly and its subpaths", () => {
       expect(isAlwaysFreshPath("/my-events")).toBe(true);
       expect(isAlwaysFreshPath("/my-events/")).toBe(true);
-      expect(isAlwaysFreshPath("/event-history")).toBe(true);
-      expect(isAlwaysFreshPath("/event-history/abc-123")).toBe(true);
     });
 
     it("does not match sibling settings tabs or a prefix-lookalike", () => {

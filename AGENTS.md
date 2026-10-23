@@ -229,16 +229,21 @@ doc content here.
   `UserSelectModal`; the nav entry carries a live amber count pill (`checkUserClashes({})`,
   refreshed on `cloudy2:events-changed`). Advisory: never writes or audits.
   Design: [docs/user-clashes.md](docs/user-clashes.md).
-- **Event history & My Events (`/event-history/[eventId]`, `/my-events`):** read-only views
-  over the event audit rows. The event modal's action row has a **standalone History
-  button** (only when `payload.eventId` is non-null) opening the per-event changelog.
+- **Event history & My Events (`/my-events`):** read-only views over the event audit rows.
+  The per-event changelog is the shared **`EventHistoryModal`** (`src/components/EventHistoryModal.tsx`,
+  entries in `EventHistoryEntries.tsx`) — opened by tapping a My Events row or the event modal's
+  **History button** (only when `payload.eventId` is non-null; stacked at `zIndex={300}`); rows
+  fetch fresh per open via `getEventHistory` (`src/lib/events/historyActions.ts`), so there is
+  **no history route**.
   **My Events** is a union (`buildMyEventsData`, `src/lib/events/myEventsData.ts`) of a
   live all-calendar read filtered to `payload.creatorId === me` (so it catches on-behalf
   and pre-retention events) plus deleted events from the user's own `event.create` rows
   with a paired `event.delete` row (Deleted badge, retention-bounded), over an adjustable
   ±3/±6/±12-month window (`myEventsRange.ts`, `?range=`, KAH-style `NoKeyboardSelect`).
-  Both are `requireSession()` (no ACL — reads aren't gated) and **always-fresh**
-  (`useLiveRouteRefresh`). Reads live in `src/lib/audit/queries.ts`; pure shaping in
+  Each row carries an inline change timeline (`changeTrail.ts` + `listEventAuditTrail`,
+  one indexed read per page). My Events is `requireSession()` (no ACL — reads aren't
+  gated) and **always-fresh** (`useLiveRouteRefresh`). Reads live in `src/lib/audit/queries.ts`;
+  pure shaping in
   `src/lib/events/history.ts` + `myEvents.ts`; the `details` renderer is shared with the
   audit log (`src/components/AuditDetails.tsx`). Design: [docs/event-history.md](docs/event-history.md).
 - **KAH constraints are notify-only.** After every successful create/update (never delete),

@@ -1,12 +1,11 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import {
   Badge,
   Box,
   Group,
-  Paper,
   Pagination,
   Skeleton,
   Stack,
@@ -14,12 +13,13 @@ import {
   ThemeIcon,
   Timeline,
   Tooltip,
+  UnstyledButton,
 } from "@mantine/core";
 import { IconHistory, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
-import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { EmptyState } from "@/components/EmptyState";
+import { EventHistoryModal } from "@/components/EventHistoryModal";
 import { NoKeyboardSelect } from "@/components/NoKeyboardSelect";
 import { PageHeader } from "@/components/PageHeader";
 import type { ChangeTrailItem } from "@/lib/events/changeTrail";
@@ -32,6 +32,7 @@ import type { MyEventRow } from "@/lib/events/myEvents";
 import { CONTENT_ENTER_CLASS, useContentEnter } from "@/lib/loading/contentEnter";
 import { useLiveRouteRefresh } from "@/lib/loading/liveRefresh";
 import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
+import type { Rect } from "@/lib/motion/origin";
 
 const LIST_BORDER = "1px solid var(--mantine-color-default-border)";
 
@@ -72,6 +73,11 @@ export function MyEventsView({
   const loading = useMinSkeletonHold(liveRefreshing);
   const contentRef = useRef<HTMLDivElement | null>(null);
   useContentEnter(contentRef, !loading);
+
+  // The shared history modal, opened by tapping a row (replaces the old
+  // navigation to the per-event history page).
+  const [historyEventId, setHistoryEventId] = useState<string | null>(null);
+  const [historyOrigin, setHistoryOrigin] = useState<Rect | null>(null);
 
   const setParams = useCallback(
     (updates: Record<string, string | null>) => {
@@ -189,7 +195,15 @@ export function MyEventsView({
                     </Group>
                   ))
                 : items.map((item, index) => (
-                    <MyEventRowView key={item.key} item={item} first={index === 0} />
+                    <MyEventRowView
+                      key={item.key}
+                      item={item}
+                      first={index === 0}
+                      onOpenHistory={(eventId, rect) => {
+                        setHistoryOrigin(rect);
+                        setHistoryEventId(eventId);
+                      }}
+                    />
                   ))}
             </Stack>
           </Box>
@@ -211,11 +225,25 @@ export function MyEventsView({
           </Text>
         </Stack>
       ) : null}
+
+      <EventHistoryModal
+        eventId={historyEventId}
+        onClose={() => setHistoryEventId(null)}
+        originRect={historyOrigin}
+      />
     </Stack>
   );
 }
 
-function MyEventRowView({ item, first }: { item: MyEventRow; first: boolean }) {
+function MyEventRowView({
+  item,
+  first,
+  onOpenHistory,
+}: {
+  item: MyEventRow;
+  first: boolean;
+  onOpenHistory: (eventId: string, rect: Rect | null) => void;
+}) {
   const meta = [item.time, item.departments.join(", ")].filter(Boolean).join(" \u00b7 ");
   const body = (
     <Group gap="sm" wrap="nowrap" align="flex-start">
@@ -259,14 +287,14 @@ function MyEventRowView({ item, first }: { item: MyEventRow; first: boolean }) {
   };
 
   if (item.eventId) {
+    const eventId = item.eventId;
     return (
-      <Paper
-        component={Link}
-        href={`/event-history/${item.eventId}`}
-        style={{ ...rowStyle, textDecoration: "none" }}
+      <UnstyledButton
+        onClick={(event) => onOpenHistory(eventId, event.currentTarget.getBoundingClientRect())}
+        style={rowStyle}
       >
         {body}
-      </Paper>
+      </UnstyledButton>
     );
   }
   return (

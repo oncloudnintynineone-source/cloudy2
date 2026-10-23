@@ -1,11 +1,11 @@
 # 1. Event history & My Events
 
 Two read-only surfaces over the event rows already written to `audit_logs`:
-a **per-event history** page (create / every edit / delete, keyed by the
+a **per-event history modal** (create / every edit / delete, keyed by the
 logical event's group id) and **My Events** (the signed-in user's own created
 events, including those since deleted). Both are self-service — no admin role
 required — and both reuse the audit-log write path, the `formatAuditDetails`
-display layer, and this repo's always-fresh route pattern. Nothing new is
+display layer, and this repo's skeleton-only loading pattern. Nothing new is
 recorded; this document covers how the existing rows are read, authorized,
 rendered, and kept fresh.
 
@@ -13,7 +13,7 @@ rendered, and kept fresh.
 
 - [1.1 Problem](#11-problem)
 - [1.2 Data source](#12-data-source)
-- [1.3 Per-event history route](#13-per-event-history-route)
+- [1.3 Per-event history modal](#13-per-event-history-modal)
 - [1.4 My Events page](#14-my-events-page)
   - [1.4.1 Inline change timeline](#141-inline-change-timeline)
 - [1.5 Authorization & privacy](#15-authorization--privacy)
@@ -34,7 +34,7 @@ event's group id, and — for edits — a before→after `FieldDiff`
 But it only surfaced in the admin-only audit log as a flat stream; there was no
 per-event view and no per-user view. The gap is a read/UI gap, not an
 instrumentation gap, so the design is deliberately a thin read layer over the
-audit rows plus two small routes.
+audit rows plus one modal and one page.
 
 ## 1.2 Data source
 
@@ -51,42 +51,49 @@ Event mutations are the only writer, and they already stamp everything needed
   `time`, departments, invitees, creator, …); an edit row carries a `FieldDiff`.
 
 `parseEventPeople(...).eventId` on the read path (the `CalendarEventPayload.eventId`
-the dashboard already ships) is what the event modal hands to the history route.
+the dashboard already ships) is what the event modal hands to the history modal.
 
-## 1.3 Per-event history route
+## 1.3 Per-event history modal
 
-`/event-history/[eventId]` (`src/app/(protected)/event-history/[eventId]/`) is a
-read-only changelog of one logical event:
+`EventHistoryModal` (`src/components/EventHistoryModal.tsx`) is a read-only
+changelog of one logical event, opened in place — there is no history route:
 
 ```mermaid
 sequenceDiagram
     participant U as User
-    participant M as EventDetail · action row
-    participant P as event-history/[eventId]/page.tsx
+    participant T as My Events row / EventDetail History button
+    participant M as EventHistoryModal
+    participant A as getEventHistory() (server action)
     participant Q as listEventHistory()
-    participant V as EventHistoryView
-    U->>M: tap the History button (only when payload.eventId != null)
-    M->>P: router.push(`/event-history/${eventId}`)
-    P->>Q: rows = listEventHistory(eventId, retentionDays)
-    Q-->>P: AuditLog[] oldest-first
-    P->>V: title + rows + renderedAt
-    V->>U: cards (newest-first) via AuditDetails
+    U->>T: tap the row / the History button (only when eventId != null)
+    T->>M: open with eventId + trigger rect (zoom-from-trigger)
+    M->>A: getEventHistory(eventId) on every open
+    A->>Q: rows = listEventHistory(eventId, retentionDays)
+    Q-->>M: AuditLog[] oldest-first + retentionDays
+    M->>U: skeleton, then entries (newest-first) via AuditDetails
 ```
 
-- The entry point is a **standalone History button** in `EventDetail`'s editable
-  action row (next to Edit/Delete); it is hidden when `payload.eventId === null`
-  (external or never-app-edited legacy events have no group id and no history) and
-  is not shown in the read-only details (Double Booking / KAH Status).
-- The page renders each row as a **collapsible entry** (all collapsed by default;
-  tap to expand): the always-visible header shows the action label, UTC+8 timestamp, actor, and a
-  one-line change summary (the changed field labels for an edit, or the
-  title for a create/delete); tapping it reveals the shared `AuditDetails`
-  (`src/components/AuditDetails.tsx`) — the same before→after lines and "Resulting
-  state" section the admin audit modal uses. A delete row (when present) is simply
-  the newest entry.
-- Title: the newest row's `entity_name` (the rendered title at that edit), falling
-  back to the create snapshot's title.
-- **Back** returns to `/dashboard`.
+- **Entry points:** tapping a **My Events row**, and the **History button** in
+  `EventDetail`'s editable action row (stacked above the event modal with
+  `zIndex={300}`). The History button is hidden when `payload.eventId === null`
+  (external or never-app-edited legacy events have no group id and no history)
+  and is not shown in the read-only details (Double Booking / KAH Status).
+- **Data:** the `getEventHistory(eventId)` server action (`requireSession()` +
+  `listEventHistory`) runs on **every open** — always fresh, no client cache —
+  with the shaped `EventHistorySkeleton` inside while loading (skeleton-only
+  rule). A failed fetch shows a quiet error line.
+- **Entries:** each row renders as a **collapsible entry** (all collapsed by
+  default; tap to expand) via the shared `EventHistoryEntries`
+  (`src/components/EventHistoryEntries.tsx`): the always-visible header shows
+  the action label, UTC+8 timestamp, actor, and a one-line change summary (the
+  changed field labels for an edit, or the title for a create/delete); tapping
+  it reveals the shared `AuditDetails` (`src/components/AuditDetails.tsx`) —
+  the same before→after lines and "Resulting state" section the admin audit
+  modal uses. A delete row (when present) is simply the newest entry.
+- **Header:** the newest row's `entity_name` (the rendered title at that edit),
+  falling back to the create snapshot's title; a red **Deleted** badge when the
+  newest row is a delete; a dimmed retention line.
+- Closing returns to whatever opened the modal (no back button, no route).
 
 ## 1.4 My Events page
 
@@ -115,8 +122,8 @@ id, i.e. `event.create`/`event.update`/`event.delete` plus the same-minute
 time (`latestDeleteTimes`). Rows with no recorded audit
 rows (older than any remaining audit history, or edited directly in Google
 Calendar) fall back to the event's start time; ties break on start (newest first),
-then key. Each row links to `/event-history/<eventId>`; legacy rows with no group
-id render unlinked. Pagination is `?page=` (page size 20), applied in memory since
+then key. Tapping a row opens the history modal (§1.3); legacy rows with no group
+id are inert. Pagination is `?page=` (page size 20), applied in memory since
 the combined set is bounded by the window + retention.
 
 Rows render in the shared one-line row style (the EventSearchModal list recipe,
@@ -138,7 +145,7 @@ event has no audit history.
 
 Every row carries a compact **change timeline** (Mantine `Timeline`) that shows
 *when* each change was made, so the list answers "what happened to this event"
-without opening the per-event history page.
+without opening the history modal.
 
 ```mermaid
 flowchart LR
@@ -166,13 +173,13 @@ flowchart LR
   `MyEventsView.tsx`) — a colored bullet (brand = Created, accent = Edited,
   red = Deleted), the action label, a coarse relative age ("3 days ago", pure
   `relativeChangeLabel`) with the absolute UTC+8 stamp on hover/focus, the
-  actor, and the changed-field labels for an edit (the shared `changeSummary`
-  from `audit/format.ts`, now also used by the per-event history page). The
-  skeleton paints matching bullet + line placeholders so the reveal doesn't
-  reflow. Rows with no audit rows left (legacy, Google-edited, or outside
-  retention) render exactly as before — no empty-trail noise.
-- The row stays a link to `/event-history/<eventId>` for the full before→after
-  diffs; the trail items themselves are non-interactive.
+   actor, and the changed-field labels for an edit (the shared `changeSummary`
+   from `audit/format.ts`, now also used by the history modal). The
+   skeleton paints matching bullet + line placeholders so the reveal doesn't
+   reflow. Rows with no audit rows left (legacy, Google-edited, or outside
+   retention) render exactly as before — no empty-trail noise.
+- The trail items themselves are non-interactive; tapping the row opens the
+  history modal (§1.3) for the full before→after diffs.
 
 ## 1.5 Authorization & privacy
 
@@ -186,7 +193,8 @@ Privacy notes:
 
 - **Every viewer only sees their own events** on `/my-events` (the live read is
   filtered by `payload.creatorId === me`; the audit read by `actor_id = me`); the
-  history route is reachable by direct URL, consistent with event visibility.
+  history modal is open to any signed-in user for any event, consistent with
+  event visibility.
 - **Hidden-invitee event types** leak nothing: `resolveEffectiveInput` strips
   hidden attendees *before* any snapshot is built, so an audit row already contains
   only the effective (post-policy) participant set. The one residual case — an
@@ -228,16 +236,17 @@ shaped, sorted list.
 
 ## 1.8 Always-fresh caching
 
-Both routes are **always-fresh** — added to `ALWAYS_FRESH_PREFIXES` in
-`src/lib/pwa/swRules.ts`, so their documents/RSC payloads are never served from the
-SWR caches (audit rows change with every event mutation anywhere). Each server page
-stamps `renderedAt` (epoch ms) into the payload and its client view gates on
-`useLiveRouteRefresh(renderedAt)`, forcing one in-place re-read when the mounted
-payload is a cache replay ([`audit-log.md`](audit-log.md) §1.10,
-[`loading-transitions.md`](loading-transitions.md)). The header **Force refresh**
-already routes always-fresh paths through `LIVE_REFRESH_EVENT`
-(`AppShellShell`). Consequence: like the audit log, these pages are unavailable
-offline.
+`/my-events` is **always-fresh** — in `ALWAYS_FRESH_PREFIXES` in
+`src/lib/pwa/swRules.ts`, so its document/RSC payloads are never served from the
+SWR caches (audit rows change with every event mutation anywhere). The server
+page stamps `renderedAt` (epoch ms) into the payload and the client view gates
+on `useLiveRouteRefresh(renderedAt)`, forcing one in-place re-read when the
+mounted payload is a cache replay ([`audit-log.md`](audit-log.md) §1.10,
+[`loading-transitions.md`](loading-transitions.md)). The header **Force
+refresh** already routes always-fresh paths through `LIVE_REFRESH_EVENT`
+(`AppShellShell`). Consequence: like the audit log, the page is unavailable
+offline. The history modal needs no route entry — its rows come from a server
+action invoked on every open, which never reads the SWR caches.
 
 ## 1.9 Navigation & the footer "More" menu
 
@@ -261,19 +270,21 @@ preloads the new route.
 | `isAlwaysFreshPath` (the new prefixes) | `pwa/swRules.ts` | `pwa/swRules.test.ts` |
 
 I/O-bound (not unit-tested, per the repo convention): the `queries.ts` read
-functions, `buildMyEventsData`, both route pages, and the client views.
+functions, `buildMyEventsData`, the My Events route page, and the client views
+(including the history modal and its server action).
 
 ## 1.11 File index & related docs
 
 | File | Role |
 | ---- | ---- |
-| `src/app/(protected)/event-history/[eventId]/page.tsx` | Per-event history server page |
-| `src/app/(protected)/event-history/[eventId]/EventHistoryView.tsx` | Client view (always-fresh) |
-| `src/app/(protected)/event-history/[eventId]/EventHistorySkeleton.tsx` | Shared shaped skeleton |
-| `src/app/(protected)/my-events/page.tsx` | My Events server page (window + pagination) |
-| `src/app/(protected)/my-events/MyEventsView.tsx` | Client view + range selector + pagination |
+| `src/components/EventHistoryModal.tsx` | Shared history modal (zoom-from-trigger, fetch-on-open) |
+| `src/components/EventHistoryEntries.tsx` | Shared collapsible changelog entries |
+| `src/components/EventHistorySkeleton.tsx` | Shared shaped skeleton |
+| `src/lib/events/historyActions.ts` | `getEventHistory` server action |
+| `src/app/(protected)/my-events/page.tsx` | My Events server page (window + pagination + trail attach) |
+| `src/app/(protected)/my-events/MyEventsView.tsx` | Client view + range selector + pagination + inline trail |
 | `src/components/AuditDetails.tsx` | Shared `details` renderer (audit log + history) |
-| `src/app/(protected)/dashboard/EventDetail.tsx` | The standalone History button |
+| `src/app/(protected)/dashboard/EventDetail.tsx` | The History button (opens the modal at `zIndex={300}`) |
 | `src/lib/audit/queries.ts` | `listEventHistory`, `listMyCreatedEvents`, `latestDeleteTimes`, `latestEventEditTimes`, `listEventAuditTrail` |
 | `src/lib/events/myEventsData.ts` | My Events union builder (live + audit) |
 | `src/lib/events/history.ts` | Pure snapshot parsers (unit-tested) |

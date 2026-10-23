@@ -1934,6 +1934,15 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     (unit-tested `events/changeTrail.ts`); `changeSummary` moved to
     `audit/format.ts` and shared with the per-event history page; skeleton
     gained trail lines. Docs: `docs/event-history.md` §1.4.1.
+- 1.326 **Per-event history is now a modal, not a route**: the
+    `/event-history/[eventId]` page is deleted (it squashed its Back button on
+    narrow screens and its hardcoded `backHref="/dashboard"` never returned to
+    My Events). The shared **`EventHistoryModal`** (`src/components/`,
+    zoom-from-trigger, entries in `EventHistoryEntries.tsx`) opens from a My
+    Events row tap or the event modal's History button (stacked `zIndex={300}`),
+    fetching fresh per open via the `getEventHistory` server action with the
+    shaped skeleton inside. `ALWAYS_FRESH_PREFIXES` drops `/event-history`.
+    Docs: `docs/event-history.md` §1.3/§1.8, `AGENTS.md`.
 
 ## 1.4 Open items & next steps
 
