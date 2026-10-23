@@ -136,7 +136,7 @@ import {
   subscribeAgendaSwipeHint,
 } from "@/lib/ui/agendaSwipeHint";
 import { announce } from "@/lib/ui/announcer";
-import { useCalendarChromeHide } from "@/lib/ui/calendarChromeHide";
+import { useChromeHide } from "@/lib/ui/chromeHide";
 import { DUAL_SPLIT_DEFAULT, clampDualSplit } from "@/lib/ui/dualSplit";
 import { useGridPan } from "@/lib/ui/gridPan";
 import { useImmersiveMode } from "@/lib/ui/immersiveMode";
@@ -1419,7 +1419,7 @@ function DashboardViewImpl({
   // interaction stops — the pane is `weekBoxRef`; the pill/FAB are portaled
   // and the pan/zoom clusters are siblings, so they can't self-trigger.
   // Mobile only (`enabled` detaches at `lg`+); a tab switch forces it back.
-  const chromeHidden = useCalendarChromeHide({
+  const chromeHidden = useChromeHide({
     enabled: !isDesktop,
     paneRef: weekBoxRef,
     resetKey: shownTabId,
@@ -3556,7 +3556,7 @@ function DashboardViewImpl({
     <Affix hiddenFrom="lg" position={{ bottom: pillBottomOffset, left: 16, right: 16 }} zIndex={100}>
       {/* `c2-chrome-hide-able` + `c2-chrome-hidden`: the pill fades/slides away
           while the user interacts with the calendar pane and returns when the
-          interaction stops (useCalendarChromeHide); the CSS carries the
+          interaction stops (useChromeHide); the CSS carries the
           pointer-events cutoff so a hidden pill never catches taps. */}
       <Box
         ref={bottomBarRef}

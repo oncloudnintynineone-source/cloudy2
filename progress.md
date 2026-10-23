@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.323 (mobile floating chrome stays hidden until the touch really lifts)** is shipped.
+- All work through changelog **1.324 (floating-chrome auto-hide extends to Contacts + Parade State)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -1917,6 +1917,13 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     hidden through the scroll, momentum and any hold-still. Pure `advanceChromeHide`
     reworked + re-tested (`src/lib/ui/calendarChromeHide.test.ts`). Docs:
     `docs/dashboard-views.md` §1.1 (auto-hide bullet), `AGENTS.md`.
+- 1.324 **Floating-chrome auto-hide extends beyond the calendar** (below `lg`):
+    the Contacts control pill and the Parade State control pill + attendance
+    mode bar now hide while the user touches/scrolls the page content and return
+    on settle, on the same `advanceChromeHide` machine; the module generalizes
+    to `src/lib/ui/chromeHide.ts` / `useChromeHide` (file + test renamed,
+    dashboard import updated, `resetKey` widened to accept booleans). Docs:
+    `docs/dashboard-views.md` §1.1 (auto-hide + pill-reuse bullets), `AGENTS.md`.
 
 ## 1.4 Open items & next steps
 

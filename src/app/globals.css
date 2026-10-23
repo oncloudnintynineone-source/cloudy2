@@ -1489,14 +1489,15 @@ html {
     transform var(--c2-dur-quick) var(--c2-ease-in);
 }
 
-/* Mobile calendar chrome hide-on-interaction (Calendar only — the pill and the
-   FAB row are `Affix`-fixed, so hiding causes no reflow): while the user
-   touches or scrolls the calendar pane the rows fade + sink and drop
-   pointer-events; they return when the interaction stops
-   (`useCalendarChromeHide` toggles the state class). The target state carries
-   the transition (same recipe as the attendance bar above), so the reveal
-   animates on the way back. The `button`/`input` override beats the
-   `.c2-control-pill` tap-through rule — a hidden pill must not catch taps. */
+/* Mobile floating chrome hide-on-interaction (the dashboard's pill + FAB row,
+   the Contacts / Parade State pills — the rows are `Affix`-fixed, so hiding
+   causes no reflow): while the user touches or scrolls the page's content
+   pane the rows fade + sink and drop pointer-events; they return when the
+   interaction stops (`useChromeHide` toggles the state class). The target
+   state carries the transition (same recipe as the attendance bar above), so
+   the reveal animates on the way back. The `button`/`input` override beats
+   the `.c2-control-pill` tap-through rule — a hidden pill must not catch
+   taps. */
 .c2-chrome-hide-able {
   transition:
     opacity var(--c2-dur-quick) var(--c2-ease-out),

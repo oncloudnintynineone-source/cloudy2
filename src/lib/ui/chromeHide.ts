@@ -3,21 +3,21 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 
 /**
- * Hide the dashboard's mobile floating chrome (the bottom control pill and the
- * FAB row) while the user is touching the calendar view pane — on touch alone
- * (even without any scrolling) and on any scroll, either axis. The chrome
- * slides back only once the interaction has **fully** stopped: the last
- * finger/pointer has lifted AND the scrolling has settled.
+ * Hide a page's mobile floating chrome — the dashboard's bottom control pill
+ * and FAB row, the Contacts / Parade State control pills — while the user is
+ * touching the page's content pane: on touch alone (even without any
+ * scrolling) and on any scroll, either axis. The chrome slides back only once
+ * the interaction has **fully** stopped: the last finger/pointer has lifted
+ * AND the scrolling has settled.
  *
- * "The calendar view pane" is the `weekBoxRef` content box
- * (`DashboardView.tsx`) — every grid and the pinned day/hour strips live in
- * it. The pill and FAB row are `Affix`-portaled to `<body>` and the
- * GridNavControls / FullscreenToggle clusters are siblings of the box, so a
- * pane-scoped trigger can never be triggered by the controls themselves —
- * tapping a pill button keeps the pill up. Contact tracking, by contrast, is
- * screen-wide (document): once hidden, the chrome stays hidden while *any*
- * finger/pointer is down, even if it slides off the pane (e.g. onto the bottom
- * nav).
+ * "The content pane" is the caller's page-content element (the dashboard's
+ * `weekBoxRef` content box with every grid + pinned strips; the Contacts /
+ * Parade State page columns). The floating rows are `Affix`-portaled to
+ * `<body>` outside the pane, so a pane-scoped trigger can never be triggered
+ * by the chrome itself — tapping a pill button keeps the pill up. Contact
+ * tracking, by contrast, is screen-wide (document): once hidden, the chrome
+ * stays hidden while *any* finger/pointer is down, even if it slides off the
+ * pane (e.g. onto the bottom nav).
  *
  * Contact is tracked per input type because the two event systems disagree
  * about when a touch gesture ends:
@@ -32,14 +32,14 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from "react"
  * - **Mouse / pen** — `pointerdown`/`pointerup` pair; a `pointercancel` here
  *   is a genuine release.
  *
- * Scroll sources: document scrolling (window) and the views' internal
- * ScrollArea viewports (month/week/day horizontal pan, Week (Grid) hour rows,
- * dual panes). `scroll` does not bubble, so the pane listens in the **capture**
- * phase to catch descendant viewports; `scrollend` bubbles, so the same pane
- * node catches the internal viewports and a `document` capture listener catches
- * document scrolling. `scrollend` is missing in older browsers — a short
- * debounce after the last `scroll` event settles it there (the rail-chevron
- * pattern in `AppShellShell.tsx` is the in-repo precedent).
+ * Scroll sources: document scrolling (window) and the page's internal
+ * ScrollArea viewports (the dashboard's month/week/day pan, Week (Grid) hour
+ * rows, dual panes). `scroll` does not bubble, so the pane listens in the
+ * **capture** phase to catch descendant viewports; `scrollend` bubbles, so the
+ * same pane node catches the internal viewports and a `document` capture
+ * listener catches document scrolling. `scrollend` is missing in older
+ * browsers — a short debounce after the last `scroll` event settles it there
+ * (the rail-chevron pattern in `AppShellShell.tsx` is the in-repo precedent).
  *
  * The visibility transition is the pure `advanceChromeHide` below (unit-
  * tested); the hook only wires DOM events into it.
@@ -60,7 +60,7 @@ export interface ChromeHideState {
 }
 
 export type ChromeHideEvent =
-  /** A touch landed on the calendar pane (trigger). */
+  /** A touch landed in the pane (trigger). */
   | { type: "touch-down" }
   /** `touchstart`/`touchend` on the document: the current finger count. */
   | { type: "touch-count"; count: number }
@@ -89,9 +89,9 @@ function settle(state: ChromeHideState): ChromeHideState {
 /**
  * The transition. Any press in the pane or any unsettled scroll keeps the
  * chrome hidden; it reappears only once the last finger/pointer has lifted AND
- * scrolling has settled. `reset` (tab/view switch, re-enabling) forces it back
- * immediately. Returns the previous reference where nothing changed so the
- * hook can skip no-op renders.
+ * scrolling has settled. `reset` (tab/view switch, context change, re-
+ * enabling) forces it back immediately. Returns the previous reference where
+ * nothing changed so the hook can skip no-op renders.
  */
 export function advanceChromeHide(state: ChromeHideState, event: ChromeHideEvent): ChromeHideState {
   switch (event.type) {
@@ -118,17 +118,17 @@ export function advanceChromeHide(state: ChromeHideState, event: ChromeHideEvent
   }
 }
 
-export function useCalendarChromeHide({
+export function useChromeHide({
   enabled,
   paneRef,
   resetKey,
 }: {
   /** `false` (desktop at `lg`+) detaches everything — the behavior is mobile-only. */
   enabled: boolean;
-  /** The calendar view pane (the `weekBoxRef` content box). */
+  /** The page's content pane (the element the user scrolls/touches). */
   paneRef: RefObject<HTMLElement | null>;
-  /** Changes (tab/view switch) force the chrome back, whatever the interaction state. */
-  resetKey?: string | number;
+  /** Changes (tab/view switch, context change) force the chrome back, whatever the interaction state. */
+  resetKey?: string | number | boolean;
 }): boolean {
   const [hidden, setHidden] = useState(false);
   const hiddenRef = useRef(false);
@@ -174,7 +174,7 @@ export function useCalendarChromeHide({
     if (!pane) {
       return;
     }
-    // --- Calendar-scoped triggers (on the pane, capture). ---
+    // --- Pane-scoped triggers (on the pane, capture). ---
     // A touch on the pane hides the chrome. `touchstart` is the touch trigger
     // (the pointer-events `pointerdown` for a touch is *not* used here: it is
     // superseded by `pointercancel` mid-scroll, which must not read as a
@@ -209,7 +209,8 @@ export function useCalendarChromeHide({
 
     // --- Scroll (trigger + settle). ---
     // `scroll` does not bubble — the capture phase catches the descendant
-    // ScrollArea viewports (month/week/day pan, Week (Grid) rows, dual panes).
+    // ScrollArea viewports (the dashboard's month/week/day pan, Week (Grid)
+    // rows, dual panes).
     pane.addEventListener("scroll", onScroll, true);
     // `scrollend` bubbles — the pane catches the internal viewports…
     pane.addEventListener("scrollend", onScrollEnd);
@@ -237,8 +238,8 @@ export function useCalendarChromeHide({
     };
   }, [enabled, paneRef, dispatch, onScroll, onScrollEnd]);
 
-  // A tab/view switch (or re-enabling) puts the chrome back immediately: the
-  // user is then interacting with the chrome, not the pane.
+  // A tab/view switch, context change (or re-enabling) puts the chrome back
+  // immediately: the user is then interacting with the chrome, not the pane.
   useEffect(() => {
     if (!enabled) {
       return;

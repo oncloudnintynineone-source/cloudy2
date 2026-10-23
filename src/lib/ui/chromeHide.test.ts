@@ -5,7 +5,7 @@ import {
   initialChromeHideState,
   type ChromeHideEvent,
   type ChromeHideState,
-} from "./calendarChromeHide";
+} from "./chromeHide";
 
 function apply(state: ChromeHideState, ...events: ChromeHideEvent[]): ChromeHideState {
   return events.reduce((s, e) => advanceChromeHide(s, e), state);

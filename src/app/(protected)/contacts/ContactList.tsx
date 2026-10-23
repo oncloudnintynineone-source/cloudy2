@@ -31,6 +31,7 @@ import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import { PageHeader } from "@/components/PageHeader";
 import { FAB_SIZE } from "@/components/FloatingToolbar";
 import { filterContacts, NO_DEPARTMENT_FILTER } from "@/lib/contacts/filter";
+import { useChromeHide } from "@/lib/ui/chromeHide";
 import { useKeyboardInset } from "@/lib/ui/keyboardInset";
 import { buildContactsVcf } from "@/lib/contacts/vcf";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
@@ -100,6 +101,13 @@ export function ContactList({
   // keyboard and let the pill settle back down.
   const keyboardInset = useKeyboardInset();
   const searchInputRef = useRef<HTMLInputElement>(null);
+  // The mobile floating control pill hides while the user touches or scrolls
+  // the contact list and slides back when the interaction fully stops — the
+  // page column is the pane; the pill is `Affix`-portaled, so tapping its
+  // search/filter/export controls can't self-trigger. Mobile only (`enabled`
+  // detaches at `lg`+).
+  const contentRef = useRef<HTMLDivElement | null>(null);
+  const chromeHidden = useChromeHide({ enabled: !isDesktop, paneRef: contentRef });
   const [confirmOpened, { open: openConfirm, close: closeConfirm }] = useDisclosure(false);
   const [downloading, setDownloading] = useState(false);
 
@@ -193,7 +201,15 @@ export function ContactList({
       }}
       zIndex={100}
     >
-      <Box className="c2-glass-surface c2-control-pill">
+      {/* `c2-chrome-hide-able` + `c2-chrome-hidden`: the pill fades/slides away
+          while the user touches or scrolls the contact list and returns when
+          the interaction stops (useChromeHide); the CSS carries the
+          pointer-events cutoff so a hidden pill never catches taps. */}
+      <Box
+        className={`c2-glass-surface c2-control-pill c2-chrome-hide-able${
+          chromeHidden ? " c2-chrome-hidden" : ""
+        }`}
+      >
         <Group align="center" gap="xs" wrap="nowrap">
           {/* Default `sm` size = the themed 43px input height (same field
               height as the lg+ search bar); `h`/`pl`/`pr` would land on the
@@ -250,6 +266,7 @@ export function ContactList({
     // FAB row anymore, so the var subtracts it and carries just the pill
     // height + the 12px gap.
     <Stack
+      ref={contentRef}
       className={`${CONTENT_ENTER_CLASS} fab-page-pad`}
       style={
         {

@@ -71,6 +71,7 @@ import {
   markAgendaSwipeHintSeen,
   subscribeAgendaSwipeHint,
 } from "@/lib/ui/agendaSwipeHint";
+import { useChromeHide } from "@/lib/ui/chromeHide";
 import { COARSE_POINTER_MEDIA_QUERY, DESKTOP_MEDIA_QUERY } from "@/lib/theme";
 import { saveParadeFilters } from "@/lib/userPrefs/actions";
 import { invalidateCurrentPathCaches } from "@/lib/pwa/client";
@@ -265,6 +266,17 @@ export function ParadeStateView({
   // lg+ layout: the day controls stay in the sticky top chrome; below `lg`
   // they move to the floating bottom control pill (calendar-page pattern).
   const isDesktop = useMediaQuery(DESKTOP_MEDIA_QUERY);
+  // The mobile floating chrome (control pill + attendance mode bar) hides
+  // while the user touches or scrolls the roster and slides back when the
+  // interaction fully stops — the content wrapper is the pane; both rows are
+  // `Affix`-portaled, so tapping their controls can't self-trigger. Mobile
+  // only (`enabled` detaches at `lg`+); an attendance-mode change forces it
+  // back so the bar never mounts in a hidden state.
+  const chromeHidden = useChromeHide({
+    enabled: !isDesktop,
+    paneRef: contentRef,
+    resetKey: attendanceMode,
+  });
   const swipeHintSeen = useSyncExternalStore(
     subscribeAgendaSwipeHint,
     getAgendaSwipeHintSnapshot,
@@ -743,7 +755,15 @@ export function ParadeStateView({
   // edges. The attendance mode bar floats above it (see `mobileAttendanceBar`).
   const mobilePill = (
     <Affix hiddenFrom="lg" position={{ bottom: "var(--app-floating-bottom-offset)", left: 16, right: 16 }} zIndex={100}>
-      <Box className="c2-glass-surface c2-control-pill">
+      {/* `c2-chrome-hide-able` + `c2-chrome-hidden`: the pill fades/slides away
+          while the user touches or scrolls the roster and returns when the
+          interaction stops (useChromeHide); the CSS carries the
+          pointer-events cutoff so a hidden pill never catches taps. */}
+      <Box
+        className={`c2-glass-surface c2-control-pill c2-chrome-hide-able${
+          chromeHidden ? " c2-chrome-hidden" : ""
+        }`}
+      >
         <Group align="center" gap="xs" wrap="nowrap">
           <Text
             fw={600}
@@ -839,9 +859,9 @@ export function ParadeStateView({
       zIndex={100}
     >
       <Box
-        className={`c2-glass-surface c2-attendance-bar${
-          attendanceBarClosing ? " c2-attendance-bar-closing" : ""
-        }`}
+        className={`c2-glass-surface c2-attendance-bar c2-chrome-hide-able${
+          chromeHidden ? " c2-chrome-hidden" : ""
+        }${attendanceBarClosing ? " c2-attendance-bar-closing" : ""}`}
         style={{
           borderRadius: 999,
           border: "1px solid var(--mantine-color-default-border)",

@@ -243,10 +243,12 @@ string maps to the first tab of that kind.
    (tab strip + nav row incl. chevrons, New event and Quick links), FABs and
    pill hidden.
 - **Floating chrome auto-hide (below `lg`).** While the user is **touching the
-   calendar view pane** (even without any scrolling) or **scrolling it** in
-   either direction (document scroll, the month/week/day horizontal pan, Week
-   (Grid) hour rows, Month & Agenda panes), the two floating rows (control pill
-   + FAB row) fade out and sink away so the grid owns the whole viewport. They
+  page's content pane** (even without any scrolling) or **scrolling it** in
+  either direction (document scroll, the dashboard's month/week/day horizontal
+  pan, Week (Grid) hour rows, Month & Agenda panes), the floating rows — the
+  dashboard's control pill + FAB row, the Contacts control pill, the Parade
+  State control pill + attendance mode bar — fade out and sink away so the
+  content owns the whole viewport. They
    slide back **only once the interaction has fully stopped**: the last
    finger/pointer has lifted **AND** the scrolling has settled — so the chrome
    stays hidden through the scroll, the momentum, and any hold-still, and does
@@ -255,25 +257,28 @@ string maps to the first tab of that kind.
    internal ScrollArea viewports (it bubbles) and on the `document` capture
    phase for document scrolling — with a 150 ms debounce after the last
    `scroll` event as the fallback where `scrollend` doesn't exist.
-   The visibility transition is the pure, unit-tested `advanceChromeHide` state
-   machine in `src/lib/ui/calendarChromeHide.ts`; `useCalendarChromeHide` only
-   wires the DOM events into it: a `touchstart` + `pointerdown` capture on the
-   pane (the triggers), the touch/pointer **contact** listeners on `document`,
-   `scroll` capture on the pane + `window`, and the two `scrollend` sites; a
-   tab switch (`shownTabId`) forces the chrome back via a `reset` event.
+    The visibility transition is the pure, unit-tested `advanceChromeHide` state
+    machine in `src/lib/ui/chromeHide.ts`; `useChromeHide` only
+    wires the DOM events into it: a `touchstart` + `pointerdown` capture on the
+    pane (the triggers), the touch/pointer **contact** listeners on `document`,
+    `scroll` capture on the pane + `window`, and the two `scrollend` sites; a
+    context switch (the dashboard's `shownTabId` tab switch, Parade State's
+    attendance mode) forces the chrome back via a `reset` event.
    ```mermaid
    stateDiagram-v2
      [*] --> Visible
      Visible --> Hidden : touch/press in the pane / any scroll
      Hidden --> Hidden : a finger or pointer still down / scroll unsettled
-     Hidden --> Visible : last finger/pointer lifted AND scroll settled
-     Hidden --> Visible : tab switch (reset)
+      Hidden --> Visible : last finger/pointer lifted AND scroll settled
+      Hidden --> Visible : context switch (reset)
    ```
-   "**The pane**" is the `weekBoxRef` content box — every grid and the pinned
-   day/hour strips live in it. The pill and FAB row are `Affix`-portaled to
-   `<body>` and the pan/zoom + fullscreen clusters are **siblings** of the box,
-   so the pane-scoped **trigger** can never self-fire: tapping a pill button
-   (or the zoom cluster) keeps the chrome up. **Contact tracking, by contrast,
+    "**The pane**" is the page's content element: the dashboard's `weekBoxRef`
+    content box (every grid + the pinned day/hour strips), the Contacts page
+    column, the Parade State content wrapper. The floating rows are
+    `Affix`-portaled to `<body>` and the pan/zoom + fullscreen clusters are
+    **siblings** of the box, so the pane-scoped **trigger** can never
+    self-fire: tapping a pill button (or the zoom cluster) keeps the chrome up.
+    **Contact tracking, by contrast,
    is screen-wide** (on `document`): once hidden, the chrome stays hidden while
    *any* finger/pointer is down, even if it slides off the pane onto the bottom
    nav. Contact is tracked per input type because the two event systems disagree
@@ -323,8 +328,13 @@ string maps to the first tab of that kind.
   `--c2-bottom-chrome-height` (pill + gap) under `fab-page-pad`; the class's
   hardcoded 65px FAB reserve now clears the floating attendance mode bar above
   the pill. Contacts has no floating bar above its pill, so its var subtracts
-  the class's hardcoded 65px FAB diameter and carries just pill + gap; at `lg`+
-  their top chrome rows are unchanged.
+   the class's hardcoded 65px FAB diameter and carries just pill + gap; at `lg`+
+   their top chrome rows are unchanged. Both pages also ride the floating-chrome
+   auto-hide above (the shared `useChromeHide` on their content pane): the
+   Contacts pill, and on Parade State the pill **plus** the attendance mode bar,
+   hide while the user touches/scrolls the roster and return on settle; Parade
+   State passes its attendance mode as the `resetKey`, so the bar never mounts
+   in a hidden state.
 - **App-wide frosted glass (`translucencyLevel`).** Beyond the mobile cluster,
   the surfaces that overlap page content are translucent: the
   bottom nav, the settings tab strip, the desktop sidebar,   the dashboard sticky

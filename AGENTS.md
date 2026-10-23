@@ -156,11 +156,13 @@ doc content here.
    **auto-hide while the user touches the calendar pane** (touch alone, or any
    scroll, either axis) and slide back only when the last finger/pointer is
    lifted AND the scroll has settled — they stay hidden through the scroll,
-   momentum and any hold-still. Touch contact is tracked via `touchend` /
-   `touches.length`, **never** `pointercancel` (that fires mid-scroll while the
-   finger is down). Pure `advanceChromeHide` state machine +
-   `useCalendarChromeHide` in `src/lib/ui/calendarChromeHide.ts` (mobile only,
-   always on, no reflow — the rows are `Affix`-fixed).
+    momentum and any hold-still. Touch contact is tracked via `touchend` /
+    `touches.length`, **never** `pointercancel` (that fires mid-scroll while the
+    finger is down). The same behavior extends to the **Contacts + Parade State
+    mobile pills** (Parade State also hides its attendance mode bar; an
+    attendance-mode change resets it). Pure `advanceChromeHide` state machine +
+    `useChromeHide` in `src/lib/ui/chromeHide.ts` (mobile only, always on, no
+    reflow — the rows are `Affix`-fixed).
   Month
   grids zoom from fit-to-width (`src/lib/ui/monthZoom.ts`,
   `dashboard.monthZoom`); Week (D) is a custom matrix (`buildWeekLanes`). Entry highlights:
