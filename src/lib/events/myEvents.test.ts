@@ -17,6 +17,7 @@ function row(partial: Partial<MyEventRow> & { key: string; sortKey: string }): M
     departments: [],
     deleted: false,
     color: "blue",
+    trail: [],
     ...partial,
   };
 }

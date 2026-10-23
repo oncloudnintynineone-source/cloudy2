@@ -226,6 +226,21 @@ export function formatAuditDetails(details: unknown): AuditDisplayDetails {
   return { kind: "json", lines: [], values: [], after: [], json: JSON.stringify(details ?? null, null, 2) };
 }
 
+/**
+ * A concise one-line summary for a collapsed audit entry: the changed field
+ * labels for an edit (from the shared `FieldDiff` shaping), or `entityName`
+ * for a create/delete snapshot. Null when there is nothing useful to show.
+ */
+export function changeSummary(details: unknown, entityName: string | null): string | null {
+  const formatted = formatAuditDetails(details);
+  if (formatted.kind === "changes") {
+    return formatted.lines.length > 0
+      ? formatted.lines.map((line) => line.label).join(", ")
+      : null;
+  }
+  return entityName;
+}
+
 /** Compact one-line description of the actor, used for the log row header. */
 export function actorLabel(row: Pick<AuditLog, "actorName" | "actorRole">): string {
   const role = row.actorRole ? ` (${row.actorRole})` : "";

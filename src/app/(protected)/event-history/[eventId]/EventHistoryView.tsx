@@ -8,7 +8,12 @@ import Link from "next/link";
 import { AuditDetails } from "@/components/AuditDetails";
 import { EmptyState } from "@/components/EmptyState";
 import { PageHeader } from "@/components/PageHeader";
-import { actionLabel, actorLabel, formatAuditDetails, formatLogTimestamp } from "@/lib/audit/format";
+import {
+  actionLabel,
+  actorLabel,
+  changeSummary,
+  formatLogTimestamp,
+} from "@/lib/audit/format";
 import { CONTENT_ENTER_CLASS, useContentEnter } from "@/lib/loading/contentEnter";
 import { useLiveRouteRefresh } from "@/lib/loading/liveRefresh";
 import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
@@ -157,19 +162,4 @@ function HistoryEntry({ row }: { row: AuditLog }) {
       </Collapse>
     </Paper>
   );
-}
-
-/**
- * A concise one-line summary for a collapsed entry: the changed field labels
- * for an edit (from the shared `FieldDiff` shaping), or the event title for a
- * create/delete snapshot. Null when there is nothing useful to show.
- */
-function changeSummary(details: unknown, entityName: string | null): string | null {
-  const formatted = formatAuditDetails(details);
-  if (formatted.kind === "changes") {
-    return formatted.lines.length > 0
-      ? formatted.lines.map((line) => line.label).join(", ")
-      : null;
-  }
-  return entityName;
 }

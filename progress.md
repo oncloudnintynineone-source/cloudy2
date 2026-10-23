@@ -1924,6 +1924,16 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     to `src/lib/ui/chromeHide.ts` / `useChromeHide` (file + test renamed,
     dashboard import updated, `resetKey` widened to accept booleans). Docs:
     `docs/dashboard-views.md` §1.1 (auto-hide + pill-reuse bullets), `AGENTS.md`.
+- 1.325 **My Events inline change timeline**: every row now paints a Mantine
+    `Timeline` of the event's changes (Created → Edited → Deleted, newest
+    first) — colored bullet per kind, relative age with the absolute UTC+8
+    stamp on hover, actor, and changed-field labels for edits — so the list
+    shows *when* each change was made without opening the history page. One
+    indexed read per page (`listEventAuditTrail`, create/update/delete only);
+    pure `buildChangeTrail` collapses the per-copy same-minute fan-out
+    (unit-tested `events/changeTrail.ts`); `changeSummary` moved to
+    `audit/format.ts` and shared with the per-event history page; skeleton
+    gained trail lines. Docs: `docs/event-history.md` §1.4.1.
 
 ## 1.4 Open items & next steps
 

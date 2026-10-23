@@ -415,3 +415,60 @@ function toLatestTimes(
   }
   return times;
 }
+
+/** One compact trail row for the My Events inline change timeline. */
+export interface EventTrailRow {
+  id: string;
+  /** The logical event group id (`details.eventId`). */
+  eventId: string;
+  action: string;
+  createdAt: Date;
+  actorName: string | null;
+  actorRole: string | null;
+  entityName: string | null;
+  details: unknown;
+}
+
+/**
+ * The change trail for a set of logical events: every `event.create` /
+ * `event.update` / `event.delete` row (never the `event.participantNotify`
+ * side-effects), newest first, limited to the retention window. Backs the
+ * inline per-event timeline on My Events (docs/event-history.md §1.4.1); the
+ * id set is one page of rows, so this stays one indexed read.
+ */
+export async function listEventAuditTrail(
+  eventIds: string[],
+  retentionDays: number,
+): Promise<EventTrailRow[]> {
+  if (eventIds.length === 0) {
+    return [];
+  }
+  const cutoff = retentionCutoff(retentionDays);
+  const conditions: SQL[] = [
+    eq(auditLogs.entityType, "calendar"),
+    inArray(auditLogs.action, [
+      AUDIT_ACTIONS.eventCreate,
+      AUDIT_ACTIONS.eventUpdate,
+      AUDIT_ACTIONS.eventDelete,
+    ]),
+    inArray(sql`${auditLogs.details}->>'eventId'`, eventIds),
+  ];
+  if (cutoff) {
+    conditions.push(gte(auditLogs.createdAt, cutoff));
+  }
+  const rows = await db
+    .select({
+      id: auditLogs.id,
+      eventId: sql<string>`${auditLogs.details}->>'eventId'`,
+      action: auditLogs.action,
+      createdAt: auditLogs.createdAt,
+      actorName: auditLogs.actorName,
+      actorRole: auditLogs.actorRole,
+      entityName: auditLogs.entityName,
+      details: auditLogs.details,
+    })
+    .from(auditLogs)
+    .where(and(...conditions))
+    .orderBy(desc(auditLogs.createdAt), desc(auditLogs.id));
+  return rows.filter((row) => row.eventId !== null);
+}

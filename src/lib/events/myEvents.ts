@@ -6,6 +6,7 @@
  */
 
 import { subOneDay } from "./datetime";
+import type { ChangeTrailItem } from "./changeTrail";
 import type { MantineColor } from "@mantine/core";
 
 /** One row in the My Events list, from either the live or the audit source. */
@@ -28,6 +29,8 @@ export interface MyEventRow {
   deleted: boolean;
   /** Row accent color: event-type color, else the department fallback. */
   color: MantineColor;
+  /** Inline change timeline (newest first); empty when no audit rows remain. */
+  trail: ChangeTrailItem[];
 }
 
 /**

@@ -1,6 +1,7 @@
 import { PageContainer } from "@/components/PageContainer";
 import { PageTransition } from "@/components/PageTransition";
-import { parsePage } from "@/lib/audit/queries";
+import { listEventAuditTrail, parsePage } from "@/lib/audit/queries";
+import { buildChangeTrail, groupTrailRows } from "@/lib/events/changeTrail";
 import { buildMyEventsData } from "@/lib/events/myEventsData";
 import { parseMyEventsRange } from "@/lib/events/myEventsRange";
 import { getSettings } from "@/lib/settings/queries";
@@ -33,12 +34,29 @@ export default async function MyEventsPage({ searchParams }: MyEventsPageProps) 
   const pageCount = Math.max(1, Math.ceil(total / MY_EVENTS_PAGE_SIZE));
   const page = Math.min(Math.max(requestedPage, 1), pageCount);
   const offset = (page - 1) * MY_EVENTS_PAGE_SIZE;
-  const items = data.rows.slice(offset, offset + MY_EVENTS_PAGE_SIZE);
+  const pageRows = data.rows.slice(offset, offset + MY_EVENTS_PAGE_SIZE);
 
   // Stamped into the payload so the client can tell a live render from a cache
   // replay and force one fresh read (see `useLiveRouteRefresh`).
   // eslint-disable-next-line react-hooks/purity
   const renderedAt = Date.now();
+
+  // One indexed read for the whole page's inline change timelines
+  // (docs/event-history.md §1.4.1): every create/update/delete row of the
+  // events on this page, collapsed per event by the pure trail builder.
+  const trailRows = await listEventAuditTrail(
+    pageRows
+      .map((row) => row.eventId)
+      .filter((eventId): eventId is string => eventId !== null),
+    settings.auditLogRetentionDays,
+  );
+  const trailByEvent = groupTrailRows(trailRows);
+  const now = new Date(renderedAt);
+  const items = pageRows.map((row) =>
+    row.eventId
+      ? { ...row, trail: buildChangeTrail(trailByEvent.get(row.eventId) ?? [], now) }
+      : row,
+  );
 
   return (
     <PageTransition>

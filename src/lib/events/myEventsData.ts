@@ -101,6 +101,7 @@ export async function buildMyEventsData(params: {
       departments: departmentNames,
       deleted: false,
       color: event.color,
+      trail: [],
     });
   }
 
@@ -124,6 +125,7 @@ export async function buildMyEventsData(params: {
       departments: summary.departments,
       deleted: true,
       color: "gray",
+      trail: [],
     });
   }
 

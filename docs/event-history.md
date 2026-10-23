@@ -15,6 +15,7 @@ rendered, and kept fresh.
 - [1.2 Data source](#12-data-source)
 - [1.3 Per-event history route](#13-per-event-history-route)
 - [1.4 My Events page](#14-my-events-page)
+  - [1.4.1 Inline change timeline](#141-inline-change-timeline)
 - [1.5 Authorization & privacy](#15-authorization--privacy)
 - [1.6 Retention](#16-retention)
 - [1.7 Read layer & the event-id index](#17-read-layer--the-event-id-index)
@@ -133,6 +134,46 @@ naive `YYYY-MM-DD HH:mm` of the last recorded edit — the audit row's
 `created_at` formatted in the app's UTC+8) and falls back to `sortKey` when the
 event has no audit history.
 
+### 1.4.1 Inline change timeline
+
+Every row carries a compact **change timeline** (Mantine `Timeline`) that shows
+*when* each change was made, so the list answers "what happened to this event"
+without opening the per-event history page.
+
+```mermaid
+flowchart LR
+    P[my-events/page.tsx] -->|full window union| B[buildMyEventsData]
+    P -->|slice page, then page event ids| Q[listEventAuditTrail]
+    Q -->|create/update/delete rows, newest first| G[groupTrailRows]
+    G --> T[buildChangeTrail]
+    T -->|trail on each row| V[MyEventsView inline Timeline]
+```
+
+- **Data:** one indexed read per page. `listEventAuditTrail(eventIds, retentionDays)`
+  (`src/lib/audit/queries.ts`) fetches every `event.create` / `event.update` /
+  `event.delete` row of the events on the current page — never the
+  `event.participantNotify` side-effects — newest first, within the retention
+  window (same `details->>'eventId'` expression index as the other event reads).
+  `page.tsx` attaches the shaped trail to each row after slicing, so the read is
+  bounded by the page size, not the window.
+- **Shaping:** `buildChangeTrail` (`src/lib/events/changeTrail.ts`, pure +
+  unit-tested) collapses the per-copy fan-out — a cross-department mutation
+  writes one audit row *per calendar copy*, so rows sharing an action and the
+  same minute become one item (the same minute-precision convention
+  `latestEventEditTimes` ordering relies on). The full trail renders inline
+  (no cap); rows grow with their trail length.
+- **Display:** one `Timeline.Item` per change (`ChangeTrailTimeline` in
+  `MyEventsView.tsx`) — a colored bullet (brand = Created, accent = Edited,
+  red = Deleted), the action label, a coarse relative age ("3 days ago", pure
+  `relativeChangeLabel`) with the absolute UTC+8 stamp on hover/focus, the
+  actor, and the changed-field labels for an edit (the shared `changeSummary`
+  from `audit/format.ts`, now also used by the per-event history page). The
+  skeleton paints matching bullet + line placeholders so the reveal doesn't
+  reflow. Rows with no audit rows left (legacy, Google-edited, or outside
+  retention) render exactly as before — no empty-trail noise.
+- The row stays a link to `/event-history/<eventId>` for the full before→after
+  diffs; the trail items themselves are non-interactive.
+
 ## 1.5 Authorization & privacy
 
 Both surfaces are open to **any signed-in user** (`requireSession()`), matching how
@@ -214,8 +255,9 @@ preloads the new route.
 | ------ | ------ | ----- |
 | `eventIdFromAuditDetails`, `createdEventSummary` | `events/history.ts` | `events/history.test.ts` |
 | `formatMyEventTime`, `auditTimeSortKey`, `humanizeMyEventTime`, `mergeMyEvents` | `events/myEvents.ts` | `events/myEvents.test.ts` |
+| `relativeChangeLabel`, `buildChangeTrail`, `groupTrailRows` | `events/changeTrail.ts` | `events/changeTrail.test.ts` |
 | `parseMyEventsRange`, `myEventsRangeLabel`, `myEventsWindow` | `events/myEventsRange.ts` | `events/myEventsRange.test.ts` |
-| `formatAuditDetails`, `actionLabel`, `actorLabel`, `formatLogTimestamp` | `audit/format.ts` | `audit/format.test.ts` |
+| `formatAuditDetails`, `actionLabel`, `actorLabel`, `changeSummary`, `formatLogTimestamp` | `audit/format.ts` | `audit/format.test.ts` |
 | `isAlwaysFreshPath` (the new prefixes) | `pwa/swRules.ts` | `pwa/swRules.test.ts` |
 
 I/O-bound (not unit-tested, per the repo convention): the `queries.ts` read
@@ -232,9 +274,10 @@ functions, `buildMyEventsData`, both route pages, and the client views.
 | `src/app/(protected)/my-events/MyEventsView.tsx` | Client view + range selector + pagination |
 | `src/components/AuditDetails.tsx` | Shared `details` renderer (audit log + history) |
 | `src/app/(protected)/dashboard/EventDetail.tsx` | The standalone History button |
-| `src/lib/audit/queries.ts` | `listEventHistory`, `listMyCreatedEvents`, `latestDeleteTimes`, `latestEventEditTimes` |
+| `src/lib/audit/queries.ts` | `listEventHistory`, `listMyCreatedEvents`, `latestDeleteTimes`, `latestEventEditTimes`, `listEventAuditTrail` |
 | `src/lib/events/myEventsData.ts` | My Events union builder (live + audit) |
 | `src/lib/events/history.ts` | Pure snapshot parsers (unit-tested) |
+| `src/lib/events/changeTrail.ts` | Pure inline change-timeline shaping (unit-tested) |
 | `src/lib/events/myEvents.ts` / `myEventsRange.ts` | Pure list shaping + window helpers (unit-tested) |
 | `src/db/schema.ts` + `drizzle/0056_charming_blue_marvel.sql` | `audit_logs_event_id_idx` |
 | `src/components/AppShellShell.tsx` | My Events nav entry + footer More `Menu` |

@@ -2,14 +2,27 @@
 
 import { useCallback, useRef } from "react";
 import type { CSSProperties } from "react";
-import { Badge, Box, Group, Paper, Pagination, Skeleton, Stack, Text } from "@mantine/core";
-import { IconHistory } from "@tabler/icons-react";
+import {
+  Badge,
+  Box,
+  Group,
+  Paper,
+  Pagination,
+  Skeleton,
+  Stack,
+  Text,
+  ThemeIcon,
+  Timeline,
+  Tooltip,
+} from "@mantine/core";
+import { IconHistory, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { EmptyState } from "@/components/EmptyState";
 import { NoKeyboardSelect } from "@/components/NoKeyboardSelect";
 import { PageHeader } from "@/components/PageHeader";
+import type { ChangeTrailItem } from "@/lib/events/changeTrail";
 import {
   MY_EVENTS_RANGE_MONTHS,
   myEventsRangeLabel,
@@ -39,7 +52,8 @@ interface MyEventsViewProps {
  * "My Events": every event the signed-in user organized, newest first, over an
  * adjustable ±-months window — including events later deleted (a Deleted badge),
  * so a deleted event stays trackable and its full history stays reachable.
- * Always-fresh (docs/event-history.md).
+ * Each row carries an inline change timeline (Created → Edited → Deleted)
+ * showing when every change was made. Always-fresh (docs/event-history.md).
  */
 export function MyEventsView({
   items,
@@ -142,14 +156,36 @@ export function MyEventsView({
                       key={index}
                       gap="sm"
                       wrap="nowrap"
-                      align="center"
+                      align="flex-start"
                       style={{
                         padding: "var(--mantine-spacing-sm)",
                         borderTop: index === 0 ? undefined : LIST_BORDER,
                       }}
                     >
-                      <Skeleton width={4} height={28} radius={2} style={{ flexShrink: 0 }} />
-                      <Skeleton height={12} radius={2} style={{ width: `${60 - (index % 3) * 12}%` }} />
+                      <Skeleton
+                        width={4}
+                        height={28}
+                        radius={2}
+                        style={{ flexShrink: 0, marginTop: 1 }}
+                      />
+                      <Box style={{ flex: 1, minWidth: 0 }}>
+                        <Stack gap={8}>
+                          <Skeleton
+                            height={12}
+                            radius={2}
+                            style={{ width: `${60 - (index % 3) * 12}%` }}
+                          />
+                          <Skeleton height={8} radius={2} w="40%" />
+                          <Group gap={6}>
+                            <Skeleton circle height={18} style={{ flexShrink: 0 }} />
+                            <Skeleton height={8} radius={2} w="30%" />
+                          </Group>
+                          <Group gap={6}>
+                            <Skeleton circle height={18} style={{ flexShrink: 0 }} />
+                            <Skeleton height={8} radius={2} w="24%" />
+                          </Group>
+                        </Stack>
+                      </Box>
                     </Group>
                   ))
                 : items.map((item, index) => (
@@ -182,13 +218,14 @@ export function MyEventsView({
 function MyEventRowView({ item, first }: { item: MyEventRow; first: boolean }) {
   const meta = [item.time, item.departments.join(", ")].filter(Boolean).join(" \u00b7 ");
   const body = (
-    <Group gap="sm" wrap="nowrap" align="center">
+    <Group gap="sm" wrap="nowrap" align="flex-start">
       <Box
         style={{
           width: 4,
           height: 30,
           borderRadius: 2,
           flexShrink: 0,
+          marginTop: 1,
           background: `var(--mantine-color-${item.deleted ? "red" : item.color}-filled)`,
         }}
       />
@@ -208,6 +245,7 @@ function MyEventRowView({ item, first }: { item: MyEventRow; first: boolean }) {
             {meta}
           </Text>
         )}
+        {item.trail.length > 0 && <ChangeTrailTimeline items={item.trail} />}
       </Box>
     </Group>
   );
@@ -235,5 +273,69 @@ function MyEventRowView({ item, first }: { item: MyEventRow; first: boolean }) {
     <Box style={rowStyle}>
       {body}
     </Box>
+  );
+}
+
+/** Trail bullet colors ride the brand palette: created blue, edited amber, deleted red. */
+const TRAIL_COLORS: Record<ChangeTrailItem["kind"], string> = {
+  create: "brand",
+  update: "accent",
+  delete: "red",
+};
+
+function TrailBullet({ kind }: { kind: ChangeTrailItem["kind"] }) {
+  return (
+    <ThemeIcon size={16} radius="xl" variant="light" color={TRAIL_COLORS[kind]} aria-hidden>
+      {kind === "create" ? (
+        <IconPlus size={10} />
+      ) : kind === "update" ? (
+        <IconPencil size={10} />
+      ) : (
+        <IconTrash size={10} />
+      )}
+    </ThemeIcon>
+  );
+}
+
+/**
+ * The inline change timeline (docs/event-history.md §1.4.1): every recorded
+ * change of the event, newest first, as compact Timeline items — a colored
+ * bullet per kind, the action label, a relative age (absolute UTC+8 stamp on
+ * hover/focus), the actor, and the changed fields for an edit.
+ */
+function ChangeTrailTimeline({ items }: { items: ChangeTrailItem[] }) {
+  return (
+    <Timeline bulletSize={18} lineWidth={2} mt="xs">
+      {items.map((item, index) => (
+        <Timeline.Item
+          key={`${item.kind}-${item.absolute}-${index}`}
+          bullet={<TrailBullet kind={item.kind} />}
+        >
+          <Group gap={6} wrap="wrap">
+            <Text size="xs" fw={600}>
+              {item.label}
+            </Text>
+            <Tooltip
+              label={item.absolute}
+              withArrow
+              events={{ hover: true, focus: true, touch: false }}
+            >
+              <Text size="xs" c="dimmed" style={{ cursor: "default" }}>
+                {item.relative}
+              </Text>
+            </Tooltip>
+            <Text size="xs" c="dimmed">
+              {"\u00b7 "}
+              {item.actor}
+            </Text>
+          </Group>
+          {item.summary ? (
+            <Text size="xs" c="dimmed" lineClamp={1}>
+              {item.summary}
+            </Text>
+          ) : null}
+        </Timeline.Item>
+      ))}
+    </Timeline>
   );
 }
