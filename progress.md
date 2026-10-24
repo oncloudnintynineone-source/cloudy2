@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.333 (desktop search trigger: circular icon, taller pill)** is shipped.
+- All work through changelog **1.334 (desktop search disc shrunk to 29px)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -2013,7 +2013,13 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
   offset it). Pill body/hover go
   through Mantine's `--button-bg` / `--button-hover` vars (replacing the inline
   background that suppressed hover). Docs: `docs/event-search.md` §1.9,
-  `docs/pinned-events.md` §1.4.
+   `docs/pinned-events.md` §1.4.
+- 1.334 **Desktop search disc shrunk to 29px**: the magnifier circle no longer
+    *is* the pill's left cap — it is a 29px disc concentric with the 17px cap
+    (inset 2.5px), leaving a uniform thin `brand-8` ring so the icon reads smaller
+    without shrinking the 34px pill or its tap target (`--c2-search-disc-size` /
+    `--c2-search-disc-inset`, label offset recomputed to keep the 8px gap). Docs:
+    `docs/event-search.md` §1.9.
 
 ## 1.4 Open items & next steps
 
