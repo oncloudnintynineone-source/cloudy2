@@ -454,7 +454,7 @@ sign-out isolation, and the deploy-takeover pill (§1.8).
 | `src/lib/loading/liveRefreshRules.ts` | `needsLiveRefresh` + `LIVE_REFRESH_EVENT` — the always-fresh re-read rules (pure) |
 | `src/lib/loading/liveRefresh.ts` | `useLiveRouteRefresh` — always-fresh route revalidation in place (§1.6/§1.11) |
 | `public/offline.html` | Branded offline explainer (precached) — "You're offline" + Try again; no saved-views list (§1.9) |
-| `public/loading.html` | Branded launch shell (precached) — view-aware skeleton mirroring the route skeleton + sr-only status; resolves the remembered page + view from the `cloudy2.ui` cookie and redirects after a presented frame (§1.5.1) |
+| `public/loading.html` | Branded launch shell (precached) — plain full-page loading block mirroring the route skeleton, with the centered brand overlay (app icon breathing + "Waking from Deep Sleep…") and sr-only status; resolves the remembered page + view from the `cloudy2.ui` cookie and redirects after a presented frame (§1.5.1) |
 | `src/lib/pwa/launchShell.test.ts` | Drift guard for the launch shell's inline copy of the route whitelist / redirect structure / skeleton variants / scheme override, its runtime smoke test under a DOM shim, and the SW launch route's invariants (precached shell, no redirect, no cookie peek) |
 | `src/app/(protected)/settings/**` + `src/components/LoginForm.tsx` | Same invalidate-then-refresh migration |
 | `docs/pwa-offline.md` | This document |

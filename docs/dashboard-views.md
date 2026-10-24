@@ -367,7 +367,8 @@ string maps to the first tab of that kind.
 defaults to the first tab), and the device cookie no longer carries a view, so
 **route/cold-start loading cannot shape its skeleton to the arriving kind**:
 `loading.tsx` and the PWA launch shell (`public/loading.html`) show one plain
-full-page loading box; the in-page transition skeletons inside `DashboardView`
+full-page loading box with the centered brand overlay (app icon breathing over
+"Waking from Deep Sleep…"); the in-page transition skeletons inside `DashboardView`
 still shape to the active tab's kind. The break-glass admin session
 (`id="admin"`, no `users` row) renders a static single Month tab with view
 management hidden.

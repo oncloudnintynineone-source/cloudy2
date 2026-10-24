@@ -1969,6 +1969,16 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     so the next account on the same tab never paints the previous user's
     history. Docs: `docs/event-history.md` §1.3, `docs/loading-transitions.md`
     §1.18, `docs/ui-state.md` §1.9.
+- 1.330 **Branded cold-start overlay on the full-page calendar skeleton**: the
+    dashboard's full-area placeholder (`DashboardShellSkeleton`, shared by route
+    `loading.tsx` and `DashboardScreen`'s snapshot-read phase) now rides a
+    centered decorative overlay — app icon breathing on the ambient cadence +
+    "Waking from Deep Sleep…" — mirrored in the PWA launch shell
+    (`public/loading.html`, icon precached) so every cold-start phase reads as
+    one surface. Decorative (`aria-hidden`, pointer-transparent); the sr-only
+    `LoadingStatus` stays the only announcement; `launchShell.test.ts` pins both
+    sides. Docs: `docs/loading-transitions.md` §1.4, `docs/pwa-offline.md`
+    §1.5.1 table, `docs/dashboard-views.md`.
 
 ## 1.4 Open items & next steps
 

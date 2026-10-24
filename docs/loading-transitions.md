@@ -117,7 +117,7 @@ Suspense fallback), shaped to match the real content:
 
 | Segment | `loading.tsx` |
 | ------- | ------------- |
-| `(protected)/dashboard` | one plain full-page skeleton box. Views are on-demand tabs whose renderer kind is only known after the server resolves the active tab (and loading files receive no URL props), so the route skeleton can no longer shape to a kind — the in-page transition skeletons inside `DashboardView` still do |
+| `(protected)/dashboard` | one plain full-page skeleton box with a decorative centered brand overlay (app icon breathing over "Waking from Deep Sleep…", `c2-boot-*` in `globals.css`). Views are on-demand tabs whose renderer kind is only known after the server resolves the active tab (and loading files receive no URL props), so the route skeleton can no longer shape to a kind — the in-page transition skeletons inside `DashboardView` still do |
 | `(protected)/parade-state` | day card + rows from `paradeStateSkeleton.tsx` |
 | `(protected)/contacts` | list skeleton |
 | `(protected)/settings/users` | user card skeletons |
@@ -156,7 +156,9 @@ route fallback), `parade-state/paradeStateSkeleton.tsx`,
 The PWA **launch shell** (`public/loading.html`, served unconditionally by the
 service worker for the start URL) mirrors that plain-box route skeleton — one
 neutral full-page loading block with Mantine's exact palette values and pulse,
-brand-blue header bar, bottom-nav placeholders — so the handoff from the precached
+the same centered brand overlay as the route skeleton (precached app icon
+breathing over "Waking from Deep Sleep…"), brand-blue header bar, bottom-nav
+placeholders — so the handoff from the precached
 shell reads as **one continuous loading surface** whatever page the launch
 resolves to (it cannot know the arriving dashboard tab's kind, and non-dashboard
 targets share the same chrome anyway): it either hands off to the

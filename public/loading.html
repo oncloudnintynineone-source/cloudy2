@@ -28,33 +28,38 @@
        * instead, matching the route-level loading.tsx plain box — the handoff
        * reads as one continuous loading surface whatever page the launch
        * redirects to (dashboard/parade/contacts/settings all arrive under the
-       * same header chrome).
+       * same header chrome). The block carries the same decorative brand
+       * overlay as DashboardShellSkeleton (app icon breathing over "Waking
+       * from Deep Sleep…"); /icon.svg is precached, so it paints offline too.
        *
        * Colors (Mantine v9 defaults):
        *   light: body #fff · skeleton gray-3 #dee2e6 · border gray-4 #ced4da
        *   dark:  body dark-7 #242424 · skeleton + border dark-4 #424242
        */
-      :root {
-        --c2-body: #ffffff;
-        --c2-sk: #dee2e6;
-        --c2-border: #ced4da;
+       :root {
+         --c2-body: #ffffff;
+         --c2-sk: #dee2e6;
+         --c2-border: #ced4da;
+         --c2-dim: #adb5bd;
         /* Chrome edge-to-edge fast path (see globals.css / docs/pwa-offline.md):
            the bottom nav grows by the max safe-area inset and pulls itself down
            with `calc(live - max)`. Nested fallback = old behavior off Chrome. */
         --c2-max-bottom: env(safe-area-max-inset-bottom, env(safe-area-inset-bottom, 0px));
       }
-      @media (prefers-color-scheme: dark) {
-        :root {
-          --c2-body: #242424;
-          --c2-sk: #424242;
-          --c2-border: #424242;
-        }
-      }
-      :root[data-c2-scheme="dark"] {
-        --c2-body: #242424;
-        --c2-sk: #424242;
-        --c2-border: #424242;
-      }
+       @media (prefers-color-scheme: dark) {
+         :root {
+           --c2-body: #242424;
+           --c2-sk: #424242;
+           --c2-border: #424242;
+           --c2-dim: #666666;
+         }
+       }
+       :root[data-c2-scheme="dark"] {
+         --c2-body: #242424;
+         --c2-sk: #424242;
+         --c2-border: #424242;
+         --c2-dim: #666666;
+       }
       :root[data-c2-scheme="light"] {
         --c2-body: #ffffff;
         --c2-sk: #dee2e6;
@@ -119,6 +124,58 @@
         }
       }
 
+      /* Brand overlay — mirrors the `c2-boot-*` rules in the app's
+         globals.css: the app icon breathing (1400ms ease-in-out, the ambient
+         cadence) dead-centre over the loading line. Decorative: aria-hidden,
+         pointer-transparent; the sr-only status stays the only announcement. */
+      .plainwrap {
+        position: relative;
+        flex: 1 1 auto;
+      }
+      .boot-brand {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        pointer-events: none;
+      }
+      .boot-icon {
+        width: 80px;
+        height: 80px;
+        user-select: none;
+      }
+      .boot-text {
+        font-size: 0.875rem;
+        color: var(--c2-dim);
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        .boot-brand {
+          animation: c2-boot-enter 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+        .boot-icon {
+          animation: c2-boot-breathe 1400ms cubic-bezier(0.65, 0, 0.35, 1) infinite alternate;
+        }
+        @keyframes c2-boot-enter {
+          from {
+            opacity: 0;
+            transform: translateY(8px);
+          }
+        }
+        @keyframes c2-boot-breathe {
+          from {
+            transform: scale(1);
+            opacity: 1;
+          }
+          to {
+            transform: scale(1.06);
+            opacity: 0.72;
+          }
+        }
+      }
+
       .sr-only {
         position: absolute;
         width: 1px;
@@ -151,7 +208,7 @@
       /* One plain loading block — mirrors dashboard/loading.tsx. */
       .plainbox {
         width: 100%;
-        flex: 1 1 auto;
+        height: 100%;
       }
 
       /* Bottom nav (AppShell.Footer): mobile-only, 56px + safe-area. Uses the
@@ -198,7 +255,13 @@
     <div class="sr-only" role="status">Loading Cloudy2…</div>
     <main id="c2-main" aria-hidden="true">
       <div class="stack">
-        <span class="sk sk-pulse plainbox" id="c2-box"></span>
+        <div class="plainwrap">
+          <span class="sk sk-pulse plainbox" id="c2-box"></span>
+          <div class="boot-brand" aria-hidden="true">
+            <img src="/icon.svg" alt="" class="boot-icon" />
+            <span class="boot-text">Waking from Deep Sleep…</span>
+          </div>
+        </div>
       </div>
     </main>
     <div class="bnav" aria-hidden="true">

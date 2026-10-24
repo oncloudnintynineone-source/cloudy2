@@ -339,6 +339,69 @@ html {
 
 /* Reduced motion: no draw-in — the bar appears instantly. */
 
+/* Initial-load brand overlay (docs/loading-transitions.md): the app icon +
+   "Waking from Deep Sleep…" riding dead-centre on the full-area dashboard
+   skeleton (`DashboardShellSkeleton`), mirrored in the PWA launch shell
+   (public/loading.html) so every cold-start phase — precached shell, route
+   loading.tsx, client snapshot read — reads as one surface. Decorative: the
+   overlay is aria-hidden and pointer-transparent; the sr-only LoadingStatus
+   stays the only announcement. The icon breathes on the ambient cadence so
+   its loop matches the skeleton's 1500ms pulse without syncing to it. */
+.c2-boot-shell {
+  position: relative;
+}
+
+.c2-boot-skeleton {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.c2-boot-brand {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--mantine-spacing-sm);
+  pointer-events: none;
+}
+
+.c2-boot-icon {
+  width: calc(5rem * var(--mantine-scale));
+  height: calc(5rem * var(--mantine-scale));
+  user-select: none;
+}
+
+@keyframes c2-boot-enter {
+  from {
+    opacity: 0;
+    transform: translateY(var(--c2-dist-sm));
+  }
+}
+
+@keyframes c2-boot-breathe {
+  from {
+    transform: scale(1);
+    opacity: 1;
+  }
+  to {
+    transform: scale(1.06);
+    opacity: 0.72;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .c2-boot-brand {
+    animation: c2-boot-enter var(--c2-dur-emphasized) var(--c2-ease-out) both;
+  }
+  .c2-boot-icon {
+    animation: c2-boot-breathe var(--c2-dur-ambient) var(--c2-ease-in-out) infinite alternate;
+  }
+}
+
 /* Header pinned-events ticker (docs/pinned-events.md): the brand pill anchored
    at the header's left edge (where the logo used to sit). Its indicator style
    is the `pinnedTickerIndicator` feature flag (Settings → Feature Flags):

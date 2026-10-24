@@ -1,4 +1,4 @@
-import { Skeleton, Stack } from "@mantine/core";
+import { Box, Image, Skeleton, Stack, Text } from "@mantine/core";
 
 import { LoadingStatus } from "@/components/LoadingStatus";
 
@@ -12,6 +12,14 @@ import { LoadingStatus } from "@/components/LoadingStatus";
  * instead of hugging the header — it reads as one neutral full-area
  * placeholder. Sized against the same CSS vars Mantine uses for Main's inner
  * box so the box never lingers short of the footer nor scrolls the document.
+ *
+ * A decorative brand overlay (app icon breathing over "Waking from Deep
+ * Sleep…") rides dead-centre on the pulsing box — mirrored byte-for-byte in
+ * spirit by the PWA launch shell (`public/loading.html`) so every cold-start
+ * phase reads as one continuous surface. Purely visual: it is `aria-hidden`
+ * and pointer-transparent, and the sr-only `LoadingStatus` remains the only
+ * announcement. Styling/animations live in the `c2-boot-*` rules in
+ * globals.css (docs/loading-transitions.md).
  */
 export function DashboardShellSkeleton() {
   return (
@@ -23,7 +31,15 @@ export function DashboardShellSkeleton() {
       }}
     >
       <LoadingStatus label="Loading calendar" />
-      <Skeleton radius="md" style={{ flex: 1, width: "100%" }} />
+      <Box className="c2-boot-shell" style={{ flex: 1, width: "100%" }}>
+        <Skeleton radius="md" className="c2-boot-skeleton" />
+        <div className="c2-boot-brand" aria-hidden="true">
+          <Image src="/icon.svg" alt="" className="c2-boot-icon" draggable={false} />
+          <Text className="c2-boot-text" size="sm" c="dimmed">
+            Waking from Deep Sleep…
+          </Text>
+        </div>
+      </Box>
     </Stack>
   );
 }
