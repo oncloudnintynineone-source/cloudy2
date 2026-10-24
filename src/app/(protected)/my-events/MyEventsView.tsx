@@ -19,10 +19,11 @@ import { IconHistory, IconPencil, IconPlus, IconTrash } from "@tabler/icons-reac
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { EmptyState } from "@/components/EmptyState";
-import { EventHistoryModal } from "@/components/EventHistoryModal";
+import { EventHistoryModal, type EventHistoryPreview } from "@/components/EventHistoryModal";
 import { NoKeyboardSelect } from "@/components/NoKeyboardSelect";
 import { PageHeader } from "@/components/PageHeader";
 import type { ChangeTrailItem } from "@/lib/events/changeTrail";
+import { prefetchEventHistory } from "@/lib/events/historyCache";
 import {
   MY_EVENTS_RANGE_MONTHS,
   myEventsRangeLabel,
@@ -74,10 +75,12 @@ export function MyEventsView({
   const contentRef = useRef<HTMLDivElement | null>(null);
   useContentEnter(contentRef, !loading);
 
-  // The shared history modal, opened by tapping a row (replaces the old
-  // navigation to the per-event history page).
+  // The shared history modal, opened by tapping a row. The row's own trail is
+  // passed as a preview so the modal paints instantly, and rows prefetch their
+  // full history on hover/press so the tap usually finds it cached.
   const [historyEventId, setHistoryEventId] = useState<string | null>(null);
   const [historyOrigin, setHistoryOrigin] = useState<Rect | null>(null);
+  const [historyPreview, setHistoryPreview] = useState<EventHistoryPreview | null>(null);
 
   const setParams = useCallback(
     (updates: Record<string, string | null>) => {
@@ -199,9 +202,17 @@ export function MyEventsView({
                       key={item.key}
                       item={item}
                       first={index === 0}
-                      onOpenHistory={(eventId, rect) => {
+                      onOpenHistory={(row, rect) => {
+                        if (!row.eventId) {
+                          return;
+                        }
                         setHistoryOrigin(rect);
-                        setHistoryEventId(eventId);
+                        setHistoryPreview({
+                          title: row.title,
+                          deleted: row.deleted,
+                          items: row.trail,
+                        });
+                        setHistoryEventId(row.eventId);
                       }}
                     />
                   ))}
@@ -230,6 +241,8 @@ export function MyEventsView({
         eventId={historyEventId}
         onClose={() => setHistoryEventId(null)}
         originRect={historyOrigin}
+        preview={historyPreview}
+        retentionDays={retentionDays}
       />
     </Stack>
   );
@@ -242,7 +255,7 @@ function MyEventRowView({
 }: {
   item: MyEventRow;
   first: boolean;
-  onOpenHistory: (eventId: string, rect: Rect | null) => void;
+  onOpenHistory: (item: MyEventRow, rect: Rect | null) => void;
 }) {
   const meta = [item.time, item.departments.join(", ")].filter(Boolean).join(" \u00b7 ");
   const body = (
@@ -290,7 +303,9 @@ function MyEventRowView({
     const eventId = item.eventId;
     return (
       <UnstyledButton
-        onClick={(event) => onOpenHistory(eventId, event.currentTarget.getBoundingClientRect())}
+        onMouseEnter={() => prefetchEventHistory(eventId)}
+        onPointerDown={() => prefetchEventHistory(eventId)}
+        onClick={(event) => onOpenHistory(item, event.currentTarget.getBoundingClientRect())}
         style={rowStyle}
       >
         {body}

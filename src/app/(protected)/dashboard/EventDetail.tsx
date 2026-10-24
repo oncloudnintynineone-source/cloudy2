@@ -32,6 +32,7 @@ import { LoadingStatus } from "@/components/LoadingStatus";
 import { deleteEvent, type EventActionOk } from "@/lib/events/actions";
 import { buildEventIcs, buildGoogleCalendarUrl, icsFileName } from "@/lib/events/calendarExport";
 import { subOneDay } from "@/lib/events/datetime";
+import { prefetchEventHistory } from "@/lib/events/historyCache";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import type { CalendarEvent } from "@/lib/events/queries";
 import {
@@ -363,6 +364,11 @@ export function EventDetail({
                       color="gray"
                       size="xl"
                       aria-label="View event history"
+                      onMouseEnter={() => {
+                        if (payload.eventId) {
+                          prefetchEventHistory(payload.eventId);
+                        }
+                      }}
                       onClick={(event) => {
                         setHistoryOrigin(event.currentTarget.getBoundingClientRect());
                         setHistoryEventId(payload.eventId);
@@ -441,6 +447,7 @@ export function EventDetail({
         eventId={historyEventId}
         onClose={() => setHistoryEventId(null)}
         originRect={historyOrigin}
+        title={showEvent?.title}
         zIndex={300}
       />
     </>

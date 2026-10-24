@@ -232,8 +232,9 @@ doc content here.
 - **Event history & My Events (`/my-events`):** read-only views over the event audit rows.
   The per-event changelog is the shared **`EventHistoryModal`** (`src/components/EventHistoryModal.tsx`,
   entries in `EventHistoryEntries.tsx`) — opened by tapping a My Events row or the event modal's
-  **History button** (only when `payload.eventId` is non-null; stacked at `zIndex={300}`); rows
-  fetch fresh per open via `getEventHistory` (`src/lib/events/historyActions.ts`), so there is
+  **History button** (only when `payload.eventId` is non-null; stacked at `zIndex={300}`); it opens
+  instantly from the row's trail `preview` (rows hover-prefetched via `historyCache.ts`, background
+  revalidated through `getEventHistory`, `src/lib/events/historyActions.ts`), so there is
   **no history route**.
   **My Events** is a union (`buildMyEventsData`, `src/lib/events/myEventsData.ts`) of a
   live all-calendar read filtered to `payload.creatorId === me` (so it catches on-behalf

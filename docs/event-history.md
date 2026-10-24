@@ -56,21 +56,26 @@ the dashboard already ships) is what the event modal hands to the history modal.
 ## 1.3 Per-event history modal
 
 `EventHistoryModal` (`src/components/EventHistoryModal.tsx`) is a read-only
-changelog of one logical event, opened in place — there is no history route:
+changelog of one logical event, opened in place — there is no history route.
+It is built to **feel instant**: a My Events row already carries the event's
+trail, so the modal paints that immediately and revalidates underneath:
 
 ```mermaid
 sequenceDiagram
     participant U as User
     participant T as My Events row / EventDetail History button
+    participant C as historyCache (hover prefetch)
     participant M as EventHistoryModal
     participant A as getEventHistory() (server action)
-    participant Q as listEventHistory()
-    U->>T: tap the row / the History button (only when eventId != null)
-    T->>M: open with eventId + trigger rect (zoom-from-trigger)
-    M->>A: getEventHistory(eventId) on every open
-    A->>Q: rows = listEventHistory(eventId, retentionDays)
-    Q-->>M: AuditLog[] oldest-first + retentionDays
-    M->>U: skeleton, then entries (newest-first) via AuditDetails
+    U->>T: hover / press a row
+    T->>C: prefetchEventHistory(eventId)
+    U->>T: tap
+    T->>M: open with eventId + trigger rect + row trail preview
+    M->>U: instant: title + Deleted badge + collapsed entry headers (preview)
+    M->>C: getCachedEventHistory(eventId) (usually already resolved)
+    C-->>M: AuditLog[] → buildHistoryEntries (expandable)
+    M->>A: fresh getEventHistory(eventId) when painted from cache
+    A-->>M: revalidated rows swap in silently
 ```
 
 - **Entry points:** tapping a **My Events row**, and the **History button** in
@@ -78,21 +83,34 @@ sequenceDiagram
   `zIndex={300}`). The History button is hidden when `payload.eventId === null`
   (external or never-app-edited legacy events have no group id and no history)
   and is not shown in the read-only details (Double Booking / KAH Status).
-- **Data:** the `getEventHistory(eventId)` server action (`requireSession()` +
-  `listEventHistory`) runs on **every open** — always fresh, no client cache —
-  with the shaped `EventHistorySkeleton` inside while loading (skeleton-only
-  rule). A failed fetch shows a quiet error line.
-- **Entries:** each row renders as a **collapsible entry** (all collapsed by
+- **Perceived-latency design:** rows prefetch on `onMouseEnter`/`onPointerDown`
+  into a session-lifetime `Map` (`src/lib/events/historyCache.ts`), so the tap
+  usually opens from cache. A My Events row also passes its inline trail as a
+  `preview` — the modal renders the real title, **Deleted** badge, retention
+  line, and collapsed entry headers **before any fetch resolves**; the fetched
+  entries (identical headers, now expandable) swap in silently. The shaped
+  `EventHistorySkeleton` only shows on the cold no-preview path (the dashboard
+  History button, which still passes the event `title` for an instant header).
+  A failed fetch is only surfaced when there is no preview to keep.
+- **List shape matches the trail:** `buildHistoryEntries`
+  (`src/lib/events/changeTrail.ts`) applies the same collapse as the inline
+  timeline — same-minute per-copy fan-out merged into one entry,
+  `event.participantNotify` rows dropped — so preview and final list are
+  identical and the swap never reflows. (The admin audit stream still shows
+  every raw row; the modal is deliberately the cleaner changelog.)
+- **Entries:** each renders as a **collapsible entry** (all collapsed by
   default; tap to expand) via the shared `EventHistoryEntries`
   (`src/components/EventHistoryEntries.tsx`): the always-visible header shows
-  the action label, UTC+8 timestamp, actor, and a one-line change summary (the
-  changed field labels for an edit, or the title for a create/delete); tapping
-  it reveals the shared `AuditDetails` (`src/components/AuditDetails.tsx`) —
-  the same before→after lines and "Resulting state" section the admin audit
-  modal uses. A delete row (when present) is simply the newest entry.
+  the action label, UTC+8 timestamp, actor, and the changed-field labels for an
+  edit; tapping it reveals the shared `AuditDetails`
+  (`src/components/AuditDetails.tsx`) — the same before→after lines and
+  "Resulting state" section the admin audit modal uses. A delete (when
+  present) is simply the newest entry. Preview items (no `details` yet) render
+  the same header without the disclosure affordance.
 - **Header:** the newest row's `entity_name` (the rendered title at that edit),
-  falling back to the create snapshot's title; a red **Deleted** badge when the
-  newest row is a delete; a dimmed retention line.
+  falling back to the create snapshot's title, then the preview/`title` prop; a
+  red **Deleted** badge when the newest entry is a delete; a dimmed retention
+  line (from the caller when known).
 - Closing returns to whatever opened the modal (no back button, no route).
 
 ## 1.4 My Events page
@@ -264,7 +282,7 @@ preloads the new route.
 | ------ | ------ | ----- |
 | `eventIdFromAuditDetails`, `createdEventSummary` | `events/history.ts` | `events/history.test.ts` |
 | `formatMyEventTime`, `auditTimeSortKey`, `humanizeMyEventTime`, `mergeMyEvents` | `events/myEvents.ts` | `events/myEvents.test.ts` |
-| `relativeChangeLabel`, `buildChangeTrail`, `groupTrailRows` | `events/changeTrail.ts` | `events/changeTrail.test.ts` |
+| `relativeChangeLabel`, `buildChangeTrail`, `buildHistoryEntries`, `groupTrailRows` | `events/changeTrail.ts` | `events/changeTrail.test.ts` |
 | `parseMyEventsRange`, `myEventsRangeLabel`, `myEventsWindow` | `events/myEventsRange.ts` | `events/myEventsRange.test.ts` |
 | `formatAuditDetails`, `actionLabel`, `actorLabel`, `changeSummary`, `formatLogTimestamp` | `audit/format.ts` | `audit/format.test.ts` |
 | `isAlwaysFreshPath` (the new prefixes) | `pwa/swRules.ts` | `pwa/swRules.test.ts` |
@@ -281,6 +299,7 @@ functions, `buildMyEventsData`, the My Events route page, and the client views
 | `src/components/EventHistoryEntries.tsx` | Shared collapsible changelog entries |
 | `src/components/EventHistorySkeleton.tsx` | Shared shaped skeleton |
 | `src/lib/events/historyActions.ts` | `getEventHistory` server action |
+| `src/lib/events/historyCache.ts` | Hover-prefetch + open cache (session lifetime) |
 | `src/app/(protected)/my-events/page.tsx` | My Events server page (window + pagination + trail attach) |
 | `src/app/(protected)/my-events/MyEventsView.tsx` | Client view + range selector + pagination + inline trail |
 | `src/components/AuditDetails.tsx` | Shared `details` renderer (audit log + history) |

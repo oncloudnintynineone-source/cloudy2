@@ -1,12 +1,15 @@
 /**
- * Pure shaping for the inline change timeline on My Events
- * (docs/event-history.md §1.4.1): collapses the raw audit trail rows of one
- * logical event into display items (Created → Edited → Deleted), newest first.
+ * Pure shaping for the event change trail (docs/event-history.md §1.4.1):
+ * collapses the raw audit rows of one logical event into display items
+ * (Created → Edited → Deleted), newest first. Consumed by the inline My Events
+ * timeline (`buildChangeTrail`) and the history modal (`buildHistoryEntries`,
+ * which additionally keeps the diff `details`).
  *
  * A cross-department mutation writes one audit row *per calendar copy*, so
  * rows sharing the same action and the same minute collapse into a single
  * item — the same minute-precision convention `latestEventEditTimes` ordering
- * relies on. I/O-free and unit-tested; the visual lives in `MyEventsView`.
+ * relies on. I/O-free and unit-tested; the visuals live in `MyEventsView` and
+ * `EventHistoryEntries`.
  */
 
 import { AUDIT_ACTIONS } from "@/lib/audit/build";
@@ -27,6 +30,17 @@ export interface ChangeTrailItem {
   actor: string;
   /** Changed-field labels for an edit; null for create/delete. */
   summary: string | null;
+}
+
+/**
+ * A trail entry as the history modal renders it: identical to the inline
+ * {@link ChangeTrailItem} (so a page-load preview and the freshly fetched
+ * final list match exactly) plus the collapsed row's `details` for the
+ * expandable before→after diff. Preview items carry `details: null` and are
+ * not yet expandable.
+ */
+export interface HistoryEntryItem extends ChangeTrailItem {
+  details: unknown;
 }
 
 /** One audit trail row as the builder needs it (subset of `EventTrailRow`). */
@@ -81,14 +95,24 @@ export function relativeChangeLabel(createdAt: Date, now: Date): string {
   return `${years} ${years === 1 ? "year" : "years"} ago`;
 }
 
+/** One collapsed change group (a mutation, possibly fanned out per copy). */
+interface CollapsedChange {
+  kind: ChangeTrailKind;
+  createdAt: Date;
+  actorName: string | null;
+  actorRole: string | null;
+  summary: string | null;
+  details: unknown;
+}
+
 /**
- * Collapse one event's audit rows (newest first, as `listEventAuditTrail`
- * returns them) into display items: unknown actions (e.g. participant
+ * Shared collapse loop behind both builders: unknown actions (e.g. participant
  * notifications) are dropped, and consecutive rows of the same action within
- * the same minute — the per-copy fan-out of one mutation — become one item.
+ * the same minute — the per-copy fan-out of one mutation — become one group,
+ * represented by its first (newest, for newest-first input) row.
  */
-export function buildChangeTrail(rows: TrailRowInput[], now: Date): ChangeTrailItem[] {
-  const items: ChangeTrailItem[] = [];
+function collapseTrailRows(rows: TrailRowInput[]): CollapsedChange[] {
+  const groups: CollapsedChange[] = [];
   let lastKind: ChangeTrailKind | null = null;
   let lastMinute: string | null = null;
   for (const row of rows) {
@@ -102,16 +126,48 @@ export function buildChangeTrail(rows: TrailRowInput[], now: Date): ChangeTrailI
     }
     lastKind = kind;
     lastMinute = minute;
-    items.push({
+    groups.push({
       kind,
-      label: KIND_LABELS[kind],
-      relative: relativeChangeLabel(row.createdAt, now),
-      absolute: formatLogTimestamp(row.createdAt),
-      actor: actorLabel(row),
+      createdAt: row.createdAt,
+      actorName: row.actorName,
+      actorRole: row.actorRole,
       summary: kind === "update" ? changeSummary(row.details, null) : null,
+      details: row.details,
     });
   }
-  return items;
+  return groups;
+}
+
+function toTrailItem(group: CollapsedChange, now: Date): ChangeTrailItem {
+  return {
+    kind: group.kind,
+    label: KIND_LABELS[group.kind],
+    relative: relativeChangeLabel(group.createdAt, now),
+    absolute: formatLogTimestamp(group.createdAt),
+    actor: actorLabel(group),
+    summary: group.summary,
+  };
+}
+
+/**
+ * Collapse one event's audit rows (newest first, as `listEventAuditTrail`
+ * returns them) into inline-timeline display items.
+ */
+export function buildChangeTrail(rows: TrailRowInput[], now: Date): ChangeTrailItem[] {
+  return collapseTrailRows(rows).map((group) => toTrailItem(group, now));
+}
+
+/**
+ * The same collapse as {@link buildChangeTrail}, but keeping each group's
+ * `details` so the history modal can render expandable before→after diffs.
+ * Feed it the event's rows newest-first (reverse `listEventHistory`'s
+ * oldest-first result).
+ */
+export function buildHistoryEntries(rows: TrailRowInput[], now: Date): HistoryEntryItem[] {
+  return collapseTrailRows(rows).map((group) => ({
+    ...toTrailItem(group, now),
+    details: group.details,
+  }));
 }
 
 /** Group trail rows by logical event id, preserving the newest-first order. */

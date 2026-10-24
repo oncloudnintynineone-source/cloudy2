@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import { AUDIT_ACTIONS } from "@/lib/audit/build";
 
-import { buildChangeTrail, groupTrailRows, relativeChangeLabel, type TrailRowInput } from "./changeTrail";
+import {
+  buildChangeTrail,
+  buildHistoryEntries,
+  groupTrailRows,
+  relativeChangeLabel,
+  type TrailRowInput,
+} from "./changeTrail";
 
 const NOW = new Date("2026-10-23T08:00:00Z");
 
@@ -80,6 +86,61 @@ describe("buildChangeTrail", () => {
 
   it("drops non-change rows (participant notifications)", () => {
     const items = buildChangeTrail(
+      [
+        trailRow({ action: AUDIT_ACTIONS.eventParticipantNotify, createdAt: NOW }),
+        trailRow({ action: AUDIT_ACTIONS.eventCreate, createdAt: new Date("2026-10-20T01:00:00Z") }),
+      ],
+      NOW,
+    );
+    expect(items.map((item) => item.kind)).toEqual(["create"]);
+  });
+});
+
+describe("buildHistoryEntries", () => {
+  it("mirrors the trail headers and keeps the group's details for the diff", () => {
+    const details = { before: {}, after: {}, changes: { title: ["a", "b"] } };
+    const items = buildHistoryEntries(
+      [
+        trailRow({ action: AUDIT_ACTIONS.eventUpdate, createdAt: new Date("2026-10-22T06:30:00Z"), details }),
+        trailRow({ action: AUDIT_ACTIONS.eventCreate, createdAt: new Date("2026-10-20T01:05:00Z") }),
+      ],
+      NOW,
+    );
+    expect(items.map((item) => item.kind)).toEqual(["update", "create"]);
+    expect(items[0].details).toBe(details);
+    expect(items[1].details).toEqual({});
+    const trail = buildChangeTrail(
+      [
+        trailRow({ action: AUDIT_ACTIONS.eventUpdate, createdAt: new Date("2026-10-22T06:30:00Z"), details }),
+        trailRow({ action: AUDIT_ACTIONS.eventCreate, createdAt: new Date("2026-10-20T01:05:00Z") }),
+      ],
+      NOW,
+    );
+    expect(items.map(({ kind, label, relative, absolute, actor, summary }) => ({
+      kind,
+      label,
+      relative,
+      absolute,
+      actor,
+      summary,
+    }))).toEqual(trail);
+  });
+
+  it("collapses the per-copy fan-out to the newest row's details", () => {
+    const newest = { before: {}, after: {}, changes: { title: ["a", "b"] } };
+    const items = buildHistoryEntries(
+      [
+        trailRow({ action: AUDIT_ACTIONS.eventUpdate, createdAt: new Date("2026-10-22T06:30:40Z"), details: newest }),
+        trailRow({ action: AUDIT_ACTIONS.eventUpdate, createdAt: new Date("2026-10-22T06:30:10Z"), details: {} }),
+      ],
+      NOW,
+    );
+    expect(items).toHaveLength(1);
+    expect(items[0].details).toBe(newest);
+  });
+
+  it("drops participant-notify rows", () => {
+    const items = buildHistoryEntries(
       [
         trailRow({ action: AUDIT_ACTIONS.eventParticipantNotify, createdAt: NOW }),
         trailRow({ action: AUDIT_ACTIONS.eventCreate, createdAt: new Date("2026-10-20T01:00:00Z") }),

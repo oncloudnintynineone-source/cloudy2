@@ -1943,6 +1943,17 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     fetching fresh per open via the `getEventHistory` server action with the
     shaped skeleton inside. `ALWAYS_FRESH_PREFIXES` drops `/event-history`.
     Docs: `docs/event-history.md` §1.3/§1.8, `AGENTS.md`.
+- 1.327 **History modal feels instant** (perceived latency): rows prefetch
+    their audit rows on hover/press into a session `Map`
+    (`src/lib/events/historyCache.ts`), and a My Events row passes its inline
+    trail as a `preview` so the modal paints the real title, Deleted badge,
+    retention line, and collapsed entry headers before any fetch resolves —
+    the fetched entries (identical headers, now expandable) swap in silently.
+    The modal list is built by `buildHistoryEntries` with the *same* collapse
+    as the trail (fan-out merged, notify rows dropped) so the swap never
+    reflows; the skeleton remains only on the cold no-preview path (the
+    dashboard History button, which now passes the event title). Docs:
+    `docs/event-history.md` §1.3.
 
 ## 1.4 Open items & next steps
 
