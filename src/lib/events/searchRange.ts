@@ -1,12 +1,13 @@
 /**
- * Pure helpers for the event-search date range. The search reads events from
- * Google Calendar directly (bypassing the month cache), bounded by an inclusive
- * `YYYY-MM-DD` [from, to] window the user picks. Defaults and boundary math
- * live here so they are unit-testable without a DB or Google runtime.
+ * Pure helpers for the event-search date range and result ranking. The search
+ * reads events from Google Calendar directly (bypassing the month cache), bounded
+ * by an inclusive `YYYY-MM-DD` [from, to] window the user picks. Defaults,
+ * boundary math and the substring-before-fuzzy tiering live here so they are
+ * unit-testable without a DB or Google runtime.
  */
 
 import { addDays, addOneDay, dateToUtc, exclusiveAbsEventRange } from "./datetime";
-import { fuzzySearch } from "@/lib/search/fuzzy";
+import { fuzzySearchRanked } from "@/lib/search/fuzzy";
 import type { CalendarEvent } from "./queries";
 
 /** Default window opens this many months before today. */
@@ -103,10 +104,45 @@ const EVENT_SEARCH_KEYS = [
 ] as const;
 
 /**
+ * The two result tiers event search orders by: a query that appears **verbatim**
+ * in a searchable field leads, typo-tolerant Fuse hits follow.
+ */
+export type SearchMatchTier = "substring" | "fuzzy";
+
+/** The four searchable strings of an event (same set as `EVENT_SEARCH_KEYS`). */
+function searchableFields(event: CalendarEvent): string[] {
+  return [
+    event.title,
+    event.payload.location,
+    event.payload.eventType ?? "",
+    event.payload.calendarName,
+  ];
+}
+
+/**
+ * True when `query` occurs as a literal, case-insensitive substring of any
+ * searchable field of the event. A blank query matches everything.
+ */
+export function eventSubstringMatch(event: CalendarEvent, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (q === "") {
+    return true;
+  }
+  return searchableFields(event).some((field) => field.toLowerCase().includes(q));
+}
+
+/** Which tier an event lands in for the given query. */
+export function searchMatchTier(event: CalendarEvent, query: string): SearchMatchTier {
+  return eventSubstringMatch(event, query) ? "substring" : "fuzzy";
+}
+
+/**
  * Narrow a cache-read range to the exact date window and, when a query is given,
- * fuzzy-filter by title/location/type/calendar in relevance order (Fuse sorts by
- * score; the pre-sort by start makes ties chronological). A blank query returns
- * the in-window events chronologically.
+ * filter by title/location/type/calendar in **tier order**: literal substring
+ * matches first, then the typo-tolerant ones. Inside each tier the Fuse relevance
+ * rank is kept (and its score ties fall back to chronological order, thanks to
+ * the pre-sort by start). A blank query returns the in-window events
+ * chronologically.
  */
 export function filterRangeForSearch(
   events: readonly CalendarEvent[],
@@ -122,5 +158,15 @@ export function filterRangeForSearch(
   const chronological = [...within].sort((a, b) =>
     a.start < b.start ? -1 : a.start > b.start ? 1 : 0,
   );
-  return fuzzySearch(chronological, q, [...EVENT_SEARCH_KEYS]);
+  const ranked = fuzzySearchRanked(chronological, q, [...EVENT_SEARCH_KEYS]);
+  const substring: CalendarEvent[] = [];
+  const fuzzy: CalendarEvent[] = [];
+  for (const { item } of ranked) {
+    if (eventSubstringMatch(item, q)) {
+      substring.push(item);
+    } else {
+      fuzzy.push(item);
+    }
+  }
+  return [...substring, ...fuzzy];
 }

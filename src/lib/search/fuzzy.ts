@@ -106,6 +106,31 @@ export function fuzzyFilter<T>(
 
 /**
  * Fuzzy-search `items` by one or more Fuse keys, returning matches in relevance
+ * order **with their Fuse score**, so a caller can re-tier the ranking (event
+ * search puts literal substring hits ahead of typo-tolerant ones). A blank query
+ * yields every item in input order with score `0`.
+ */
+export function fuzzySearchRanked<T>(
+  items: readonly T[],
+  query: string,
+  keys: Array<FuseOptionKey<T>>,
+  options?: IFuseOptions<T>,
+): Array<{ item: T; score: number }> {
+  const q = normalizeQuery(query);
+  if (q === "") {
+    return (items as T[]).map((item) => ({ item, score: 0 }));
+  }
+  const fuse = new Fuse(items as T[], {
+    keys,
+    ...DEFAULT_FUZZY_OPTIONS,
+    shouldSort: true,
+    ...options,
+  });
+  return fuse.search(q).map((result) => ({ item: result.item, score: result.score ?? 0 }));
+}
+
+/**
+ * Fuzzy-search `items` by one or more Fuse keys, returning matches in relevance
  * order (`shouldSort: true` by default). A blank query returns a shallow copy.
  */
 export function fuzzySearch<T>(
@@ -114,17 +139,7 @@ export function fuzzySearch<T>(
   keys: Array<FuseOptionKey<T>>,
   options?: IFuseOptions<T>,
 ): T[] {
-  const q = normalizeQuery(query);
-  if (q === "") {
-    return [...items];
-  }
-  const fuse = new Fuse(items as T[], {
-    keys,
-    ...DEFAULT_FUZZY_OPTIONS,
-    shouldSort: true,
-    ...options,
-  });
-  return fuse.search(q).map((result) => result.item);
+  return fuzzySearchRanked(items, query, keys, options).map((result) => result.item);
 }
 
 /**

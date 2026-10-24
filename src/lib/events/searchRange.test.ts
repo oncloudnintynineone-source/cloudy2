@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import type { CalendarEvent } from "./queries";
-import { eventWithinRange, filterRangeForSearch } from "./searchRange";
+import {
+  eventSubstringMatch,
+  eventWithinRange,
+  filterRangeForSearch,
+  searchMatchTier,
+} from "./searchRange";
 
 function event(overrides: {
   start: string;
@@ -93,5 +98,47 @@ describe("filterRangeForSearch", () => {
     ];
     const result = filterRangeForSearch(ranked, "2026-09-24", "2026-09-24", "report");
     expect(result.map((e) => e.title)).toEqual(["Report", "Quarterly report"]);
+  });
+
+  it("puts literal substring hits ahead of typo-tolerant ones", () => {
+    const tiered = [
+      event({ start: "2026-09-24 09:00:00", end: "2026-09-24 10:00:00", title: "Brieffng recap" }),
+      event({
+        start: "2026-09-24 11:00:00",
+        end: "2026-09-24 12:00:00",
+        title: "Safety briefing for all departments and contractors",
+      }),
+    ];
+    const result = filterRangeForSearch(tiered, "2026-09-24", "2026-09-24", "briefing");
+    expect(result.map((e) => e.title)).toEqual([
+      "Safety briefing for all departments and contractors",
+      "Brieffng recap",
+    ]);
+  });
+});
+
+describe("searchMatchTier", () => {
+  const event2 = event({
+    start: "2026-09-24 09:00:00",
+    end: "2026-09-24 10:00:00",
+    title: "Safety briefing",
+    location: "Sembawang",
+    eventType: "Training",
+  });
+
+  it("classifies a verbatim field hit as substring, case-insensitively", () => {
+    expect(searchMatchTier(event2, "brief")).toBe("substring");
+    expect(searchMatchTier(event2, "SEmb")).toBe("substring");
+    expect(searchMatchTier(event2, "training")).toBe("substring");
+    expect(searchMatchTier(event2, "logistic")).toBe("substring");
+  });
+
+  it("classifies a typo-only hit as fuzzy", () => {
+    expect(searchMatchTier(event2, "brieffng")).toBe("fuzzy");
+    expect(searchMatchTier(event2, "sembawng")).toBe("fuzzy");
+  });
+
+  it("treats a blank query as a substring match", () => {
+    expect(eventSubstringMatch(event2, "   ")).toBe(true);
   });
 });

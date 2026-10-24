@@ -5,10 +5,11 @@ from the shell header's "Search events" button (calendar page at `lg`+) or the
 calendar-page bottom control pill's search circle (below `lg`).
 It reads the **layered events cache** for the months the date window touches,
 trims the result to the exact window, and Fuse.js-ranks title/location/type/
-calendar matches — so a small typo still finds the event. Results render as a
-flat, relevance-ranked list; tapping one shows a **spinner on that row** while it
-navigates to the dashboard, which opens the **shared** full event detail modal
-(with in-place Duplicate/Edit/Delete).
+calendar matches — a query that appears **verbatim** in a field leads, the
+typo-tolerant matches follow (§1.8.1) — so a small typo still finds the event.
+Results render as a flat, tier-then-relevance-ranked list; tapping one shows a
+**spinner on that row** while it navigates to the dashboard, which opens the
+**shared** full event detail modal (with in-place Duplicate/Edit/Delete).
 
 ## Table of contents
 
@@ -20,6 +21,7 @@ navigates to the dashboard, which opens the **shared** full event detail modal
 - [1.6 Search scope & security](#16-search-scope--security)
 - [1.7 Date range & defaults](#17-date-range--defaults)
 - [1.8 Searchable surface & fuzzy matching](#18-searchable-surface--fuzzy-matching)
+  - [1.8.1 Result tiers](#181-result-tiers)
 - [1.9 The search modal (lazy-loaded)](#19-the-search-modal-lazy-loaded)
 - [1.10 Search history](#110-search-history)
 - [1.11 Pure helpers & testing](#111-pure-helpers--testing)
@@ -178,6 +180,27 @@ callers and on for event search (relevance ranking).
 Numeric identifiers are matched **exactly** (case-insensitive substring), never
 fuzzily — see the `{ value, fuzzy: false }` field in §1.11.
 
+### 1.8.1 Result tiers
+
+Fuse's raw score alone can put a one-edit typo ahead of a verbatim hit buried in
+a long field (the field-length norm penalises long text), so
+`filterRangeForSearch` re-buckets the ranked matches into two tiers before
+returning them:
+
+1. **`substring`** — the query occurs verbatim (case-insensitive) in any of the
+   four fields (`eventSubstringMatch` / `searchMatchTier`,
+   `src/lib/events/searchRange.ts`).
+2. **`fuzzy`** — everything else Fuse accepted, i.e. typo-tolerant hits
+   (`"brieffng"` → "Safety briefing").
+
+The buckets are concatenated in that order, and each keeps Fuse's relevance order
+(the partition is a stable concatenation, and the chronological pre-sort still
+resolves score ties), so the list reads *literal first, then typo-tolerant* with
+no section headers in the UI — the tiering is purely an ordering, and the modal
+renders the returned array as-is. `fuzzySearchRanked` (`src/lib/search/fuzzy.ts`)
+returns `{ item, score }` so the tiering needs no second Fuse pass; `fuzzySearch`
+is now a thin wrapper over it.
+
 ## 1.9 The search modal (lazy-loaded)
 
 `EventSearchModal` (`src/components/EventSearchModal.tsx`):
@@ -217,8 +240,8 @@ fuzzily — see the `{ value, fuzzy: false }` field in §1.11.
   `LoadingStatus`), so the badges never pop in out of nowhere; an empty history
   collapses the section. A result-count +
   active-range caption (from the resolved window, not the result extremes) with
-  a Clear action heads the list. Results render as a **flat list in relevance
-  order** — each row a colored stripe + title + a date/time/all-day line, plus
+  a Clear action heads the list. Results render as a **flat list in tier-then-relevance
+  order** (§1.8.1) — each row a colored stripe + title + a date/time/all-day line, plus
   location and calendar — reusing the dashboard's amber `c2-my-agenda-event` /
   purple `c2-ext-agenda-event` highlight (the action returns `myEventIds`).
   Rows are paged (`RESULT_PAGE_SIZE` = 150) with a "Show more" button to keep the
@@ -292,7 +315,7 @@ the cache-backed search with the current (defaulted) date window.
 The decision-making parts are pure and unit-tested. `searchRange.test.ts` covers
 the date helpers plus `eventWithinRange` / `filterRangeForSearch`;
 `searchHistory.test.ts` covers the history list; `fuzzy.test.ts` covers
-`fuzzyFilter` / `fuzzySearch` / `fuzzyMatches`. Everything that touches Google,
+`fuzzyFilter` / `fuzzySearch` / `fuzzySearchRanked` / `fuzzyMatches`. Everything that touches Google,
 Postgres, or the Next runtime (the `searchEvents` action, `readCalendarRange`
 wiring, the `searchHistoryActions` actions) follows the repo convention of being
 I/O-bound and untested.
@@ -304,6 +327,8 @@ The shared `src/lib/search/fuzzy.ts` wraps Fuse.js once for the whole app
   preserved. `getFields` may return `{ value, fuzzy: false }` for identifiers
   (e.g. phone) matched by case-insensitive substring instead of fuzzily.
 - `fuzzySearch(items, query, keys)` — relevance-ranked match by object keys.
+- `fuzzySearchRanked(items, query, keys)` — the same, but returning
+  `{ item, score }` so a caller can re-tier the ranking (event search).
 - `fuzzyMatches(fields, query)` — one-off boolean test.
 
 | Helper | Module | Tests |
@@ -313,7 +338,8 @@ The shared `src/lib/search/fuzzy.ts` wraps Fuse.js once for the whole app
 | `searchRangeBoundaries` | `events/searchRange.ts` | `searchRange.test.ts` |
 | `coerceSearchRange` | `events/searchRange.ts` | `searchRange.test.ts` |
 | `eventWithinRange` / `filterRangeForSearch` | `events/searchRange.ts` | `searchRange.test.ts` |
-| `fuzzyFilter` / `fuzzySearch` / `fuzzyMatches` | `search/fuzzy.ts` | `fuzzy.test.ts` |
+| `eventSubstringMatch` / `searchMatchTier` | `events/searchRange.ts` | `searchRange.test.ts` |
+| `fuzzyFilter` / `fuzzySearch` / `fuzzySearchRanked` / `fuzzyMatches` | `search/fuzzy.ts` | `fuzzy.test.ts` |
 | `addSearchHistoryEntry` / `removeSearchHistoryEntry` / `cleanSearchHistoryList` | `events/searchHistory.ts` | `searchHistory.test.ts` |
 
 ## 1.12 File index & related docs

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { fuzzyFilter, fuzzyMatches, fuzzySearch } from "./fuzzy";
+import { fuzzyFilter, fuzzyMatches, fuzzySearch, fuzzySearchRanked } from "./fuzzy";
 
 const PEOPLE = [
   { id: "a", name: "Alice Tan", shortname: "AT", phone: "81234567" },
@@ -88,5 +88,19 @@ describe("fuzzySearch", () => {
     ];
     const result = fuzzySearch(items, "sembawng", ["title", "location"]);
     expect(result.map((item) => item.title)).toEqual(["Other"]);
+  });
+});
+
+describe("fuzzySearchRanked", () => {
+  it("exposes the Fuse score next to each item, best first", () => {
+    const items = [{ title: "Quarterly report" }, { title: "Report" }];
+    const ranked = fuzzySearchRanked(items, "report", ["title"]);
+    expect(ranked.map((r) => r.item.title)).toEqual(["Report", "Quarterly report"]);
+    expect(ranked[0].score).toBeLessThan(ranked[1].score);
+  });
+
+  it("returns every item in input order with score 0 for a blank query", () => {
+    const ranked = fuzzySearchRanked([{ title: "A" }, { title: "B" }], "  ", ["title"]);
+    expect(ranked.map((r) => [r.item.title, r.score])).toEqual([["A", 0], ["B", 0]]);
   });
 });

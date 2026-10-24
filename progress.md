@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.331 (silent event pop-ins after in-place calendar re-reads)** is shipped.
+- All work through changelog **1.332 (event search ranks literal hits above typo-tolerant ones)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -1991,6 +1991,17 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     spinner (`tabStatus`, `.c2-tab-line-spinner`), since below `lg` there is no
     tab strip and an in-place swap had no visible signal at all. Docs:
     `docs/loading-transitions.md` §1.8/§1.13.2, `docs/events-cache.md` §1.5.
+- 1.332 **Event search ranks literal hits above typo-tolerant ones**:
+  `filterRangeForSearch` (`src/lib/events/searchRange.ts`) now buckets the Fuse
+  matches into two tiers — the query appearing **verbatim** in
+  title/location/type/calendar (`eventSubstringMatch` / `searchMatchTier`) ahead
+  of the typo-tolerant hits — each tier keeping Fuse's relevance order (and the
+  chronological pre-sort for ties), so a one-edit typo can no longer outrank a
+  verbatim hit buried in a long field. `fuzzySearchRanked`
+  (`src/lib/search/fuzzy.ts`) returns `{ item, score }` so the tiering needs no
+  second Fuse pass, and `fuzzySearch` is now a thin wrapper. Pure + unit-tested;
+  the modal renders the returned array unchanged (no section headers). Docs:
+  `docs/event-search.md` §1.8.1, §1.11.
 
 ## 1.4 Open items & next steps
 
