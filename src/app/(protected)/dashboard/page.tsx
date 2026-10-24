@@ -10,6 +10,9 @@ import { requireSession } from "@/lib/session";
 import { DashboardScreen } from "./DashboardScreen";
 import DashboardLoading from "./loading";
 
+/** Same month shape the server's `resolvePeriod` accepts. */
+const MONTH_PATTERN = /^\d{4}-\d{2}$/;
+
 /**
  * The Calendar route is a thin server shell (docs/pwa-offline.md). It resolves
  * only the session and the device-local zoom state, then hands off to the
@@ -34,6 +37,11 @@ export default async function DashboardPage() {
   const initialMonthZoom = clampMonthZoom(nav?.monthZoom) ?? 1;
   // Dual Pane split ratio (Month pane fraction) — same device-local contract.
   const initialDualSplit = clampDualSplit(nav?.dualSplit) ?? DUAL_SPLIT_DEFAULT;
+  // The remembered anchor month (validated like the server's `resolvePeriod`)
+  // tells the client which cached context to paint on a cold open, so the
+  // preload's future-month anchors never become the landing view.
+  const initialMonth =
+    typeof nav?.month === "string" && MONTH_PATTERN.test(nav.month) ? nav.month : null;
 
   return (
     <PageTransition>
@@ -46,6 +54,7 @@ export default async function DashboardPage() {
           initialWeekMatrixZoom={initialWeekMatrixZoom}
           initialMonthZoom={initialMonthZoom}
           initialDualSplit={initialDualSplit}
+          initialMonth={initialMonth}
         />
       </Suspense>
     </PageTransition>

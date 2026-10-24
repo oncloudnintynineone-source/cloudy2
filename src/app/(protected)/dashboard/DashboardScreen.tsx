@@ -30,6 +30,7 @@ import {
 import {
   candidateKeyForUrl,
   classifyDashboardFetch,
+  pickColdPaintRecord,
   previewRevertDelayMs,
   resolveDashboardNavigation,
 } from "@/lib/dashboard/navigation";
@@ -55,6 +56,8 @@ interface DashboardScreenProps {
   initialMonthZoom: MonthZoom;
   /** Dual Pane Month-pane fraction, seeded from the device cookie. */
   initialDualSplit: number;
+  /** The device cookie's remembered anchor month, used to pick the cold paint. */
+  initialMonth: string | null;
 }
 
 /**
@@ -96,6 +99,7 @@ export function DashboardScreen({
   initialWeekMatrixZoom,
   initialMonthZoom,
   initialDualSplit,
+  initialMonth,
 }: DashboardScreenProps) {
   const searchParams = useSearchParams();
   // The latest URL params, read by the fetch without re-triggering it on
@@ -383,9 +387,9 @@ export function DashboardScreen({
   );
 
   // Hydrate the warm cache and paint a stored context as soon as it is read: the
-  // first tab's when the URL is silent (never the last-viewed tab), else the
-  // newest. A fresh server response always wins if it lands first. A force-refresh
-  // reload clears the cache instead of painting it.
+  // cached context for the anchor the load names (URL params, then the device
+  // cookie) on the resolved tab. A fresh server response always wins if it lands
+  // first. A force-refresh reload clears the cache instead of painting it.
   useEffect(() => {
     let alive = true;
     void readDashboardSnapshots(userId).then((cached) => {
@@ -406,23 +410,18 @@ export function DashboardScreen({
         });
       }
       if (hasFreshRef.current || cached.length === 0) return;
-      const latest = cached.reduce((a, b) => (a.savedAt >= b.savedAt ? a : b));
-      // Cold load with a silent URL defaults to the first tab, so the
-      // last-viewed tab is never resurrected from the device cache. With
-      // `?view=` the URL resolves the tab, so any record can hold the paint.
-      const urlView = paramsRef.current.get("view");
-      const firstTabId = latest.data.tabs[0]?.id ?? null;
-      const paint =
-        urlView || !firstTabId
-          ? latest
-          : cached
-              .filter((entry) => entry.data.activeView.id === firstTabId)
-              .reduce<DashboardSnapshotRecord | null>(
-                (a, b) => (a === null || a.savedAt <= b.savedAt ? b : a),
-                null,
-              );
-      // No cached context for the first tab: leave `record` empty so the fetch
-      // reads it from the server (which also defaults to the first tab).
+      // The anchor the load names (URL params, then the device cookie) decides
+      // which cached context holds the paint — the preload's future-month
+      // anchors are stored *newer* than the viewed month, so a plain "newest
+      // record" pick would open the calendar two months ahead. No cached context
+      // for the anchor: leave `record` empty so the fetch reads it from the
+      // server, which resolves the same anchor.
+      const paint = pickColdPaintRecord(cached, {
+        urlView: paramsRef.current.get("view"),
+        urlMonth: paramsRef.current.get("month"),
+        urlDate: paramsRef.current.get("date"),
+        rememberedMonth: initialMonth,
+      });
       if (!paint) return;
       setSource("cache");
       setRecord(paint);
@@ -430,7 +429,7 @@ export function DashboardScreen({
     return () => {
       alive = false;
     };
-  }, [userId, setWarmRecords]);
+  }, [userId, setWarmRecords, initialMonth]);
 
   // Fetch only when the URL asks for data the held record doesn't already
   // cover (mount, tab switch, month-set change) — never for an in-month day

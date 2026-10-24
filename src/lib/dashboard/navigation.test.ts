@@ -4,6 +4,7 @@ import {
   candidateKeyForUrl,
   classifyDashboardFetch,
   gridMonthsCovered,
+  pickColdPaintRecord,
   planDashboardSwitch,
   PREVIEW_STALL_MS,
   previewRevertDelayMs,
@@ -467,5 +468,80 @@ describe("gridMonthsCovered", () => {
     // Sunday-start Oct 2026 grid: Sep 27 - Oct 31 -> {09, 10}; Nov grid: Nov 1 - Dec 5 -> {11, 12}.
     expect(gridMonthsCovered("2026-10", "2026-11", "sunday")).toBe(false);
     expect(gridMonthsCovered("2026-11", "2026-10", "sunday")).toBe(false);
+  });
+});
+
+describe("pickColdPaintRecord", () => {
+  const monthTab = tab({ id: "tab-a", name: "A" });
+  const agendaTab = tab({ id: "tab-b", kind: "agenda", name: "B" });
+  const tabs = [monthTab, agendaTab];
+  const anchor = (active: DashboardViewTab, month: string, savedAt: number) => ({
+    ...recordFor(active, tabs, { month, date: `${month}-12` }),
+    savedAt,
+  });
+  const silent = { urlView: null, urlMonth: null, urlDate: null };
+
+  it("paints the remembered anchor month, not the newer preload anchors", () => {
+    // The preload batch (current + next two months) is written after the viewed
+    // month, so "newest" alone lands two months ahead.
+    const cached = [
+      anchor(monthTab, "2026-10", 100),
+      anchor(monthTab, "2026-11", 200),
+      anchor(monthTab, "2026-12", 200),
+    ];
+    const paint = pickColdPaintRecord(cached, { ...silent, rememberedMonth: "2026-10" });
+    expect(paint?.context.month).toBe("2026-10");
+  });
+
+  it("uses the URL month over the remembered one", () => {
+    const cached = [anchor(monthTab, "2026-10", 100), anchor(monthTab, "2026-11", 200)];
+    const paint = pickColdPaintRecord(cached, {
+      ...silent,
+      urlMonth: "2026-11",
+      rememberedMonth: "2026-10",
+    });
+    expect(paint?.context.month).toBe("2026-11");
+  });
+
+  it("derives the anchor month from a URL date", () => {
+    const cached = [anchor(monthTab, "2026-10", 100), anchor(monthTab, "2026-12", 200)];
+    const paint = pickColdPaintRecord(cached, {
+      ...silent,
+      urlDate: "2026-10-31",
+      rememberedMonth: null,
+    });
+    expect(paint?.context.month).toBe("2026-10");
+  });
+
+  it("paints nothing when the anchor has no cached context", () => {
+    const cached = [anchor(monthTab, "2026-11", 200), anchor(monthTab, "2026-12", 200)];
+    expect(pickColdPaintRecord(cached, { ...silent, rememberedMonth: "2026-10" })).toBeNull();
+  });
+
+  it("falls back to the newest record when nothing is remembered", () => {
+    const cached = [anchor(monthTab, "2026-10", 100), anchor(monthTab, "2026-12", 200)];
+    const paint = pickColdPaintRecord(cached, { ...silent, rememberedMonth: null });
+    expect(paint?.context.month).toBe("2026-12");
+  });
+
+  it("never resurrects the last-viewed tab when the URL is silent", () => {
+    const cached = [anchor(monthTab, "2026-10", 100), anchor(agendaTab, "2026-10", 300)];
+    const paint = pickColdPaintRecord(cached, { ...silent, rememberedMonth: "2026-10" });
+    expect(paint?.data.activeView.id).toBe("tab-a");
+  });
+
+  it("honours a URL view even without a month", () => {
+    const cached = [anchor(monthTab, "2026-10", 100), anchor(agendaTab, "2026-10", 200)];
+    const paint = pickColdPaintRecord(cached, {
+      urlView: "tab-b",
+      urlMonth: null,
+      urlDate: null,
+      rememberedMonth: "2026-10",
+    });
+    expect(paint?.data.activeView.id).toBe("tab-b");
+  });
+
+  it("returns null for an empty cache", () => {
+    expect(pickColdPaintRecord([], { ...silent, rememberedMonth: "2026-10" })).toBeNull();
   });
 });

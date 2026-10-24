@@ -99,8 +99,10 @@ doc content here.
   strips it). The `/dashboard` route is a **thin server shell** (`page.tsx`): all
   dashboard reads moved into the `loadDashboardData` server action via
   `buildDashboardData` (`src/lib/dashboard/data.ts`), and the client `DashboardScreen`
-  paints the last **device-local snapshot** (IndexedDB, `src/lib/dashboard/localStore.ts`)
-  instantly, then always revalidates and swaps in place — mutations call the
+  paints the device-local snapshot for the **anchor the URL/cookie names** (IndexedDB,
+  `src/lib/dashboard/localStore.ts`; the pick is `pickColdPaintRecord` in
+  `src/lib/dashboard/navigation.ts` — never "the newest record", which would be a
+  preload's future-month anchor) instantly, then always revalidates and swaps in place — mutations call the
   provider's `revalidate()`, never `router.refresh()`. After the active context is fresh,
   the client **preloads every tab** for the current anchor **and the active tab for the
   next two months** (`preloadDashboardTabs` →

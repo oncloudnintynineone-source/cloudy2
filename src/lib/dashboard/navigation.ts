@@ -331,6 +331,47 @@ export function resolveDashboardNavigation(input: DashboardNavigationInput): Das
 }
 
 /**
+ * Which cached context a cold open paints. The warm store holds every context
+ * the device has ever loaded — including the preload's future-month anchors for
+ * the active tab, which are written *newer* than the viewed month — so "the
+ * newest record" is usually a month the user never asked for. The paint must
+ * answer the anchor the load names: URL `?month`/`?date` win, then the device's
+ * remembered month. With an anchor but no cached context for it, paint nothing
+ * and let the server read resolve it (the same anchor rule), rather than
+ * painting an unrelated — typically future — month and having the revalidation
+ * fight the chrome back. With no anchor at all (first-ever load), the newest
+ * record for the resolved tab still paints instantly.
+ */
+export function pickColdPaintRecord(
+  cached: readonly DashboardSnapshotRecord[],
+  opts: {
+    urlView: string | null;
+    urlMonth: string | null;
+    urlDate: string | null;
+    /** The device cookie's remembered dashboard month, if any. */
+    rememberedMonth: string | null;
+  },
+): DashboardSnapshotRecord | null {
+  if (cached.length === 0) return null;
+  const newest = (records: readonly DashboardSnapshotRecord[]): DashboardSnapshotRecord =>
+    records.reduce((a, b) => (a.savedAt >= b.savedAt ? a : b));
+  const anchorMonth =
+    opts.urlMonth ?? (opts.urlDate ? opts.urlDate.slice(0, 7) : opts.rememberedMonth);
+
+  // A cold load with a silent tab defaults to the first tab in strip order — the
+  // last-viewed tab is never resurrected from the device cache.
+  const firstTabId = newest(cached).data.tabs[0]?.id ?? null;
+  const pool = opts.urlView
+    ? cached.filter((entry) => entry.data.activeView.id === opts.urlView)
+    : cached.filter((entry) => entry.data.activeView.id === firstTabId);
+  const candidates = pool.length > 0 ? pool : cached;
+
+  if (anchorMonth === null) return newest(candidates);
+  const anchored = candidates.filter((entry) => entry.context.month === anchorMonth);
+  return anchored.length > 0 ? newest(anchored) : null;
+}
+
+/**
  * How long an optimistic tab tap may survive while its router transition is
  * still pending but the URL has not caught up. This is only a safety net for a
  * transition that never resolves; the normal revert happens as soon as the

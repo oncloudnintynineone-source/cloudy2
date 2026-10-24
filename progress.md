@@ -2046,6 +2046,17 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     centred 560px bar. Docs: `docs/event-lifecycle.md` §1.4.3,
     `docs/dashboard-views.md` §1.1, `docs/desktop-responsive.md` §1.7,
     `docs/accessibility.md` §1.6.
+- 1.336 **Fix: the calendar opened two months ahead**: the cold-open paint took the
+    *newest* cached snapshot, but the tab preload writes the active tab's current + next
+    two months in one batch stamped with a later `savedAt` than the viewed month — so a
+    silent-URL load painted the anchor + 2 months, and `usePersistDashboardNav` then wrote
+    that future month into the `cloudy2.ui` cookie, which the server's `resolvePeriod`
+    reads back on the next open (drifting forward every session). `pickColdPaintRecord`
+    (`src/lib/dashboard/navigation.ts`, unit-tested) now resolves the anchor — URL
+    `?month`/`?date`, then the remembered cookie month — and paints only the cached context
+    for that anchor on the resolved tab (first tab when the URL is silent), painting
+    nothing when no context answers it so the fetch reads it. `page.tsx` passes the
+    remembered month to `DashboardScreen`. Docs: `docs/pwa-offline.md` §1.18.
 
 ## 1.4 Open items & next steps
 

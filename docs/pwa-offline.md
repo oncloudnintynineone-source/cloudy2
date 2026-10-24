@@ -606,10 +606,16 @@ sequenceDiagram
   instances converge when their TTL expires.
 - **Cached first paint & warm revisits.** `DashboardScreen` hydrates a
   per-account map of cached *contexts* from IndexedDB
-  (`src/lib/dashboard/localStore.ts`) on mount. A cold load with a silent URL
-  paints the cached context for the **first tab** (falling back to a fetch when
-  that tab isn't cached), so the last-viewed tab is never resurrected; with
-  `?view=` the URL resolves the tab and the newest record can hold the paint.
+  (`src/lib/dashboard/localStore.ts`) on mount. The paint is chosen by the
+  **anchor the load names**, not by recency: URL `?month`/`?date` win, then the
+  device cookie's remembered month (`pickColdPaintRecord`,
+  `src/lib/dashboard/navigation.ts`), and the tab is the URL `?view=` or — with a
+  silent URL — the **first tab** in strip order, so the last-viewed tab is never
+  resurrected. This matters because the preload batch (current + next two months)
+  is written *after* the viewed month, so a plain "newest record" pick would land
+  the calendar two months ahead on every cold open. When no cached context answers
+  the anchor nothing is painted and the fetch reads it (the server applies the
+  same anchor rule).
   Every successful read writes its context (keyed by the account id
   + `requestKey`), capped at `MAX_SNAPSHOTS_PER_USER` (24) by LRU
   (`selectSnapshotsToEvict`), which bounds disk, the cold-start hydration parse
