@@ -7,6 +7,7 @@ import { IconCloudOff } from "@tabler/icons-react";
 import { EmptyState } from "@/components/EmptyState";
 import { useReportActivity } from "@/components/ActivityBar";
 import { withTimeout } from "@/lib/async";
+import { isColdLaunchActive } from "@/lib/loading/coldLaunch";
 import { useLoadingIndicator } from "@/lib/loading/loadingIndicator";
 import { loadDashboardData, preloadDashboardTabs } from "@/lib/dashboard/actions";
 import {
@@ -727,7 +728,7 @@ export function DashboardScreen({
         />
       );
     }
-    return <DashboardShellSkeleton />;
+    return <DashboardShellSkeleton brand={isColdLaunchActive()} />;
   }
 
   const shown = navigation.displayRecord ?? record;

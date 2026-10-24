@@ -117,7 +117,7 @@ Suspense fallback), shaped to match the real content:
 
 | Segment | `loading.tsx` |
 | ------- | ------------- |
-| `(protected)/dashboard` | one plain full-page skeleton box with a decorative centered brand overlay (app icon breathing over "Waking from Deep Sleep…", `c2-boot-*` in `globals.css`). Views are on-demand tabs whose renderer kind is only known after the server resolves the active tab (and loading files receive no URL props), so the route skeleton can no longer shape to a kind — the in-page transition skeletons inside `DashboardView` still do |
+| `(protected)/dashboard` | one plain full-page skeleton box with a decorative centered brand overlay (app icon breathing over "Waking from Deep Sleep…", `c2-boot-*` in `globals.css`) — **cold-launch only**: `loading.tsx` skips it for soft navigations (RSC requests carry the `rsc: 1` header, the same signal the SW uses in `swRules.ts`), and `ColdStartBrandOverlay` self-gates on the per-document flag in `src/lib/loading/coldLaunch.ts`, which the cold-start machine (`ColdStartReadyProvider`) clears once the landing content settles. Views are on-demand tabs whose renderer kind is only known after the server resolves the active tab (and loading files receive no URL props), so the route skeleton can no longer shape to a kind — the in-page transition skeletons inside `DashboardView` still do |
 | `(protected)/parade-state` | day card + rows from `paradeStateSkeleton.tsx` |
 | `(protected)/contacts` | list skeleton |
 | `(protected)/settings/users` | user card skeletons |
@@ -624,6 +624,13 @@ is tracked — their only UI effect is additive (header growth, a nav entry).
   so they cannot hang indefinitely.
 - **READY_DWELL_MS (1.2 s)** — how long the green bar stays before the machine
   finishes for the session.
+
+**Cold-launch brand overlay.** The machine also retires the dashboard skeleton's
+brand overlay (§1.4): entering `ready` or `done` calls `markColdLaunchSettled()`
+(`src/lib/loading/coldLaunch.ts`, a pure per-document flag). Since the flag lives
+in the JS context, it is `true` for a fresh document load (PWA launch, F5, Force
+refresh — all cold boots) and stays `false` for every later soft navigation, so
+the "Waking from Deep Sleep…" overlay never repaints mid-session.
 
 **Presentation & a11y.** During `loading` the indicator renders the standard
 amber strip (`.c2-activity-bar c2-activity-bar-active`, `role="progressbar"`);

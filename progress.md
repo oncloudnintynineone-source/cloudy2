@@ -1978,7 +1978,18 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     one surface. Decorative (`aria-hidden`, pointer-transparent); the sr-only
     `LoadingStatus` stays the only announcement; `launchShell.test.ts` pins both
     sides. Docs: `docs/loading-transitions.md` §1.4, `docs/pwa-offline.md`
-     §1.5.1 table, `docs/dashboard-views.md`.
+    §1.5.1 table, `docs/dashboard-views.md`.
+- 1.331 **Fix: the brand overlay only paints on cold launches** — soft
+    navigations into Calendar (Contacts → dashboard, tab/date navs) no longer
+    show "Waking from Deep Sleep…". Two gates: `loading.tsx` reads the
+    `rsc: 1` header (present on RSC/soft-nav requests, absent on document
+    loads — the same signal the SW uses) and passes `brand={false}` to the
+    skeleton; `ColdStartBrandOverlay` self-gates on a per-document
+    `coldLaunch` flag (`src/lib/loading/coldLaunch.ts`, unit-tested) that
+    `ColdStartReadyProvider` clears when the cold-start machine reaches
+    `ready`/`done`. Hard reload / Force refresh / PWA launch still show it
+    (fresh JS context = cold boot). Docs: `docs/loading-transitions.md`
+    §1.4/§1.13.1.
 - 1.331 **Fix: silent event pop-ins after an in-place calendar re-read**: a month
     tap used to paint the tapped grid from the held record whenever the two grids
     merely *shared* a month, so the uncovered trailing days rendered empty and

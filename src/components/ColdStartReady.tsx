@@ -12,6 +12,7 @@ import {
 import { usePathname } from "next/navigation";
 
 import { announce } from "@/lib/ui/announcer";
+import { markColdLaunchSettled } from "@/lib/loading/coldLaunch";
 import {
   READY_DWELL_MS,
   coldStartInitialState,
@@ -102,7 +103,12 @@ export function ColdStartReadyProvider({ children }: { children: ReactNode }) {
 
   // On entering the ready phase: announce the confirmation and dwell on the
   // green bar, then finish — the machine stays `done` for the whole session.
+  // Reaching either phase also retires the cold-launch brand overlay (the
+  // cold tail is over), so later soft navigations never repaint it.
   useEffect(() => {
+    if (state.phase === "ready" || state.phase === "done") {
+      markColdLaunchSettled();
+    }
     if (state.phase !== "ready") return;
     announce("Calendar up to date");
     const id = window.setTimeout(

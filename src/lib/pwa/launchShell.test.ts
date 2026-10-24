@@ -61,17 +61,18 @@ describe("PWA launch shell", () => {
   it("carries the brand overlay mirroring the route skeleton", () => {
     // The cold start must read as one continuous surface: the precached app
     // icon breathing over the loading line, identical in intent to the
-    // `c2-boot-brand` overlay in DashboardShellSkeleton. Pin both sides so
-    // neither can drift silently.
+    // `c2-boot-brand` overlay in ColdStartBrandOverlay (the client component
+    // `DashboardShellSkeleton` renders inside the plain box). Pin both sides
+    // so neither can drift silently.
     expect(SHELL_HTML).toContain('class="boot-brand"');
     expect(SHELL_HTML).toContain('src="/icon.svg"');
     expect(SHELL_HTML).toContain("Waking from Deep Sleep");
-    const skeleton = readFileSync(
-      new URL("../../../src/app/(protected)/dashboard/DashboardShellSkeleton.tsx", import.meta.url),
+    const overlay = readFileSync(
+      new URL("../../../src/components/ColdStartBrandOverlay.tsx", import.meta.url),
       "utf8",
     );
-    expect(skeleton).toContain("c2-boot-brand");
-    expect(skeleton).toContain("Waking from Deep Sleep");
+    expect(overlay).toContain("c2-boot-brand");
+    expect(overlay).toContain("Waking from Deep Sleep");
   });
 
   it("follows the app's manual color-scheme override", () => {
