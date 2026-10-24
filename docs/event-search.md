@@ -224,12 +224,12 @@ is now a thin wrapper over it.
   stays mounted and keeps the history list (§1.10).
 - Owned by `AppShellShell` and **calendar-only**: at `lg`+ the shell header's
   "Search events" button opens it; below `lg` the floating control pill's own
-  search circle (left of the filter button) does.   The desktop trigger is a
-  `brand-8` pill at the pinned-ticker's height (`size="compact-md"`, with
-  `--button-height-compact-md`, `--button-bg` and `--button-hover` set through
-  Mantine's own button vars — the height pinned to the shared
-  `--c2-header-control-height` var), `radius="xl"`, its magnifier riding in a
-  `brand-7` (header-blue) disc — `.c2-header-search-icon` in `globals.css`.
+  search circle (left of the filter button) does. The desktop trigger is a
+  `brand-8` pill **34px** tall — one step taller than the 30px pinned-events pill,
+  so it lines up with the refresh/profile icons (`size="compact-md"`, `radius="xl"`,
+  `--button-bg`/`--button-hover` set through Mantine's button vars, height from
+  `.c2-header-search` → `--c2-search-button-height`), with its magnifier riding in
+  a `brand-7` (header-blue) 28px disc — `.c2-header-search-icon` in `globals.css`.
   Both are triggers into the
   shell-owned modal through `SearchPanelContext` (`src/lib/ui/searchPanel.ts`,
   the same channel pattern as `PinnedPanelContext`); the tapped trigger's rect

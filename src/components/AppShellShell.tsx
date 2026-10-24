@@ -1164,12 +1164,11 @@ export function AppShellShell({
                       radius="xl"
                       size="compact-md"
                       fz="sm"
-                      // Height pinned to the pinned-events pill's shared header
-                      // var rather than Mantine's own compact-md value, and the
-                      // pill body/hover go through Mantine's variant vars so the
-                      // library's own rules still apply.
+                      // Height comes from `.c2-header-search` in globals.css (34px,
+                      // matching the refresh/profile icons); the pill body/hover go
+                      // through Mantine's variant vars so its own rules still apply.
+                      className="c2-header-search"
                       __vars={{
-                        "--button-height-compact-md": "var(--c2-header-control-height)",
                         "--button-bg": "var(--mantine-color-brand-8)",
                         "--button-hover": "var(--mantine-color-brand-9)",
                       }}

@@ -79,8 +79,9 @@ event reads e.g. `45d` — and the **current event's `tickerTitle`**, one line,
 ellipsis-truncated.
 
 The pill's height is the shared `--c2-header-control-height` var (`globals.css`),
-which the desktop "Search events" trigger also reads — the two header controls are
-one row and can't drift apart.
+so the ticker's own shape stays stable; the desktop "Search events" trigger sits
+one step taller (34px, `--c2-search-button-height`) to match the header's icon
+buttons.
 
 The **indicator style is a feature flag** (`pinnedTickerIndicator`, Settings →
 Feature Flags, org-wide, default `classic`) — admins switch it to compare the

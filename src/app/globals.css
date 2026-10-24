@@ -402,11 +402,12 @@ html {
   }
 }
 
-/* Shared header-control height: the pinned-events pill and the desktop
-   "Search events" trigger are one row of the header, so both read this single
-   var and can never drift apart. */
+/* Shared header-control height: the pinned-events pill reads this, and the
+   desktop "Search events" trigger is deliberately one step taller (below) so it
+   lines up with the 34px refresh/profile icons in the header row. */
 :root:root {
   --c2-header-control-height: calc(1.875rem * var(--mantine-scale));
+  --c2-search-button-height: calc(2.125rem * var(--mantine-scale));
 }
 
 /* Header pinned-events ticker (docs/pinned-events.md): the brand pill anchored
@@ -651,16 +652,21 @@ html {
 /* Reduced motion: no slide — titles swap in place (the keyed remount still
    happens, just without the animation). */
 
-/* Desktop "Search events" trigger (docs/event-search.md §1.9): the magnifier
-   rides in a header-blue (brand-7) disc on the darker brand-8 pill — the pill's
-   own height/background/hover come from Mantine's `--button-*` vars set by
-   `AppShellShell`, with the height pinned to the shared header-control var so it
-   matches the pinned-events pill exactly. */
+/* Desktop "Search events" trigger (docs/event-search.md §1.9): a 34px brand-8
+   pill — one step taller than the 30px pinned-events pill, so it matches the
+   34px refresh/profile icons — with the magnifier riding in a header-blue
+   (brand-7) disc. The two-class selector beats Mantine's single-class
+   `height: var(--button-height)` rule whatever the inline size vars say; the
+   pill body/hover come from `--button-bg` / `--button-hover` in `AppShellShell`. */
+.mantine-Button-root.c2-header-search {
+  height: var(--c2-search-button-height);
+}
+
 .c2-header-search-icon {
   display: grid;
   place-items: center;
-  width: calc(1.5rem * var(--mantine-scale));
-  height: calc(1.5rem * var(--mantine-scale));
+  width: calc(1.75rem * var(--mantine-scale));
+  height: calc(1.75rem * var(--mantine-scale));
   border-radius: 50%;
   background: var(--mantine-color-brand-7);
   color: var(--mantine-color-white);
