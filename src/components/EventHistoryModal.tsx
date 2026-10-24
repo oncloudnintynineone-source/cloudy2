@@ -106,6 +106,9 @@ export function EventHistoryModal({
         ),
         retentionDays: result.retentionDays,
       });
+      // A successful (re)load clears any earlier failure for this event, so a
+      // failed-then-retried open shows the entries instead of the error line.
+      setFailedFor(null);
     };
     getCachedEventHistory(eventId)
       .then((result) => {

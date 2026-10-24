@@ -19,6 +19,7 @@ import { signOut } from "next-auth/react";
 
 import { APP_VERSION } from "@/lib/appVersion";
 import { clearAllDashboardSnapshots } from "@/lib/dashboard/localStore";
+import { clearEventHistoryCache } from "@/lib/events/historyCache";
 import { useMotion } from "@/components/MotionProvider";
 import { clearAllSavedPages } from "@/lib/pwa/client";
 import { clearUiState } from "@/lib/ui/uiStateClient";
@@ -79,8 +80,11 @@ export function UserMenu({ name, role, phone }: UserMenuProps) {
     if (loggingOut) return;
     setLoggingOut(true);
     // The remembered-state cookie is per-device: drop it on sign-out so the
-    // next account on this device starts from the defaults.
+    // next account on this device starts from the defaults. The in-memory
+    // history cache goes with it so the next account never paints the
+    // previous user's event history on first open.
     clearUiState();
+    clearEventHistoryCache();
     const watchdog = window.setTimeout(() => {
       // Deliberate full-page leave (same rationale as AppProviders' session
       // expiry redirect): the sign-out POST clears the session cookie server-

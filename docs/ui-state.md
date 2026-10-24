@@ -259,7 +259,10 @@ only an explicit `?date=` wins. Applying/clearing is a server action
 
 `clearUiState()` expires the cookie; the **Log out** item in `UserMenu` calls
 it right before NextAuth's `signOut` so the next account on the device starts
-from pure defaults. (Server-side prefs are per-account and follow the user, so
+from pure defaults. The in-memory event-history cache
+(`src/lib/events/historyCache.ts`) is cleared alongside it
+(`clearEventHistoryCache()`) so the next account never paints the previous
+user's history. (Server-side prefs are per-account and follow the user, so
 they are not cleared on sign-out.)
 
 ## 1.10 Pure helpers & testing

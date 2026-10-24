@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.324 (floating-chrome auto-hide extends to Contacts + Parade State)** is shipped.
+- All work through changelog **1.329 (history modal error reset + history cache cleared on sign-out)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -1954,6 +1954,21 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     reflows; the skeleton remains only on the cold no-preview path (the
     dashboard History button, which now passes the event title). Docs:
     `docs/event-history.md` §1.3.
+- 1.328 **Documented the perceived-latency pattern** (docs-only): generalized the
+    history modal's loading trick as **preview-first paint + intent prefetch** —
+    new `docs/loading-transitions.md` §1.18 (four ingredients, when to use/not,
+    siblings table: dashboard snapshot paint, optimistic tab, event-search
+    body preload) + the `AGENTS.md` loading-bullet pointer + an
+    `event-history.md` §1.3 cross-ref.
+- 1.329 **Fix: history modal sticky error + history cache survives sign-out** —
+    a successful (re)load now clears `failedFor` in `EventHistoryModal`, so
+    reopening an event after a failed-then-succeeded fetch shows the entries
+    instead of "Could not load the history". The hover-prefetch cache
+    (`src/lib/events/historyCache.ts`) is cleared on sign-out via the new
+    `clearEventHistoryCache()` (called beside `clearUiState()` in `UserMenu`),
+    so the next account on the same tab never paints the previous user's
+    history. Docs: `docs/event-history.md` §1.3, `docs/loading-transitions.md`
+    §1.18, `docs/ui-state.md` §1.9.
 
 ## 1.4 Open items & next steps
 

@@ -419,7 +419,10 @@ doc content here.
 - **Standard loading appearance: skeleton only + fade-in on reveal.** The skeleton is the
   ONLY loading indicator — never dim/darken content (`opacity: isPending ? …` is banned).
   Every data-awaiting route segment gets a `loading.tsx`; every skeleton block includes a
-  `LoadingStatus` (sr-only `role="status"`). Complemented by the shared **global activity
+  `LoadingStatus` (sr-only `role="status"`). A detail surface opened from a list that
+  already carries the data uses **preview-first paint + intent prefetch** instead of a
+  skeleton — paint the row's data instantly, prefetch on hover/press, silently revalidate
+  (recipe: [docs/loading-transitions.md](docs/loading-transitions.md) §1.18). Complemented by the shared **global activity
   bar** (amber strip + comet head) for post-mutation `router.refresh()` (use
   `useActivityRefresh`, never raw `invalidateCurrentPathCaches().then(…router.refresh())`),
   settings tab flips, and route navs (report via `useReportActivity`; route nav wired via

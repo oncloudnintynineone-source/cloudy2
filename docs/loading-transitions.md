@@ -5,8 +5,9 @@ server cache) on small mobile screens, where a flash-of-skeleton or a content
 hard-cut reads as jank. This document describes the standard **loading
 appearance** — skeleton only, minimum hold, fade-in on reveal — the
 **optimistic navigation chrome** that keeps controls answering instantly while
-data loads (§1.9), and the **one-shot URL param** pattern (`?event=` /
-`?edit=` / `?refresh=`) that drives forced renders without
+data loads (§1.9), the **preview-first paint + intent prefetch** pattern that
+skips visible loads entirely (§1.18), and the **one-shot URL param** pattern
+(`?event=` / `?edit=` / `?refresh=`) that drives forced renders without
 polluting history. The rules here are canonical for the repo (see also the checklist
 bullet in `AGENTS.md`); this is the reference for *why* each piece exists and
 where it is wired.
@@ -32,6 +33,7 @@ where it is wired.
 - [1.15 Code-splitting & low-end device tier](#115-code-splitting--low-end-device-tier)
 - [1.16 File index & related docs](#116-file-index--related-docs)
 - [1.17 Micro-motion polish](#117-micro-motion-polish)
+- [1.18 Preview-first paint & intent prefetch](#118-preview-first-paint--intent-prefetch)
 
 ## 1.1 Problem
 
@@ -840,6 +842,9 @@ at hydration.
 | `src/lib/dashboard/snapshot.ts` | Pure snapshot/request-key + IndexedDB-cache policy helpers incl. `tabLoadStates` (per-tab fresh/loading/not-loaded) — §1.13.2 |
 | `src/lib/dashboard/navigation.ts` | Dashboard navigation decision: URL + held record → displayed tab/period, coverage/`isNavigating`, warm-record choice, fetch classification (`resolveDashboardNavigation`, `planDashboardSwitch`, `classifyDashboardFetch`); composes the snapshot + view vocabulary — §1.10 |
 | `src/lib/dashboardViews/views.ts` | Pure view vocabulary + `resolveActiveTab` (tab resolution) — §1.10 |
+| `src/components/EventHistoryModal.tsx` | Preview-first paint + background revalidate (reference implementation) — §1.18 |
+| `src/lib/events/historyCache.ts` | Intent-prefetch + in-flight-promise cache (session lifetime; cleared on sign-out) — §1.18 |
+| `src/app/(protected)/my-events/MyEventsView.tsx` | Hover/press prefetch + passes the row trail as `preview` — §1.18 |
 | `src/app/(protected)/dashboard/DashboardScreen.tsx` | Owns the snapshot, warm map, preload, per-tab `tabStatus`, and the optimistic `previewView`; first-load timeout + retryable error — §1.13.2 |
 | `next.config.ts` | `experimental.staleTimes.dynamic = 120` client-router reuse window (§1.10) |
 | `src/app/(protected)/dashboard/page.tsx` | `?event=`/`?edit=`/`?refresh=` param validation |
@@ -920,3 +925,74 @@ tier (§1.15). None change layout logic — removing any of them is always safe.
 - **Rail-edge dissolve** (`.c2-rail-edge`): the bottom-nav rail's gradient fade
   + chevron dissolves when the rail reaches that extreme instead of snapping
   out of the layout (still `pointer-events: none`).
+
+## 1.18 Preview-first paint & intent prefetch
+
+The skeleton rules (§1.3–§1.6) make a *cold* load read well. This pattern makes
+the load **not happen where the user can see it**: when a detail surface is
+opened from a list that already displays the data, the user should never wait
+on a round-trip they didn't need. It is the read-side sibling of optimistic
+mutations ([`optimistic-mutations.md`](optimistic-mutations.md)) — the same
+idea (paint the answer first, reconcile after) applied to reads instead of
+writes. Reference implementation: the event history modal
+([`event-history.md`](event-history.md) §1.3) — `EventHistoryModal` +
+`src/lib/events/historyCache.ts`.
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant L as List row
+    participant C as historyCache (session Map)
+    participant D as Detail surface
+    participant S as Server action
+    U->>L: hover / press (intent)
+    L->>C: prefetch(id) — warm the fetch early
+    U->>L: tap
+    L->>D: open with the row's own data as preview
+    D->>U: instant: real headers/badges/rows (preview, not skeleton)
+    D->>C: get(id) — usually already resolved
+    C-->>D: real rows → complete/expandable
+    D->>S: fresh fetch (background revalidate)
+    S-->>D: swap in silently (shape-identical)
+```
+
+Four ingredients, all required for the swap to feel like nothing happened:
+
+1. **Preview** — the caller passes the row's already-on-screen data into the
+   detail surface, which paints it immediately: real title, badges, and entry
+   rows — never a skeleton for data that is already in memory. The skeleton
+   stays only for the cold no-preview path (e.g. the dashboard History button,
+   which has no trail but still passes the event `title` for an instant
+   header).
+2. **Shape-identical swap** — preview and final render must come from the
+   *same pure builder* (here `buildChangeTrail` / `buildHistoryEntries` share
+   one collapse loop), so the fetched rows swap in with identical headers and
+   zero reflow. If the two shapes can drift, the swap visibly jumps and the
+   pattern is worse than a skeleton.
+3. **Intent prefetch** — warm the fetch on `onMouseEnter` + `onPointerDown`
+   (not just click), caching the **in-flight promise** in a session-lifetime
+   `Map` keyed by id, so hover→tap dedupes to one request. Evict rejected
+   promises so a later open retries, and clear the whole map on sign-out so the
+   next account on the tab never paints the previous user's data.
+4. **Silent revalidate** — always fetch fresh in the background and swap in;
+   the preview is a paint, not a cache. Missing data renders as *shaped
+   absence* (the history preview's entries carry no disclosure affordance
+   until their diffs arrive) — never fake or placeholder values. A failed
+   fetch is only surfaced when there is no preview on screen.
+
+**When to use it:** a detail surface (modal/panel) opened from a list that
+already carries a summary of the same data, where the full read is a separate
+round-trip. **When not to:** the first paint of a route (nothing to preview —
+use `loading.tsx` + the §1.3 sequence); reads already served from the server
+cache ([`events-cache.md`](events-cache.md)) or a local snapshot (below) —
+those *are* the fast path; and tiny payloads where a prefetch costs more than
+the fetch.
+
+Siblings of the same idea elsewhere in the app:
+
+| Surface | Preview | Prefetch |
+| ------- | ------- | -------- |
+| Dashboard first paint | last IndexedDB snapshot paints instantly, revalidation swaps in ([`pwa-offline.md`](pwa-offline.md) §1.11/§1.18) | — |
+| Dashboard tab switch | `previewView` paints the warm tab during the RSC round-trip (§1.10, §1.13.2) | each tab's URL is `router.prefetch`ed |
+| Event search | dialog chrome always mounted while the body chunk idle-preloads + near-signal `preloadEventSearchBody()` ([`event-search.md`](event-search.md)) | body chunk |
+| History modal | the tapped row's inline trail as `preview` | hover/press `prefetchEventHistory` |

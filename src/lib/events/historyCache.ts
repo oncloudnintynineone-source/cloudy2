@@ -7,7 +7,8 @@ import { getEventHistory, type EventHistoryResult } from "@/lib/events/historyAc
  * (docs/event-history.md §1.3): rows are prefetched on row hover/press and
  * reused on open, while the modal still revalidates in the background so a
  * stale cache never sticks. A rejected fetch is evicted so the next attempt
- * retries.
+ * retries. Cleared on sign-out (`clearEventHistoryCache`) so the next account
+ * on the same tab never paints the previous user's history.
  */
 const cache = new Map<string, Promise<EventHistoryResult>>();
 
@@ -44,4 +45,10 @@ export function getCachedEventHistory(eventId: string): Promise<EventHistoryResu
 /** Store a fresh background-revalidation result for future opens. */
 export function storeCachedEventHistory(eventId: string, result: EventHistoryResult): void {
   cache.set(eventId, Promise.resolve(result));
+}
+
+/** Drop every cached trail — called on sign-out so the next account on the
+ * same tab never paints the previous user's history. */
+export function clearEventHistoryCache(): void {
+  cache.clear();
 }

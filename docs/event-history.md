@@ -84,14 +84,17 @@ sequenceDiagram
   (external or never-app-edited legacy events have no group id and no history)
   and is not shown in the read-only details (Double Booking / KAH Status).
 - **Perceived-latency design:** rows prefetch on `onMouseEnter`/`onPointerDown`
-  into a session-lifetime `Map` (`src/lib/events/historyCache.ts`), so the tap
-  usually opens from cache. A My Events row also passes its inline trail as a
+  into a session-lifetime `Map` (`src/lib/events/historyCache.ts`, cleared on
+  sign-out so the next account never paints the previous user's history), so
+  the tap usually opens from cache. A My Events row also passes its inline trail as a
   `preview` — the modal renders the real title, **Deleted** badge, retention
   line, and collapsed entry headers **before any fetch resolves**; the fetched
   entries (identical headers, now expandable) swap in silently. The shaped
   `EventHistorySkeleton` only shows on the cold no-preview path (the dashboard
   History button, which still passes the event `title` for an instant header).
-  A failed fetch is only surfaced when there is no preview to keep.
+  A failed fetch is only surfaced when there is no preview to keep, and a
+  successful (re)load clears the error line. (The generalized
+  recipe: [`loading-transitions.md`](loading-transitions.md) §1.18.)
 - **List shape matches the trail:** `buildHistoryEntries`
   (`src/lib/events/changeTrail.ts`) applies the same collapse as the inline
   timeline — same-minute per-copy fan-out merged into one entry,
@@ -299,7 +302,7 @@ functions, `buildMyEventsData`, the My Events route page, and the client views
 | `src/components/EventHistoryEntries.tsx` | Shared collapsible changelog entries |
 | `src/components/EventHistorySkeleton.tsx` | Shared shaped skeleton |
 | `src/lib/events/historyActions.ts` | `getEventHistory` server action |
-| `src/lib/events/historyCache.ts` | Hover-prefetch + open cache (session lifetime) |
+| `src/lib/events/historyCache.ts` | Hover-prefetch + open cache (session lifetime; cleared on sign-out) |
 | `src/app/(protected)/my-events/page.tsx` | My Events server page (window + pagination + trail attach) |
 | `src/app/(protected)/my-events/MyEventsView.tsx` | Client view + range selector + pagination + inline trail |
 | `src/components/AuditDetails.tsx` | Shared `details` renderer (audit log + history) |
