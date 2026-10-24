@@ -2003,13 +2003,17 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
   the modal renders the returned array unchanged (no section headers). Docs:
   `docs/event-search.md` §1.8.1, §1.11.
 - 1.333 **Desktop search trigger: circular icon, taller pill**: the header's
-  "Search events" button now carries its magnifier in a `brand-7` header-blue disc
-  (`.c2-header-search-icon`, 28px) on the `brand-8` pill, and the pill is **34px**
-  tall — one step above the 30px pinned-events ticker (`--c2-header-control-height`)
-  so it matches the 34px refresh/profile icons (`--c2-search-button-height` via the
-  `.c2-header-search` hook class). The pill body/hover go through Mantine's
-  `--button-bg` / `--button-hover` vars (replacing the inline background that
-  suppressed hover). Docs: `docs/event-search.md` §1.9, `docs/pinned-events.md` §1.4.
+  "Search events" button is now a **34px** brand-8 stadium pill (one step above the
+  30px pinned-events ticker, matching the 34px refresh/profile icons) whose magnifier
+  sits in a `brand-7` header-blue disc that **is** the pill's left cap — the 34px
+  disc is flush-left and concentric with the clamped 17px end arc, so the two curves
+  coincide instead of cutting across each other (`--c2-search-button-height`,
+  `.c2-header-search` / `.c2-header-search-icon` hook classes; the disc is absolutely
+  positioned at the pill's left edge rather than a `leftSection`, whose padding would
+  offset it). Pill body/hover go
+  through Mantine's `--button-bg` / `--button-hover` vars (replacing the inline
+  background that suppressed hover). Docs: `docs/event-search.md` §1.9,
+  `docs/pinned-events.md` §1.4.
 
 ## 1.4 Open items & next steps
 

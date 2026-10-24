@@ -228,9 +228,15 @@ is now a thin wrapper over it.
   `brand-8` pill **34px** tall — one step taller than the 30px pinned-events pill,
   so it lines up with the refresh/profile icons (`size="compact-md"`, `radius="xl"`,
   `--button-bg`/`--button-hover` set through Mantine's button vars, height from
-  `.c2-header-search` → `--c2-search-button-height`), with its magnifier riding in
-  a `brand-7` (header-blue) 28px disc — `.c2-header-search-icon` in `globals.css`.
-  Both are triggers into the
+  `.c2-header-search` → `--c2-search-button-height`). Its magnifier sits in a
+  `brand-7` (header-blue) disc that **is** the pill's left cap: `radius="xl"`
+  (32px) clamps to half the height, so the end is a 17px-radius arc centred at
+  (17,17), and the 34px disc — absolutely positioned at the button root's left edge
+  (Mantine's root is already `position: relative`), not a `leftSection`, whose
+  padding would offset it — shares that exact circle; the label text is offset by
+  `--c2-search-button-height + 8px`. `.c2-header-search-icon` in
+  `globals.css`; the disc steps to `brand-8` on hover so it stays lighter than the
+  darkened pill. Both are triggers into the
   shell-owned modal through `SearchPanelContext` (`src/lib/ui/searchPanel.ts`,
   the same channel pattern as `PinnedPanelContext`); the tapped trigger's rect
   rides along as `originRect`, so the modal zooms out of / shrinks back into it

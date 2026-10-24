@@ -1167,22 +1167,23 @@ export function AppShellShell({
                       // Height comes from `.c2-header-search` in globals.css (34px,
                       // matching the refresh/profile icons); the pill body/hover go
                       // through Mantine's variant vars so its own rules still apply.
+                      // The disc is absolutely positioned at the pill's left edge (see
+                      // `.c2-header-search-icon`) so its circle is exactly the pill's
+                      // left cap — a `leftSection` would push it off-centre.
                       className="c2-header-search"
                       __vars={{
                         "--button-bg": "var(--mantine-color-brand-8)",
                         "--button-hover": "var(--mantine-color-brand-9)",
                       }}
-                      leftSection={
-                        <span className="c2-header-search-icon" aria-hidden>
-                          <IconSearch size={16} />
-                        </span>
-                      }
                       onPointerEnter={preloadEventSearchBody}
                       onFocus={preloadEventSearchBody}
                       onPointerDown={preloadEventSearchBody}
                       onTouchStart={preloadEventSearchBody}
                       onClick={(e) => openSearch(e.currentTarget.getBoundingClientRect())}
                     >
+                      <span className="c2-header-search-icon" aria-hidden>
+                        <IconSearch size={16} />
+                      </span>
                       Search events
                     </Button>
                   )}

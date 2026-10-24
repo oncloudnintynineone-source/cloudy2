@@ -654,22 +654,45 @@ html {
 
 /* Desktop "Search events" trigger (docs/event-search.md §1.9): a 34px brand-8
    pill — one step taller than the 30px pinned-events pill, so it matches the
-   34px refresh/profile icons — with the magnifier riding in a header-blue
-   (brand-7) disc. The two-class selector beats Mantine's single-class
-   `height: var(--button-height)` rule whatever the inline size vars say; the
-   pill body/hover come from `--button-bg` / `--button-hover` in `AppShellShell`. */
+   34px refresh/profile icons. Its `radius="xl"` (32px) clamps to half the height,
+   making the left end a 17px-radius cap centred at (17,17); the magnifier disc is
+   the *same* 17px circle, flush left, so its curve is exactly the pill's left end
+   rather than a smaller circle cutting across it. Two-class selectors beat
+   Mantine's single-class `height`/`padding-inline` rules whatever the inline size
+   vars say; the pill body/hover come from `--button-bg` / `--button-hover`. */
 .mantine-Button-root.c2-header-search {
   height: var(--c2-search-button-height);
+  border: 0;
+  padding-inline-start: 0;
+  padding-inline-end: calc(0.875rem * var(--mantine-scale));
 }
 
+/* The label text starts after the cap circle. */
+.mantine-Button-root.c2-header-search .c2-button-label {
+  padding-inline-start: calc(var(--c2-search-button-height) + calc(0.5rem * var(--mantine-scale)));
+}
+
+/* Absolutely positioned against the button root (Mantine already makes it
+   `position: relative`), so the disc is exactly the pill's left cap: a 17px
+   circle at (0,0)–(34,34) sharing the clamped 17px end arc, immune to the
+   inner/label box quirks (`text-box-trim`, the 1px border). */
 .c2-header-search-icon {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--c2-search-button-height);
+  height: var(--c2-search-button-height);
   display: grid;
   place-items: center;
-  width: calc(1.75rem * var(--mantine-scale));
-  height: calc(1.75rem * var(--mantine-scale));
   border-radius: 50%;
   background: var(--mantine-color-brand-7);
   color: var(--mantine-color-white);
+}
+
+/* The disc is a child, so it paints above the pill's `::before` hover wash;
+   stepping it to brand-8 keeps it lighter than the darkened pill. */
+.mantine-Button-root.c2-header-search:hover .c2-header-search-icon {
+  background: var(--mantine-color-brand-8);
 }
 
 /* Day-agenda directional slide: the incoming day's agenda slides in from the
