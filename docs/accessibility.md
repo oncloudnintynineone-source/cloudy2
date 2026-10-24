@@ -122,12 +122,17 @@ minimize too).
 - On minimize, focus moves to the draft bar's **Resume draft** action, whose
   accessible name includes the draft kind and event title
   (`eventDraftPresentation`, `src/lib/events/draft.ts`), so keyboard and
-  screen-reader users are not left on a hidden dialog.
-- The bar (`EventDraftBar`) is a `role="group"` labelled "Minimized event draft".
-  Resume and discard are separate 44px buttons; discard first asks for
+  screen-reader users are not left on a hidden dialog. The name is identical whether
+  the draft renders as the labelled bar or the icon-only docked chip.
+- The bar / chip (`EventDraftBar` / `EventDraftChip`) is a `role="group"` labelled
+  "Minimized event draft". Resume and discard are separate buttons (44px on the
+  standalone bar, 44px + 32px on the docked chip); on the tightest phones the chip is
+  the 44px resume circle alone and discarding lives in the resumed wizard's header.
+  Discard first asks for
   confirmation (with **Keep editing** focused first). While minimized, the mounted
-  wizard modal root drops to z-index `1`, so the draft bar stays in the same visible
-  floating-control layer as the month chevrons / Create / Quick-links buttons.
+  wizard modal root drops to z-index `1`, so the draft stays in the same visible
+  floating-control layer as the month chevrons / Create / Quick-links buttons — on
+  mobile it docks **inside** that FAB row rather than replacing it.
 - Restoring re-enters the modal's focus trap. A completed discard moves focus to
   `#main-content`, because the bar's discard trigger unmounts with the draft.
 - Starting another wizard while a draft exists prompts instead of replacing it
@@ -145,7 +150,7 @@ minimize too).
 | `src/app/globals.css` | `.c2-sr-only` + `.c2-skip-link` styles |
 | `src/app/(protected)/dashboard/DashboardView.tsx` | View/period/filter/zoom announcements |
 | `src/app/(protected)/dashboard/EventForm.tsx` | Wizard step announcements |
-| `src/app/(protected)/dashboard/EventDraftBar.tsx` | Minimized-draft bar, resume/discard targets |
+| `src/app/(protected)/dashboard/EventDraftBar.tsx` | Minimized-draft bar + docked FAB-row chip, resume/discard targets |
 | `src/components/ColdStartReady.tsx` | Cold-start readiness announcement |
 
 Related docs:

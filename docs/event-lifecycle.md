@@ -331,19 +331,46 @@ The wizard minimizes without losing the draft. Tapping the overlay, pressing
 **Escape**, or the header minimize control (`IconChevronDown`, a 44px labelled
 `ActionIcon` with `aria-keyshortcuts="Escape"`) hides the modal while
 `keepMounted` keeps its state alive, but the minimized modal root drops to z-index `1`
-so it cannot cover the floating control layer. A frosted **draft bar** (`EventDraftBar`)
-then docks where the floating FAB row sits — above the mobile control pill, and centred
-(max 560px) near the bottom edge on desktop. It reuses the house
-`.c2-glass-surface` / `.c2-control-pill` styling and the same z-index as the month
-chevrons / Create / Quick-links controls, so the minimized state reads as part of the
-calendar chrome rather than a separate overlay.
+so it cannot cover the floating control layer. The minimized draft then docks into the
+calendar chrome rather than floating as a separate overlay:
+
+- **Below `lg` it docks *inside* the mobile FAB row**, to the left of the period
+  chevrons (`EventDraftChip` in `src/app/(protected)/dashboard/EventDraftBar.tsx`). The
+  row is pinned edge-to-edge (`FloatingToolbar`'s `leftOffset`), the chip is the only
+  `flex: 1` item and the chevrons / Quick-links / New-event circles are
+  `flexShrink: 0`, so the chip takes exactly the space they leave and **the FAB
+  controls never disappear** with the wizard. `DashboardView` measures the row and its
+  controls (`fabStackWidth` / `fabControlsWidth`) and derives `chipRoom`: ≥220px gets
+  the full labelled chip (icon + heading + detail), 160–219px the heading-only chip,
+  92–159px the icon-only chip (44px kind-icon circle + 32px discard), and below 92px
+  the chip is just the 44px kind-icon circle (discarding stays available in the
+  resumed wizard's header). If the leftover is narrower than the chip's **56px floor**
+  (44px circle + the pill's 6px padding), the **New-event circle yields its slot** to
+  the chip — the chip already carries the create/resume affordance — freeing 68px
+  (`createYielded`), so docking is guaranteed at every viewport width. The swap
+  latches with a 68px hysteresis band: removing the circle widens the leftover, so an
+  un-latched decision would flip back and forth on every resize tick. There is **no**
+  standalone mobile draft bar — the control pill always owns the bottom-most slot, and
+  the FAB row always floats above it.
+- **At `lg`+** the standalone `EventDraftBar` keeps its full size: centred, max 560px,
+  near the bottom edge — there is no FAB row there to dock into.
+
+Either way it reuses the house `.c2-glass-surface` / `.c2-control-pill` styling and the
+same z-index as the chevrons / Create / Quick-links controls, and on mobile the docked
+chip rides the row's `c2-chrome-hide-able` state: it fades/sinks with the pill and FAB
+row while the user touches or scrolls the grid and slides back with them. The
+chrome-hide `resetKey` includes `formMinimized`, so minimizing always puts the chrome
+(and the chip) back — the draft never appears to vanish behind a stale
+"touching the pane" state.
 
 - **Resume** is the whole left region: a 44px labelled action with the per-kind
   detail (`New event`, the event title, or `Copy of <title>`) from the pure
-  `eventDraftPresentation` (`src/lib/events/draft.ts`). Focus moves to it as soon as
+  `eventDraftPresentation` (`src/lib/events/draft.ts`); on tight phones it collapses to
+  the kind-icon circle with the same accessible name. Focus moves to it as soon as
   the form minimizes, so keyboard and screen-reader users are never stranded on the
   hidden dialog.
-- **Discard** is the trailing 44px control. Both it and the header X open the shared
+- **Discard** is the trailing control (44px on the standalone bar, 32px on the docked
+  chip). Both it and the header X open the shared
   `MotionModal` prompt ("Discard draft?", with **Keep editing** focused first). A
   confirmed discard announces through the polite live region and moves focus to
   `#main-content` once the prompt and form close.

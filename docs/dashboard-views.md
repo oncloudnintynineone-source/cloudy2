@@ -208,30 +208,42 @@ string maps to the first tab of that kind.
   `lg`+ the shell header's "Search events" button is the trigger; both open
   the shell-owned modal through
   `SearchPanelContext`, §1.9 of [`event-search.md`](event-search.md))
-  (the fullscreen button is `FullscreenButton`, the same inline toggle the
-  floating lg-only `FullscreenToggle` uses); above it floats the
-  **right-anchored FAB row** — the `[< | >]` **period-step
-  pill** (`.c2-period-pill`, sized by its 56px chevron circles), then the
-   **Quick-links circle button** (`c2-glass-fab--accent`, amber —
-   shown only when the org has links) and the **New-event circle button**
-   (`c2-glass-btn` + `c2-glass-fab--brand` — the same brand-blue tint as the lg
-   nav-row button — + `c2-glass-btn--bordered`, the grey hairline ring matching
-   the pill containers) parked on the **right**. Every control is a **56px
-   circle** (the step pill hugs its chevron circles, so the whole row is one
-   height). The row sits at
-  `bottom: calc(--app-floating-bottom-offset + pillH + 12px)`. All ride the
-  same frosted treatment (`c2-glass-surface`) with pill/circle radius +
-  hairline edge, so grid content scrolls *under* them. The pill fades + rises in on
+   (the fullscreen button is `FullscreenButton`, the same inline toggle the
+   floating lg-only `FullscreenToggle` uses); above it floats the
+   **FAB row** — pinned **edge-to-edge** so it has a measurable width, with the
+   `[< | >]` **period-step
+   pill** (`.c2-period-pill`, sized by its 56px chevron circles), then the
+    **Quick-links circle button** (`c2-glass-fab--accent`, amber —
+    shown only when the org has links) and the **New-event circle button**
+    (`c2-glass-btn` + `c2-glass-fab--brand` — the same brand-blue tint as the lg
+    nav-row button — + `c2-glass-btn--bordered`, the grey hairline ring matching
+    the pill containers) parked on the **right**. Every control is a **56px
+    circle** (the step pill hugs its chevron circles, so the whole row is one
+    height). When the event wizard is **minimized**, the draft docks as a chip on the
+    row's **left** (`EventDraftChip`, §1.4.3 of
+    [`event-lifecycle.md`](event-lifecycle.md)) — the only `flex: 1` item, so it takes
+     exactly the space the fixed controls leave. On phones too narrow for even the
+     44px icon chip the **New-event circle gives way** to it (the chip already carries
+     the create/resume action), so the row never clips off the edge. The row sits at
+
+   `bottom: calc(--app-floating-bottom-offset + pillH + 12px)`. All ride the
+   same frosted treatment (`c2-glass-surface`) with pill/circle radius +
+   hairline edge, so grid content scrolls *under* them (the row wrapper is
+   `pointer-events: none` and only the controls re-enable it, so the empty stretch of
+   the edge-to-edge row never swallows taps on the grid). The pill fades + rises in on
   first paint (`c2-glass-enter`; the FAB row via `c2-fab-cluster`) — see
   [`loading-transitions.md`](loading-transitions.md) §1.17. The grid
   starts under the top strip: the pinned strips (Week (H) day strip / hour
   rulers, Month weekday strip, Week (D) day header) dock under the name strip
   (`chromeOffset` = measured `topChromeHeight`), and the viewport-bounded
-  grids (Week (Grid), skeletons) run flush to the bottom nav — the floating
-  rows overlay the bottom edge. The document-scrolling page pads
-  (`.fab-page-pad`, `.dual-page-pad`) add the inline
-  `--c2-bottom-chrome-height` var (measured pill + FAB row, net of the FAB
-  diameter the formula already adds) so the last row clears the whole stack.
+   grids (Week (Grid), skeletons) run flush to the bottom nav — the floating
+    rows overlay the bottom edge. The document-scrolling page pads
+    (`.fab-page-pad`, `.dual-page-pad`) add the inline
+    `--c2-bottom-chrome-height` var (measured pill + FAB row, net of the FAB
+    diameter the formula already adds — the docked draft chip rides inside the FAB
+    row, so it needs no extra clearance) so the last row
+    clears the whole stack.
+
   The **prev/next chevrons** in the step pill call the same view-aware
   `navigatePeriod(±1)` dispatch and read their accessible name from
   `periodStepLabel` as the `lg` nav row (`DashboardView.tsx`). The floating
@@ -244,11 +256,12 @@ string maps to the first tab of that kind.
    pill hidden.
 - **Floating chrome auto-hide (below `lg`).** While the user is **touching the
   page's content pane** (even without any scrolling) or **scrolling it** in
-  either direction (document scroll, the dashboard's month/week/day horizontal
-  pan, Week (Grid) hour rows, Month & Agenda panes), the floating rows — the
-  dashboard's control pill + FAB row, the Contacts control pill, the Parade
-  State control pill + attendance mode bar — fade out and sink away so the
-  content owns the whole viewport. They
+   either direction (document scroll, the dashboard's month/week/day horizontal
+   pan, Week (Grid) hour rows, Month & Agenda panes), the floating rows — the
+   dashboard's control pill + FAB row (a docked minimized-draft chip rides its
+   FAB row), the Contacts control pill, the Parade
+   State control pill + attendance mode bar — fade out and sink away so the
+   content owns the whole viewport. They
    slide back **only once the interaction has fully stopped**: the last
    finger/pointer has lifted **AND** the scrolling has settled — so the chrome
    stays hidden through the scroll, the momentum, and any hold-still, and does
@@ -262,8 +275,10 @@ string maps to the first tab of that kind.
     wires the DOM events into it: a `touchstart` + `pointerdown` capture on the
     pane (the triggers), the touch/pointer **contact** listeners on `document`,
     `scroll` capture on the pane + `window`, and the two `scrollend` sites; a
-    context switch (the dashboard's `shownTabId` tab switch, Parade State's
-    attendance mode) forces the chrome back via a `reset` event.
+     context switch (the dashboard's `shownTabId` tab switch or a wizard
+     minimize/restore — its `resetKey` is `${shownTabId}:${formMinimized}`, so
+     minimizing always puts the chrome and the docked draft chip back; Parade
+     State's attendance mode) forces the chrome back via a `reset` event.
    ```mermaid
    stateDiagram-v2
      [*] --> Visible

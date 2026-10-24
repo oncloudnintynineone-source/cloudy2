@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.334 (desktop search disc shrunk to 29px)** is shipped.
+- All work through changelog **1.335 (minimized draft docks in the mobile FAB row)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -2020,6 +2020,21 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     without shrinking the 34px pill or its tap target (`--c2-search-disc-size` /
     `--c2-search-disc-inset`, label offset recomputed to keep the 8px gap). Docs:
     `docs/event-search.md` §1.9.
+- 1.335 **Minimized draft docks in the mobile FAB row instead of replacing it**: the
+    minimized wizard no longer unmounts the chevron pill / Quick-links / New-event
+    circles — the draft becomes an `EventDraftChip` on the row's left that flexes into
+    the space those fixed controls leave (labelled chip ≥220px of room, heading-only
+    160–219px, icon + discard 92–159px, icon-only below that). Docking is guaranteed:
+    when the leftover is narrower than the chip's 56px floor the New-event circle
+    yields its slot to the chip (`createYielded`, latched with a 68px hysteresis band),
+    and there is no standalone mobile draft bar at all — the control pill always owns
+    the bottom-most slot. The row is pinned edge-to-edge (`FloatingToolbar`'s
+    new `leftOffset`) and tap-through, and the chip rides the shared
+    `c2-chrome-hide-able` state; `useChromeHide`'s dashboard `resetKey` now includes
+    `formMinimized` so a minimize always reveals the chrome. Desktop keeps the full
+    centred 560px bar. Docs: `docs/event-lifecycle.md` §1.4.3,
+    `docs/dashboard-views.md` §1.1, `docs/desktop-responsive.md` §1.7,
+    `docs/accessibility.md` §1.6.
 
 ## 1.4 Open items & next steps
 

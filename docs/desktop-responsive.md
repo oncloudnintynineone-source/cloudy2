@@ -395,10 +395,16 @@ modal stays `centered` at every width (see event-lifecycle.md §1.4): on phones 
 (`WIZARD_BODY_HEIGHT_MOBILE` = `calc(100dvh - 164px)`) fills it — equal ~44px top/bottom
 gutters remain, and the "Tap outside or press Esc to minimize" caption sits in the bottom
 gutter. The header's minimize / discard controls are 44px targets (`py={8}` on the header
-keeps the ~60px chrome height the body math assumes). Minimized, the wizard becomes the
-`EventDraftBar` — a centred, max-560px frosted bar docked above the mobile control pill
-(bottom-inset on desktop) at the floating-control z-index, with a 44px Resume action and
-a 44px discard control. On
+keeps the ~60px chrome height the body math assumes). Minimized, the wizard docks into the
+mobile chrome: below `lg` it becomes an `EventDraftChip` **inside the FAB row**, to the
+left of the period chevrons, flexing into the space the fixed 56px controls leave (label
++ detail when there's room, icon-only on tight phones; on the narrowest phones the
+New-event circle gives way to the chip, so it always docks — the control pill stays
+bottom-most in every case). At `lg`+
+it stays the centred,
+max-560px frosted `EventDraftBar` bottom-inset bar with a 44px Resume action and a 44px
+discard control. In both cases it rides the floating-control z-index and — on mobile — the
+chrome auto-hide state. On
 the desktop shell
 the centered modal's body grows with the viewport up to
 `min(68dvh, 720px, calc(100dvh - 200px))`. The body height never depends on the active

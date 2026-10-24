@@ -5,6 +5,13 @@ import { Affix, Button, Group, type ButtonProps } from "@mantine/core";
 interface FloatingToolbarProps {
   children: React.ReactNode;
   bottomOffset?: string;
+  /**
+   * Left inset that pins the cluster's left edge, turning the row from
+   * right-anchored (content-width) into a full-width band. Pass it only when a
+   * child needs to flex into the leftover space (the dashboard's minimized-draft
+   * chip); without it the cluster keeps hugging its content on the right edge.
+   */
+  leftOffset?: string | number;
   /** Affix z-index. Raise above modal/overlay z-indexes to stay clickable while other modals are open. */
   zIndex?: number;
   /**
@@ -53,6 +60,7 @@ export function FloatingActionButton({ className, style, ...props }: FloatingAct
 export function FloatingToolbar({
   children,
   bottomOffset = "var(--app-floating-bottom-offset)",
+  leftOffset,
   zIndex = 100,
   hiddenFrom,
 }: FloatingToolbarProps) {
@@ -69,7 +77,11 @@ export function FloatingToolbar({
     // is painted.
     <Affix
       className="c2-fab-cluster"
-      position={{ bottom: bottomOffset, right: 16 }}
+      position={{
+        bottom: bottomOffset,
+        right: 16,
+        ...(leftOffset === undefined ? {} : { left: leftOffset }),
+      }}
       zIndex={zIndex}
       hiddenFrom={hiddenFrom}
     >

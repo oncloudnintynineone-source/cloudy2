@@ -84,7 +84,7 @@ import {
   monthGridRows,
 } from "./calendarSkeleton";
 import { formatWeekLabel } from "./clientDateTime";
-import { EventDraftBar } from "./EventDraftBar";
+import { EventDraftBar, EventDraftChip } from "./EventDraftBar";
 import { EmptyState } from "@/components/EmptyState";
 import { FilterButton } from "@/components/FilterButton";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
@@ -850,6 +850,15 @@ function DashboardViewMenuItem({
 
 const ONE_SHOT_PARAMS = ["refresh", "edit", "event", "_eventCal"];
 
+// Widths the minimized-draft chip needs in the mobile FAB row (measured leftover
+// on the row's left edge): 56px is the absolute floor (the 44px icon circle plus
+// the pill's 6px padding), 92px also fits the discard circle, 160px the heading,
+// and 220px the heading + detail line.
+const CHIP_FLOOR = 56;
+const CHIP_DISCARD_MIN = 92;
+const CHIP_TEXT_MIN = 160;
+const CHIP_DETAIL_MIN = 220;
+
 function DashboardViewImpl({
   month,
   date,
@@ -949,14 +958,24 @@ function DashboardViewImpl({
   const tabsListRef = useRef<HTMLDivElement | null>(null);
   const bottomBarRef = useRef<HTMLDivElement | null>(null);
   const fabStackRef = useRef<HTMLDivElement | null>(null);
+  const fabControlsRef = useRef<HTMLDivElement | null>(null);
   const [topChromeHeight, setTopChromeHeight] = useState(0);
   const [bottomChromeHeight, setBottomChromeHeight] = useState(0);
   const [fabStackHeight, setFabStackHeight] = useState(0);
+  // Widths of the FAB row and of its always-present controls (the chevron pill +
+  // the Quick-links circle): the leftover on the row's left is where the
+  // minimized-draft chip docks (see `chipRoom` below). The New-event circle is
+  // deliberately NOT inside the measured box so the swap decision never measures
+  // the row mid-swap and flip-flops on resize ticks.
+  const [fabStackWidth, setFabStackWidth] = useState(0);
+  const [fabControlsWidth, setFabControlsWidth] = useState(0);
   useLayoutEffect(() => {
     const update = () => {
       setTopChromeHeight(tabsListRef.current?.offsetHeight ?? 0);
       setBottomChromeHeight(bottomBarRef.current?.offsetHeight ?? 0);
       setFabStackHeight(fabStackRef.current?.offsetHeight ?? 0);
+      setFabStackWidth(fabStackRef.current?.offsetWidth ?? 0);
+      setFabControlsWidth(fabControlsRef.current?.offsetWidth ?? 0);
     };
     update();
     const observer = new ResizeObserver(update);
@@ -968,6 +987,9 @@ function DashboardViewImpl({
     }
     if (fabStackRef.current) {
       observer.observe(fabStackRef.current);
+    }
+    if (fabControlsRef.current) {
+      observer.observe(fabControlsRef.current);
     }
     return () => observer.disconnect();
   }, [isDesktop]);
@@ -999,17 +1021,10 @@ function DashboardViewImpl({
   // In immersive mode the hidden bottom nav frees its clearance: the floating
   // clusters drop to the bare safe-area offset. Undefined keeps
   // FloatingToolbar's default var (the var lives on :root — the Affix portals
-   // to <body>, outside any class scope). Below `lg` the full-width control pill
-   // owns the bottom strip, so the right FAB row (chevron pill + create circle)
-   // floats above it: base + measured pill height + gap.
-  const fabBottomOffset = immersiveMode.active
-    ? isDesktop
-      ? "var(--app-floating-bottom-offset-immersive)"
-      : `calc(var(--app-floating-bottom-offset-immersive) + ${bottomChromeHeight + 12}px)`
-    : isDesktop
-      ? undefined
-      : `calc(var(--app-floating-bottom-offset) + ${bottomChromeHeight + 12}px)`;
-  const pillBottomOffset = immersiveMode.active
+  // to <body>, outside any class scope). Below `lg` the bottom-most slot always
+  // belongs to the full-width control pill, and the FAB row (with the minimized
+  // draft docked in it) floats above it.
+  const floatingBaseOffset = immersiveMode.active
     ? "var(--app-floating-bottom-offset-immersive)"
     : "var(--app-floating-bottom-offset)";
 
@@ -1151,6 +1166,33 @@ function DashboardViewImpl({
   // and screen-reader users are not left on a hidden modal.
   const resumeDraftRef = useRef<HTMLButtonElement | null>(null);
   const formIsOpen = formState !== null;
+  // The minimized draft's presentation, shared by the desktop bar and the mobile
+  // FAB-row chip so both read from one place.
+  const draftKind = formState?.event ? "edit" : formState?.templateEvent ? "duplicate" : "create";
+  const draftTitle = formState?.event
+    ? (formState.event.payload.rawTitle ?? formState.event.title)
+    : formState?.templateEvent
+      ? (formState.templateEvent.payload.rawTitle ?? formState.templateEvent.title)
+      : null;
+  // The minimized draft always docks as a chip inside the FAB row: the control pill
+  // owns the bottom slot, the FAB row floats above it, and the chip flexes into
+  // whatever the fixed controls leave on the row's left.
+  //
+  // `fabControlsWidth` measures only the always-present controls (chevron pill +
+  // Quick-links circle), so the New-event circle's footprint is added back
+  // analytically. When the leftover would be narrower than the chip's 56px floor,
+  // the New-event circle yields its slot to the chip — it already carries the
+  // create/resume affordance — which guarantees a dock at every viewport width.
+  const createFootprint = FAB_SIZE + 12;
+  const roomWithCreate = fabStackWidth - fabControlsWidth - createFootprint - 12;
+  const createYielded = formState !== null && formMinimized && roomWithCreate < CHIP_FLOOR;
+  const chipRoom = fabStackWidth - fabControlsWidth - 12 - (createYielded ? 0 : createFootprint);
+  const chipCompact = chipRoom < CHIP_TEXT_MIN;
+  const chipDiscard = chipRoom >= CHIP_DISCARD_MIN;
+  const chipDetail = chipRoom >= CHIP_DETAIL_MIN;
+  const fabBottomOffset = isDesktop
+    ? undefined
+    : `calc(${floatingBaseOffset} + ${bottomChromeHeight + 12}px)`;
   // The "Tap outside or press Esc to minimize" caption is anchored to the
   // bottom of the viewport (not the dialog's bottom), so its position never
   // depends on the dialog's measured size — resizing between wizard steps or
@@ -1422,7 +1464,10 @@ function DashboardViewImpl({
   const chromeHidden = useChromeHide({
     enabled: !isDesktop,
     paneRef: weekBoxRef,
-    resetKey: shownTabId,
+    // A view/tab switch or a fresh minimize puts the chrome back: the user just
+    // worked with the modal, not the grid, so the docked draft chip must not be
+    // left faded out behind a stale "touching the pane" state.
+    resetKey: `${shownTabId}:${formMinimized}`,
   });
   // The grid/skeleton wrapper that plays the directional swipe on a view (tab)
   // switch. It stays mounted (a keyed remount would lose scroll state), so the
@@ -3571,7 +3616,7 @@ function DashboardViewImpl({
   // (bottomChromeHeight) feeds the FAB offset and the page pads so the last
   // content row clears the whole stack.
   const mobilePill = (
-    <Affix hiddenFrom="lg" position={{ bottom: pillBottomOffset, left: 16, right: 16 }} zIndex={100}>
+    <Affix hiddenFrom="lg" position={{ bottom: floatingBaseOffset, left: 16, right: 16 }} zIndex={100}>
       {/* `c2-chrome-hide-able` + `c2-chrome-hidden`: the pill fades/slides away
           while the user interacts with the calendar pane and returns when the
           interaction stops (useChromeHide); the CSS carries the
@@ -3708,8 +3753,9 @@ function DashboardViewImpl({
         {
           marginTop: "calc(-1 * var(--app-shell-padding))",
           // The pill's measured height + the gap + the right FAB row (chevron
-          // pill + Quick-links / create circles, all 56px tall) floating above
-          // it, minus the FAB diameter the pad formula already adds — consumed
+          // pill + Quick-links / create circles, all 56px tall — and the
+          // minimized-draft chip docked at its left end) floating above it,
+          // minus the FAB diameter the pad formula already adds — consumed
           // by the page-pad classes (globals.css) so document-scrolling grids
           // clear the whole bottom stack. 0 at lg (no pill).
           "--c2-bottom-chrome-height": isDesktop
@@ -5059,17 +5105,14 @@ function DashboardViewImpl({
         </Text>
       </Portal>
 
-      {formState && formMinimized && (
+      {/* The standalone minimized-draft bar is the desktop (`lg`+) dock — there is
+          no mobile FAB row there to dock the chip into. Below `lg` the draft always
+          docks inside the FAB row (see the chip below). */}
+      {formState && formMinimized && isDesktop && (
         <EventDraftBar
-          kind={formState.event ? "edit" : formState.templateEvent ? "duplicate" : "create"}
-          title={
-            formState.event
-              ? (formState.event.payload.rawTitle ?? formState.event.title)
-              : formState.templateEvent
-                ? (formState.templateEvent.payload.rawTitle ?? formState.templateEvent.title)
-                : null
-          }
-          bottomOffset={fabBottomOffset ?? "var(--app-floating-bottom-offset)"}
+          kind={draftKind}
+          title={draftTitle}
+          bottomOffset={floatingBaseOffset}
           onResume={restoreForm}
           onDiscard={requestDiscard}
           resumeRef={resumeDraftRef}
@@ -5196,91 +5239,142 @@ function DashboardViewImpl({
         </Modal>
       )}
 
-      {formState === null && (
-        // Mobile-only: at lg the "New event" / "Quick links" buttons in the nav
-        // row replace these FABs. hiddenFrom sits on the toolbar itself: its
-        // Affix portals to <body>, so a wrapper element could not hide it. The
-        // row floats right-anchored above the control pill: the period-step
-        // chevrons `[< | >]` pill left, then the amber Quick-links **circle**
-        // button (`c2-glass-fab--accent`) when the org has links, and the
-        // New-event **circle** button (`c2-glass-fab--brand` — the same
-        // brand-blue tint as the lg nav-row button) parked on the right. Every
-        // control is a 56px circle (the chevron pill hugs its 56px circles,
-        // so the whole row is one height) and the tinted circles carry
-        // `c2-glass-btn--bordered` (the grey hairline ring that matches the
-        // pill containers).
-        <FloatingToolbar hiddenFrom="lg" bottomOffset={fabBottomOffset}>
+      {/* Mobile-only: at lg the "New event" / "Quick links" buttons in the nav
+          row replace these FABs, and the row is always mounted below `lg` (the
+          Affix carries `hiddenFrom="lg"`) so its measured width never goes stale
+          while the wizard modal is open — it just sits behind the modal overlay.
+          The row floats right-anchored above the control pill: the period-step
+          chevrons `[< | >]` pill left, then the amber Quick-links **circle**
+          button (`c2-glass-fab--accent`) when the org has links, and the
+          New-event **circle** button (`c2-glass-fab--brand` — the same
+          brand-blue tint as the lg nav-row button) parked on the right. Every
+          control is a 56px circle (the chevron pill hugs its 56px circles,
+          so the whole row is one height) and the tinted circles carry
+          `c2-glass-btn--bordered` (the grey hairline ring that matches the
+          pill containers).
+          When the wizard is minimized the draft docks as a chip on the row's left,
+          flexing into whatever space the fixed controls leave — the chevrons,
+          Quick links and New-event circle stay reachable, and on phones too narrow
+          for even the 44px icon chip the New-event circle gives way to it. The row
+          is pinned edge-to-edge so that leftover space is measurable, and the
+          wrapper itself is tap-through (`pointer-events: none`) with the controls
+          re-enabling it, so the empty stretch of the row never swallows taps on the
+          grid beneath. */}
+      {!isDesktop && (
+        <FloatingToolbar
+          hiddenFrom="lg"
+          bottomOffset={fabBottomOffset}
+          leftOffset={16}
+        >
           <Box
             ref={fabStackRef}
             className={`c2-chrome-hide-able${chromeHidden ? " c2-chrome-hidden" : ""}`}
-            style={{ display: "flex", gap: "var(--mantine-spacing-xs)", alignItems: "center" }}
+            style={{
+              display: "flex",
+              flex: 1,
+              minWidth: 0,
+              gap: "var(--mantine-spacing-xs)",
+              alignItems: "center",
+              justifyContent: "flex-end",
+              pointerEvents: "none",
+            }}
           >
-            <Box className="c2-glass-surface c2-period-pill" style={{ display: "flex", alignItems: "center" }}>
-              <Group align="center" gap={0} wrap="nowrap">
-                <ActionIcon
-                  size={56}
-                  radius="50%"
-                  variant="transparent"
-                  aria-label={periodStepLabel("Previous")}
-                  onClick={() => navigatePeriod(-1)}
-                >
-                  <IconChevronLeft size={24} />
-                </ActionIcon>
-                <Box
-                  aria-hidden
-                  style={{
-                    width: 1,
-                    height: 18,
-                    background: "var(--mantine-color-default-border)",
-                  }}
-                />
-                <ActionIcon
-                  size={56}
-                  radius="50%"
-                  variant="transparent"
-                  aria-label={periodStepLabel("Next")}
-                  onClick={() => navigatePeriod(1)}
-                >
-                  <IconChevronRight size={24} />
-                </ActionIcon>
-              </Group>
-            </Box>
-            {/* Quick links: the same menu the lg nav row launches, moved here
-                as an amber circle beside the New-event circle (the pill it used
-                to occupy now carries the fullscreen toggle). */}
-            {quickLinks.length > 0 && (
-              <QuickLinksMenu
-                links={quickLinks}
-                position="top-end"
-                trigger={
-                  <Button
-                    className="c2-glass-btn c2-glass-fab--accent c2-glass-btn--bordered"
-                    aria-label="Quick links"
-                    radius="50%"
-                    w={56}
-                    h={56}
-                  >
-                    <IconLink size={24} />
-                  </Button>
-                }
+            {formState && formMinimized && (
+              <EventDraftChip
+                kind={draftKind}
+                title={draftTitle}
+                compact={chipCompact}
+                detail={chipDetail}
+                discard={chipDiscard}
+                onResume={restoreForm}
+                onDiscard={requestDiscard}
+                resumeRef={resumeDraftRef}
               />
             )}
-            <Button
-              className="c2-glass-btn c2-glass-fab--brand c2-glass-btn--bordered"
-              aria-label="New event"
-              radius="50%"
-              w={56}
-              h={56}
-              onClick={(e) =>
-                openCreate(
-                  isAgenda ? headerDate : isDual ? shownDate : today,
-                  e.currentTarget.getBoundingClientRect(),
-                )
-              }
-              disabled={!googleConfigured}
+            <Box
+              ref={fabControlsRef}
+              style={{
+                display: "flex",
+                gap: "var(--mantine-spacing-xs)",
+                alignItems: "center",
+                flexShrink: 0,
+                pointerEvents: "auto",
+              }}
             >
-              <IconPlus size={24} />
-            </Button>
+              <Box className="c2-glass-surface c2-period-pill" style={{ display: "flex", alignItems: "center" }}>
+                <Group align="center" gap={0} wrap="nowrap">
+                  <ActionIcon
+                    size={56}
+                    radius="50%"
+                    variant="transparent"
+                    aria-label={periodStepLabel("Previous")}
+                    onClick={() => navigatePeriod(-1)}
+                  >
+                    <IconChevronLeft size={24} />
+                  </ActionIcon>
+                  <Box
+                    aria-hidden
+                    style={{
+                      width: 1,
+                      height: 18,
+                      background: "var(--mantine-color-default-border)",
+                    }}
+                  />
+                  <ActionIcon
+                    size={56}
+                    radius="50%"
+                    variant="transparent"
+                    aria-label={periodStepLabel("Next")}
+                    onClick={() => navigatePeriod(1)}
+                  >
+                    <IconChevronRight size={24} />
+                  </ActionIcon>
+                </Group>
+              </Box>
+              {/* Quick links: the same menu the lg nav row launches, moved here
+                  as an amber circle beside the New-event circle (the pill it used
+                  to occupy now carries the fullscreen toggle). */}
+              {quickLinks.length > 0 && (
+                <QuickLinksMenu
+                  links={quickLinks}
+                  position="top-end"
+                  trigger={
+                    <Button
+                      className="c2-glass-btn c2-glass-fab--accent c2-glass-btn--bordered"
+                      aria-label="Quick links"
+                      radius="50%"
+                      w={56}
+                      h={56}
+                    >
+                      <IconLink size={24} />
+                    </Button>
+                  }
+                />
+              )}
+            </Box>
+            {/* The New-event circle is a sibling of the measured controls box so the
+                swap decision never measures the row mid-swap. On very narrow phones it
+                yields its slot to the docked draft chip, which already carries the
+                create/resume affordance. */}
+            {!createYielded && (
+              <Button
+                className="c2-glass-btn c2-glass-fab--brand c2-glass-btn--bordered"
+                aria-label="New event"
+                radius="50%"
+                w={56}
+                h={56}
+                onClick={(e) =>
+                  openCreate(
+                    isAgenda ? headerDate : isDual ? shownDate : today,
+                    e.currentTarget.getBoundingClientRect(),
+                  )
+                }
+                disabled={!googleConfigured}
+                style={{ flexShrink: 0, pointerEvents: "auto" }}
+              >
+                <IconPlus size={24} />
+              </Button>
+            )}
           </Box>
         </FloatingToolbar>
       )}
