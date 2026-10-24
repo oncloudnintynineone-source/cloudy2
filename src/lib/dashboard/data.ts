@@ -64,6 +64,7 @@ import {
 import {
   assembleDashboardSnapshot,
   dashboardRequestKey,
+  preloadAnchors,
   requiredMonths,
   type DashboardSharedConfig,
   type DashboardSnapshot,
@@ -604,18 +605,25 @@ export async function buildDashboardData(
 }
 
 export interface BuiltDashboardPreload {
-  /** The snapshot fields every preloaded tab shares. */
+  /** The snapshot fields every preloaded record shares. */
   shared: DashboardSharedConfig;
-  /** One entry per tab: its context plus the variable snapshot fields. */
-  tabs: { context: DashboardSnapshotContext; delta: DashboardTabDelta }[];
+  /**
+   * One entry per warmed context: the current anchor for every tab, plus the
+   * active tab for each of the next `PRELOAD_MONTHS_AHEAD` months. Each entry
+   * carries its own context (month/date/requestKey) and variable snapshot fields.
+   */
+  records: { context: DashboardSnapshotContext; delta: DashboardTabDelta }[];
 }
 
 /**
- * Resolve every tab for the active anchor off a single cache read, so the
- * client can preload them and switch tabs with no server round-trip
- * (docs/pwa-offline.md). The config pass is shared, the calendars/months across
- * tabs are unioned, and each tab's events are projected from the same raw read.
- * Never forces a Google refresh — it warms what the active context already read.
+ * Resolve the warmed contexts off a single cache read per anchor set, so the
+ * client can paint a tab switch or a forward month navigation with no server
+ * round-trip (docs/pwa-offline.md). Every tab is warmed for the current anchor;
+ * the active tab is additionally warmed for the next two months. The config
+ * pass is shared, the calendars/months are unioned per read, and each record's
+ * events are projected from the raw read. Never forces a Google refresh — it
+ * warms what the active context already read plus the genuinely cold future
+ * months for the active tab.
  */
 export async function buildDashboardPreload(
   input: BuildDashboardDataInput,
@@ -638,15 +646,50 @@ export async function buildDashboardPreload(
     ),
   ];
 
-  const rangeData = await readCalendarRange({
-    months: unionMonths,
-    calendarIds: unionCalendars,
-  });
+  // Future anchors warm only the active tab, so the second read is scoped to
+  // that tab's calendars — not every tab's — keeping the extra Google/DB work
+  // bounded to what the user is actually looking at.
+  const futureAnchors = preloadAnchors(period).slice(1);
+  const activeCalendars = config.resolveSelectedFilters(activeTab).cal;
+  const futureMonths = [
+    ...new Set(
+      futureAnchors.flatMap((anchor) =>
+        requiredMonths(activeTab.kind, anchor.month, anchor.date, config.shared.weekStartsOn),
+      ),
+    ),
+  ];
 
-  const tabs = resolved.map((entry) => {
-    const { delta, context } = projectTab(config, entry.tab, period, rangeData);
+  const [currentRange, futureRange] = await Promise.all([
+    readCalendarRange({ months: unionMonths, calendarIds: unionCalendars }),
+    futureMonths.length > 0 && activeCalendars.length > 0
+      ? readCalendarRange({ months: futureMonths, calendarIds: activeCalendars })
+      : Promise.resolve(null),
+  ]);
+
+  const records = resolved.map((entry) => {
+    const { delta, context } = projectTab(config, entry.tab, period, currentRange);
     return { context, delta };
   });
 
-  return { shared: config.shared, tabs };
+  if (futureRange) {
+    for (const anchor of futureAnchors) {
+      const months = requiredMonths(
+        activeTab.kind,
+        anchor.month,
+        anchor.date,
+        config.shared.weekStartsOn,
+      );
+      // Restrict the projection to this anchor's own months so a future-month
+      // snapshot carries only the events its grid renders, not the whole union.
+      const { delta, context } = projectTab(
+        config,
+        activeTab,
+        anchor,
+        { ...futureRange, months },
+      );
+      records.push({ context, delta });
+    }
+  }
+
+  return { shared: config.shared, records };
 }

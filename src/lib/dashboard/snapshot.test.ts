@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   DASHBOARD_SNAPSHOT_VERSION,
   MAX_SNAPSHOTS_PER_USER,
+  PRELOAD_MONTHS_AHEAD,
   REFRESH_NONCE_TTL_MS,
   WARM_SNAPSHOT_FRESH_MS,
   assembleDashboardSnapshot,
@@ -13,6 +14,7 @@ import {
   isSnapshotRecordUsable,
   isWarmSnapshotFresh,
   patchSnapshotTab,
+  preloadAnchors,
   requiredMonths,
   selectSnapshotsToEvict,
   snapshotStorageKey,
@@ -97,6 +99,47 @@ describe("requiredMonths", () => {
       "2026-09",
       "2026-10",
     ]);
+  });
+});
+
+describe("preloadAnchors", () => {
+  it("includes the current anchor plus the next two months by default", () => {
+    const anchors = preloadAnchors({ month: "2026-10", date: "2026-10-24" });
+    expect(anchors).toEqual([
+      { month: "2026-10", date: "2026-10-24" },
+      { month: "2026-11", date: "2026-11-24" },
+      { month: "2026-12", date: "2026-12-24" },
+    ]);
+  });
+
+  it("rolls over the year", () => {
+    const anchors = preloadAnchors({ month: "2026-11", date: "2026-11-15" });
+    expect(anchors.map((anchor) => anchor.month)).toEqual(["2026-11", "2026-12", "2027-01"]);
+    expect(anchors[2].date).toBe("2027-01-15");
+  });
+
+  it("clamps the day to the future month's length", () => {
+    // Jan 31 -> Feb 28 (2026 is not a leap year) -> Mar 31.
+    const anchors = preloadAnchors({ month: "2026-01", date: "2026-01-31" });
+    expect(anchors.map((anchor) => anchor.date)).toEqual([
+      "2026-01-31",
+      "2026-02-28",
+      "2026-03-31",
+    ]);
+  });
+
+  it("honours a custom ahead count", () => {
+    const anchors = preloadAnchors({ month: "2026-10", date: "2026-10-24" }, 1);
+    expect(anchors).toEqual([
+      { month: "2026-10", date: "2026-10-24" },
+      { month: "2026-11", date: "2026-11-24" },
+    ]);
+  });
+
+  it("defaults ahead to PRELOAD_MONTHS_AHEAD", () => {
+    expect(preloadAnchors({ month: "2026-10", date: "2026-10-24" }).length).toBe(
+      PRELOAD_MONTHS_AHEAD + 1,
+    );
   });
 });
 

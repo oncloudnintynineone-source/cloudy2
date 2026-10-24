@@ -102,10 +102,12 @@ doc content here.
   paints the last **device-local snapshot** (IndexedDB, `src/lib/dashboard/localStore.ts`)
   instantly, then always revalidates and swaps in place — mutations call the
   provider's `revalidate()`, never `router.refresh()`. After the active context is fresh,
-  the client **preloads every tab** for the current anchor (`preloadDashboardTabs` →
-  `buildDashboardPreload`: one union `readCalendarRange` + per-tab `projectRangeEvents`
-  delta, reassembled by `assembleDashboardSnapshot`) so tab switches paint from the warm
-  cache with no round-trip. Design:
+  the client **preloads every tab** for the current anchor **and the active tab for the
+  next two months** (`preloadDashboardTabs` →
+  `buildDashboardPreload`: one union `readCalendarRange` for the anchor + a second read
+  scoped to the active tab's calendars for the future months, each projected by
+  `projectRangeEvents` and reassembled by `assembleDashboardSnapshot`) so tab switches and
+  forward month navigations paint from the warm cache with no round-trip. Design:
   [docs/events-cache.md](docs/events-cache.md) §1.5.1, [docs/pwa-offline.md](docs/pwa-offline.md) §1.11/§1.18.
 - **Event lifecycle & mutations:** staged wizard → Google copies with notes-block
   round-trip; cross-department copies reconciled by `findCopies` (deliberately uncached).

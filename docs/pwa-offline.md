@@ -611,26 +611,33 @@ sequenceDiagram
   that tab isn't cached), so the last-viewed tab is never resurrected; with
   `?view=` the URL resolves the tab and the newest record can hold the paint.
   Every successful read writes its context (keyed by the account id
-  + `requestKey`), capped at `MAX_SNAPSHOTS_PER_USER` (12) by LRU
+  + `requestKey`), capped at `MAX_SNAPSHOTS_PER_USER` (24) by LRU
   (`selectSnapshotsToEvict`), which bounds disk, the cold-start hydration parse
   and the IndexedDB quota (write failures are swallowed, so an unbounded store
-  would silently stop caching); 12 covers the preloaded tabs for a typical
-  account. Switching back to a previously loaded context
+  would silently stop caching); 24 covers the preloaded contexts for a typical
+  account (every tab for the current anchor plus the active tab's next two
+  months, with LRU headroom). Switching back to a previously loaded context
   paints it instantly from the map and revalidates only when the cached record is
   older than `WARM_SNAPSHOT_FRESH_MS` (60s, aligned with the server events-cache
   window) — a warm paint shows no skeleton. A mutation / filter apply / tab CRUD
   (`revalidate()`) and a force refresh drop every cached context before
   re-reading, so no stale record survives a write.
-- **Every tab is preloaded for instant switches.** After the active context is
+- **Every tab is preloaded for instant switches (plus the next two months).** After
+  the active context is
   fresh and idle, `DashboardScreen` calls `preloadDashboardTabs` once per anchor
-  (the tab set + the months those tabs need) — deferred to `requestIdleCallback`
+  (the committed tab + the tab set + the months those tabs need) — deferred to
+  `requestIdleCallback`
   so it never delays first paint, and skipped offline. `buildDashboardPreload`
   (`src/lib/dashboard/data.ts`) resolves the shared config once and does a single
-  `readCalendarRange` over the union of every tab's calendars/months, then
-  projects each tab (`projectRangeEvents` + `resolveDisplayTitles`) into a
-  delta; `assembleDashboardSnapshot` (`snapshot.ts`) recombines the shared config
-  with each delta and the client writes all of them to the warm map + IndexedDB.
-  A tab switch then paints from the warm cache with no server round-trip
+  `readCalendarRange` over the union of every tab's calendars/months for the
+  current anchor, then projects each tab (`projectRangeEvents` +
+  `resolveDisplayTitles`) into a delta. It then warms the **active tab** for the
+  next two months (`PRELOAD_MONTHS_AHEAD` in `snapshot.ts`, day-of-month clamped
+  via `preloadAnchors`) with a **second** `readCalendarRange` scoped to just that
+  tab's calendars, so a forward month navigation paints from the warm cache with
+  no round-trip. `assembleDashboardSnapshot` (`snapshot.ts`) recombines the shared
+  config with each delta and the client writes all of them to the warm map +
+  IndexedDB. A tab switch then paints from the warm cache with no server round-trip
   (revalidating only past `WARM_SNAPSHOT_FRESH_MS`). The read never forces a
   Google refresh — it warms what the active context already fetched, so tabs
   sharing the active months cost ~no extra Google calls; only genuinely cold

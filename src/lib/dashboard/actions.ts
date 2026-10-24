@@ -85,21 +85,22 @@ export async function loadDashboardData(
   }
 }
 
-export interface DashboardPreloadTab {
+export interface DashboardPreloadRecord {
   context: DashboardSnapshotContext;
   delta: DashboardTabDelta;
 }
 
 export type PreloadDashboardTabsResult =
-  | { ok: true; shared: DashboardSharedConfig; tabs: DashboardPreloadTab[] }
+  | { ok: true; shared: DashboardSharedConfig; records: DashboardPreloadRecord[] }
   | { ok: false; error: string };
 
 /**
- * Background tab preload (docs/pwa-offline.md §1.18). After the active context
- * paints, the client calls this to warm every tab for the current anchor off a
- * single cache read, so switching tabs paints from the device cache with no
- * round-trip. Never forces a Google refresh; failures are returned, not thrown,
- * so a failed preload never disturbs the painted calendar.
+ * Background preload (docs/pwa-offline.md §1.18). After the active context
+ * paints, the client calls this to warm every tab for the current anchor plus
+ * the active tab for the next two months, off a single cache read per anchor
+ * set, so a tab switch or a forward month navigation paints from the device
+ * cache with no round-trip. Never forces a Google refresh; failures are
+ * returned, not thrown, so a failed preload never disturbs the painted calendar.
  */
 export async function preloadDashboardTabs(
   input: LoadDashboardDataInput,
@@ -120,7 +121,7 @@ export async function preloadDashboardTabs(
       },
       session,
     );
-    return { ok: true, shared: built.shared, tabs: built.tabs };
+    return { ok: true, shared: built.shared, records: built.records };
   } catch (error) {
     return {
       ok: false,

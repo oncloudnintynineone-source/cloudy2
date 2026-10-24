@@ -349,11 +349,11 @@ export function DashboardScreen({
         if (preloadGenerationRef.current !== generation) return;
         if (preloadedRef.current?.signature !== signature) return;
         if (!result.ok) return;
-        const records: DashboardSnapshotRecord[] = result.tabs.map((tab) => ({
+        const records: DashboardSnapshotRecord[] = result.records.map((entry) => ({
           version: DASHBOARD_SNAPSHOT_VERSION,
           savedAt: Date.now(),
-          context: tab.context,
-          data: assembleDashboardSnapshot(result.shared, tab.delta),
+          context: entry.context,
+          data: assembleDashboardSnapshot(result.shared, entry.delta),
         }));
         setWarmRecords((current) => {
           const next = new Map(current);
@@ -494,20 +494,19 @@ export function DashboardScreen({
     }
   }, [refreshParam, fetchFresh, userId, setWarmRecords]);
 
-  // Preload every tab once the active context is fresh and idle, so switching
-  // tabs paints instantly. Runs once per anchor signature (tab set + the months
+  // Preload once the active context is fresh and idle: every tab for the
+  // current anchor, plus the active tab for the next two months, so a tab
+  // switch or a forward month navigation paints instantly (docs/pwa-offline.md
+  // §1.18). Runs once per anchor signature (committed tab + tab set + the months
   // those tabs need), deferred to idle so it never delays first paint, and
   // skipped offline. Also skipped on weak devices / constrained connections —
-  // it costs a server read plus a write per tab, and the active tab is always
-  // loaded, so a skipped preload only means a later tab fetches on demand.
+  // it costs a server read plus a write per record, and the active tab is always
+  // loaded, so a skipped preload only means a later context fetches on demand.
   useEffect(() => {
     if (!record || source !== "fresh" || busy) return;
     if (typeof navigator !== "undefined" && navigator.onLine === false) return;
     if (!canPreloadTabs()) return;
     const tabs = record.data.tabs;
-    // Nothing to warm with a single tab: the active read already covers it, so
-    // skip the second server config pass entirely.
-    if (tabs.length <= 1) return;
     const months = [
       ...new Set(
         tabs.flatMap((tab) =>
@@ -515,7 +514,10 @@ export function DashboardScreen({
         ),
       ),
     ].sort();
-    const signature = `${tabs.map((tab) => tab.id).join(",")}|${months.join(",")}`;
+    // The committed `view` rides in the signature so switching the active tab
+    // re-warms the future months for the newly active tab (a warm repeat pass is
+    // cheap — those months are already cached).
+    const signature = `${view ?? ""}|${tabs.map((tab) => tab.id).join(",")}|${months.join(",")}`;
     const generation = preloadGenerationRef.current;
     if (
       preloadedRef.current?.signature === signature &&
@@ -539,7 +541,7 @@ export function DashboardScreen({
         window.clearTimeout(handle);
       }
     };
-  }, [record, source, busy, preloadTabs]);
+  }, [record, source, busy, view, preloadTabs]);
 
   // Post-mutation / filter-change refresh: drop every cached context (the write
   // may affect any of them), then re-read the current one. `report: false`

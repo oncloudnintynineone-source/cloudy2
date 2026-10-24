@@ -428,10 +428,13 @@ A second, client-driven warm exists on top of this: after the active context is 
 dashboard calls `preloadDashboardTabs` (`src/lib/dashboard/data.ts`), which takes the
 **union** of every tab's calendars/months and does **one** `readCalendarRange` (the
 cache-key-independent read the tab projections share), then projects each tab's filtered
-events. This never forces a Google refresh and never uses `after()` — it is a foreground
-read the client awaits in the background — so it warms only what the active context has
-already fetched plus any genuinely cold `(calendar, month)` combinations for other tabs
-(see [`pwa-offline.md`](pwa-offline.md) §1.18). `fetchRangeEvents` is now a thin wrapper
+events. It then warms the **active tab** for the next two months with a **second**
+`readCalendarRange` scoped to just that tab's calendars, so a forward month navigation
+paints from the device cache with no round-trip. This never forces a Google refresh and
+never uses `after()` — it is a foreground read the client awaits in the background — so it
+warms only what the active context has already fetched plus any genuinely cold
+`(calendar, month)` combinations for other tabs and the active tab's future months (see
+[`pwa-offline.md`](pwa-offline.md) §1.18). `fetchRangeEvents` is now a thin wrapper
 over `readCalendarRange` + `projectRangeEvents` (`queries.ts`), the split that lets one raw
 read back several filter sets.
 
