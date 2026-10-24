@@ -78,6 +78,10 @@ already-started event reads `0d`; it never switches to months, so a far-future
 event reads e.g. `45d` — and the **current event's `tickerTitle`**, one line,
 ellipsis-truncated.
 
+The pill's height is the shared `--c2-header-control-height` var (`globals.css`),
+which the desktop "Search events" trigger also reads — the two header controls are
+one row and can't drift apart.
+
 The **indicator style is a feature flag** (`pinnedTickerIndicator`, Settings →
 Feature Flags, org-wide, default `classic`) — admins switch it to compare the
 variants live and keep the winner:

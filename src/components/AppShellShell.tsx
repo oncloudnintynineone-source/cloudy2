@@ -1164,12 +1164,24 @@ export function AppShellShell({
                       radius="xl"
                       size="compact-md"
                       fz="sm"
-                      leftSection={<IconSearch size={16} />}
-                      styles={{ root: { backgroundColor: "var(--mantine-color-brand-8)" } }}
-                       onPointerEnter={preloadEventSearchBody}
-                       onFocus={preloadEventSearchBody}
-                       onPointerDown={preloadEventSearchBody}
-                       onTouchStart={preloadEventSearchBody}
+                      // Height pinned to the pinned-events pill's shared header
+                      // var rather than Mantine's own compact-md value, and the
+                      // pill body/hover go through Mantine's variant vars so the
+                      // library's own rules still apply.
+                      __vars={{
+                        "--button-height-compact-md": "var(--c2-header-control-height)",
+                        "--button-bg": "var(--mantine-color-brand-8)",
+                        "--button-hover": "var(--mantine-color-brand-9)",
+                      }}
+                      leftSection={
+                        <span className="c2-header-search-icon" aria-hidden>
+                          <IconSearch size={16} />
+                        </span>
+                      }
+                      onPointerEnter={preloadEventSearchBody}
+                      onFocus={preloadEventSearchBody}
+                      onPointerDown={preloadEventSearchBody}
+                      onTouchStart={preloadEventSearchBody}
                       onClick={(e) => openSearch(e.currentTarget.getBoundingClientRect())}
                     >
                       Search events

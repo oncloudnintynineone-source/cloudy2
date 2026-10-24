@@ -402,6 +402,13 @@ html {
   }
 }
 
+/* Shared header-control height: the pinned-events pill and the desktop
+   "Search events" trigger are one row of the header, so both read this single
+   var and can never drift apart. */
+:root:root {
+  --c2-header-control-height: calc(1.875rem * var(--mantine-scale));
+}
+
 /* Header pinned-events ticker (docs/pinned-events.md): the brand pill anchored
    at the header's left edge (where the logo used to sit). Its indicator style
    is the `pinnedTickerIndicator` feature flag (Settings → Feature Flags):
@@ -417,7 +424,7 @@ html {
   display: flex;
   align-items: center;
   gap: var(--mantine-spacing-xs);
-  height: calc(1.875rem * var(--mantine-scale));
+  height: var(--c2-header-control-height);
   padding-inline: var(--mantine-spacing-sm);
   border-radius: var(--mantine-radius-xl);
   /* Opaque pill, a shade darker than the opaque brand-navy header behind it, so
@@ -643,6 +650,21 @@ html {
 
 /* Reduced motion: no slide — titles swap in place (the keyed remount still
    happens, just without the animation). */
+
+/* Desktop "Search events" trigger (docs/event-search.md §1.9): the magnifier
+   rides in a header-blue (brand-7) disc on the darker brand-8 pill — the pill's
+   own height/background/hover come from Mantine's `--button-*` vars set by
+   `AppShellShell`, with the height pinned to the shared header-control var so it
+   matches the pinned-events pill exactly. */
+.c2-header-search-icon {
+  display: grid;
+  place-items: center;
+  width: calc(1.5rem * var(--mantine-scale));
+  height: calc(1.5rem * var(--mantine-scale));
+  border-radius: 50%;
+  background: var(--mantine-color-brand-7);
+  color: var(--mantine-color-white);
+}
 
 /* Day-agenda directional slide: the incoming day's agenda slides in from the
    direction of travel (next day from the right, previous day from the left). */

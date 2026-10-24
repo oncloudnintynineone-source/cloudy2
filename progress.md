@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.332 (event search ranks literal hits above typo-tolerant ones)** is shipped.
+- All work through changelog **1.333 (desktop search trigger matches the pinned pill's shape)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -2002,6 +2002,14 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
   second Fuse pass, and `fuzzySearch` is now a thin wrapper. Pure + unit-tested;
   the modal renders the returned array unchanged (no section headers). Docs:
   `docs/event-search.md` §1.8.1, §1.11.
+- 1.333 **Desktop search trigger matches the pinned pill's shape**: the header's
+  "Search events" button is now the same height as the pinned-events ticker via a
+  shared `--c2-header-control-height` var (`globals.css`, also read by
+  `.c2-pinned-ticker`), and its magnifier sits in a `brand-7` header-blue disc
+  (`.c2-header-search-icon`) on the `brand-8` pill, with the pill body/hover set
+  through Mantine's `--button-bg` / `--button-hover` vars (replacing the inline
+  background that suppressed hover). Docs:
+  `docs/event-search.md` §1.9, `docs/pinned-events.md` §1.4.
 
 ## 1.4 Open items & next steps
 
