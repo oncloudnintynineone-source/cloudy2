@@ -10,6 +10,7 @@
  * (docs/dashboard-views.md, docs/pwa-offline.md).
  */
 
+import { monthGridMonths, type WeekStart } from "@/lib/events/datetime";
 import {
   dashboardRequestKey,
   dashboardTabFiltersEqual,
@@ -231,6 +232,24 @@ export function candidateKeyForUrl(
   url: { view: string | null; month: string | null; date: string | null },
 ): string | null {
   return candidateRequestKey(record, url.view, url.month, url.date);
+}
+
+/**
+ * Whether the months a held record already read fully cover the Month/Dual grid
+ * of `targetMonth`. A month tap may paint the tapped grid straight from the held
+ * events only when every month that grid renders is already in hand; a partial
+ * overlap would paint the tapped month with empty trailing days that then fill
+ * in when the read lands — a silent event pop-in with no skeleton (the grid
+ * skeleton is suppressed for the optimistic month paint). Pure and client-safe
+ * so the coverage rule is unit-tested alongside the navigation decisions.
+ */
+export function gridMonthsCovered(
+  heldMonth: string,
+  targetMonth: string,
+  weekStartsOn: WeekStart,
+): boolean {
+  const held = new Set(monthGridMonths(heldMonth, weekStartsOn));
+  return monthGridMonths(targetMonth, weekStartsOn).every((month) => held.has(month));
 }
 
 /** The URL + held state a navigation is resolved from. */

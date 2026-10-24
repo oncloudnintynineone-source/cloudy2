@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.329 (history modal error reset + history cache cleared on sign-out)** is shipped.
+- All work through changelog **1.331 (silent event pop-ins after in-place calendar re-reads)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -1978,7 +1978,19 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     one surface. Decorative (`aria-hidden`, pointer-transparent); the sr-only
     `LoadingStatus` stays the only announcement; `launchShell.test.ts` pins both
     sides. Docs: `docs/loading-transitions.md` §1.4, `docs/pwa-offline.md`
-    §1.5.1 table, `docs/dashboard-views.md`.
+     §1.5.1 table, `docs/dashboard-views.md`.
+- 1.331 **Fix: silent event pop-ins after an in-place calendar re-read**: a month
+    tap used to paint the tapped grid from the held record whenever the two grids
+    merely *shared* a month, so the uncovered trailing days rendered empty and
+    filled in seconds later (most visible right after Settings → Purge Calendar
+    Cache, when every read is cold) with the grid skeleton deliberately
+    suppressed. `monthOptimistic` now requires the held record to have read
+    **every** month the destination grid renders — pure
+    `gridMonthsCovered` (`src/lib/dashboard/navigation.ts`, unit-tested) — and
+    the mobile pinned view-name line renders the active view's amber load
+    spinner (`tabStatus`, `.c2-tab-line-spinner`), since below `lg` there is no
+    tab strip and an in-place swap had no visible signal at all. Docs:
+    `docs/loading-transitions.md` §1.8/§1.13.2, `docs/events-cache.md` §1.5.
 
 ## 1.4 Open items & next steps
 

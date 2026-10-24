@@ -236,7 +236,12 @@ sequenceDiagram
 prefetch gate (see §1.8) uses it to avoid background work on fully-cached views.
 
 Stale hits schedule the refresh through `after()` (`next/server`), which runs after the
-response ships — the visible render is never delayed by a stale-entry refresh.
+response ships — the visible render is never delayed by a stale-entry refresh. The swap-in
+of the newer data is in-place (no skeleton), so it must carry a loading signal: the per-tab
+load indicator, which below `lg` also renders in the mobile view-name line
+([`loading-transitions.md`](loading-transitions.md) §1.13.2). Cold reads — exactly what
+happens right after Settings → Purge Calendar Cache — are where that signal matters, since
+the swap takes seconds rather than a few hundred milliseconds.
 
 ### 1.5.1 Force refresh (manual, one-shot)
 

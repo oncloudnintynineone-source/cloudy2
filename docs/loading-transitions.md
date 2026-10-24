@@ -334,12 +334,18 @@ whose warm L1 entry still shadows the fresh rows
   which lags the URL while a new month is read — and `isNavigating` can itself
   lag through the router transition (`useSearchParams` updates only when the RSC
   payload lands, so even a device-cached month would flash its skeleton during
-  that gap). When the held record shares a month with the destination grid
-  (adjacent months — the usual case), `monthOptimistic` anchors the grid to the
-  tapped `shownMonth` and draws it from the held events, suppressing the
-  skeleton; the read swaps the full event set in place. Only a far jump with no
-  shared month (`monthPending`) has no usable in-memory events and keeps the
-  skeleton. The render-phase chrome sync is held while `isNavigating`, so the
+  that gap). When the held record already read **every** month the destination
+  grid renders (`gridMonthsCovered`, `src/lib/dashboard/navigation.ts` — pure,
+  unit-tested), `monthOptimistic` anchors the grid to the tapped `shownMonth` and
+  draws it from the held events, suppressing the skeleton; the read swaps the full
+  event set in place. A partial overlap is *not* optimistic: the tapped month would
+  render with empty trailing days that silently fill in when the read lands, and
+  with the skeleton suppressed there is no loading signal for that pop-in (below
+  `lg` the tab strip is gone entirely). Everything else — a far jump, or a
+  neighbour whose grid reaches a month the held record never read — keeps the
+  skeleton (`monthPending`). A warmed target month still paints instantly, because
+  it becomes the displayed record and `month` already equals the tapped month. The
+  render-phase chrome sync is held while `isNavigating`, so the
   optimistic month/kind isn't snapped back mid-load (a failed read still heals),
   and `DashboardScreen`'s `cached` flag suppresses the skeleton only for a
   genuinely warm candidate record (`DashboardView.tsx`, `DashboardScreen.tsx`).
@@ -671,6 +677,16 @@ fade on icon + label, amber spinner in the row's right slot beside the active
 check, `aria-busy`), consuming the status context itself so preload ticks
 re-render only the open menu rows, not the whole view.
 
+**The mobile name line carries the active view's spinner.** The menu is only
+open on demand, so a *passive* load signal is still needed: the thin pinned
+view-name line (`nameLine`, `DashboardView.tsx`) renders the same amber spinner
+next to the view name while the active tab's status is `loading`
+(`.c2-tab-line-spinner`, `aria-busy` on the line). Without it an in-place
+revalidation has no visible signal at all below `lg`: the grid paints from a warm
+snapshot with the skeleton suppressed (`cached`), and the authoritative read —
+seconds long when the Google cache is cold, e.g. right after Settings → Purge
+Calendar Cache — lands as a silent pop-in of new chips.
+
 **Flicker control.** Both flags pass through the shared `useLoadingIndicator`
 (`src/lib/loading/loadingIndicator.ts`, the activity bar's show-delay/min-hold
 timer machine):
@@ -833,7 +849,7 @@ at hydration.
 | `src/lib/ui/uiState.ts` | `resolveDashboardView` — shared view resolution for page + route fallback |
 | `src/app/(protected)/parade-state/paradeStateSkeleton.tsx` | Parade row skeletons (shared) |
 | `src/app/(protected)/settings/audit-log/AuditLogRowSkeleton.tsx` | Audit row skeleton (shared) |
-| `src/app/(protected)/dashboard/DashboardView.tsx` | Held loading, reveal fade, one-shot strips (`event`/`edit`/`refresh`), agenda slide, optimistic date-nav chrome (`shown*`, §1.9.2), per-tab load styling (§1.13.2), optimistic tab switch + tab-URL prefetch (§1.10/§1.13.2), WAAPI grid swipe (no forced reflow) |
+| `src/app/(protected)/dashboard/DashboardView.tsx` | Held loading, reveal fade, one-shot strips (`event`/`edit`/`refresh`), agenda slide, optimistic date-nav chrome (`shown*`, §1.9.2), per-tab load styling incl. the mobile name-line spinner (§1.13.2), optimistic tab switch + tab-URL prefetch (§1.10/§1.13.2), WAAPI grid swipe (no forced reflow) |
 | `src/app/(protected)/parade-state/ParadeStateView.tsx` | Month-gated hold |
 | `src/components/AppShellShell.tsx` | Optimistic nav highlight (`tappedHref`) + `PendingDim`/`useLinkStatus` (§1.9.1); own-handler `HeaderRefreshButton` whose glyph spins while the header strip is up (§1.13) |
 | `src/components/ActivityBar.tsx` | `ActivityProvider` + split `useActivityControls` (stable `begin`/`end`) / `useActivityState` (`anyBusy`/`stripVisible`) contexts, `useReportActivity`, `useActivityRefresh`, `ActivityBar` (provider-owned 300 ms show delay + min hold, indeterminate strip, suppresses itself during the cold-start phases) — §1.13/§1.13.1 |
@@ -842,7 +858,7 @@ at hydration.
 | `src/lib/ui/coldStart.ts` | Pure readiness reducer (`coldStartReducer`), route allowlist + `coldStartRouteRequiresContent`, timing constants (MIN/MAX/dwell/check) — §1.13.1 |
 | `src/components/ColdStartReady.tsx` | `ColdStartReadyProvider` + `useColdStartReady`/`useColdStartContent` + `ColdStartReadyBar` (amber → green once-per-launch) — §1.13.1 |
 | `src/lib/dashboard/snapshot.ts` | Pure snapshot/request-key + IndexedDB-cache policy helpers incl. `tabLoadStates` (per-tab fresh/loading/not-loaded) — §1.13.2 |
-| `src/lib/dashboard/navigation.ts` | Dashboard navigation decision: URL + held record → displayed tab/period, coverage/`isNavigating`, warm-record choice, fetch classification (`resolveDashboardNavigation`, `planDashboardSwitch`, `classifyDashboardFetch`); composes the snapshot + view vocabulary — §1.10 |
+| `src/lib/dashboard/navigation.ts` | Dashboard navigation decision: URL + held record → displayed tab/period, coverage/`isNavigating`, warm-record choice, fetch classification (`resolveDashboardNavigation`, `planDashboardSwitch`, `classifyDashboardFetch`, `gridMonthsCovered`); composes the snapshot + view vocabulary — §1.10 |
 | `src/lib/dashboardViews/views.ts` | Pure view vocabulary + `resolveActiveTab` (tab resolution) — §1.10 |
 | `src/components/EventHistoryModal.tsx` | Preview-first paint + background revalidate (reference implementation) — §1.18 |
 | `src/lib/events/historyCache.ts` | Intent-prefetch + in-flight-promise cache (session lifetime; cleared on sign-out) — §1.18 |

@@ -747,6 +747,13 @@ html {
   pointer-events: none;
 }
 
+/* The mobile view-name strip's load spinner (docs/loading-transitions.md
+   §1.13.2): below `lg` there is no tab strip, so the active view's load state
+   rides the thin name line inline instead of pinned to a tab corner. */
+.c2-tab-line-spinner {
+  flex: 0 0 auto;
+}
+
 /* View-type thumbnail cards (docs/dashboard-views.md): the "Add view" picker
    grid and the Manage views modal's saved-view grid share one wireframe card.
    The thumbnail is a fixed 3:2 SVG canvas; the wireframe tints from the card's

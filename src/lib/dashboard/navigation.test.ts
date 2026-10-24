@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   candidateKeyForUrl,
   classifyDashboardFetch,
+  gridMonthsCovered,
   planDashboardSwitch,
   PREVIEW_STALL_MS,
   previewRevertDelayMs,
@@ -438,5 +439,33 @@ describe("classifyDashboardFetch", () => {
 
   it("fetches when nothing is held", () => {
     expect(classifyDashboardFetch(base).kind).toBe("fetch");
+  });
+});
+
+describe("gridMonthsCovered", () => {
+  it("a month always covers its own grid", () => {
+    expect(gridMonthsCovered("2026-10", "2026-10", "monday")).toBe(true);
+    expect(gridMonthsCovered("2026-10", "2026-10", "sunday")).toBe(true);
+  });
+
+  it("Apr 2026's grid already spans into May, so it covers the May grid", () => {
+    // Apr grid: Mar 30 - May 3 -> {03, 04, 05}; May grid: Apr 27 - May 31 -> {04, 05}.
+    expect(gridMonthsCovered("2026-04", "2026-05", "monday")).toBe(true);
+  });
+
+  it("Oct 2026's grid does not cover Nov's, which needs Dec 1", () => {
+    // Oct grid: Sep 28 - Nov 1 -> {09, 10, 11}; Nov grid: Oct 26 - Dec 1 -> {10, 11, 12}.
+    expect(gridMonthsCovered("2026-10", "2026-11", "monday")).toBe(false);
+  });
+
+  it("the backward step is not covered either", () => {
+    // Dec grid: Nov 30 - Jan 4 -> {11, 12, 01}; Nov grid needs Oct 26.
+    expect(gridMonthsCovered("2026-12", "2026-11", "monday")).toBe(false);
+  });
+
+  it("honours the account's week start", () => {
+    // Sunday-start Oct 2026 grid: Sep 27 - Oct 31 -> {09, 10}; Nov grid: Nov 1 - Dec 5 -> {11, 12}.
+    expect(gridMonthsCovered("2026-10", "2026-11", "sunday")).toBe(false);
+    expect(gridMonthsCovered("2026-11", "2026-10", "sunday")).toBe(false);
   });
 });

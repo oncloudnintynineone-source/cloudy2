@@ -102,7 +102,7 @@ import { MotionModal } from "@/components/MotionModal";
 import { QuickLinksMenu } from "@/components/QuickLinksMenu";
 import type { DashboardSnapshot } from "@/lib/dashboard/snapshot";
 import { eventsOnDay } from "@/lib/events/agenda";
-import { firstDayOfWeek, monthGridMonths, weekDays } from "@/lib/events/datetime";
+import { firstDayOfWeek, weekDays } from "@/lib/events/datetime";
 import { sortMineFirst } from "@/lib/events/mineFirst";
 import { buildEventDeepLink } from "@/lib/events/deepLink";
 import type { CalendarEvent } from "@/lib/events/queries";
@@ -172,7 +172,7 @@ import {
   type DashboardViewKind,
   type DashboardViewTab,
 } from "@/lib/dashboardViews/views";
-import { planDashboardSwitch } from "@/lib/dashboard/navigation";
+import { gridMonthsCovered, planDashboardSwitch } from "@/lib/dashboard/navigation";
 import { EventFormSkeleton } from "./EventFormSkeleton";
 import { ViewTypePicker } from "./ViewTypePicker";
 import { VIEW_TAB_META } from "./viewMeta";
@@ -1660,19 +1660,18 @@ function DashboardViewImpl({
   // the URL while a new month is read — and `isNavigating` can itself lag
   // through the router transition (its `searchParams` source updates only when
   // the RSC payload lands, so even a device-cached month would flash its
-  // skeleton during that gap). When the record we already hold shares a month
-  // with the destination grid (adjacent months, the usual case), draw the
-  // tapped month immediately from the held events and let the read swap them in
-  // place — no skeleton, no previous-month flash. A far jump (no shared month)
-  // has no usable in-memory events, so it keeps the skeleton. Anchored views
-  // don't need this: their `date` prop is URL-first, and a cross-month move is
-  //   already `isNavigating`.
+  // skeleton during that gap). Only draw the tapped month immediately when the
+  // held record already read **every** month that grid renders: a partial
+  // overlap would paint the tapped month with empty trailing days that then fill
+  // in when the read lands, and the suppressed skeleton means that pop-in has no
+  // loading signal (the tab spinner is the only one, and it is not rendered
+  // below `lg`). A far jump (no usable in-memory events) keeps the skeleton.
+  // Warm months still paint instantly: a warmed target month becomes the
+  // displayed record, so `month` already equals the tapped month and this branch
+  // never applies. Anchored views don't need this: their `date` prop is
+  // URL-first, and a cross-month move is already `isNavigating`.
   const monthChanging = (shownView === "month" || shownView === "dual") && shownMonth !== month;
-  const monthOptimistic =
-    monthChanging &&
-    monthGridMonths(shownMonth, weekStartsOn).some((candidate) =>
-      monthGridMonths(month, weekStartsOn).includes(candidate),
-    );
+  const monthOptimistic = monthChanging && gridMonthsCovered(month, shownMonth, weekStartsOn);
   const monthPending = monthChanging && !monthOptimistic;
   const gridLoading = useMinSkeletonHold((isNavigating && !monthOptimistic) || monthPending);
   useContentEnter(weekBoxRef, !gridLoading);
@@ -3395,18 +3394,37 @@ function DashboardViewImpl({
   // name (never the built-in kind label) — from the same optimistic chrome the
   // trigger and the announcement use, so it moves the instant a tab is tapped.
   // Passive: not a control, so it adds no focusable element.
+  //
+  // It also carries the active view's load state (docs/loading-transitions.md
+  // §1.13.2): below `lg` there is no tab strip, so the per-tab spinner that
+  // marks an in-place revalidation (a warm snapshot being refreshed, or a
+  // month/period read that the held record doesn't cover) would be invisible —
+  // the grid paints immediately with no skeleton and the newer events would land
+  // silently. Same amber spinner, same `tabStatus` source as the desktop strip.
+  const shownTabStatus = useDashboardTabStatus()[shownTabId] ?? "fresh";
   const nameLine = (
-    <Text
+    <Group
+      gap="xs"
+      align="center"
+      justify="center"
+      wrap="nowrap"
       hiddenFrom="lg"
-      size="xs"
-      fw={500}
-      c="dimmed"
-      ta="center"
-      lineClamp={1}
-      title={shownTabName}
+      aria-busy={shownTabStatus === "loading" || undefined}
     >
-      {shownTabName}
-    </Text>
+      <Text
+        size="xs"
+        fw={500}
+        c="dimmed"
+        lineClamp={1}
+        title={shownTabName}
+        style={{ minWidth: 0 }}
+      >
+        {shownTabName}
+      </Text>
+      {shownTabStatus === "loading" && (
+        <Loader size={9} color="accent" className="c2-tab-line-spinner c2-fade-in" aria-hidden />
+      )}
+    </Group>
   );
 
   // The date-nav row, pinned in the top box at lg (under the tab strip).
