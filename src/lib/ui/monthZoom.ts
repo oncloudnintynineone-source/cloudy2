@@ -54,3 +54,55 @@ export function stepMonthZoom(zoom: MonthZoom, dir: 1 | -1): MonthZoom {
   const next = Math.min(MONTH_ZOOM_LEVELS.length - 1, Math.max(0, index + dir));
   return MONTH_ZOOM_LEVELS[next];
 }
+
+/** Shared row math for the fit-height helpers (row borders included). */
+function fitRowHeight(availableHeightPx: number, rows: number): number | null {
+  if (rows <= 0 || !Number.isFinite(availableHeightPx) || availableHeightPx <= 0) {
+    return null;
+  }
+  return (availableHeightPx - rows) / rows;
+}
+
+/**
+ * Fit-to-height month fill. Mantine sizes each month week row from
+ * `--month-view-max-events` — row height = `52px + N * 24px` — so a fractional
+ * `N` makes `rows` natural rows (4–6) land exactly inside `availableHeightPx`
+ * (minus one row border per row) and the grid fills the bounded box with no
+ * vertical scroll. `null` for an unmeasured box so the caller falls back to the
+ * library's natural height. `minRowHeightPx` is the legibility floor: the
+ * default (76px = 52 + one 24px chip slot) keeps at least one whole chip per
+ * row; callers that want the natural 4-chip row (dual pane) pass 148.
+ */
+export function monthFillEvents(
+  availableHeightPx: number,
+  rows: number,
+  minRowHeightPx: number = 76,
+): number | null {
+  const rowHeight = fitRowHeight(availableHeightPx, rows);
+  if (rowHeight === null) {
+    return null;
+  }
+  return (Math.max(minRowHeightPx, rowHeight) - 52) / 24;
+}
+
+/**
+ * Fit-height chip count. Mantine lays month chips as `100 / maxEventsPerDay`
+ * rows of the day's event layer, so the chip slot shrinks with the fitted row
+ * (slot = `(rowHeight − 52px) / count`). This returns the count that keeps
+ * every slot at least `minSlotPx` tall, shrinking from `cap` toward 1 as the
+ * fitted rows get shorter; the overflow lands on the existing "+N more"
+ * trigger, which rides the day's fixed bottom inset and never collides with
+ * the chips. `null` for an unmeasured box so the caller falls back to `cap`.
+ */
+export function monthFitChipCount(
+  availableHeightPx: number,
+  rows: number,
+  cap: number = 4,
+  minSlotPx: number = 15,
+): number | null {
+  const rowHeight = fitRowHeight(availableHeightPx, rows);
+  if (rowHeight === null) {
+    return null;
+  }
+  return Math.max(1, Math.min(cap, Math.floor((rowHeight - 52) / minSlotPx)));
+}

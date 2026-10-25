@@ -2057,6 +2057,23 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     for that anchor on the resolved tab (first tab when the URL is silent), painting
     nothing when no context answers it so the fetch reads it. `page.tsx` passes the
     remembered month to `DashboardScreen`. Docs: `docs/pwa-offline.md` §1.18.
+- 1.337 **Month view fits the whole screen at `lg` (no scrolling)**: the month column
+    becomes a bounded flex column (fixed weekday strip + the grid filling the remaining
+    viewport height, flush to the bottom nav via `month-page-pad`), and the pure
+    `monthFillEvents` helper (`src/lib/ui/monthZoom.ts`, unit-tested) hands Mantine a
+    fractional `--month-view-max-events` so the natural 4–6 week rows land exactly inside
+    the box — no vertical scroll on any desktop viewport; chips scale with the row, the
+    cap stays 4 (floor = one 24px chip slot). `DualPaneView`'s month-pane fill now uses the
+    same helper (keeping its 148px pane floor). Below `lg` the month stays the
+    document-scrolling grid. Docs: `docs/dashboard-views.md` §1.8.1.
+- 1.338 **Fit-height month chips keep their legibility floor**: the per-day chip
+    count is now solved from the fitted row height — pure `monthFitChipCount`
+    (`src/lib/ui/monthZoom.ts`, unit-tested) keeps each chip slot ≥ 15px, so the
+    count stays 4 on typical fitted rows and drops to 3/2/1 as they get shorter;
+    the overflow goes to the existing `+N more` popover (its trigger rides the
+    day's fixed bottom inset, so it never collides with the chips). The Month &
+    Agenda pane keeps its 148px-row floor (slots never fall below 24px there).
+    Docs: `docs/dashboard-views.md` §1.8.1.
 
 ## 1.4 Open items & next steps
 

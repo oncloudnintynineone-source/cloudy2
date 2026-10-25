@@ -5,6 +5,8 @@ import {
   MIN_MONTH_ZOOM,
   MONTH_ZOOM_LEVELS,
   clampMonthZoom,
+  monthFillEvents,
+  monthFitChipCount,
   stepMonthZoom,
 } from "./monthZoom";
 
@@ -51,5 +53,66 @@ describe("stepMonthZoom", () => {
     expect(stepMonthZoom(MAX_MONTH_ZOOM, 1)).toBe(MAX_MONTH_ZOOM);
     // Fit (1) is the floor — zooming out never goes below the fit width.
     expect(stepMonthZoom(MIN_MONTH_ZOOM, -1)).toBe(MIN_MONTH_ZOOM);
+  });
+});
+
+describe("monthFillEvents", () => {
+  it("returns a fractional N that fills the box exactly (52 + N * 24 per row)", () => {
+    // 6 rows in 800px: (800 - 6) / 6 = 132.33px per row -> 3.347 chip slots.
+    const events = monthFillEvents(800, 6);
+    if (events === null) throw new Error("a measured box must produce a fill value");
+    expect(events).toBeCloseTo(((800 - 6) / 6 - 52) / 24, 10);
+    const rowHeight = 52 + events * 24;
+    expect(rowHeight * 6 + 6).toBeCloseTo(800, 6);
+  });
+
+  it("passes the natural four-chip height through when the box matches it", () => {
+    // 148px rows = 52 + 4 * 24 exactly, borders included.
+    expect(monthFillEvents(148 * 5 + 5, 5)).toBe(4);
+  });
+
+  it("respects a caller floor (dual pane keeps the natural 148px row)", () => {
+    // Short box: the 148 floor wins, so the pane keeps its natural scroll.
+    const events = monthFillEvents(400, 4, 148);
+    expect(events).toBe(4);
+  });
+
+  it("floors at one chip slot at the default minimum", () => {
+    // Degenerate box: one 24px slot minimum (row = 76px -> N = 1).
+    expect(monthFillEvents(10, 4)).toBe(1);
+  });
+
+  it("returns null for unmeasured or invalid input", () => {
+    expect(monthFillEvents(0, 5)).toBeNull();
+    expect(monthFillEvents(-40, 5)).toBeNull();
+    expect(monthFillEvents(800, 0)).toBeNull();
+    expect(monthFillEvents(Number.NaN, 5)).toBeNull();
+    expect(monthFillEvents(Number.POSITIVE_INFINITY, 5)).toBeNull();
+  });
+});
+
+describe("monthFitChipCount", () => {
+  it("keeps the cap while the fitted row can hold 15px slots", () => {
+    // 112px rows -> 60px chip area -> exactly four 15px slots.
+    expect(monthFitChipCount(112 * 5 + 5, 5)).toBe(4);
+    expect(monthFitChipCount(1205, 5)).toBe(4); // tall rows still cap at 4
+  });
+
+  it("shrinks the count when the fitted row can't hold the cap", () => {
+    // 111px rows -> 59px area -> three slots.
+    expect(monthFitChipCount(560, 5)).toBe(3);
+    // 87px rows -> 35px area -> two slots.
+    expect(monthFitChipCount(352, 4)).toBe(2);
+  });
+
+  it("never drops below one chip", () => {
+    // Degenerate row: the count floors at 1.
+    expect(monthFitChipCount(100, 4)).toBe(1);
+  });
+
+  it("returns null for unmeasured or invalid input", () => {
+    expect(monthFitChipCount(0, 5)).toBeNull();
+    expect(monthFitChipCount(400, 0)).toBeNull();
+    expect(monthFitChipCount(Number.NaN, 5)).toBeNull();
   });
 });

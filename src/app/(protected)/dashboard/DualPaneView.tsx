@@ -67,7 +67,13 @@ import {
 } from "@/lib/ui/dualSplit";
 import { announce } from "@/lib/ui/announcer";
 import { useGridPan } from "@/lib/ui/gridPan";
-import { clampMonthZoom, MAX_MONTH_ZOOM, MIN_MONTH_ZOOM, type MonthZoom } from "@/lib/ui/monthZoom";
+import {
+  clampMonthZoom,
+  MAX_MONTH_ZOOM,
+  MIN_MONTH_ZOOM,
+  monthFillEvents,
+  type MonthZoom,
+} from "@/lib/ui/monthZoom";
 import { usePinchZoom } from "@/lib/ui/pinchZoom";
 import { animateZoom, scrollAnchorTracker } from "@/lib/ui/zoomAnim";
 import { AgendaSwipeHint } from "@/components/AgendaSwipeHint";
@@ -269,11 +275,14 @@ export function DualPaneView({
     if (!isDesktop || monthScrollHeight <= 0) {
       return undefined;
     }
-    // 148px = 52 + 4 * 24 (the natural four-event row); subtract the row
-    // borders so the filled grid lands just inside the pane.
-    const rows = monthGridRows(month, weekStartsOn);
-    const rowHeight = Math.max(148, (monthScrollHeight - rows) / rows);
-    return { "--month-view-max-events": String((rowHeight - 52) / 24) } as CSSProperties;
+    // 148px = 52 + 4 * 24 (the natural four-event row) stays the floor here:
+    // the shared `monthFillEvents` math (row borders included) fills a tall
+    // pane, and a short one keeps its natural row height — and its own scroll.
+    const events = monthFillEvents(monthScrollHeight, monthGridRows(month, weekStartsOn), 148);
+    if (events === null) {
+      return undefined;
+    }
+    return { "--month-view-max-events": String(events) } as CSSProperties;
   }, [isDesktop, monthScrollHeight, month, weekStartsOn]);
 
   // ---- Split handle --------------------------------------------------------

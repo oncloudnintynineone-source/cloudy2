@@ -142,6 +142,8 @@ import { useGridPan } from "@/lib/ui/gridPan";
 import { useImmersiveMode } from "@/lib/ui/immersiveMode";
 import {
   clampMonthZoom,
+  monthFillEvents,
+  monthFitChipCount,
   MAX_MONTH_ZOOM,
   MIN_MONTH_ZOOM,
   stepMonthZoom,
@@ -1720,6 +1722,56 @@ function DashboardViewImpl({
   const monthPending = monthChanging && !monthOptimistic;
   const gridLoading = useMinSkeletonHold((isNavigating && !monthOptimistic) || monthPending);
   useContentEnter(weekBoxRef, !gridLoading);
+
+  // Fit-to-height month fill (`lg` only; the whole grid lands inside the screen —
+  // docs/dashboard-views.md §1.8.1). The month column becomes a bounded flex
+  // column (fixed weekday strip + the grid filling the remaining viewport
+  // height), and the shared pure `monthFillEvents` math turns the natural
+  // 4–6 week rows into a fractional `--month-view-max-events` so the rows land
+  // exactly inside the box: no vertical scroll on any desktop viewport (chips
+  // scale with the row; the cap stays 4). Only the box height is measured —
+  // the vertical budget itself rides the shell CSS vars plus the measured
+  // chrome, so fullscreen/immersive and resizes re-fill with no extra math.
+  // Below `lg` the month stays the document-scrolling grid, so nothing applies.
+  const monthFitBoxRef = useRef<HTMLDivElement | null>(null);
+  const monthFitRef = useMergedRef(gridSlideRef, monthFitBoxRef);
+  const monthFitActive = isDesktop && shownView === "month";
+  const [monthFitHeight, setMonthFitHeight] = useState(0);
+  useLayoutEffect(() => {
+    const el = monthFitBoxRef.current;
+    if (!monthFitActive || !el) {
+      setMonthFitHeight(0);
+      return;
+    }
+    const update = () => setMonthFitHeight(el.clientHeight);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [monthFitActive]);
+  // Rows must match what the grid actually renders — the optimistic month
+  // while an adjacent month is still being read.
+  const monthFitRows = monthGridRows(monthOptimistic ? shownMonth : month, weekStartsOn);
+  const monthFitStyle = useMemo<CSSProperties | undefined>(() => {
+    if (!monthFitActive || monthFitHeight <= 0) {
+      return undefined;
+    }
+    const events = monthFillEvents(monthFitHeight, monthFitRows);
+    if (events === null) {
+      return undefined;
+    }
+    return { "--month-view-max-events": String(events) } as CSSProperties;
+  }, [monthFitActive, monthFitHeight, monthFitRows]);
+  // Adaptive chip count: the fitted row shrinks the chip slot, so the per-day
+  // count drops from 4 when a slot would fall below the 15px legibility floor
+  // (overflow goes to the "+N more" popover; `sortMineFirst` keeps the user's
+  // events at the head of the visible set).
+  const monthFitChips = useMemo(() => {
+    if (!monthFitActive || monthFitHeight <= 0) {
+      return undefined;
+    }
+    return monthFitChipCount(monthFitHeight, monthFitRows);
+  }, [monthFitActive, monthFitHeight, monthFitRows]);
 
   // Directional swipe on the grid/skeleton wrapper, for two kinds of change:
   // - a view (tab) switch: the target's side in the strip picks the direction
@@ -3746,7 +3798,9 @@ function DashboardViewImpl({
           ? "weekgrid-page-pad"
           : shownIsDual
             ? "dual-page-pad"
-            : "fab-page-pad"
+            : monthFitActive
+              ? "month-page-pad"
+              : "fab-page-pad"
       }
       gap="sm"
       style={
@@ -4033,6 +4087,18 @@ function DashboardViewImpl({
           className="c2-gutter-anim"
           style={{
             overflow: "clip",
+            // Fit-to-height month (`lg`): the wrapper becomes the bounded flex
+            // column — the weekday strip is its fixed header, the grid box below
+            // fills the rest to the viewport bottom (`month-page-pad` zeroes the
+            // page padding and reclaims Main's, so the column totals exactly
+            // `100dvh` with no document scroll). The Stack gap is already
+            // cancelled by the negative `marginTop` below, so the budget
+            // subtracts only header + footer + measured chrome.
+            display: monthFitActive ? "flex" : undefined,
+            flexDirection: monthFitActive ? "column" : undefined,
+            height: monthFitActive
+              ? `calc(var(--app-shell-vh, 100dvh) - var(--app-shell-header-offset) - var(--app-shell-footer-offset) - ${topChromeHeight}px)`
+              : undefined,
             // Month view: the pinned weekday strip is the grid's header, so it
             // must dock flush under the sticky top chrome (its sticky `top`),
             // not 12px below it (the Stack's page gap). Cancelling the gap
@@ -4096,13 +4162,26 @@ function DashboardViewImpl({
               chromeOffset={topChromeHeight}
               innerRef={monthWeekdayTrackRef}
               weekStartsOn={weekStartsOn}
+              // In the fit-to-height column at `lg` the strip is the column's
+              // fixed header (the box is bounded, so nothing scrolls to pin
+              // against); below `lg` it stays the classic pinned strip.
+              sticky={!isDesktop}
             />
           )}
           {/* Grid/skeleton swipe on a view/date change: `gridSlideRef` is
             animated via `el.animate` (Web Animations API) on the change; the
             inner bleed wrapper's overflow clip contains the transient offset.
             The pinned strips/rulers and pan controls stay outside, static. */}
-          <Box ref={gridSlideRef} style={{ position: "relative" }}>
+          <Box
+            ref={monthFitRef}
+            style={{
+              position: "relative",
+              // Fit-to-height month (`lg`): this box is the column's flexible
+              // remainder (measured for the fill math); the grid's rows land
+              // exactly inside it, so it never scrolls.
+              ...(monthFitActive ? { flex: "1 1 auto", minHeight: 0, overflowY: "auto" } : null),
+            }}
+          >
             {gridLoading ? (
               // Skeleton flavor follows the optimistic view: the shape you tapped
               // is what appears to load (same contract as loading.tsx, which
@@ -4110,7 +4189,10 @@ function DashboardViewImpl({
               <>
                 <LoadingStatus label="Loading calendar" />
                 {shownView === "month" ? (
-                  <MonthGridSkeleton rows={monthGridRows(shownMonth, weekStartsOn)} />
+                  <MonthGridSkeleton
+                    rows={monthGridRows(shownMonth, weekStartsOn)}
+                    fill={monthFitActive}
+                  />
                 ) : shownIsDual ? (
                   <DualPaneSkeleton
                     rows={monthGridRows(shownMonth, weekStartsOn)}
@@ -4155,9 +4237,17 @@ function DashboardViewImpl({
                 // Zoomed scroll-content width (see ZOOM_VAR above): 100% at zoom 1
                 // (the whole week fits), wider when zoomed in. The width and the
                 // scroll re-anchor are both driven by the JS zoom animation.
+                // Fit-to-height (`lg`): the fractional fill var on the view root
+                // makes the natural rows land exactly inside the bounded box
+                // (`monthFitStyle` above); below `lg` it is undefined and the
+                // library's natural row height applies.
+                style={monthFitStyle}
                 styles={{ monthViewInner: MONTH_INNER_STYLE }}
                 scrollAreaProps={monthScrollAreaProps}
-                maxEventsPerDay={isDesktop ? 4 : 3}
+                // Fit-height chip count (`lg`): 4 while the fitted row can hold
+                // 15px slots, fewer when it can't (see `monthFitChips` above);
+                // below `lg` the natural mobile count stays 3.
+                maxEventsPerDay={monthFitActive ? (monthFitChips ?? 4) : isDesktop ? 4 : 3}
                 moreEventsProps={{
                   // On the fit-to-width zoom the 7 columns drop to ~45-51px on
                   // narrow phones; the library's "+ more" button has no nowrap /

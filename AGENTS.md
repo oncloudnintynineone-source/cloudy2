@@ -169,7 +169,9 @@ doc content here.
     reflow — the rows are `Affix`-fixed).
   Month
   grids zoom from fit-to-width (`src/lib/ui/monthZoom.ts`,
-  `dashboard.monthZoom`); Week (D) is a custom matrix (`buildWeekLanes`). Entry highlights:
+  `dashboard.monthZoom`) and fit the whole screen at `lg` (bounded column +
+  the pure `monthFillEvents` row fill + `monthFitChipCount` legibility floor (15px
+  chip slot, count shrinks from 4 as fitted rows get shorter) — §1.8.1); Week (D) is a custom matrix (`buildWeekLanes`). Entry highlights:
   amber = mine, purple = external (`c2-my-*` / `c2-ext-*` in `globals.css`).
   Design: [docs/dashboard-views.md](docs/dashboard-views.md).
 - **Wide grids pan + zoom** via `useGridPan` + the shared `GridNavControls`

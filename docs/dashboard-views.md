@@ -25,6 +25,7 @@ grid's fit-to-width zoom.
 - [1.7 Timeline zoom (Day, Week (H) and Week (Grid))](#17-timeline-zoom-day-week-h-and-week-grid)
 - [1.7.1 Week (Grid) all-day overflow](#171-week-grid-all-day-overflow)
 - [1.8 Month-grid zoom (fit-to-width)](#18-month-grid-zoom-fit-to-width)
+- [1.8.1 Fit-to-height (lg, no scrolling)](#181-fit-to-height-lg-no-scrolling)
 - [1.9 Month & Agenda](#19-month--agenda)
 - [1.10 File index & related docs](#110-file-index--related-docs)
 
@@ -935,9 +936,7 @@ flowchart LR
 The Month view can zoom its day columns in and out. The **default (zoom 100%) is
 "fit to viewport"**: all seven columns are sized to exactly 1/7 of the grid's
 width, so the whole week is visible on any screen with no horizontal scroll.
-Zooming in widens every day column from there (columns only — `maxEventsPerDay`,
-cell height and the "+N more" day modal are unchanged), overflowing the grid into
-the same horizontal pan the other views use. As with the other zooms, a zoomed-in
+Zooming in widens every day column from there (columns only — `maxEventsPerDay`, cell height and the "+N more" day modal are unchanged), overflowing the grid into the same horizontal pan the other views use. At `lg` the grid also fits the viewport **height** — see §1.8.1. As with the other zooms, a zoomed-in
 grid reclaims the shell's side gutters for content (see the gutter-reclamation
 note in §1.7).
 
@@ -983,6 +982,36 @@ flowchart LR
  S --> T["MonthWeekdayStrip track<br/>(same zoomed width)"]
  S --> C["dashboard.monthZoom cookie<br/>(usePersistDashboardNav)"]
 ```
+
+### 1.8.1 Fit-to-height (lg, no scrolling)
+
+At `lg` the standalone Month tab also fits **height**: the whole grid lands
+inside the screen with no vertical scroll (below `lg` the month stays the
+document-scrolling grid, unchanged). The month column becomes a **bounded flex
+column** — the `MonthWeekdayStrip` is its fixed header (`sticky={false}` there)
+and the grid box below fills the remaining viewport height
+(`--app-shell-vh`/`100dvh` minus the header, footer and the measured
+`topChromeHeight`), running flush to the bottom nav through `month-page-pad`
+(zeroed page bottom padding + a negative margin reclaiming Main's, exactly like
+`.weekgrid-page-pad`). The row heights come from the shared pure helper
+`monthFillEvents` (`src/lib/ui/monthZoom.ts`, unit-tested): Mantine sizes each
+week row from `--month-view-max-events` (`52px + N * 24px`), so the view root
+gets a **fractional** `N` solved from the measured box height (minus one row
+border per row) — the natural 4–6 rows then land exactly inside the box, so
+nothing scrolls. The chip count follows the fitted height: Mantine lays chips as
+`100 / maxEventsPerDay` rows of the day, so the pure `monthFitChipCount` keeps
+each chip slot ≥ 15px — 4 by default, dropping to 3/2/1 on short fitted rows —
+with the overflow on the existing `+N more` trigger (which rides the day's fixed
+bottom inset, so it never collides with the chips) and `sortMineFirst` keeping
+the user's events at the head of the visible set. The fill floor is one whole
+chip slot (76px row), which any real desktop viewport beats. The box is
+measured with a `ResizeObserver`, so resizes and immersive mode re-fill without
+re-deriving the chrome vars, and the fill follows the month the grid actually
+renders (the optimistic month during an adjacent-month read).
+`MonthGridSkeleton` fills the same bounded column during loads (`fill`). The
+Month & Agenda month pane runs the identical recipe through the same helper,
+keeping its natural 148px-row floor so a short pane can still scroll. Horizontal
+zoom/pan is untouched: fit-width is still the zoom-1 base at every width.
 
 ## 1.9 Month & Agenda
 
@@ -1113,7 +1142,7 @@ flowchart LR
 | `src/lib/events/mineFirst.ts` | Pure "mine first" sort for the month view's greedy row assignment |
 | `src/lib/events/schedule.ts` | Resource rows (`buildScheduleResources`, `userFilter`) |
 | `src/lib/ui/slotZoom.ts` | Pure zoom levels + slot-width math (`clampZoom`, `stepZoom`, `weekSlotWidth`, `daySlotWidth`) |
-| `src/lib/ui/monthZoom.ts` | Pure Month fit-width zoom levels + stepping (`clampMonthZoom`, `stepMonthZoom`) |
+| `src/lib/ui/monthZoom.ts` | Pure Month fit-width zoom levels + stepping (`clampMonthZoom`, `stepMonthZoom`) + the fit-height fill + chip-count math (`monthFillEvents`, `monthFitChipCount`, §1.8.1) |
 | `src/components/GridNavControls.tsx` | Day/Week (H) + Month right-edge cluster: zoom +/− + right pan, plus left-edge pan |
 | `src/components/FilterButton.tsx` | Dedicated filter button (icon + active-group badge) replacing the kebab's filter menu |
 | `src/components/FilterModal.tsx` | Filters dialog (collapsible groups, per-tab scope hint) |

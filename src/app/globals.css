@@ -1207,6 +1207,22 @@ html {
 }
 
 /*
+  Month fit-to-height page pad (DashboardView applies it instead of
+  `.fab-page-pad` on a month tab at `lg`). Below `lg` the month still
+  document-scrolls, so the base keeps the shared FAB clearance (DashboardView
+  applies `fab-page-pad` there anyway); at `lg` the bounded month column fills
+  the viewport, so the page bottom padding is dropped AND Main's own bottom
+  padding is reclaimed with a matching negative margin — the column totals
+  exactly `100dvh` (no document scroll) and lands flush to the bottom nav,
+  exactly like `.weekgrid-page-pad`.
+*/
+.month-page-pad {
+  padding-bottom: calc(
+    var(--app-floating-bottom-offset-immersive) + 65px + var(--c2-bottom-chrome-height, 0px)
+  );
+}
+
+/*
   Global frosted-glass translucency for PAGE-level surfaces only.
   `.c2-glass-surface` (body-tinted) is the general overlapping surface — sticky
   calendar chrome, bottom nav, settings tabs, sidebar and grid headers. The app
@@ -1947,6 +1963,14 @@ html {
      the behind-the-chrome grid extends all the way down (see `.weekgrid-page-pad`
      above). */
   .weekgrid-page-pad {
+    padding-bottom: 0;
+    margin-bottom: calc(-1 * var(--app-shell-padding));
+  }
+
+  /* Month fit-to-height at lg: flush to the viewport bottom, so the bounded
+     column totals exactly `100dvh` with no document scroll (see
+     `.month-page-pad` above). */
+  .month-page-pad {
     padding-bottom: 0;
     margin-bottom: calc(-1 * var(--app-shell-padding));
   }
