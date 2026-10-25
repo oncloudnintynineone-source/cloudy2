@@ -2068,12 +2068,37 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     document-scrolling grid. Docs: `docs/dashboard-views.md` §1.8.1.
 - 1.338 **Fit-height month chips keep their legibility floor**: the per-day chip
     count is now solved from the fitted row height — pure `monthFitChipCount`
-    (`src/lib/ui/monthZoom.ts`, unit-tested) keeps each chip slot ≥ 15px, so the
+    (`src/lib/ui/monthZoom.ts`, unit-tested) keeps each chip slot ≥ 21px, so the
     count stays 4 on typical fitted rows and drops to 3/2/1 as they get shorter;
-    the overflow goes to the existing `+N more` popover (its trigger rides the
-    day's fixed bottom inset, so it never collides with the chips). The Month &
-    Agenda pane keeps its 148px-row floor (slots never fall below 24px there).
+    21px is the floor that keeps the chip box above Mantine's `autoSize`
+    `@container (max-height: 18px)` tier, so the standard 12px chip text always
+    renders instead of collapsing to 9px. The overflow goes to the existing
+    `+N more` popover (its trigger rides the day's fixed bottom inset, so it
+    never collides with the chips). The Month & Agenda pane keeps its 148px-row
+    floor (slots never fall below 24px there).
     Docs: `docs/dashboard-views.md` §1.8.1.
+- 1.339 **Compact desktop band saves a full chrome row**: in the 640–799px desktop band
+    (`isNarrowDesktop` = `isDesktop && !isDesktopWide` in `DashboardView`) the sticky
+    chrome box is a single row instead of tab strip + date-nav — the strip folds into a
+    **view trigger** at the nav row's left end (active view's kind icon + name + chevron)
+    opening the same `viewMenuItems` dropdown, which also carries the active tab's
+    load-state spinner and not-loaded fade; New event and Quick links run icon-only so the
+    row fits the ~544px content width the icon rail leaves, and the row gap/`mt` plus the
+    box's `paddingBottom` tighten. ~55–60px of chrome back per screen; `lg`+ wide desktop
+    and phones are untouched, and `topChromeHeight`'s `ResizeObserver` re-docks every
+    pinned grid strip and the fit-to-height month column automatically.
+    Docs: `docs/dashboard-views.md` §1.1, `docs/desktop-responsive.md` §1.4, `AGENTS.md`.
+- 1.340 **Compact desktop chrome now triggers on short viewports + centered cell text**:
+    the single-row chrome (`isCompactDesktop`) no longer stops at 800px width — it also
+    applies on any desktop where the **wide** layout's month day cell would fit at most
+    two event chips, projected with the tested `monthFitChipCount` over a fixed
+    wide-chrome budget (`WIDE_DESKTOP_CHROME_RESERVE_PX` = 160px) and the current month's
+    rows, so the decision cannot oscillate with its own height. `isNarrowDesktop`
+    (640–799px) still owns the icon-only New event / Quick links; a wide-but-short
+    viewport keeps their labels. Event-chip titles are now **vertically centered in every
+    grid cell at all widths** (previously mobile-only; only the tighter mobile chip
+    padding stays mobile-scoped). Docs: `docs/dashboard-views.md` §1.1/§1.4,
+    `docs/desktop-responsive.md` §1.4, `AGENTS.md`.
 
 ## 1.4 Open items & next steps
 

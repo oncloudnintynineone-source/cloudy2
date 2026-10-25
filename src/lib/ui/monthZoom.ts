@@ -93,12 +93,19 @@ export function monthFillEvents(
  * fitted rows get shorter; the overflow lands on the existing "+N more"
  * trigger, which rides the day's fixed bottom inset and never collides with
  * the chips. `null` for an unmeasured box so the caller falls back to `cap`.
+ *
+ * `minSlotPx` (21) is not arbitrary: the library renders month chips with
+ * `autoSize`, whose CSS carries an `@container (max-height: 18px)` rule that
+ * drops the chip text from 12px to 9px. A chip box is `slot − 2px` tall, so
+ * any slot ≤ 20px would render that 9px text. Because the count is
+ * `floor(content / minSlotPx)` clamped to 1–4, `content / count` is always
+ * ≥ `minSlotPx` — so the 9px tier can never fire.
  */
 export function monthFitChipCount(
   availableHeightPx: number,
   rows: number,
   cap: number = 4,
-  minSlotPx: number = 15,
+  minSlotPx: number = 21,
 ): number | null {
   const rowHeight = fitRowHeight(availableHeightPx, rows);
   if (rowHeight === null) {

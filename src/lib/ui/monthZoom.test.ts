@@ -92,17 +92,29 @@ describe("monthFillEvents", () => {
 });
 
 describe("monthFitChipCount", () => {
-  it("keeps the cap while the fitted row can hold 15px slots", () => {
-    // 112px rows -> 60px chip area -> exactly four 15px slots.
-    expect(monthFitChipCount(112 * 5 + 5, 5)).toBe(4);
+  it("keeps the cap while the fitted row can hold 21px slots", () => {
+    // 136px rows -> 84px chip area -> exactly four 21px slots.
+    expect(monthFitChipCount((52 + 84) * 5 + 5, 5)).toBe(4);
     expect(monthFitChipCount(1205, 5)).toBe(4); // tall rows still cap at 4
   });
 
   it("shrinks the count when the fitted row can't hold the cap", () => {
-    // 111px rows -> 59px area -> three slots.
-    expect(monthFitChipCount(560, 5)).toBe(3);
-    // 87px rows -> 35px area -> two slots.
-    expect(monthFitChipCount(352, 4)).toBe(2);
+    // 135px rows -> 83px area -> three slots.
+    expect(monthFitChipCount(680, 5)).toBe(3);
+    // 94px rows -> 42px area -> two slots.
+    expect(monthFitChipCount(475, 5)).toBe(2);
+    // 93px rows -> 41px area -> one slot.
+    expect(monthFitChipCount(470, 5)).toBe(1);
+  });
+
+  it("never lets a fitted row fall into the 9px auto-size text tier", () => {
+    // The library's chip is `slot - 2px` tall and its `@container (max-height:
+    // 18px)` rule drops the text to 9px, so every slot must stay above 20px.
+    for (const n of [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6]) {
+      const count = monthFitChipCount((52 + 24 * n) * 5 + 5, 5);
+      expect(count).not.toBeNull();
+      expect((24 * n) / (count as number) - 2).toBeGreaterThan(18);
+    }
   });
 
   it("never drops below one chip", () => {

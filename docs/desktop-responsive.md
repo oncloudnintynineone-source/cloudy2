@@ -187,6 +187,7 @@ gated on `isDesktop`):
 
 | Element | Mobile | At `lg` |
 | ------- | ------ | ------- |
+| Sticky chrome rows (view tabs + date-nav) | thin name strip + floating bottom pill | two rows at `lg`+; **one row** in the compact desktop tier (`isCompactDesktop`): the narrow 640-799px band, or any desktop viewport whose wide-layout month day cell would fit at most two event chips — the tab strip folds into a view trigger, and New event / Quick links go icon-only only in the narrow band — see below |
 | Schedule views' resource/group label widths (`--resources-day-view-*` / `--resources-week-view-*` vars) | `3rem` / `1.5rem` | `6rem` / `3.5rem` — shortnames get room to stop ellipsizing |
 | Week (H) timeline slot width (`--resources-week-view-slot-width`) | Mantine default (`calc(3.75rem * var(--mantine-scale))`, 60px/hour) | `calc(4.5rem * var(--mantine-scale))` (72px/hour) |
 | Day timeline slot width (`--resources-day-view-slot-width`) | Mantine default (`calc(5rem * var(--mantine-scale))`, 80px/hour) | same — both slot widths are then multiplied by the shared **timeline zoom** level (0.25–6, default 1; see [`dashboard-views.md`](dashboard-views.md#17-timeline-and-column-zoom-day-week-h-week-d-and-week-grid)) |
@@ -210,9 +211,25 @@ chrome as **frosted-glass sticky boxes** (background bled corner-to-corner
 via negative `margin-inline` + matching `padding-inline`, compact 36px controls)
 so the period label, filter and date buttons stay
 reachable while any view's grid scrolls — on phones too, where losing them
-mid-scroll was the old default. At `lg`+ ONE box pins at the top
-(`top: var(--app-shell-header-offset)`, bottom divider) holding the view-tab
-strip row and the date-nav row together. **Below `lg` the chrome splits**: a
+ mid-scroll was the old default. At `lg`+ ONE box pins at the top
+ (`top: var(--app-shell-header-offset)`, bottom divider) holding the view-tab
+ strip row and the date-nav row together — except in the **compact desktop tier
+ (`isCompactDesktop`)**, where vertical space is the scarce dimension: there the
+ box is a **single row**, the tab strip folding into a **view trigger** at the
+ row's left end (the active view's kind icon + name + chevron, opening the same
+ dropdown the mobile view menu uses). The tier has two triggers:
+ `isNarrowDesktop` (`isDesktop && !isDesktopWide`, the 640-799px band) — where
+ New event / Quick links also run icon-only to fit the ~544px content width the
+ 64px icon rail leaves — and a **short wide viewport**, where the wide-layout
+ month day cell would fit **at most two event chips**. That capacity is projected
+ with the tested `monthFitChipCount` (`src/lib/ui/monthZoom.ts`) over
+ `viewportHeight − WIDE_DESKTOP_CHROME_RESERVE_PX` (160px = 56px header + the
+ wide two-row chrome) and the current month's row count; the fixed wide budget
+ (never the live compact height) keeps the decision stable. On a wide-but-short
+ screen the labels stay (there is horizontal room). Either way a full row of
+ chrome (~55-60px) is saved. With enough height at 800px+ the two-row chrome
+ returns unchanged, and below `lg` the mobile recipe is untouched. **Below `lg`
+ the chrome splits**: a
 thin **view-name strip stays pinned at the top** under the header, and the
 date controls move to **two floating rows at the bottom** (thumb-zone reach):
 a frosted **control pill** (`.c2-control-pill`, an Affix inset **16px from the

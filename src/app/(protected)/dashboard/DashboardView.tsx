@@ -40,7 +40,13 @@ import {
   UnstyledButton,
   useMantineTheme,
 } from "@mantine/core";
-import { useDisclosure, useDrag, useMediaQuery, useMergedRef } from "@mantine/hooks";
+import {
+  useDisclosure,
+  useDrag,
+  useMediaQuery,
+  useMergedRef,
+  useViewportSize,
+} from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 // `@mantine/schedule` is the app's heaviest client dependency and is only
 // needed once a schedule-backed view renders. Its views are code-split behind
@@ -255,10 +261,7 @@ const EMPTY_SETTLED_IDS: ReadonlySet<string> = new Set();
 // A chip whose logical group just took over from an optimistic stand-in
 // (docs/optimistic-mutations.md §1.3): module-level so the renderEvent
 // callbacks can call it while `justSettledIds` stays their memo dep.
-const isJustSettledRenderEvent = (
-  ids: ReadonlySet<string>,
-  event: { id: string | number },
-) => {
+const isJustSettledRenderEvent = (ids: ReadonlySet<string>, event: { id: string | number }) => {
   if (ids.size === 0) {
     return false;
   }
@@ -861,6 +864,19 @@ const CHIP_DISCARD_MIN = 92;
 const CHIP_TEXT_MIN = 160;
 const CHIP_DETAIL_MIN = 220;
 
+/**
+ * Vertical budget the wide desktop layout spends above the fit-to-height month
+ * column: the 56px app header plus the two-row sticky chrome (tab strip + nav
+ * row, ~104px). Used only to project the day-cell chip capacity that the *wide*
+ * chrome would give, so the compact tier is chosen from the viewport height
+ * without the live chrome height feeding back into the decision (which would
+ * oscillate: compacting gains a row slot, which un-compacts, which loses it).
+ *
+ * Deliberately rounds up: a banner or safe-area inset makes the real box
+ * shorter than this, so the tier engages a touch earlier - the requested bias.
+ */
+const WIDE_DESKTOP_CHROME_RESERVE_PX = 160;
+
 function DashboardViewImpl({
   month,
   date,
@@ -912,13 +928,8 @@ function DashboardViewImpl({
   // DashboardScreen, which revalidates in place. Mutations call `revalidate()`
   // instead of `router.refresh()` (which no longer carries data), and a
   // context-change fetch drives the grid skeleton via `isNavigating`.
-  const {
-    revalidate,
-    isNavigating,
-    setPreviewView,
-    reportNavigationPending,
-    applyViewTab,
-  } = useDashboardData();
+  const { revalidate, isNavigating, setPreviewView, reportNavigationPending, applyViewTab } =
+    useDashboardData();
   const navigationTransitionSeenRef = useRef(false);
   useEffect(() => {
     if (isPending) {
@@ -944,12 +955,20 @@ function DashboardViewImpl({
   // lives here — a parent CSS class can't shadow the root's own declaration.
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
   const isDesktopWide = useMediaQuery(DESKTOP_WIDE_MEDIA_QUERY);
+  // The narrow desktop band (640-799px): the sidebar is already the auto-collapsed
+  // icon rail, so there is no horizontal room for the labelled New-event / Quick-links
+  // buttons (they go icon-only) and the row runs with tighter gaps. This is the
+  // horizontal-fit half of the compact desktop tier; the row count is decided later
+  // by `isCompactDesktop` (which also covers short, wide viewports).
+  const isNarrowDesktop = isDesktop && !isDesktopWide;
+  const viewportSize = useViewportSize();
   const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY);
   // Touch-first devices: only they get the agenda swipe hint (see below).
   const isCoarsePointer = useMediaQuery(COARSE_POINTER_MEDIA_QUERY);
 
   // Heights of the two chrome pieces. At lg ONE box pins at the top (view tabs
-  // + date-nav row): topChromeHeight = its height, bottomChromeHeight = 0.
+  // + date-nav row, or the single compact row when `isCompactDesktop`):
+  // topChromeHeight = its height, bottomChromeHeight = 0.
   // Below lg the chrome SPLITS: a thin view-name strip pins at the top
   // (topChromeHeight) and the date controls move to a FULL-WIDTH floating pill
   // at the bottom (bottomChromeHeight = its measured height; fabStackHeight =
@@ -1752,6 +1771,18 @@ function DashboardViewImpl({
   // Rows must match what the grid actually renders — the optimistic month
   // while an adjacent month is still being read.
   const monthFitRows = monthGridRows(monthOptimistic ? shownMonth : month, weekStartsOn);
+  // The compact desktop chrome (`isCompactDesktop`): ONE sticky row instead of the
+  // wide desktop's tab strip + date-nav row. It applies in the 640-799px band (no
+  // horizontal room) AND on any desktop viewport where the *wide* layout's month
+  // day cell would fit at most two event chips - the "the day only shows two
+  // events" cue on short laptops. The projection uses the fixed wide-chrome
+  // budget, never the live compact height, so the decision cannot oscillate.
+  const projectedWideDayChips = monthFitChipCount(
+    viewportSize.height - WIDE_DESKTOP_CHROME_RESERVE_PX,
+    monthFitRows,
+  );
+  const compactForHeight = projectedWideDayChips !== null && projectedWideDayChips <= 2;
+  const isCompactDesktop = isDesktop && (isNarrowDesktop || compactForHeight);
   const monthFitStyle = useMemo<CSSProperties | undefined>(() => {
     if (!monthFitActive || monthFitHeight <= 0) {
       return undefined;
@@ -1763,9 +1794,10 @@ function DashboardViewImpl({
     return { "--month-view-max-events": String(events) } as CSSProperties;
   }, [monthFitActive, monthFitHeight, monthFitRows]);
   // Adaptive chip count: the fitted row shrinks the chip slot, so the per-day
-  // count drops from 4 when a slot would fall below the 15px legibility floor
-  // (overflow goes to the "+N more" popover; `sortMineFirst` keeps the user's
-  // events at the head of the visible set).
+  // count drops from 4 when a slot would fall below the 21px legibility floor
+  // (the library's `autoSize` text tier kicks in below it; see `monthFitChipCount`)
+  // — overflow goes to the "+N more" popover, and `sortMineFirst` keeps the
+  // user's events at the head of the visible set.
   const monthFitChips = useMemo(() => {
     if (!monthFitActive || monthFitHeight <= 0) {
       return undefined;
@@ -1918,9 +1950,11 @@ function DashboardViewImpl({
           ? dayLabel
           : monthLabel;
 
-  // The tab currently highlighted (optimistic during a switch); its name
-  // drives the sr announcement and the mobile view-menu trigger's label.
-  const shownTabName = tabs.find((tab) => tab.id === shownTabId)?.name ?? activeView.name;
+  // The tab currently highlighted (optimistic during a switch); its name drives
+  // the sr announcement, the mobile view-menu trigger's label and the compact
+  // desktop row's view trigger. `shownTab` also carries the kind icon there.
+  const shownTab = tabs.find((tab) => tab.id === shownTabId) ?? null;
+  const shownTabName = shownTab?.name ?? activeView.name;
 
   // Screen-reader announcement of view/period changes (tab taps, chevrons,
   // Today, date picker, agenda swipes all flow through the optimistic chrome,
@@ -2264,7 +2298,6 @@ function DashboardViewImpl({
   const isExternalRenderEvent = (event: { id: string | number }) =>
     (event as unknown as CalendarEvent).payload?.external === true;
 
-
   // renderEvent replacements for Month + Agenda: the same default root, plus
   // highlight classes on the user's events (amber) and external events
   // (purple). Month: c2-my-event = amber ring / c2-ext-event = purple ring
@@ -2308,23 +2341,23 @@ function DashboardViewImpl({
   // element inside the root (the ScheduleEvent inner box for timed events and
   // Week (H) all-day bars; the all-day sticky-title Box in the Day view), so
   // no structural re-render is needed here.
-  const renderScheduleEvent: MyEventRender = useCallback((event, rootProps) => {
-    const extra = [
-      isExternalRenderEvent(event) && "c2-ext-slot-event",
-      isJustSettledRenderEvent(justSettledIds, event) && "c2-chip-settle",
-    ]
-      .filter(Boolean)
-      .join(" ");
-    if (!extra) {
-      return <UnstyledButton {...rootProps} />;
-    }
-    return (
-      <UnstyledButton
-        {...rootProps}
-        className={`${rootProps.className ?? ""} ${extra}`.trim()}
-      />
-    );
-  }, [justSettledIds]);
+  const renderScheduleEvent: MyEventRender = useCallback(
+    (event, rootProps) => {
+      const extra = [
+        isExternalRenderEvent(event) && "c2-ext-slot-event",
+        isJustSettledRenderEvent(justSettledIds, event) && "c2-chip-settle",
+      ]
+        .filter(Boolean)
+        .join(" ");
+      if (!extra) {
+        return <UnstyledButton {...rootProps} />;
+      }
+      return (
+        <UnstyledButton {...rootProps} className={`${rootProps.className ?? ""} ${extra}`.trim()} />
+      );
+    },
+    [justSettledIds],
+  );
 
   const isWeekV2 = view === "weekv2";
   const isGridWeek = view === "weekgrid";
@@ -3498,7 +3531,15 @@ function DashboardViewImpl({
   // month/period read that the held record doesn't cover) would be invisible —
   // the grid paints immediately with no skeleton and the newer events would land
   // silently. Same amber spinner, same `tabStatus` source as the desktop strip.
+  // In the compact desktop tier (the 640-799px band, or a short wide viewport)
+  // the strip is folded away too, so the
+  // same spinner rides that band's view trigger in the single row instead.
   const shownTabStatus = useDashboardTabStatus()[shownTabId] ?? "fresh";
+  // The compact desktop band's single row carries the active view on its trigger,
+  // so the trigger mirrors the strip tab's identity and load state (kind icon +
+  // the shared not-loaded fade).
+  const viewIcon = VIEW_TAB_META[(shownTab ?? activeView).kind].icon;
+  const shownTabFaded = shownTabStatus === "not-loaded" ? "c2-tab-not-loaded" : undefined;
   const nameLine = (
     <Group
       gap="xs"
@@ -3524,13 +3565,118 @@ function DashboardViewImpl({
     </Group>
   );
 
-  // The date-nav row, pinned in the top box at lg (under the tab strip).
-  // Below `lg` it is not rendered: the period label + filter/date/view/
-  // fullscreen controls ride the floating bottom-right pill, and the period
-  // chevrons join the FAB cluster (with Quick links). Kept compact (36px
-  // controls) — it is permanently visible at `lg`+.
+  // The view-menu dropdown contents (tab list + Add-/Manage-views): rendered by
+  // the mobile pill's four-squares button and by the compact desktop band's view
+  // trigger, so both share one source. Each row mirrors the desktop tab strip's
+  // per-view load state (see `DashboardViewMenuItem`).
+  const viewMenuItems = (
+    <>
+      {tabs.map((tab) => (
+        <DashboardViewMenuItem
+          key={tab.id}
+          tab={tab}
+          active={tab.id === shownTabId}
+          onSwitch={switchTab}
+        />
+      ))}
+      {canManageViews && (
+        <>
+          <Menu.Divider />
+          <Menu.Item leftSection={<IconPlus size={16} />} onClick={openAddView}>
+            Add view
+          </Menu.Item>
+          <Menu.Item leftSection={<IconSettings size={16} />} onClick={openEdit}>
+            Manage views
+          </Menu.Item>
+        </>
+      )}
+    </>
+  );
+
+  // The date-nav row, pinned in the top box at lg. Below `lg` it is not
+  // rendered: the period label + filter/date/view/fullscreen controls ride the
+  // floating bottom-right pill, and the period chevrons join the FAB cluster
+  // (with Quick links). Kept compact (36px controls) — it is permanently visible
+  // at `lg`+. In the compact desktop tier (`isCompactDesktop`: the 640-799px band
+  // or any viewport whose wide-layout month day cell fits only two chips) it is
+  // the chrome's ONLY row: the tab strip is replaced by a view trigger at its left
+  // end. In the narrow 640-799px band the New-event / Quick-links buttons also
+  // drop to icon-only so the row fits the ~544px content width the 64px icon rail
+  // leaves; a wide-but-short viewport has room for their labels
+  // (docs/dashboard-views.md §1.1).
   const navRow = (
-    <Group align="center" gap="xs" wrap="nowrap" mt="xs">
+    <Group
+      align="center"
+      gap={isCompactDesktop ? 4 : "xs"}
+      wrap="nowrap"
+      mt={isCompactDesktop ? 2 : "xs"}
+    >
+      {/* Compact tier: the single row's left end carries the active view (the
+          strip being folded away would otherwise leave the view announced but
+          never shown). Label + kind icon + chevron; the dropdown is the same
+          `viewMenuItems` the mobile pill uses, so Add-/Manage-views stay
+          reachable. Passive when the account has one tab and cannot manage
+          views — then it is just the name. */}
+      {isCompactDesktop &&
+        (tabs.length > 1 || canManageViews ? (
+          <Menu
+            shadow="md"
+            width={240}
+            position="bottom-start"
+            withinPortal
+            transitionProps={{
+              transition: "pop-top-left",
+              duration: motion.duration.popover,
+              timingFunction: motion.easing.out,
+            }}
+            styles={{
+              dropdown: { maxHeight: "min(60vh, 380px)", overflowY: "auto" },
+            }}
+          >
+            <Menu.Target>
+              <Button
+                variant="default"
+                className="c2-glass-btn"
+                __vars={{ "--button-height": "36px" }}
+                size="compact-md"
+                leftSection={<span className={shownTabFaded}>{viewIcon}</span>}
+                rightSection={
+                  <Group gap={4} wrap="nowrap">
+                    {shownTabStatus === "loading" && (
+                      <Loader size={9} color="accent" className="c2-fade-in" aria-hidden />
+                    )}
+                    <IconChevronDown size={16} aria-hidden />
+                  </Group>
+                }
+                aria-label={`Calendar view: ${shownTabName}`}
+                title={`Calendar view: ${shownTabName}`}
+                aria-busy={shownTabStatus === "loading" || undefined}
+                style={{ flex: "0 0 auto", maxWidth: 168 }}
+              >
+                <Text
+                  size="sm"
+                  fw={600}
+                  className={shownTabFaded}
+                  truncate
+                  style={{ maxWidth: 110 }}
+                >
+                  {shownTabName}
+                </Text>
+              </Button>
+            </Menu.Target>
+            <Menu.Dropdown>{viewMenuItems}</Menu.Dropdown>
+          </Menu>
+        ) : (
+          <Text
+            size="sm"
+            fw={600}
+            lineClamp={1}
+            title={shownTabName}
+            style={{ flex: "0 0 auto", maxWidth: 168 }}
+          >
+            {shownTabName}
+          </Text>
+        ))}
       <Text fw={600} size="md" lineClamp={1} style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
         {/* Label flavor follows the optimistic chrome (same contract as the
             skeleton below): the period you asked for is what reads, even while
@@ -3560,41 +3706,79 @@ function DashboardViewImpl({
         <IconChevronRight size={18} />
       </ActionIcon>
       {/* Desktop: the "New event" FAB lives in the nav row instead of the
-          bottom corner (the FAB is hidden at lg, below). */}
-      <Button
-        visibleFrom="lg"
-        className="c2-glass-btn c2-glass-fab--brand"
-        __vars={{ "--button-height": "36px" }}
-        leftSection={<IconPlus size={16} />}
-        disabled={!googleConfigured}
-        onClick={(e) =>
-          openCreate(
-            isAgenda ? headerDate : isDual ? shownDate : today,
-            e.currentTarget.getBoundingClientRect(),
-          )
-        }
-      >
-        New event
-      </Button>
+          bottom corner (the FAB is hidden at lg, below). In the narrow
+          640-799px band the label is dropped — that row has no room for it, so
+          the brand circle carries only the plus (the accessible name + title
+          stay full). A wide-but-short viewport keeps the label: the compact tier
+          only removes the tab-strip row there, not horizontal room. */}
+      {isNarrowDesktop ? (
+        <ActionIcon
+          size={36}
+          variant="default"
+          className="c2-glass-btn c2-glass-fab--brand"
+          aria-label="New event"
+          title="New event"
+          disabled={!googleConfigured}
+          onClick={(e) =>
+            openCreate(
+              isAgenda ? headerDate : isDual ? shownDate : today,
+              e.currentTarget.getBoundingClientRect(),
+            )
+          }
+        >
+          <IconPlus size={16} />
+        </ActionIcon>
+      ) : (
+        <Button
+          visibleFrom="lg"
+          className="c2-glass-btn c2-glass-fab--brand"
+          __vars={{ "--button-height": "36px" }}
+          leftSection={<IconPlus size={16} />}
+          disabled={!googleConfigured}
+          onClick={(e) =>
+            openCreate(
+              isAgenda ? headerDate : isDual ? shownDate : today,
+              e.currentTarget.getBoundingClientRect(),
+            )
+          }
+        >
+          New event
+        </Button>
+      )}
       {/* The same quick-links menu, launched from the nav row at lg (the
           mobile FAB is hidden there). Amber + labelled on purpose: it must
-          never be confused with the grey "More options" kebab next door. */}
+          never be confused with the grey "More options" kebab next door; in the
+          narrow 640-799px band it is the icon-only amber circle (a wide-but-short
+          viewport keeps the label). */}
       {quickLinks.length > 0 && (
         <QuickLinksMenu
           links={quickLinks}
           position="bottom-end"
           trigger={
-            <Button
-              visibleFrom="lg"
-              variant="light"
-              color="accent"
-              className="c2-glass-btn c2-glass-fab--accent"
-              __vars={{ "--button-height": "36px" }}
-              leftSection={<IconLink size={16} />}
-              aria-label="Quick links"
-            >
-              Quick links
-            </Button>
+            isNarrowDesktop ? (
+              <ActionIcon
+                size={36}
+                variant="light"
+                color="accent"
+                className="c2-glass-btn c2-glass-fab--accent"
+                aria-label="Quick links"
+                title="Quick links"
+              >
+                <IconLink size={16} />
+              </ActionIcon>
+            ) : (
+              <Button
+                visibleFrom="lg"
+                variant="light"
+                color="accent"
+                className="c2-glass-btn c2-glass-fab--accent"
+                __vars={{ "--button-height": "36px" }}
+                leftSection={<IconLink size={16} />}
+                aria-label="Quick links"
+              >
+                Quick links
+              </Button>
+            )
           }
         />
       )}
@@ -3632,43 +3816,20 @@ function DashboardViewImpl({
     </Group>
   );
 
-  // The view-menu dropdown contents (tab list + Add-/Manage-views), rendered
-  // by the mobile pill's four-squares button. Each row mirrors the desktop
-  // tab strip's per-view load state (see `DashboardViewMenuItem`).
-  const viewMenuItems = (
-    <>
-      {tabs.map((tab) => (
-        <DashboardViewMenuItem
-          key={tab.id}
-          tab={tab}
-          active={tab.id === shownTabId}
-          onSwitch={switchTab}
-        />
-      ))}
-      {canManageViews && (
-        <>
-          <Menu.Divider />
-          <Menu.Item leftSection={<IconPlus size={16} />} onClick={openAddView}>
-            Add view
-          </Menu.Item>
-          <Menu.Item leftSection={<IconSettings size={16} />} onClick={openEdit}>
-            Manage views
-          </Menu.Item>
-        </>
-      )}
-    </>
-  );
-
   // The floating control pill (below `lg` only): the period label (centered in
   // the space left of the circular search / filter / date / view-menu /
   // fullscreen buttons on the right), floating at the bottom with the same 16px
-   // viewport-edge clearance as the FAB toolbar (thumb-zone reach), with the FAB
-   // row (chevron pill + quick-links circle + create circle) above it. Frosted like
+  // viewport-edge clearance as the FAB toolbar (thumb-zone reach), with the FAB
+  // row (chevron pill + quick-links circle + create circle) above it. Frosted like
   // the top strip; the grid scrolls beneath it. Its measured height
   // (bottomChromeHeight) feeds the FAB offset and the page pads so the last
   // content row clears the whole stack.
   const mobilePill = (
-    <Affix hiddenFrom="lg" position={{ bottom: floatingBaseOffset, left: 16, right: 16 }} zIndex={100}>
+    <Affix
+      hiddenFrom="lg"
+      position={{ bottom: floatingBaseOffset, left: 16, right: 16 }}
+      zIndex={100}
+    >
       {/* `c2-chrome-hide-able` + `c2-chrome-hidden`: the pill fades/slides away
           while the user interacts with the calendar pane and returns when the
           interaction stops (useChromeHide); the CSS carries the
@@ -3697,9 +3858,7 @@ function DashboardViewImpl({
             className="c2-glass-btn"
             aria-label="Search events"
             title="Search events"
-            onClick={(e) =>
-              searchPanel.openSearch(e.currentTarget.getBoundingClientRect())
-            }
+            onClick={(e) => searchPanel.openSearch(e.currentTarget.getBoundingClientRect())}
           >
             <IconSearch size={18} />
           </ActionIcon>
@@ -3819,7 +3978,11 @@ function DashboardViewImpl({
       }
     >
       {/* The top sticky chrome box. At lg it holds the view-tab strip + the
-          date-nav row as one pinned unit (below the app header). Below `lg` it
+          date-nav row as one pinned unit (below the app header); in the compact
+          desktop tier (`isCompactDesktop`: the 640-799px band, or a short wide
+          viewport) the strip is folded away and the box is a SINGLE row — the
+          view trigger + the date-nav controls — which is the vertical-space
+          saving. Below `lg` it
           shrinks to just the thin view-name line, still pinned at the top with
           the frosted glass, while the date-nav row moves to the fixed bottom
           toolbar (see below). The wrapper is a direct child of the Stack, so
@@ -3853,9 +4016,11 @@ function DashboardViewImpl({
             : isDesktop
               ? undefined
               : "calc(0.125rem * var(--mantine-scale))",
-          paddingBottom: isDesktop
-            ? "var(--mantine-spacing-xs)"
-            : "calc(0.125rem * var(--mantine-scale))",
+          paddingBottom: isCompactDesktop
+            ? "calc(0.25rem * var(--mantine-scale))"
+            : isDesktop
+              ? "var(--mantine-spacing-xs)"
+              : "calc(0.125rem * var(--mantine-scale))",
           // Marks the chrome's bottom edge while content scrolls beneath it
           // (the tabs list's own border now sits mid-block, above the nav).
           borderBottom: "1px solid var(--mantine-color-default-border)",
@@ -3868,153 +4033,161 @@ function DashboardViewImpl({
             strip and opens the Add-view dialog; the "All views" and gear
             controls sit to the RIGHT of the strip, outside the scroll area, and
             the gear opens the Manage-views modal (add / reorder / rename /
-            delete — see below). Below `lg` this whole row is dropped to save
-            vertical space: the floating bottom-right pill carries one compact
-            view-menu button (four-squares icon) that holds the tab list plus
-            Add-/Manage-views in a dropdown. */}
-        <Group
-          visibleFrom="lg"
-          align="center"
-          wrap="nowrap"
-          gap={0}
-          style={{ borderBottom: "1px solid var(--mantine-color-default-border)" }}
-        >
-          <Box style={{ flex: 1, minWidth: 0 }}>
-            <Tabs
-              value={shownTabId}
-              onChange={(next) => {
-                if (!next) return;
-                const tab = tabs.find((candidate) => candidate.id === next);
-                if (tab) switchTab(tab);
-              }}
-              aria-label="Calendar view"
-              styles={{ tab: { flex: "0 0 auto" } }}
-            >
-              <Tabs.List ref={tabListElRef} style={{ flexWrap: "nowrap", overflowX: "auto" }}>
-                {tabs.map((tab) => {
-                  const meta = VIEW_TAB_META[tab.kind];
-                  return <DashboardTab key={tab.id} tab={tab} icon={meta.icon} />;
-                })}
-                {/* Trailing "Add view" affordance: the last item in the
+            delete — see below). Two widths drop this whole row to save a full
+            row of vertical space: below `lg` (the floating bottom-right pill
+            carries a compact view-menu button instead) and in the compact
+            desktop tier (`isCompactDesktop` — the narrow 640-799px band, where
+            there is no horizontal room either, or a short wide viewport whose
+            day cell would fit only two event chips). There the date-nav row
+            itself carries the view trigger at its left end (see `navRow`), so the
+            tab list, Add-view and Manage-views all live in that dropdown. */}
+        {isDesktopWide && !isCompactDesktop && (
+          <Group
+            visibleFrom="lg"
+            align="center"
+            wrap="nowrap"
+            gap={0}
+            style={{ borderBottom: "1px solid var(--mantine-color-default-border)" }}
+          >
+            <Box style={{ flex: 1, minWidth: 0 }}>
+              <Tabs
+                value={shownTabId}
+                onChange={(next) => {
+                  if (!next) return;
+                  const tab = tabs.find((candidate) => candidate.id === next);
+                  if (tab) switchTab(tab);
+                }}
+                aria-label="Calendar view"
+                styles={{ tab: { flex: "0 0 auto" } }}
+              >
+                <Tabs.List ref={tabListElRef} style={{ flexWrap: "nowrap", overflowX: "auto" }}>
+                  {tabs.map((tab) => {
+                    const meta = VIEW_TAB_META[tab.kind];
+                    return <DashboardTab key={tab.id} tab={tab} icon={meta.icon} />;
+                  })}
+                  {/* Trailing "Add view" affordance: the last item in the
                     scrolling strip, so creating a view is one tap — it opens
                     the Add-view dialog directly, no trip through the
                     Manage-views modal. `role="presentation"` keeps the button
                     out of the tablist's direct children. */}
-                {canManageViews && (
-                  <Box
-                    component="span"
-                    role="presentation"
-                    style={{ display: "inline-flex", alignItems: "center" }}
-                  >
-                    <Tooltip
-                      label="Add view"
-                      position="bottom"
-                      events={{ hover: true, focus: true, touch: true }}
+                  {canManageViews && (
+                    <Box
+                      component="span"
+                      role="presentation"
+                      style={{ display: "inline-flex", alignItems: "center" }}
                     >
-                      <ActionIcon
-                        variant="subtle"
-                        color="gray"
-                        size={36}
-                        ml={4}
-                        aria-label="Add view"
-                        title="Add view"
-                        onClick={openAddView}
-                        style={{ flex: "0 0 auto" }}
+                      <Tooltip
+                        label="Add view"
+                        position="bottom"
+                        events={{ hover: true, focus: true, touch: true }}
                       >
-                        <IconPlus size={18} />
-                      </ActionIcon>
-                    </Tooltip>
-                  </Box>
-                )}
-              </Tabs.List>
-            </Tabs>
-          </Box>
-          {/* Quick "All views" jump list: with many content-sized tabs the
+                        <ActionIcon
+                          variant="subtle"
+                          color="gray"
+                          size={36}
+                          ml={4}
+                          aria-label="Add view"
+                          title="Add view"
+                          onClick={openAddView}
+                          style={{ flex: "0 0 auto" }}
+                        >
+                          <IconPlus size={18} />
+                        </ActionIcon>
+                      </Tooltip>
+                    </Box>
+                  )}
+                </Tabs.List>
+              </Tabs>
+            </Box>
+            {/* Quick "All views" jump list: with many content-sized tabs the
                 strip overflows into a long horizontal scroll, so this menu
                 lists every tab (kind icon + name, the active one ticked) for
                 a one-tap switch — no scrolling the strip. */}
-          {canManageViews && tabs.length > 1 && (
-            <Menu
-              shadow="md"
-              width={240}
-              position="bottom-end"
-              withinPortal
-              transitionProps={{
-                transition: "pop-top-right",
-                duration: motion.duration.popover,
-                timingFunction: motion.easing.out,
-              }}
-              styles={{
-                dropdown: { maxHeight: "min(60vh, 380px)", overflowY: "auto" },
-              }}
-            >
-              <Menu.Target>
+            {canManageViews && tabs.length > 1 && (
+              <Menu
+                shadow="md"
+                width={240}
+                position="bottom-end"
+                withinPortal
+                transitionProps={{
+                  transition: "pop-top-right",
+                  duration: motion.duration.popover,
+                  timingFunction: motion.easing.out,
+                }}
+                styles={{
+                  dropdown: { maxHeight: "min(60vh, 380px)", overflowY: "auto" },
+                }}
+              >
+                <Menu.Target>
+                  <ActionIcon
+                    variant="subtle"
+                    color="gray"
+                    size={36}
+                    ml={4}
+                    aria-label="All views"
+                    title="All views"
+                    style={{ flex: "0 0 auto" }}
+                  >
+                    <IconChevronDown size={18} />
+                  </ActionIcon>
+                </Menu.Target>
+                <Menu.Dropdown>
+                  {tabs.map((tab) => {
+                    const meta = VIEW_TAB_META[tab.kind];
+                    const isActive = tab.id === shownTabId;
+                    return (
+                      <Menu.Item
+                        key={tab.id}
+                        leftSection={meta.icon}
+                        rightSection={isActive ? <IconCheck size={14} aria-hidden /> : undefined}
+                        role="menuitemradio"
+                        aria-checked={isActive}
+                        onClick={() => switchTab(tab)}
+                      >
+                        <Text
+                          size="sm"
+                          fw={isActive ? 700 : 500}
+                          truncate
+                          title={tab.name}
+                          style={{ maxWidth: 160 }}
+                        >
+                          {tab.name}
+                        </Text>
+                      </Menu.Item>
+                    );
+                  })}
+                </Menu.Dropdown>
+              </Menu>
+            )}
+            {canManageViews && (
+              <Tooltip
+                label="Manage views"
+                position="bottom"
+                events={{ hover: true, focus: true, touch: true }}
+              >
                 <ActionIcon
                   variant="subtle"
                   color="gray"
                   size={36}
                   ml={4}
-                  aria-label="All views"
-                  title="All views"
+                  mr={4}
+                  aria-label="Manage views"
+                  title="Manage views"
+                  onClick={openEdit}
                   style={{ flex: "0 0 auto" }}
                 >
-                  <IconChevronDown size={18} />
+                  <IconSettings size={18} />
                 </ActionIcon>
-              </Menu.Target>
-              <Menu.Dropdown>
-                {tabs.map((tab) => {
-                  const meta = VIEW_TAB_META[tab.kind];
-                  const isActive = tab.id === shownTabId;
-                  return (
-                    <Menu.Item
-                      key={tab.id}
-                      leftSection={meta.icon}
-                      rightSection={isActive ? <IconCheck size={14} aria-hidden /> : undefined}
-                      role="menuitemradio"
-                      aria-checked={isActive}
-                      onClick={() => switchTab(tab)}
-                    >
-                      <Text
-                        size="sm"
-                        fw={isActive ? 700 : 500}
-                        truncate
-                        title={tab.name}
-                        style={{ maxWidth: 160 }}
-                      >
-                        {tab.name}
-                      </Text>
-                    </Menu.Item>
-                  );
-                })}
-              </Menu.Dropdown>
-            </Menu>
-          )}
-          {canManageViews && (
-            <Tooltip
-              label="Manage views"
-              position="bottom"
-              events={{ hover: true, focus: true, touch: true }}
-            >
-              <ActionIcon
-                variant="subtle"
-                color="gray"
-                size={36}
-                ml={4}
-                mr={4}
-                aria-label="Manage views"
-                title="Manage views"
-                onClick={openEdit}
-                style={{ flex: "0 0 auto" }}
-              >
-                <IconSettings size={18} />
-              </ActionIcon>
-            </Tooltip>
-          )}
-        </Group>
+              </Tooltip>
+            )}
+          </Group>
+        )}
 
-        {/* At lg the date-nav row rides this box directly under the tab strip;
-            below `lg` the box keeps only the thin view-name line and the row's
-            controls move to the floating pill / FAB cluster (see `mobilePill`). */}
+        {/* At the wide desktop the date-nav row rides this box directly under the
+            tab strip; in the compact desktop tier it IS the box (the single row,
+            with the view trigger at its left end); below `lg` the box keeps only
+            the thin view-name line and the row's controls move to the floating
+            pill / FAB cluster (see `mobilePill`). */}
         {isDesktop ? navRow : nameLine}
       </Box>
 
@@ -4245,8 +4418,9 @@ function DashboardViewImpl({
                 styles={{ monthViewInner: MONTH_INNER_STYLE }}
                 scrollAreaProps={monthScrollAreaProps}
                 // Fit-height chip count (`lg`): 4 while the fitted row can hold
-                // 15px slots, fewer when it can't (see `monthFitChips` above);
-                // below `lg` the natural mobile count stays 3.
+                // 21px slots, fewer when it can't, so the chip text never falls
+                // into the library's 9px auto-size tier (see `monthFitChips`
+                // above); below `lg` the natural mobile count stays 3.
                 maxEventsPerDay={monthFitActive ? (monthFitChips ?? 4) : isDesktop ? 4 : 3}
                 moreEventsProps={{
                   // On the fit-to-width zoom the 7 columns drop to ~45-51px on
@@ -4441,13 +4615,13 @@ function DashboardViewImpl({
                   // Pin the all-day row under the day header so both stay
                   // visible while the hour rows scroll. The header is
                   // `--week-view-week-day-height` tall with a -1px bottom margin.
-                    // At lg both are offset below the lifted chrome (`top:
-                    // topChromeHeight`).
-                    weekViewAllDaySlots: {
-                      width: WEEK_GRID_COLUMN_WIDTH,
-                      position: "sticky",
-                      top: isDesktop
-                        ? `calc(${topChromeHeight}px + var(--week-view-week-day-height) - 1px)`
+                  // At lg both are offset below the lifted chrome (`top:
+                  // topChromeHeight`).
+                  weekViewAllDaySlots: {
+                    width: WEEK_GRID_COLUMN_WIDTH,
+                    position: "sticky",
+                    top: isDesktop
+                      ? `calc(${topChromeHeight}px + var(--week-view-week-day-height) - 1px)`
                       : "calc(var(--week-view-week-day-height) - 1px)",
                     zIndex: 6,
                     backgroundColor: "var(--mantine-color-body)",
@@ -5286,7 +5460,11 @@ function DashboardViewImpl({
           onClose={closeCreateView}
           title="Add view"
           centered
-          transitionProps={{ transition: "pop", duration: motion.duration.popover, timingFunction: motion.easing.out }}
+          transitionProps={{
+            transition: "pop",
+            duration: motion.duration.popover,
+            timingFunction: motion.easing.out,
+          }}
         >
           <Stack>
             <FocusTrap.InitialFocus />
@@ -5351,11 +5529,7 @@ function DashboardViewImpl({
           re-enabling it, so the empty stretch of the row never swallows taps on the
           grid beneath. */}
       {!isDesktop && (
-        <FloatingToolbar
-          hiddenFrom="lg"
-          bottomOffset={fabBottomOffset}
-          leftOffset={16}
-        >
+        <FloatingToolbar hiddenFrom="lg" bottomOffset={fabBottomOffset} leftOffset={16}>
           <Box
             ref={fabStackRef}
             className={`c2-chrome-hide-able${chromeHidden ? " c2-chrome-hidden" : ""}`}
@@ -5391,7 +5565,10 @@ function DashboardViewImpl({
                 pointerEvents: "auto",
               }}
             >
-              <Box className="c2-glass-surface c2-period-pill" style={{ display: "flex", alignItems: "center" }}>
+              <Box
+                className="c2-glass-surface c2-period-pill"
+                style={{ display: "flex", alignItems: "center" }}
+              >
                 <Group align="center" gap={0} wrap="nowrap">
                   <ActionIcon
                     size={56}

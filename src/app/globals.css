@@ -411,9 +411,7 @@ html {
   /* The magnifier disc is smaller than the pill it sits in (see below), so the
      ring between it and the pill's left cap reads as a thin border. */
   --c2-search-disc-size: calc(var(--c2-search-button-height) - calc(5px * var(--mantine-scale)));
-  --c2-search-disc-inset: calc(
-    (var(--c2-search-button-height) - var(--c2-search-disc-size)) / 2
-  );
+  --c2-search-disc-inset: calc((var(--c2-search-button-height) - var(--c2-search-disc-size)) / 2);
 }
 
 /* Header pinned-events ticker (docs/pinned-events.md): the brand pill anchored
@@ -677,8 +675,7 @@ html {
 /* The label text starts after the disc, keeping the same 8px gap. */
 .mantine-Button-root.c2-header-search .c2-button-label {
   padding-inline-start: calc(
-    var(--c2-search-disc-inset) + var(--c2-search-disc-size) +
-      calc(0.5rem * var(--mantine-scale))
+    var(--c2-search-disc-inset) + var(--c2-search-disc-size) + calc(0.5rem * var(--mantine-scale))
   );
 }
 
@@ -2192,32 +2189,35 @@ html {
 }
 
 /*
-  Mobile band (`max-width: 39.99em`, i.e. below the app's `lg` desktop
-  breakpoint — the same band as the other `max-width: 39.99em` blocks; see
-  docs/dashboard-views.md §1.4). The library's ScheduleEvent inner box pads
-  `3px 4px` (`4px 6px` when `size="md"`), which eats much of a small chip's
-  width. Tighten it to `1px 2px` so more of the chip is text. Every grid chip
-  (Month / Day / Week (H) / Week (Grid) / per-department Resources) renders
-  through ScheduleEvent, so one rule covers them all; the `c2-schedule-event`
-  / `c2-event-inner` classes come from the theme's ScheduleEvent classNames
-  (`src/lib/theme.ts`). The two-class descendant selector beats the library's
-  single-class `.m_*` padding regardless of stylesheet order.
+  Event chip text alignment (all widths). The library's ScheduleEvent inner box
+  is `display: block` with `line-height: 1` by default, so a single-line title
+  sits at the top of the fixed-height chip with all the leftover height below
+  it. Switch it to column-flex centering so the title is vertically centered in
+  every grid cell (Month / Day / Week (H) / Week (Grid) / per-department
+  Resources all render through ScheduleEvent). Column direction (not
+  `align-items: center`) keeps the title an anonymous full-width block item, so
+  `text-overflow: ellipsis` on the `nowrap` chips still works - the same
+  maneuver the library itself uses at `max-height: 18px`. The
+  `c2-schedule-event` / `c2-event-inner` classes come from the theme's
+  ScheduleEvent classNames (`src/lib/theme.ts`); the two-class descendant
+  selector beats the library's single-class `.m_*` rule regardless of
+  stylesheet order.
 
-  The inner box is also switched to column-flex centering: it is `display:
-  block` with `line-height: 1` by default, so a single-line title sits at the
-  top of the fixed-height chip with all the leftover height below it — with the
-  tighter 1px top padding that top-hug reads as uneven top/bottom gaps.
-  Column direction (not `align-items: center`) keeps the title an anonymous
-  full-width block item, so `text-overflow: ellipsis` on the `nowrap` chips
-  still works — the same maneuver the library itself uses at `max-height:
-  18px`. Desktop (`>= 40em`) keeps the library's default top-aligned title.
+  On the mobile band (`max-width: 39.99em`, below the app's `lg` breakpoint -
+  the same band as the other `max-width: 39.99em` blocks; see
+  docs/dashboard-views.md §1.4) the inner box is also tightened from the
+  library's `3px 4px` (`4px 6px` at `size="md"`) to `1px 2px`, so more of a
+  small grid chip's width is text.
 */
+.c2-schedule-event .c2-event-inner {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
 @media (max-width: 39.99em) {
   .c2-schedule-event .c2-event-inner {
     padding: calc(0.0625rem * var(--mantine-scale)) calc(0.125rem * var(--mantine-scale));
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
   }
 }
 

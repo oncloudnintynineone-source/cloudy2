@@ -165,8 +165,40 @@ string maps to the first tab of that kind.
    tooltip, keeping the period label the pill's flexible element — the name
    itself is shown on its own line (see below). The dropdown opens **upward**
    (`position="top-end"`): the pill floats inset 16px at the bottom below
-   `lg` (see the floating-control-pill bullet below). At `lg` and up the
-   button is hidden and the strip row returns unchanged.
+    `lg` (see the floating-control-pill bullet below). At `lg` and up this pill button
+    is hidden; there the view menu lives in the sticky chrome box — the strip row when
+    the wide two-row chrome is active, or the compact tier's single-row trigger (see
+    the next bullet).
+ - **Compact desktop view trigger (640–799px band, and short wide viewports).**
+   Vertical space is the scarce dimension at foldable/small-laptop widths and on
+   short laptop screens, so the sticky chrome box runs as a **single row** there
+   (`isCompactDesktop`): the tab strip is dropped and the **date-nav row itself
+   carries the view menu at its left end** — the active view's kind icon + name + a
+   chevron — opening the same `DashboardViewMenuItem` dropdown (tab list, then
+   Add-view / Manage-views). The trigger also carries the active tab's load state
+   (the amber spinner and the shared `c2-tab-not-loaded` fade), so §1.13.2 stays
+   visible without the strip. It is a passive `Text` name instead when the account
+   has one tab and cannot manage views.
+
+   The tier has **two triggers**:
+   - `isNarrowDesktop` (`isDesktop && !isDesktopWide`, 640–799px): the sidebar is
+     already the 64px icon rail, so **New event** and **Quick links** render icon-only
+     to fit the ~544px content width left.
+   - **Short wide viewport:** any desktop where the wide-layout month day cell would
+     fit **at most two event chips**. This is projected with the tested
+     `monthFitChipCount` (`src/lib/ui/monthZoom.ts`) over
+     `viewportHeight − WIDE_DESKTOP_CHROME_RESERVE_PX` (160px = the 56px header plus
+     the wide two-row chrome) and the current month's row count. Using the fixed wide
+     budget — never the live compact height — keeps the decision stable (compacting
+     would otherwise gain a chip slot and immediately un-compact). At this width there
+     is horizontal room, so the labelled New-event / Quick-links buttons stay.
+
+   In both cases the row gap / `mt` plus the box's `paddingBottom` tighten —
+   ~55–60px of chrome saved per screen. At 800px+ with enough height the two-row
+   strip returns unchanged, and `topChromeHeight` (measured on the box by a
+   `ResizeObserver`, feeding every pinned grid strip and the fit-to-height month
+   column) simply reflects the shorter box, so nothing else needs to know about the
+   tier.
 - **Mobile view indicator (below `lg`).** Because the strip row is dropped under
   `lg`, the active view would otherwise be *announced* (the view-menu trigger's
   accessible name, plus the live region's `"<view> view, <period>"`) but never
@@ -515,24 +547,25 @@ directly ([`events-cache.md`](events-cache.md)):
   overflow) pan horizontally through `useGridPan` + `GridPanControls`
   ([`grid-pan.md`](grid-pan.md)); the dashboard chrome can go fullscreen
   through immersive mode ([`immersive-mode.md`](immersive-mode.md)).
-- **Mobile-band chip padding.** On the mobile band (`max-width: 39.99em`,
-  below the app's `lg` breakpoint) the `ScheduleEvent` inner box is tightened
-  from the library's `3px 4px` (`4px 6px` at `size="md"`) to `1px 2px`, so more
-  of a small grid chip's width is text. It is also switched to column-flex
-  centering (`display: flex; flex-direction: column; justify-content: center`)
-  so a single-line title no longer hugs the top of the fixed-height chip — the
-  library defaults to `display: block; line-height: 1`, which pools all the
-  leftover height below the text. Column direction keeps the title a full-width
-  block item, preserving the `nowrap` chips' `text-overflow: ellipsis` (the
-  same maneuver the library uses at `max-height: 18px`). App-owned classes
-  (`c2-schedule-event` / `c2-event-inner`) are attached to the library part
-  through the theme's `ScheduleEvent` `classNames` (`src/lib/theme.ts`, matched
-  by the component's `__staticSelector` string — no `@mantine/schedule`
-  import), then overridden behind the media query in `globals.css` with a
-  two-class selector that beats the library's `.m_*` rule. All grid chips
-  (Month / Day / Week (H) / Week (Grid) / per-department Resources) render
-  through `ScheduleEvent`, so one rule covers them. Desktop keeps the library's
-  default top-aligned title.
+- **Event-chip text alignment & mobile padding.** Every grid chip's title is
+  **vertically centered at all widths**. The `ScheduleEvent` inner box is
+  switched to column-flex centering (`display: flex; flex-direction: column;
+  justify-content: center`) so a single-line title no longer hugs the top of the
+  fixed-height cell — the library defaults to `display: block; line-height: 1`,
+  which pools all the leftover height below the text. Column direction keeps the
+  title a full-width block item, preserving the `nowrap` chips'
+  `text-overflow: ellipsis` (the same maneuver the library uses at
+  `max-height: 18px`). App-owned classes (`c2-schedule-event` /
+  `c2-event-inner`) are attached to the library part through the theme's
+  `ScheduleEvent` `classNames` (`src/lib/theme.ts`, matched by the component's
+  `__staticSelector` string — no `@mantine/schedule` import), then overridden in
+  `globals.css` with a two-class selector that beats the library's `.m_*` rule.
+  All grid chips (Month / Day / Week (H) / Week (Grid) / per-department
+  Resources) render through `ScheduleEvent`, so one rule covers them.
+  Separately, on the mobile band (`max-width: 39.99em`, below the app's `lg`
+  breakpoint) the inner box's padding is tightened from the library's `3px 4px`
+  (`4px 6px` at `size="md"`) to `1px 2px`, so more of a small chip's width is
+  text; that padding rule stays mobile-only.
 
 ## 1.5 My-entry highlight
 
@@ -1000,11 +1033,14 @@ gets a **fractional** `N` solved from the measured box height (minus one row
 border per row) — the natural 4–6 rows then land exactly inside the box, so
 nothing scrolls. The chip count follows the fitted height: Mantine lays chips as
 `100 / maxEventsPerDay` rows of the day, so the pure `monthFitChipCount` keeps
-each chip slot ≥ 15px — 4 by default, dropping to 3/2/1 on short fitted rows —
-with the overflow on the existing `+N more` trigger (which rides the day's fixed
-bottom inset, so it never collides with the chips) and `sortMineFirst` keeping
-the user's events at the head of the visible set. The fill floor is one whole
-chip slot (76px row), which any real desktop viewport beats. The box is
+each chip slot ≥ 21px — 4 by default, dropping to 3/2/1 on short fitted rows —
+that floor is the point where the library's `autoSize` chips would otherwise
+drop their text from 12px to 9px (`@container (max-height: 18px)`, chip box =
+slot − 2px), so the standard text size always renders. Overflow goes to the
+existing `+N more` trigger (which rides the day's fixed bottom inset, so it
+never collides with the chips) and `sortMineFirst` keeps the user's events at
+the head of the visible set. The fill floor is one whole chip slot (76px row),
+which any real desktop viewport beats. The box is
 measured with a `ResizeObserver`, so resizes and immersive mode re-fill without
 re-deriving the chrome vars, and the fill follows the month the grid actually
 renders (the optimistic month during an adjacent-month read).

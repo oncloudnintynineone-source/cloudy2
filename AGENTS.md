@@ -156,7 +156,13 @@ doc content here.
    height) floating above it — for thumb reach; pinned
    strips dock under the name strip (`chromeOffset` = `topChromeHeight`),
    bounded grids run flush to the bottom nav, and page pads clear the pill/FAB
-   row; at `lg`+ one box (tabs + nav row) pins top. The mobile floating rows
+   row; at `lg`+ one box (tabs + nav row) pins top, and in the compact desktop
+   tier that box is a **single row** (`isCompactDesktop`): the narrow 640–799px
+   band, or any viewport whose wide-layout month day cell would fit only two event
+   chips (projected with `monthFitChipCount` over a fixed wide-chrome budget). The
+   tab strip folds into a view-menu trigger at the nav row's left end; New event /
+   Quick links go icon-only only in the narrow band (a wide-but-short viewport keeps
+   the labels). Saves a full row of chrome. The mobile floating rows
    **auto-hide while the user touches the calendar pane** (touch alone, or any
    scroll, either axis) and slide back only when the last finger/pointer is
    lifted AND the scroll has settled — they stay hidden through the scroll,
@@ -170,8 +176,9 @@ doc content here.
   Month
   grids zoom from fit-to-width (`src/lib/ui/monthZoom.ts`,
   `dashboard.monthZoom`) and fit the whole screen at `lg` (bounded column +
-  the pure `monthFillEvents` row fill + `monthFitChipCount` legibility floor (15px
-  chip slot, count shrinks from 4 as fitted rows get shorter) — §1.8.1); Week (D) is a custom matrix (`buildWeekLanes`). Entry highlights:
+  the pure `monthFillEvents` row fill + `monthFitChipCount` legibility floor (21px
+  chip slot — above the library's 9px auto-size text tier — count shrinks from 4 as
+  fitted rows get shorter) — §1.8.1); Week (D) is a custom matrix (`buildWeekLanes`). Entry highlights:
   amber = mine, purple = external (`c2-my-*` / `c2-ext-*` in `globals.css`).
   Design: [docs/dashboard-views.md](docs/dashboard-views.md).
 - **Wide grids pan + zoom** via `useGridPan` + the shared `GridNavControls`
