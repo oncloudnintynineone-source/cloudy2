@@ -128,6 +128,8 @@ describe("swRules", () => {
 
     it("rejects excluded paths", () => {
       expect(isCacheableDocumentRequest(new URL(`${ORIGIN}/login`), ORIGIN)).toBe(false);
+      expect(isCacheableDocumentRequest(new URL(`${ORIGIN}/share/abc.def`), ORIGIN)).toBe(false);
+      expect(isCacheableDocumentRequest(new URL(`${ORIGIN}/share`), ORIGIN)).toBe(false);
       expect(isCacheableDocumentRequest(new URL(`${ORIGIN}/api/audit/export`), ORIGIN)).toBe(false);
       expect(isCacheableDocumentRequest(new URL(`${ORIGIN}/serwist/sw.js`), ORIGIN)).toBe(false);
       expect(isCacheableDocumentRequest(new URL(`${ORIGIN}/_next/static/chunk.js`), ORIGIN)).toBe(
@@ -245,8 +247,14 @@ describe("swRules", () => {
       ).toBe(false);
     });
 
-    it("rejects one-shot params (refresh/edit/event/_fresh)", () => {
-      for (const query of ["refresh=123", "edit=abc-123", "event=abc-123", "_fresh=1"]) {
+    it("rejects one-shot params (refresh/edit/event/_fresh/share)", () => {
+      for (const query of [
+        "refresh=123",
+        "edit=abc-123",
+        "event=abc-123",
+        "_fresh=1",
+        "share=abc.def",
+      ]) {
         expect(
           shouldStoreDocumentResponse({
             status: 200,
@@ -321,8 +329,14 @@ describe("swRules", () => {
       ).toBe(false);
     });
 
-    it("rejects one-shot params (refresh/edit/event/_fresh)", () => {
-      for (const query of ["refresh=123", "edit=abc-123", "event=abc-123", "_fresh=1"]) {
+    it("rejects one-shot params (refresh/edit/event/_fresh/share)", () => {
+      for (const query of [
+        "refresh=123",
+        "edit=abc-123",
+        "event=abc-123",
+        "_fresh=1",
+        "share=abc.def",
+      ]) {
         expect(
           shouldStoreRscResponse({
             status: 200,

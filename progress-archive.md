@@ -9583,3 +9583,40 @@ guard, roster toggle, copy→form rebuild, registration payload flag and optimis
 **Limitations.** Concurrent self-registrations are last-write-wins (Google notes
 read-modify-write); type renames still orphan per-type flags on existing events
 (pre-existing); zero-registrant discovery relies on the event's calendars / pinning.
+
+## 1.347 Shared calendar views
+
+**Goal.** Let a user send a dashboard view to another account as a hyperlink; the
+recipient signs in, reviews the view definition in a dialog, and adds a copy to their
+own tab strip.
+
+**Implementation.**
+
+- No share table: `shareToken.ts` encodes `{v,n,k,c,u,t,b}` as Brotli → base64url and
+  signs it with HMAC-SHA256 keyed by `NEXTAUTH_SECRET` (domain-separated). Decode checks
+  the signature/version/kind/name/filter shapes and caps decompressed size; encode
+  guards the final URL length.
+- `shareActions.ts` resolves the owner's *effective* filters before signing (so `null`
+  role defaults become concrete values for the recipient), previews a token against live
+  config, and appends a normal tab through the shared `appendDashboardView` helper
+  (extracted from the Create-view action, so the seed/cap/dense-order rules stay one
+  implementation).
+- `resolveTabFilters` was extracted into the pure view vocabulary and `data.ts` now uses
+  it, keeping the dashboard and share generation in lockstep.
+- `/share/[token]` verifies the token and routes a signed-out visitor through
+  `/login?next=…`; `sanitizeNextPath` (pure, tested) allows only internal paths, so the
+  login return is not an open redirect.
+- Sharer UI: a Share action on each Manage-views row plus a Share-view button in the
+  Edit-view dialog (disabled while edits are unsaved), with copy/native clipboard.
+- Recipient UI: lazy `ShareImportDialog` from `?share=`, live name summaries, stale-filter
+  warning and the per-user cap; Add switches to the new tab. Closing strips the one-shot
+  param.
+- PWA: `/share/` is excluded from the SW document/RSC caches and `share` is a one-shot
+  param in both the dashboard and `swRules.ts`.
+
+**Verification.** `pnpm lint`, `pnpm typecheck`, `pnpm test` (123 files / 1630 tests),
+`pnpm build` (new `/share/[token]` dynamic route).
+
+**Limitations.** Self-contained links cannot be revoked individually and rotate with
+`NEXTAUTH_SECRET`; base64 is not encryption (calendar/user ids are visible in the link);
+the link opens in the browser/PWA via the normal URL (no native app-link intent filters).

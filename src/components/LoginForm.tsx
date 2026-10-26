@@ -24,7 +24,7 @@ import { resolveLogin } from "@/lib/loginActions";
  * The routing probe (`resolveLogin`) is a hint only — `authorize` re-checks
  * every credential and remains the sole session issuer and audit point.
  */
-export function LoginForm() {
+export function LoginForm({ nextPath = null }: { nextPath?: string | null }) {
   const router = useRouter();
   const fieldRef = useRef<HTMLInputElement>(null);
   const [input, setInput] = useState("");
@@ -38,6 +38,12 @@ export function LoginForm() {
   const [pinError, setPinError] = useState<string | null>(null);
 
   function completeLogin() {
+    // Share links return through /share/<token>, which needs a real server
+    // request with the fresh session; the dashboard keeps its in-place refresh.
+    if (nextPath) {
+      router.push(nextPath);
+      return;
+    }
     router.push("/dashboard");
     void invalidateCurrentPathCaches().then(() => router.refresh());
   }

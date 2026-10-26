@@ -199,6 +199,16 @@ doc content here.
     fitted rows get shorter) — §1.8.1); Week (D) is a custom matrix (`buildWeekLanes`). Entry highlights:
     amber = mine, purple = external (`c2-my-*` / `c2-ext-*` in `globals.css`).
     Design: [docs/dashboard-views.md](docs/dashboard-views.md).
+- **Shared calendar views are self-contained links.** Manage views → Share calls
+  `createDashboardViewShareLink` (`src/lib/dashboardViews/shareActions.ts`), which resolves
+  the owner's effective filters (so a role-default filter is not reinterpreted for the
+  recipient) and encodes the definition as Brotli + base64url + HMAC-SHA256
+  (`NEXTAUTH_SECRET`, domain-separated; `shareToken.ts`). No share table exists: links
+  cannot be revoked individually and rotate with the auth secret. The canonical link is
+  `/share/<token>` (public route → login with `next` → `/dashboard?share=<token>`); the
+  recipient's dialog previews it and `addSharedDashboardView` appends a normal independent
+  copy via the shared `appendDashboardView` helper, re-checking the view cap. `share` is a
+  one-shot param in both the dashboard and the SW rules; `/share/` is never cached.
 - **Wide grids pan + zoom** via `useGridPan` + the shared `GridNavControls`
   right-edge cluster (pan arrows + the zoom +/− pair(s); `zoomMin`/`zoomMax` per
   view; the whole cluster is centered on the grid's visible-slice center, the

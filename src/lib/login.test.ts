@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizePhoneDigits, parseUserLogin } from "./login";
+import { normalizePhoneDigits, parseUserLogin, sanitizeNextPath } from "./login";
 
 describe("parseUserLogin", () => {
   it("strips the keyword and returns the last 8 digits", () => {
@@ -46,5 +46,40 @@ describe("normalizePhoneDigits", () => {
 
   it("returns null when fewer than 8 digits are present", () => {
     expect(normalizePhoneDigits("abc1234567")).toBeNull();
+  });
+});
+
+describe("sanitizeNextPath", () => {
+  it("accepts internal paths and queries", () => {
+    expect(sanitizeNextPath("/dashboard")).toBe("/dashboard");
+    expect(sanitizeNextPath("/share/abc.def-123")).toBe("/share/abc.def-123");
+    expect(sanitizeNextPath("/dashboard?share=abc")).toBe("/dashboard?share=abc");
+    expect(sanitizeNextPath("  /my-events?range=3  ")).toBe("/my-events?range=3");
+  });
+
+  it("rejects external and protocol-relative targets", () => {
+    for (const raw of [
+      "https://evil.example/dashboard",
+      "//evil.example/dashboard",
+      "/\\evil.example",
+      "javascript:alert(1)",
+      "dashboard",
+      "",
+      null,
+      undefined,
+      42,
+    ]) {
+      expect(sanitizeNextPath(raw)).toBeNull();
+    }
+  });
+
+  it("does not return to the login page (loop prevention)", () => {
+    expect(sanitizeNextPath("/login")).toBeNull();
+    expect(sanitizeNextPath("/login?next=/dashboard")).toBeNull();
+    expect(sanitizeNextPath("/login/")).toBeNull();
+  });
+
+  it("rejects control characters", () => {
+    expect(sanitizeNextPath("/dashboard\nLocation: https://evil.example")).toBeNull();
   });
 });

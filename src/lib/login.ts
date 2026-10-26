@@ -37,3 +37,35 @@ export function parseUserLogin(input: string, keyword: string): string | null {
   const phonePart = trimmed.slice(0, trimmed.length - keyword.length);
   return normalizePhoneDigits(phonePart);
 }
+
+/**
+ * Sanitize the login page's `?next=` return target. Only an internal absolute
+ * path (optionally with a query) is allowed; protocol-relative URLs, absolute
+ * URLs, backslash tricks and the login page itself are rejected. Keeps one-shot
+ * share links (`/share/<token>`) working without creating an open redirect.
+ */
+export function sanitizeNextPath(raw: unknown): string | null {
+  if (typeof raw !== "string") {
+    return null;
+  }
+  const value = raw.trim();
+  if (value.length === 0 || !value.startsWith("/") || value.startsWith("//")) {
+    return null;
+  }
+  if (value.includes("\\") || /[\u0000-\u001f\u007f]/.test(value)) {
+    return null;
+  }
+  let url: URL;
+  try {
+    url = new URL(value, "https://cloudy2.invalid");
+  } catch {
+    return null;
+  }
+  if (url.origin !== "https://cloudy2.invalid") {
+    return null;
+  }
+  if (url.pathname === "/login" || url.pathname.startsWith("/login/")) {
+    return null;
+  }
+  return `${url.pathname}${url.search}`;
+}

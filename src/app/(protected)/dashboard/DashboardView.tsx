@@ -226,6 +226,11 @@ const EditViewsModal = dynamic(() => import("./EditViewsModal").then((mod) => mo
   ssr: false,
 });
 
+const ShareImportDialog = dynamic(
+  () => import("./ShareImportDialog").then((mod) => mod.ShareImportDialog),
+  { ssr: false },
+);
+
 const DateSelectorModal = dynamic(
   () => import("@/components/DateSelectorModal").then((mod) => mod.DateSelectorModal),
   { ssr: false },
@@ -924,7 +929,7 @@ function DashboardViewMenuItem({
   );
 }
 
-const ONE_SHOT_PARAMS = ["refresh", "edit", "event", "_eventCal"];
+const ONE_SHOT_PARAMS = ["refresh", "edit", "event", "_eventCal", "share"];
 
 // Widths the minimized-draft chip needs in the mobile FAB row (measured leftover
 // on the row's left edge): 56px is the absolute floor (the 44px icon circle plus
@@ -1504,6 +1509,23 @@ function DashboardViewImpl({
   const [editEverOpened, setEditEverOpened] = useState(false);
   if (editOpened && !editEverOpened) {
     setEditEverOpened(true);
+  }
+
+  // Shared-view deep link (`?share=<token>`): open the import dialog until the
+  // user closes it, then strip the one-shot param. A newly arrived token (or
+  // the same link after a reload) opens afresh.
+  const shareParam = searchParams.get("share")?.trim();
+  const shareToken = shareParam && shareParam.length > 0 ? shareParam : null;
+  const [dismissedShareToken, setDismissedShareToken] = useState<string | null>(null);
+  if (shareToken === null && dismissedShareToken !== null) {
+    setDismissedShareToken(null);
+  }
+  const shareImportOpen = shareToken !== null && shareToken !== dismissedShareToken;
+  // Lazy-mount the import dialog on the first share link (it stays mounted so
+  // its close animation survives), never on an ordinary dashboard load.
+  const [shareEverOpened, setShareEverOpened] = useState(false);
+  if (shareImportOpen && !shareEverOpened) {
+    setShareEverOpened(true);
   }
 
   // Optimistic active-tab highlight (`shownTabId`): leads the server-resolved
@@ -5781,6 +5803,24 @@ function DashboardViewImpl({
           onEditFilters={handleEditFilters}
           onAddView={openAddView}
           reorderDrag={reorderDrag}
+        />
+      )}
+
+      {/* Shared-view link: the recipient reviews the decoded definition and
+          adds an independent copy. Closing strips the one-shot `?share=`
+          param; adding navigates to the new tab (which strips it too). */}
+      {shareEverOpened && (
+        <ShareImportDialog
+          opened={shareImportOpen}
+          token={shareToken}
+          onClose={() => {
+            setDismissedShareToken(shareToken);
+            router.replace(buildHref({ share: null }), { scroll: false });
+          }}
+          onAdded={(tab) => {
+            setDismissedShareToken(shareToken);
+            switchTab(tab, { force: true });
+          }}
         />
       )}
 

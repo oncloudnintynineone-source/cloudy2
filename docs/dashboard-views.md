@@ -27,7 +27,8 @@ grid's fit-to-width zoom.
 - [1.8 Month-grid zoom (fit-to-width)](#18-month-grid-zoom-fit-to-width)
 - [1.8.1 Fit-to-height (lg, no scrolling)](#181-fit-to-height-lg-no-scrolling)
 - [1.9 Month & Agenda](#19-month--agenda)
-- [1.10 File index & related docs](#110-file-index--related-docs)
+- [1.10 Sharing views](#110-sharing-views)
+- [1.11 File index & related docs](#111-file-index--related-docs)
 
 ## 1.1 View inventory & tab management
 
@@ -1165,14 +1166,68 @@ flowchart LR
  N["below lg: month pane = Month view<br/>chip → detail, cell → day modal"] -.-> M
 ```
 
-## 1.10 File index & related docs
+## 1.10 Sharing views
+
+A view can be shared as a **self-contained hyperlink** — no `dashboard_view_shares`
+table exists. Manage views exposes a per-row **Share** action (and the Edit-view
+dialog has a **Share view…** button for the saved definition). The link is
+`<origin>/share/<token>`; opening it verifies the token, sends a signed-out
+visitor through login (returning straight to the share dialog) and sends a
+signed-in user to `/dashboard?share=<token>`, where the import dialog previews
+the definition and offers **Add view**.
+
+```mermaid
+flowchart LR
+  A["Owner: Share"] --> B["resolve effective filters"]
+  B --> C["JSON → Brotli → base64url<br/>+ HMAC-SHA256"]
+  C --> D["/share/&lt;token&gt;"]
+  D -->|signed out| E["/login?next=/dashboard?share=…"]
+  D -->|signed in| F["/dashboard?share=…"]
+  E --> F
+  F --> G["ShareImportDialog"]
+  G -->|Add view| H["appendDashboardView copy"]
+```
+
+- **Payload.** `{ v: 1, n: name, k: kind, c: calendarIds, u: userIds,
+  t: eventTypeNames, b: sharerName }`. The owner's effective filters are
+  resolved **before encoding** (`resolveTabFilters`), so a `null` role-default
+  filter becomes the owner's concrete calendar list rather than the recipient's
+  default.
+- **Integrity.** The token is Brotli-compressed, base64url-encoded and signed
+  with HMAC-SHA256 keyed by `NEXTAUTH_SECRET` (domain-separated
+  `cloudy2:view-share:v1:`). Decode rejects tampered/unsupported tokens and caps
+  decompressed size. Base64 is not encryption: ids/names are visible to anyone
+  holding the link.
+- **Lifetime.** Links have no individual revocation or expiry. Rotating
+  `NEXTAUTH_SECRET` invalidates every outstanding link. The token also has a
+  length guard, so an enormous filter selection returns a “narrow the filters”
+  error instead of an unusable URL.
+- **Import.** The recipient receives a normal, independent
+  `user_dashboard_views` row appended at the end of the strip (same
+  `MAX_VIEWS_PER_USER` cap). Stale calendar/user/type ids in an old link are
+  dropped by the ordinary read-time filter validation; the preview warns and
+  counts them. Later edits by the sharer do not propagate.
+- **No auth boundary crossed.** The link grants no event access; it only
+  pre-fills a display filter for an already-signed-in account. The import action
+  re-validates the token server-side.
+- **PWA.** `/share/` is excluded from the service-worker document/RSC caches,
+  and `?share=` is a one-shot cache-key param on the dashboard, so a stale
+  redirect/dialog is never replayed offline.
+
+## 1.11 File index & related docs
 
 | File | Role |
 | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/lib/dashboardViews/views.ts` | Kind vocabulary + labels, tab DTO, filter-override normalizers, `resolveActiveTab` (pure) |
+| `src/lib/dashboardViews/views.ts` | Kind vocabulary + labels, tab DTO, filter-override normalizers, `resolveActiveTab`, `resolveTabFilters`, `MAX_VIEWS_PER_USER` (pure) |
 | `src/lib/dashboard/navigation.ts` | Dashboard navigation decision (URL → displayed tab/period/coverage + fetch classification), incl. the period-follows-kind URL rule (`planDashboardSwitch`) shared by the tab tap and the tab-URL prefetch (pure) |
 | `src/lib/dashboardViews/queries.ts` | Tab reads + the mutex-guarded default "Month" seed |
 | `src/lib/dashboardViews/actions.ts` | Tab CRUD: `create/rename/delete/reorderDashboardViews`, `saveDashboardViewFilters` |
+| `src/lib/dashboardViews/mutate.ts` | Shared tab insertion (default seed, cap, dense strip order) used by create and shared-view import |
+| `src/lib/dashboardViews/shareToken.ts` | Self-contained share-token codec: Brotli + base64url + HMAC-SHA256, payload validation |
+| `src/lib/dashboardViews/shareActions.ts` | Share-link create, preview inspect, and add-copy actions |
+| `src/app/share/[token]/page.tsx` | Public share landing route (verify → login or dashboard with `?share=`) |
+| `src/app/(protected)/dashboard/ShareViewDialog.tsx` | Sharer dialog: generate/copy the `/share/<token>` link |
+| `src/app/(protected)/dashboard/ShareImportDialog.tsx` | Recipient preview + Add-view dialog |
 | `src/lib/userPrefs/queries.ts` + `actions.ts` | `user_preferences` row: parade filters (incl. `saveParadeFilters`) |
 | `src/app/(protected)/dashboard/DashboardView.tsx`  | Tab strip (+ trailing Add-view button, right-side Manage-views gear and All-views jump popover), optimistic tab switch + period rules + tab-URL prefetch, filter state, schedule zoom + month zoom state & widths |
 | `src/app/(protected)/dashboard/DashboardScreen.tsx` | Snapshot/warm-cache/preload owner; resolves the displayed context from `previewView ?? ?view=` so warm tab switches paint without waiting on the RSC |

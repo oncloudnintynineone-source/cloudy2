@@ -8,6 +8,7 @@ import {
   normalizeFilterOverride,
   periodSwitchDirection,
   resolveActiveTab,
+  resolveTabFilters,
   sanitizeDashboardViewName,
   viewSwitchDirection,
   type DashboardViewTab,
@@ -171,5 +172,43 @@ describe("periodSwitchDirection", () => {
     expect(periodSwitchDirection("2026-09", null)).toBe(0);
     expect(periodSwitchDirection(null, null)).toBe(0);
     expect(periodSwitchDirection("2026-09", "2026-09")).toBe(0);
+  });
+});
+
+describe("resolveTabFilters", () => {
+  const context = {
+    calendarIds: ["c1", "c2", "c3"],
+    userIds: ["u1", "u2"],
+    typeNames: ["Leave", "Duty"],
+    defaultCalendars: ["c1"],
+  };
+
+  it("uses the role default only for null overrides", () => {
+    expect(resolveTabFilters({ cal: null, users: null, types: null }, context)).toEqual({
+      cal: ["c1"],
+      users: [],
+      types: [],
+    });
+  });
+
+  it("keeps explicit selections, including an empty one", () => {
+    expect(
+      resolveTabFilters({ cal: [], users: ["u2"], types: ["Duty"] }, context),
+    ).toEqual({ cal: [], users: ["u2"], types: ["Duty"] });
+  });
+
+  it("drops stale ids from an otherwise valid selection", () => {
+    expect(
+      resolveTabFilters({ cal: ["c2", "deleted"], users: ["u1", "gone"], types: ["Leave", "Old"] }, context),
+    ).toEqual({ cal: ["c2"], users: ["u1"], types: ["Leave"] });
+  });
+
+  it("falls back to the role default when every explicit value is stale", () => {
+    expect(
+      resolveTabFilters(
+        { cal: ["deleted"], users: ["gone"], types: ["Old"] },
+        context,
+      ),
+    ).toEqual({ cal: ["c1"], users: [], types: [] });
   });
 });

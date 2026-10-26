@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { PageTransition } from "@/components/PageTransition";
 import { LoginForm } from "@/components/LoginForm";
 import { detectLegacyBrowser } from "@/lib/browserSupport";
+import { sanitizeNextPath } from "@/lib/login";
 
 import { LoginShell } from "./LoginShell";
 import { UnsupportedBrowserNotice } from "./UnsupportedBrowserNotice";
@@ -12,7 +13,15 @@ export const metadata: Metadata = {
   title: "Sign in — Cloudy2",
 };
 
-export default async function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string | string[] }>;
+}) {
+  const query = await searchParams;
+  const nextPath = sanitizeNextPath(
+    typeof query.next === "string" ? query.next : null,
+  );
   // The stack's compiled client bundle only runs on browsers at or above the
   // Next 16 / React 19 floor (Safari 16.4 / Chrome 111 / Firefox 111 / Edge
   // 111). Below it, the page paints but never hydrates — the form renders,
@@ -38,7 +47,7 @@ export default async function LoginPage() {
   return (
     <LoginShell>
       <PageTransition>
-        <LoginForm />
+        <LoginForm nextPath={nextPath} />
       </PageTransition>
     </LoginShell>
   );

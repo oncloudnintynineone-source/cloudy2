@@ -54,9 +54,11 @@ import { getDashboardViews } from "@/lib/dashboardViews/queries";
 import {
   emptyTabFilters,
   resolveActiveTab,
+  resolveTabFilters,
   type DashboardTabFilters,
   type DashboardViewKind,
   type DashboardViewTab,
+  type ResolvedTabFilters,
 } from "@/lib/dashboardViews/views";
 import {
   assembleDashboardSnapshot,
@@ -108,13 +110,6 @@ interface DashboardPeriod {
 
 type NavState = NonNullable<ReturnType<typeof decodeUiState>>["dashboard"];
 type DisplayOptions = Parameters<typeof resolveDisplayTitles>[1];
-
-/** A tab's stored filter overrides resolved against live data. */
-interface ResolvedTabFilters {
-  cal: string[];
-  users: string[];
-  types: string[];
-}
 
 /**
  * The filter-independent resolution shared by every tab: the snapshot fields
@@ -238,27 +233,12 @@ async function resolveDashboardConfig(session: Session): Promise<DashboardConfig
     collapsible: group.collapsible,
   }));
   const allUserIds = allUsers.map((user) => user.id);
-
-  const validCal = (ids: string[] | undefined): string[] | undefined => {
-    if (ids === undefined) return undefined;
-    const list = ids.filter((id) => calendarIds.includes(id));
-    return list.length > 0 || ids.length === 0 ? list : undefined;
+  const filterContext = {
+    calendarIds,
+    userIds: allUserIds,
+    typeNames,
+    defaultCalendars,
   };
-  const validUsers = (ids: string[] | undefined): string[] | undefined => {
-    if (ids === undefined) return undefined;
-    const list = (ids ?? []).filter((id) => allUserIds.includes(id));
-    return list.length > 0 || ids.length === 0 ? list : undefined;
-  };
-  const validTypes = (names: string[] | undefined): string[] | undefined => {
-    if (names === undefined) return undefined;
-    const list = (names ?? []).filter((name) => typeNames.includes(name));
-    return list.length > 0 || names.length === 0 ? list : undefined;
-  };
-  const resolveFilter = (
-    stored: string[] | null,
-    validator: (ids: string[] | undefined) => string[] | undefined,
-    fallback: string[],
-  ): string[] => (stored === null ? fallback : (validator(stored) ?? fallback));
 
   const defaultFilters: DashboardTabFilters = {
     cal: defaultCalendars,
@@ -435,11 +415,8 @@ async function resolveDashboardConfig(session: Session): Promise<DashboardConfig
     currentUserName: session.user.name ?? "",
   };
 
-  const resolveSelectedFilters = (tab: DashboardViewTab): ResolvedTabFilters => ({
-    cal: resolveFilter(tab.filters.cal, validCal, defaultCalendars),
-    users: resolveFilter(tab.filters.users, validUsers, []),
-    types: resolveFilter(tab.filters.types, validTypes, []),
-  });
+  const resolveSelectedFilters = (tab: DashboardViewTab): ResolvedTabFilters =>
+    resolveTabFilters(tab.filters, filterContext);
 
   return {
     shared,

@@ -88,6 +88,12 @@ them with the tabs above the grid:
   preview grid — and an **Edit filters…** button that switches to the view and
   opens its filter dialog) and **Delete**, plus ↑/↓ to reorder. On a phone the
   gear lives inside the four-squares view button as **Manage views**.
+- **Share a view**: choose **Share** on a Manage-views row (or **Share view…**
+  in the Edit-view dialog) and copy the link. Anyone signed in can open it,
+  review the view name/type/filters, and **Add view** — they get an independent
+  copy at the end of their tab strip. The link carries only the view definition,
+  never event access; it has no separate revoke button (new links stop working
+  only when the app's signing secret is rotated).
 - **Fullscreen** (⋮ menu → **Enter fullscreen**) hides all app
   chrome (and the browser UI where supported) for a wall-display calendar; press
   Esc or use ⋮ menu → **Exit fullscreen** to go back.

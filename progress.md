@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.346 (registration events)** is shipped.
+- All work through changelog **1.347 (shared calendar views)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -2157,6 +2157,13 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   participants on, may be created with zero registrants, and no longer auto-add the
   organizer. Docs: `docs/registration-events.md`, `docs/event-lifecycle.md` §1.14,
   `docs/event-mutations.md` §1.11.
+
+- 1.347 **Shared calendar views**: Manage views → Share generates a self-contained
+  `/share/<token>` link (Brotli + base64url + HMAC-SHA256 using `NEXTAUTH_SECRET`, no
+  share table). The recipient lands through login, previews the name/kind/effective
+  filters, and adds an independent tab copy. `?share=` is a one-shot dashboard/SW param;
+  `/share/` is never SW-cached. Docs: `docs/dashboard-views.md` §1.10,
+  `docs/user-guide.md` §1.3.1, `docs/pwa-offline.md`.
 
 ## 1.4 Open items & next steps
 

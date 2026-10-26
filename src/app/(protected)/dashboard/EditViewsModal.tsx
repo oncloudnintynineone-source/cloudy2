@@ -16,7 +16,7 @@ import {
 import { MotionModal } from "@/components/MotionModal";
 import { useMediaQuery } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { IconFilter, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconFilter, IconPencil, IconPlus, IconShare, IconTrash } from "@tabler/icons-react";
 
 import {
   changeDashboardViewKind,
@@ -45,6 +45,7 @@ import {
 } from "@/components/reorderUpDown";
 import { SortableList, SortableRow } from "@/components/SortableRow";
 import { VIEW_TAB_META } from "./viewMeta";
+import { ShareViewDialog } from "./ShareViewDialog";
 import { ViewTypePicker } from "./ViewTypePicker";
 
 interface EditViewsModalProps {
@@ -99,6 +100,7 @@ export function EditViewsModal({
 
   const [deleting, setDeleting] = useState<DashboardViewTab | null>(null);
   const [deletingBusy, setDeletingBusy] = useState(false);
+  const [sharing, setSharing] = useState<DashboardViewTab | null>(null);
 
   const {
     displayRows: displayTabs,
@@ -134,6 +136,7 @@ export function EditViewsModal({
   function close() {
     setEditing(null);
     setDeleting(null);
+    setSharing(null);
     onClose();
   }
 
@@ -309,6 +312,17 @@ export function EditViewsModal({
                   );
                   const actions = (
                     <>
+                      <Tooltip label="Share" position="top">
+                        <ActionIcon
+                          variant="subtle"
+                          color="gray"
+                          size={ROW_ACTION_SIZE}
+                          aria-label={`Share ${tab.name}`}
+                          onClick={() => setSharing(tab)}
+                        >
+                          <IconShare size={ROW_ACTION_ICON_SIZE} />
+                        </ActionIcon>
+                      </Tooltip>
                       <Tooltip label="Edit" position="top">
                         <ActionIcon
                           variant="subtle"
@@ -446,6 +460,29 @@ export function EditViewsModal({
               Opens this view&rsquo;s filter dialog (switches to it first).
             </Text>
           </div>
+          <div>
+            <Button
+              variant="default"
+              leftSection={<IconShare size={16} />}
+              fullWidth
+              disabled={
+                !editing ||
+                editKind !== editing.kind ||
+                editName.trim() !== editing.name
+              }
+              onClick={() => {
+                if (!editing) return;
+                const target = editing;
+                setEditing(null);
+                setSharing(target);
+              }}
+            >
+              Share view&hellip;
+            </Button>
+            <Text size="xs" c="dimmed" mt={6}>
+              Shares the saved definition. Save changes first to share them.
+            </Text>
+          </div>
           <Group justify="flex-end" mt="md">
             <Button variant="default" onClick={() => setEditing(null)}>
               Cancel
@@ -461,6 +498,8 @@ export function EditViewsModal({
           </Group>
         </Stack>
       </MotionModal>
+
+      <ShareViewDialog tab={sharing} onClose={() => setSharing(null)} />
 
       <MotionModal
         opened={deleting !== null}

@@ -1,4 +1,4 @@
-import { asc, count, eq } from "drizzle-orm";
+import { and, asc, count, eq } from "drizzle-orm";
 import { cache } from "react";
 
 import { db } from "@/db";
@@ -93,3 +93,31 @@ export const getDashboardViews = cache(async (userId: string): Promise<Dashboard
   }
   return rows.map(toDashboardViewTab);
 });
+
+/** One stored tab owned by the user, or null (used by share-link generation). */
+export async function getOwnedDashboardView(
+  userId: string,
+  id: string,
+): Promise<UserDashboardView | null> {
+  if (!isUuid(userId) || !isUuid(id)) {
+    return null;
+  }
+  const [view] = await db
+    .select()
+    .from(userDashboardViews)
+    .where(and(eq(userDashboardViews.id, id), eq(userDashboardViews.userId, userId)))
+    .limit(1);
+  return view ?? null;
+}
+
+/** The account's current tab count (used by the share preview's cap hint). */
+export async function countDashboardViews(userId: string): Promise<number> {
+  if (!isUuid(userId)) {
+    return 0;
+  }
+  const [{ n }] = await db
+    .select({ n: count() })
+    .from(userDashboardViews)
+    .where(eq(userDashboardViews.userId, userId));
+  return n;
+}

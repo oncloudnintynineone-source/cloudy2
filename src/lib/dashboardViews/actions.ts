@@ -7,7 +7,8 @@ import { db } from "@/db";
 import { userDashboardViews, type UserDashboardView } from "@/db/schema";
 import { requireSession } from "@/lib/session";
 import { isUuid } from "@/lib/uuid";
-import { ensureDefaultDashboardView, toDashboardViewTab } from "./queries";
+import { appendDashboardView } from "./mutate";
+import { toDashboardViewTab } from "./queries";
 import {
   isDashboardViewKind,
   nameAfterKindChange,
@@ -20,9 +21,6 @@ import {
 export type DashboardViewActionResult =
   | { ok: true; id?: string; tab?: DashboardViewTab }
   | { ok: false; error: string; field?: "name" | "kind" };
-
-/** Soft per-user tab cap — sanity guard, not a hard product limit. */
-const MAX_VIEWS_PER_USER = 20;
 
 async function requireOwnedView(
   userId: string,
@@ -60,31 +58,15 @@ export async function createDashboardView(input: {
   if (!isDashboardViewKind(input.viewType)) {
     return { ok: false, error: "Pick a view type", field: "kind" };
   }
-  await ensureDefaultDashboardView(userId);
-  const [{ n }] = await db
-    .select({ n: count() })
-    .from(userDashboardViews)
-    .where(eq(userDashboardViews.userId, userId));
-  if (n >= MAX_VIEWS_PER_USER) {
-    return { ok: false, error: `You've reached the ${MAX_VIEWS_PER_USER}-view limit` };
+  const created = await appendDashboardView(userId, {
+    kind: input.viewType as DashboardViewKind,
+    name: name.value,
+  });
+  if (!created.ok) {
+    return { ok: false, error: created.error };
   }
-  const rows = await db
-    .select({ sortOrder: userDashboardViews.sortOrder })
-    .from(userDashboardViews)
-    .where(eq(userDashboardViews.userId, userId))
-    .orderBy(asc(userDashboardViews.sortOrder));
-  const nextOrder = rows.reduce((max, row) => Math.max(max, row.sortOrder), -1) + 1;
-  const [created] = await db
-    .insert(userDashboardViews)
-    .values({
-      userId,
-      viewType: input.viewType as DashboardViewKind,
-      name: name.value,
-      sortOrder: nextOrder,
-    })
-    .returning({ id: userDashboardViews.id });
   revalidatePath("/dashboard");
-  return { ok: true, id: created.id };
+  return { ok: true, id: created.id, tab: created.tab };
 }
 
 /** Rename a tab (display name in the strip). */

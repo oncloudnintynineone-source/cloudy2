@@ -65,6 +65,9 @@ export function nameAfterKindChange(
 /** Longest allowed user-chosen tab name. */
 export const DASHBOARD_VIEW_NAME_MAX_LENGTH = 40;
 
+/** Soft per-user tab cap — sanity guard, not a hard product limit. */
+export const MAX_VIEWS_PER_USER = 20;
+
 /**
  * A tab's own filter overrides as stored: `null` = role default, an array
  * (including `[]` = cleared) = an explicit selection.
@@ -77,6 +80,57 @@ export interface DashboardTabFilters {
 
 export function emptyTabFilters(): DashboardTabFilters {
   return { cal: null, users: null, types: null };
+}
+
+/** A tab's filters resolved against live data (always explicit arrays). */
+export interface ResolvedTabFilters {
+  cal: string[];
+  users: string[];
+  types: string[];
+}
+
+export interface TabFilterContext {
+  /** Live calendar ids. */
+  calendarIds: readonly string[];
+  /** Live roster user ids. */
+  userIds: readonly string[];
+  /** Live event-type names. */
+  typeNames: readonly string[];
+  /** The role default calendars when a tab's calendar filter is `null`. */
+  defaultCalendars: readonly string[];
+}
+
+/**
+ * Resolve a tab's stored filter overrides against live data. Mirrors the
+ * dashboard read exactly: `null` means the role default; an explicit array is
+ * filtered to live values; an explicit non-empty array whose values are all
+ * stale falls back to the role default rather than silently becoming "none".
+ * Pure, so the dashboard and share-link generation cannot drift.
+ */
+export function resolveTabFilters(
+  filters: DashboardTabFilters,
+  context: TabFilterContext,
+): ResolvedTabFilters {
+  const resolve = (
+    stored: string[] | null,
+    live: readonly string[],
+    fallback: readonly string[],
+  ): string[] => {
+    if (stored === null) {
+      return [...fallback];
+    }
+    const valid = stored.filter((value) => live.includes(value));
+    if (valid.length > 0 || stored.length === 0) {
+      return valid;
+    }
+    return [...fallback];
+  };
+
+  return {
+    cal: resolve(filters.cal, context.calendarIds, context.defaultCalendars),
+    users: resolve(filters.users, context.userIds, []),
+    types: resolve(filters.types, context.typeNames, []),
+  };
 }
 
 /** Client/view shape of one tab (no timestamps, filters parsed). */

@@ -51,8 +51,8 @@ export function isPageCacheName(name: string): boolean {
 }
 
 /** Paths whose navigations/RSC should never be served from cache. */
-const EXCLUDED_PREFIXES = ["/login", "/api/", "/serwist/", "/_next/"] as const;
-const EXCLUDED_EXACT = new Set(["/login"]);
+const EXCLUDED_PREFIXES = ["/login", "/share/", "/api/", "/serwist/", "/_next/"] as const;
+const EXCLUDED_EXACT = new Set(["/login", "/share"]);
 
 /**
  * Routes that must always be read from the network — never the SWR
@@ -89,7 +89,7 @@ function isExcludedPath(pathname: string): boolean {
  * requests are still served through the document route, so they keep the
  * offline redirect fallback).
  */
-const ONE_SHOT_PARAMS = new Set(["refresh", "edit", "event", "_fresh"]);
+const ONE_SHOT_PARAMS = new Set(["refresh", "edit", "event", "_fresh", "share"]);
 
 function hasOneShotParam(url: URL): boolean {
   for (const key of url.searchParams.keys()) {
