@@ -22,13 +22,15 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from "react"
  * Contact is tracked per input type because the two event systems disagree
  * about when a touch gesture ends:
  * - **Touch** — the authoritative "fingers on screen" count is
- *   `TouchEvent.touches.length`, updated on `touchstart`/`touchend`. The
- *   pointer-events `pointercancel` fires when the browser takes over a touch
- *   to drive a native scroll — *while the finger is still down* — and no
- *   `pointerup` follows it, so it must NOT be treated as a release. Likewise
- *   `touchcancel` means "gesture disrupted / browser took over", not "finger
- *   lifted", so it leaves the count unchanged. Only `touchend` (which drops
- *   `touches.length` to 0) reveals.
+ *   `TouchEvent.touches.length`, updated on `touchstart`/`touchend`/`touchcancel`.
+ *   A canceled touch is removed from `touches` by the browser and never
+ *   receives a `touchend` (e.g. the modal overlay a tap started on is removed
+ *   mid-gesture), so `touchcancel` must update the count too — treating it as
+ *   "finger may still be down" would strand the count above zero forever and
+ *   the chrome could never reveal again. The pointer-events `pointercancel`
+ *   fires when the browser takes over a touch to drive a native scroll —
+ *   *while the finger is still down* — and no `pointerup` follows it, so it
+ *   must NOT be treated as a release.
  * - **Mouse / pen** — `pointerdown`/`pointerup` pair; a `pointercancel` here
  *   is a genuine release.
  *
@@ -62,10 +64,8 @@ export interface ChromeHideState {
 export type ChromeHideEvent =
   /** A touch landed in the pane (trigger). */
   | { type: "touch-down" }
-  /** `touchstart`/`touchend` on the document: the current finger count. */
+  /** `touchstart`/`touchend`/`touchcancel` on the document: the current finger count. */
   | { type: "touch-count"; count: number }
-  /** `touchcancel`: the gesture was disrupted — the finger may still be down. */
-  | { type: "touch-canceled" }
   /** A mouse/pen pointer pressed in the pane (trigger). */
   | { type: "pointer-down" }
   /** A mouse/pen pointer released (anywhere). */
@@ -99,10 +99,6 @@ export function advanceChromeHide(state: ChromeHideState, event: ChromeHideEvent
       return state.hidden ? state : { ...state, hidden: true };
     case "touch-count":
       return settle({ ...state, touchPoints: event.count });
-    case "touch-canceled":
-      // The finger may still be on the screen (the browser took over the
-      // gesture) — only `touchend` clears the count.
-      return state;
     case "pointer-down":
       return { ...state, otherPointers: state.otherPointers + 1, hidden: true };
     case "pointer-up":
@@ -189,13 +185,14 @@ export function useChromeHide({
     pane.addEventListener("pointerdown", onPanePointerDown, true);
 
     // --- Contact tracking (screen-wide, on `document`). ---
-    // Touch: `touches.length` is the authoritative finger count; `touchcancel`
-    // does not clear it (the finger may still be down). Mouse/pen: the
-    // `pointerdown`/`pointerup` pair; a non-touch `pointercancel` is a real
-    // release, a touch one is ignored (the touch events own that gesture).
+    // Touch: `touches.length` is the authoritative finger count, re-read on
+    // `touchstart`/`touchend` **and** `touchcancel` — a canceled touch is gone
+    // from `touches` and never gets a `touchend`, so ignoring it would strand
+    // the count. Mouse/pen: the `pointerdown`/`pointerup` pair; a non-touch
+    // `pointercancel` is a real release, a touch one is ignored (the touch
+    // events own that gesture).
     const onTouchCount = (event: TouchEvent) =>
       dispatch({ type: "touch-count", count: event.touches.length });
-    const onTouchCancel = () => dispatch({ type: "touch-canceled" });
     const onPointerRelease = (event: PointerEvent) => {
       if (event.pointerType !== "touch") {
         dispatch({ type: "pointer-up" });
@@ -203,7 +200,7 @@ export function useChromeHide({
     };
     document.addEventListener("touchstart", onTouchCount);
     document.addEventListener("touchend", onTouchCount);
-    document.addEventListener("touchcancel", onTouchCancel);
+    document.addEventListener("touchcancel", onTouchCount);
     document.addEventListener("pointerup", onPointerRelease);
     document.addEventListener("pointercancel", onPointerRelease);
 
@@ -224,7 +221,7 @@ export function useChromeHide({
       pane.removeEventListener("pointerdown", onPanePointerDown, true);
       document.removeEventListener("touchstart", onTouchCount);
       document.removeEventListener("touchend", onTouchCount);
-      document.removeEventListener("touchcancel", onTouchCancel);
+      document.removeEventListener("touchcancel", onTouchCount);
       document.removeEventListener("pointerup", onPointerRelease);
       document.removeEventListener("pointercancel", onPointerRelease);
       pane.removeEventListener("scroll", onScroll, true);

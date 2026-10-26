@@ -121,7 +121,10 @@ doc content here.
 - **Event lifecycle & mutations:** staged wizard → Google copies with notes-block
   round-trip; cross-department copies reconciled by `findCopies` (deliberately uncached).
   Wizard body is a fixed-height column + bottom **step strip** (caption + non-wrapping
-  Stepper, tap = jump), so the modal never resizes between steps.
+  Stepper, tap = jump), so the modal never resizes between steps. The detail modal's
+  **Share** action opens a self-contained `/share/event?e=&c=&d=` link (public landing
+  route → login hop → the `?event=` details deep link) — the URL carries the whole
+  target, nothing is stored.
   Design: [docs/event-lifecycle.md](docs/event-lifecycle.md), [docs/event-mutations.md](docs/event-mutations.md).
 - **Organizer & the owner-only lock:** the organizer (`createdBy` in notes) is fixed to the
   acting session user at create — no "on behalf of", no reassign. Edit/delete/duplicate
@@ -135,8 +138,8 @@ doc content here.
   parameters and roster management; everyone else may only register/deregister
   themselves as participants (a narrow `setEventRegistration` toggle around the shared
   update pipeline, never a full edit). The detail modal shows that same self-toggle to the
-  organizer/admin above their edit actions, so they need not open the wizard to add/remove
-  themselves. Registration types force participants on, may be
+  organizer/admin below their action-icon row, so they need not open the wizard to
+  add/remove themselves. Registration types force participants on, may be
   created with zero registrants, and do not auto-add the organizer. Design:
   [docs/registration-events.md](docs/registration-events.md).
 - **Optimistic mutations:** the dashboard renders a short-lived stand-in chip at confirm

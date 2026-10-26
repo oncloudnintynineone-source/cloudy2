@@ -12,6 +12,7 @@
 
 import { formatInstantToNaive, shiftMonth } from "@/lib/events/datetime";
 import type { CalendarEvent } from "@/lib/events/queries";
+import { isUuid } from "@/lib/uuid";
 
 export interface EventDeepLinkInput {
   /** The active dashboard tab id to preserve (`?view=`), or null. */
@@ -50,6 +51,57 @@ export function findEventByGroupId(
 }
 
 const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Build the public `/share/event` link for one event: a self-contained URL
+ * (group id + calendar id + start date) that the landing route turns into the
+ * dashboard `?event=` deep link. Nothing is stored server-side — the link is
+ * the state, and access stays gated by login + the deep-link resolver.
+ */
+export function buildEventShareLink(input: {
+  /** Absolute origin, e.g. `https://app.example.com`. */
+  origin: string;
+  eventId: string;
+  calendarId: string;
+  /** The event's naive start; only its date part is encoded. */
+  start: string;
+}): string {
+  const params = new URLSearchParams();
+  params.set("e", input.eventId);
+  params.set("c", input.calendarId);
+  params.set("d", input.start.slice(0, 10));
+  return `${input.origin}/share/event?${params.toString()}`;
+}
+
+/** The validated target of a `/share/event` link. */
+export interface EventShareTarget {
+  eventId: string;
+  calendarId: string;
+  date: string;
+}
+
+/**
+ * Validate the raw `/share/event` query params: both ids must be UUIDs and the
+ * date must be `YYYY-MM-DD`. Anything else returns null (the route 404s), so a
+ * malformed link can never reach the dashboard as a live deep link.
+ */
+export function parseEventShareParams(params: {
+  e: string | undefined;
+  c: string | undefined;
+  d: string | undefined;
+}): EventShareTarget | null {
+  if (
+    typeof params.e === "string" &&
+    isUuid(params.e) &&
+    typeof params.c === "string" &&
+    isUuid(params.c) &&
+    typeof params.d === "string" &&
+    DATE_ONLY_PATTERN.test(params.d)
+  ) {
+    return { eventId: params.e, calendarId: params.c, date: params.d };
+  }
+  return null;
+}
 
 /**
  * The month window the server reads to resolve a `?event=` deep-link target.

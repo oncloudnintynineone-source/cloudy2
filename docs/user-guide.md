@@ -160,10 +160,12 @@ discard. Starting a different event while a draft exists asks before replacing i
 
 Tap any event for its details. If you are its **organizer**, one of its
 **participants**, or a **member of a department it tags** — or an admin — you get
-**Edit**, **Duplicate**, and **Delete**. (If the organizer locked the event to
-themselves, only they and admins can do these.) Editing prefills the wizard with the
-original details and always keeps the original organizer; deleting asks for
-confirmation and removes every department copy.
+**Edit** and **Delete**, plus a **Copy** menu (**Copy event**, **Add to Google
+Calendar**, **Download .ics file**). Everyone who can view the event also gets
+**Share** — a link that opens the event's details for anyone signed in. (If the
+organizer locked the event to themselves, only they and admins can edit or delete.)
+Editing prefills the wizard with the original details and always keeps the original
+organizer; deleting asks for confirmation and removes every department copy.
 
 ## 1.5 Pinned events
 

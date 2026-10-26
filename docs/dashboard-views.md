@@ -347,20 +347,21 @@ string maps to the first tab of that kind.
     **Contact tracking, by contrast,
    is screen-wide** (on `document`): once hidden, the chrome stays hidden while
    *any* finger/pointer is down, even if it slides off the pane onto the bottom
-   nav. Contact is tracked per input type because the two event systems disagree
-   about when a touch gesture ends: **touch** uses `TouchEvent.touches.length`
-   (authoritative finger count, updated on `touchstart`/`touchend`) — the
-   pointer-events `pointercancel` fires when the browser takes over a touch to
-   drive a native scroll *while the finger is still down* (and no `pointerup`
-   follows), so it must **not** read as a release, and `touchcancel` likewise
-   leaves the count unchanged; only `touchend` (dropping the count to 0)
-   reveals. **Mouse/pen** use the `pointerdown`/`pointerup` pair (a non-touch
-   `pointercancel` is a genuine release). The counts are clamped at zero so a
-   stray release and a multi-touch gesture both settle correctly. *Known
-   limitation:* this relies on `touchend` firing on finger-lift (true on modern
-   Chrome/Android + iOS 16.4+); a browser that fires `touchcancel` and
-   suppresses `touchend` would leave the chrome hidden until the next
-   touch-lift or a tab switch. Motion: `--c2-dur-quick` / `--c2-ease-out`
+    nav. Contact is tracked per input type because the two event systems disagree
+    about when a touch gesture ends: **touch** uses `TouchEvent.touches.length`
+    (authoritative finger count, updated on `touchstart`/`touchend` **and**
+    `touchcancel` — a canceled touch is removed from `touches` and never gets a
+    `touchend`, e.g. when the modal overlay a tap started on is removed
+    mid-gesture, so ignoring `touchcancel` would strand the count above zero and
+    the chrome could never reveal again; this was the minimized-draft chip's
+    "flashes then disappears" bug) — the
+    pointer-events `pointercancel` fires when the browser takes over a touch to
+    drive a native scroll *while the finger is still down* (and no `pointerup`
+    follows), so it must **not** read as a release.
+    **Mouse/pen** use the `pointerdown`/`pointerup` pair (a non-touch
+    `pointercancel` is a genuine release). The counts are clamped at zero so a
+    stray release and a multi-touch gesture both settle correctly. Motion:
+    `--c2-dur-quick` / `--c2-ease-out`
    opacity + a `--c2-dist-sm` sink (`.c2-chrome-hide-able` / `.c2-chrome-hidden`
    in `globals.css`, the "target state carries the transition" recipe),
    instant under `prefers-reduced-motion`. The hidden state drops

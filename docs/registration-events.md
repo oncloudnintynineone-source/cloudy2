@@ -144,8 +144,8 @@ belong to one event, not to its duplicate.
   - the roster is labelled "Registered (N)" and shows an empty state;
   - every eligible actor sees a primary **Register** / **Deregister** button:
     non-organizer/non-admin users see it *instead of* Edit/Delete/Duplicate,
-    while the organizer and admins see it *above* their edit actions (so they
-    can add/remove themselves without opening the wizard);
+    while the organizer and admins see it *last* (below their action-icon row,
+    so they can add/remove themselves without opening the wizard);
   - the button patches the local roster immediately and asks the dashboard to
     revalidate after success.
 - **Read-only surfaces** (Double Booking, KAH status, wizard clash detail) never

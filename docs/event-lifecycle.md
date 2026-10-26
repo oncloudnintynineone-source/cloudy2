@@ -327,6 +327,20 @@ active tab's month range exclude it — without adding it to the grid's filtered
   on-behalf), `ownerOnlyEdits` = false, and no self chip: the attendee list starts
   empty.
 
+**Share link (`/share/event`).** The detail modal's **Share** icon (left of the More
+actions menu / the add-to-calendars icon in every branch whose event has a group id;
+never on the read-only surfaces) opens `ShareEventDialog.tsx` — the shared-view
+dialog's look (description + read-only link field + Copy button) — showing a
+self-contained `origin/share/event?e=<group id>&c=<calendar id>&d=<start date>` URL
+(`buildEventShareLink`, `src/lib/events/deepLink.ts`). Nothing is stored server-side:
+the link *is* the state, so it cannot be revoked individually and rotates with the
+event data itself. The public landing route `src/app/share/event/page.tsx` (outside
+the `(protected)` layout; the static `event` segment wins over the sibling
+`/share/[token]`) validates the params (`parseEventShareParams`: UUIDs + `YYYY-MM-DD`,
+else 404) and redirects to the details deep link above — hopping through
+`/login?next=…` when signed out, exactly like the shared-view landing. Access stays
+gated by login plus the deep-link resolver; the link grants nothing by itself.
+
 ### 1.4.3 Minimize, the draft bar & discard safety
 
 The wizard minimizes without losing the draft. Tapping the overlay, pressing
@@ -925,22 +939,24 @@ copies. It never writes to Google or the audit log — it only builds a link or 
 locally. Placement is branch-dependent:
 
 - **Editable branch** — the two exports ride inside the **More actions** menu (the copy
-  icon, `EventDetail.tsx`), collapsed together with the **Duplicate** action so the action
-  row stays a single line of icon-only controls (Edit and Delete are icon-only too).
+  icon, `EventDetail.tsx`), collapsed together with the **Copy event** action so the action
+  row stays a single line of icon-only controls (Edit and Delete are icon-only too). The
+  **Share** icon sits immediately left of the menu.
 - **Read-only / view-only branches** — a standalone calendar-plus icon menu, since there
-  is no "More actions" menu to host the exports.
+  is no "More actions" menu to host the exports; the **Share** icon sits left of it
+  (except the read-only Double Booking surface, which has no share action).
 - **Registration branch** (a non-organizer/admin viewing an open-for-registration event)
   — the standalone calendar-plus icon shares the button's row, sitting to the right of the
   full-width **Register / Deregister** button (the button stretches via `flex="1"` so the
-  icon never wraps to a second line).
+  icon never wraps to a second line), with the **Share** icon between them.
 
 The two menu items are:
 
-- **Google Calendar** — a prefilled
+- **Add to Google Calendar** — a prefilled
   `calendar.google.com/calendar/render?action=TEMPLATE` URL (`text`, `dates`, `location`,
   `details`), opened in a new tab; one save adds the personal copy.
-- **Download `.ics`** — an RFC 5545 iCalendar file (`text/calendar`); the OS routes it to
-  the native calendar app's add-event sheet.
+- **Download `.ics` file** — an RFC 5545 iCalendar file (`text/calendar`); the OS routes
+  it to the native calendar app's add-event sheet.
 
 Both builders live in the pure `src/lib/events/calendarExport.ts`
 (`buildGoogleCalendarUrl`, `buildEventIcs`, `icsFileName`; unit-tested). Rules:

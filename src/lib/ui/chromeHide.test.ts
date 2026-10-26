@@ -61,12 +61,22 @@ describe("advanceChromeHide", () => {
     expect(advanceChromeHide(s, { type: "touch-count", count: 0 }).hidden).toBe(false);
   });
 
-  it("touch-canceled leaves the finger count unchanged (finger may still be down)", () => {
-    const s = apply(fresh(), { type: "touch-down" }, { type: "touch-count", count: 1 });
-    const after = advanceChromeHide(s, { type: "touch-canceled" });
-    expect(after).toBe(s); // no change at all
-    expect(after.touchPoints).toBe(1);
-    expect(after.hidden).toBe(true);
+  it("touchcancel updates the finger count (a canceled touch never gets touchend)", () => {
+    // The minimize-overlay case: the tap target is removed mid-gesture, the
+    // browser fires touchcancel (count drops to 0) and NO touchend follows.
+    // Treating touchcancel as "unchanged" would strand the count at 1 and the
+    // chrome could never reveal again.
+    const s = apply(
+      fresh(),
+      { type: "touch-down" },
+      { type: "touch-count", count: 1 },
+      { type: "scroll" }, // post-close focus scroll hides the chrome
+    );
+    expect(s.hidden).toBe(true);
+    const after = advanceChromeHide(s, { type: "touch-count", count: 0 }); // touchcancel
+    expect(after.touchPoints).toBe(0);
+    expect(after.hidden).toBe(true); // scroll still unsettled
+    expect(advanceChromeHide(after, { type: "scroll-settled" }).hidden).toBe(false);
   });
 
   it("tracks multi-touch: two fingers down, one lifts (still hidden), last lifts (reveal)", () => {

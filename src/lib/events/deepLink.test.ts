@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { buildEventDeepLink, deepLinkMonths, findEventByGroupId } from "./deepLink";
+import {
+  buildEventDeepLink,
+  buildEventShareLink,
+  deepLinkMonths,
+  findEventByGroupId,
+  parseEventShareParams,
+} from "./deepLink";
 import { formatInstantToNaive } from "./datetime";
 import type { CalendarEvent } from "./queries";
 
@@ -76,5 +82,39 @@ describe("deepLinkMonths", () => {
     const months = deepLinkMonths("not-a-date");
     expect(months).toHaveLength(2);
     expect(months).toContain(formatInstantToNaive(new Date()).slice(0, 7));
+  });
+});
+
+const UUID_E = "3f2504e0-4f89-41d3-9a0c-0305e82c3301";
+const UUID_C = "9c5f6a7b-1d2e-4f3a-8b9c-0d1e2f3a4b5c";
+
+describe("buildEventShareLink", () => {
+  it("encodes the group id, calendar id and start date", () => {
+    expect(
+      buildEventShareLink({
+        origin: "https://app.example.com",
+        eventId: UUID_E,
+        calendarId: UUID_C,
+        start: "2026-09-15 09:00:00",
+      }),
+    ).toBe(`https://app.example.com/share/event?e=${UUID_E}&c=${UUID_C}&d=2026-09-15`);
+  });
+});
+
+describe("parseEventShareParams", () => {
+  it("accepts a well-formed link", () => {
+    expect(parseEventShareParams({ e: UUID_E, c: UUID_C, d: "2026-09-15" })).toEqual({
+      eventId: UUID_E,
+      calendarId: UUID_C,
+      date: "2026-09-15",
+    });
+  });
+
+  it("rejects non-UUID ids, a bad date and missing params", () => {
+    expect(parseEventShareParams({ e: "nope", c: UUID_C, d: "2026-09-15" })).toBeNull();
+    expect(parseEventShareParams({ e: UUID_E, c: "nope", d: "2026-09-15" })).toBeNull();
+    expect(parseEventShareParams({ e: UUID_E, c: UUID_C, d: "15-09-2026" })).toBeNull();
+    expect(parseEventShareParams({ e: UUID_E, c: UUID_C, d: undefined })).toBeNull();
+    expect(parseEventShareParams({ e: undefined, c: UUID_C, d: "2026-09-15" })).toBeNull();
   });
 });

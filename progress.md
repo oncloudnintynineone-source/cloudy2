@@ -2164,6 +2164,18 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   filters, and adds an independent tab copy. `?share=` is a one-shot dashboard/SW param;
   `/share/` is never SW-cached. Docs: `docs/dashboard-views.md` §1.10,
   `docs/user-guide.md` §1.3.1, `docs/pwa-offline.md`.
+- 1.348 **Event share link + detail-modal action polish**: the detail modal's **Share**
+  icon (left of the More-actions menu / add-to-calendars icon in every branch with an
+  event id) opens a Share-View-styled dialog with a self-contained
+  `/share/event?e=&c=&d=` link — public landing route → login hop → the `?event=`
+  details deep link; nothing stored server-side. Copy-menu items renamed
+  (**Copy event** / **Add to Google Calendar** / **Download .ics file**); the
+  Register/Deregister toggle now sits **last** (below the action-icon row) for
+  organizer/admin. Fix: the minimized-draft chip flashed then vanished until the grid
+  was scrolled — `useChromeHide` now re-reads the finger count on `touchcancel` (a
+  canceled touch never gets `touchend`, so the count stranded at 1 and the chrome
+  could never reveal). Docs: `docs/event-lifecycle.md` §1.4.2/§1.12,
+  `docs/dashboard-views.md` §1.1, `docs/registration-events.md` §1.6.
 
 ## 1.4 Open items & next steps
 

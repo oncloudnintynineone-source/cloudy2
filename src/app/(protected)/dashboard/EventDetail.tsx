@@ -24,6 +24,7 @@ import {
   IconDownload,
   IconHistory,
   IconPencil,
+  IconShare3,
   IconTrash,
   IconUserMinus,
   IconUserPlus,
@@ -52,6 +53,7 @@ import {
 import { useMotion } from "@/components/MotionProvider";
 import { BUTTON_LOADER_PROPS, NARROW_MEDIA_QUERY } from "@/lib/theme";
 import { formatDateTime } from "./clientDateTime";
+import { ShareEventDialog } from "./ShareEventDialog";
 
 interface EventDetailProps {
   event: CalendarEvent | null;
@@ -131,6 +133,9 @@ export function EventDetail({
   // modal via zIndex, replacing the old navigation to the history page).
   const [historyEventId, setHistoryEventId] = useState<string | null>(null);
   const [historyOrigin, setHistoryOrigin] = useState<Rect | null>(null);
+  // The share dialog (stacked at zIndex 300 like the history modal): holds the
+  // event whose link is shown, null keeps it closed.
+  const [shareEvent, setShareEvent] = useState<CalendarEvent | null>(null);
   // Keep the last non-null event so the closing (shrink) animation still has
   // content while `opened` is already false. The render-time adjustment below
   // only replaces it when a *new* event arrives — a close (event → null) keeps
@@ -141,6 +146,7 @@ export function EventDetail({
     setPrevEvent(event);
     setDisplayEvent(event);
     setRegistrationPatch(null);
+    setShareEvent(null);
   }
 
   const theme = useMantineTheme();
@@ -424,22 +430,10 @@ export function EventDetail({
               </Group>
             ) : canModify ? (
               <Stack gap="xs" mt="md">
-                {registrationAvailable && (
-                  <Button
-                    size="md"
-                    color={isRegistered ? "gray" : "brand"}
-                    variant={isRegistered ? "light" : "filled"}
-                    loading={registrationBusy}
-                    loaderProps={BUTTON_LOADER_PROPS}
-                    leftSection={
-                      isRegistered ? <IconUserMinus size={18} /> : <IconUserPlus size={18} />
-                    }
-                    onClick={handleRegistration}
-                  >
-                    {isRegistered ? "Deregister" : "Register"}
-                  </Button>
-                )}
                 <Group justify="flex-end" gap="xs">
+                  {payload.eventId && (
+                    <ShareEventButton onClick={() => setShareEvent(showEvent)} />
+                  )}
                   <EventActionsMenu event={showEvent} onDuplicate={onDuplicate} />
                   {payload.eventId && (
                     <Tooltip label="History" position="top">
@@ -485,6 +479,21 @@ export function EventDetail({
                     </ActionIcon>
                   </Tooltip>
                 </Group>
+                {registrationAvailable && (
+                  <Button
+                    size="md"
+                    color={isRegistered ? "gray" : "brand"}
+                    variant={isRegistered ? "light" : "filled"}
+                    loading={registrationBusy}
+                    loaderProps={BUTTON_LOADER_PROPS}
+                    leftSection={
+                      isRegistered ? <IconUserMinus size={18} /> : <IconUserPlus size={18} />
+                    }
+                    onClick={handleRegistration}
+                  >
+                    {isRegistered ? "Deregister" : "Register"}
+                  </Button>
+                )}
               </Stack>
             ) : registrationAvailable ? (
               <Stack gap="xs" mt="md">
@@ -506,6 +515,7 @@ export function EventDetail({
                   >
                     {isRegistered ? "Deregister" : "Register"}
                   </Button>
+                  {payload.eventId && <ShareEventButton onClick={() => setShareEvent(showEvent)} />}
                   <AddToCalendarMenu event={showEvent} />
                 </Group>
               </Stack>
@@ -519,6 +529,7 @@ export function EventDetail({
                       : "You can view this event but not edit it."}
                 </Text>
                 <Group justify="flex-end" gap="xs" mt="md">
+                  {payload.eventId && <ShareEventButton onClick={() => setShareEvent(showEvent)} />}
                   <AddToCalendarMenu event={showEvent} />
                 </Group>
               </>
@@ -560,6 +571,8 @@ export function EventDetail({
         title={showEvent?.title}
         zIndex={300}
       />
+
+      <ShareEventDialog event={shareEvent} onClose={() => setShareEvent(null)} />
     </>
   );
 }
@@ -590,10 +603,10 @@ function CalendarExportMenuItems({ event }: { event: CalendarEvent }) {
         rel="noreferrer"
         leftSection={<IconBrandGoogle size={16} />}
       >
-        Google Calendar
+        Add to Google Calendar
       </Menu.Item>
       <Menu.Item onClick={() => downloadIcs(event)} leftSection={<IconDownload size={16} />}>
-        Download .ics
+        Download .ics file
       </Menu.Item>
     </>
   );
@@ -624,7 +637,28 @@ function AddToCalendarMenu({ event }: { event: CalendarEvent }) {
 }
 
 /**
- * The editable modal's "More actions" menu: the Duplicate action plus the two
+ * The share action: opens the self-contained `/share/event` link dialog. Lives
+ * left of the "More actions" menu (or of "Add to other Calendars" where there
+ * is no menu) in every branch whose event has a group id.
+ */
+function ShareEventButton({ onClick }: { onClick: () => void }) {
+  return (
+    <Tooltip label="Share" position="top">
+      <ActionIcon
+        variant="light"
+        color="gray"
+        size="xl"
+        aria-label="Share event"
+        onClick={onClick}
+      >
+        <IconShare3 size={22} />
+      </ActionIcon>
+    </Tooltip>
+  );
+}
+
+/**
+ * The editable modal's "More actions" menu: the Copy event action plus the two
  * personal-calendar exports, collapsed behind one icon so the action row stays
  * a single line. The duplicate origin rect comes from the clicked menu item, so
  * the wizard still grows out of where the tap landed.
@@ -651,7 +685,7 @@ function EventActionsMenu({
           leftSection={<IconCopy size={16} />}
           onClick={(e) => onDuplicate(event, e.currentTarget.getBoundingClientRect())}
         >
-          Duplicate
+          Copy event
         </Menu.Item>
         <CalendarExportMenuItems event={event} />
       </Menu.Dropdown>
