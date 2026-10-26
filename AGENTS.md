@@ -112,7 +112,9 @@ doc content here.
   forward month navigations paint from the warm cache with no round-trip. **Code**
   warming is narrower: only the active renderer + the renderer kinds the account has
   tabs for, plus event details, warm at idle; the wizard waits 5 s on capable devices;
-  the date picker, manage-views and non-target nav routes are intent-only. Design:
+  Parade State, Contacts and Double Booking get one idle route-prefetch + chunk pass
+  per `userId::anchorMonth` (`NavIdlePreloader.tsx`, pure plan in `src/lib/navPreload/`);
+  the date picker, manage-views and the remaining nav routes are intent-only. Design:
   [docs/events-cache.md](docs/events-cache.md) §1.5.1,
   [docs/loading-transitions.md](docs/loading-transitions.md) §1.15,
   [docs/pwa-offline.md](docs/pwa-offline.md) §1.11/§1.18.

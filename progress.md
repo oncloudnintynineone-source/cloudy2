@@ -2140,6 +2140,14 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   navigation commits. Docs: `docs/pinned-events.md` §1.3,
   `docs/event-search.md` §1.9, `docs/event-lifecycle.md` §1.4.2,
   `docs/loading-transitions.md` §1.7.
+- 1.345 **Parade State, Contacts and Double Booking idle-preload**: a new idle pass
+  in the shell (`NavIdlePreloader.tsx`, pure plan in `src/lib/navPreload/`) runs
+  `router.prefetch` + leaf-chunk warm for the three routes once per
+  `userId::anchorMonth` on capable devices after the cold start lands — warming the
+  config cache, the cache-backed month read, and the router/RSC caches so a tap
+  paints without a round-trip; re-planned when the month anchor changes via a new
+  `UI_STATE_CHANGED_EVENT` from `writeUiState`. Docs: `docs/loading-transitions.md`
+  §1.15, `AGENTS.md`.
 
 ## 1.4 Open items & next steps
 

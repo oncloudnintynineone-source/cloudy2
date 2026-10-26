@@ -816,11 +816,18 @@ paint; the warm policy is deliberately probability-based:
 | After the active view paints, idle   | `EventDetail` + the renderer kinds the account actually has tabs for | `canWarmRoutes()`                       |
 | 5 s after the active view            | The wizard                                                           | `googleConfigured` + `canPreloadTabs()` |
 | Hover/focus/pointer-down/touch-start | View kind, wizard, date picker, manage views, event detail           | `canWarmRoutes()`                       |
-| Search history is non-empty          | Search body, idle                                                    | `canPreloadTabs()`                      |
+| Search history is non-empty          | Search body, idle                                                    | `canPreloadTabs()`                       |
+| Cold start landed, idle              | Parade State / Contacts / Double Booking: `router.prefetch` of each bare href (runs the page's server render — warms the config cache + the cache-backed month read, lands the payload in the router + RSC caches) + their leaf chunks — once per `userId::anchorMonth`, re-planned when the month anchor changes (`UI_STATE_CHANGED_EVENT`, `src/lib/ui/uiStateClient.ts`; pure plan in `src/lib/navPreload/navPreload.ts`, `NavIdlePreloader.tsx`) | `canPreloadTabs()` |
 
-Every other schedule view kind, the date picker, manage-views and non-target nav
-routes stay unloaded until intent or open. The all-tab **data** preload and the
-active tab's next two months (§1.11/§1.13.2) are unchanged. The wizard's lazy
+Every other schedule view kind, the date picker, manage-views and the remaining
+nav routes stay unloaded until the idle pass above or intent. The three
+high-traffic pages in that row are the deliberate exception: they are the pages
+a user most often opens right after the calendar, so their RSC payload is paid
+once per anchor month instead of per visit. The all-tab **data** preload and the
+active tab's next two months (§1.11/§1.13.2) are unchanged. The Double Booking
+scan itself is not re-fetched by the pass — its month cache is already warmed by
+the shell's nav-badge read (see the row above); the pass only adds its route
+prefetch and leaf chunk. The wizard's lazy
 fallback (`EventFormSkeleton`) reuses the same fixed body height as the real form
 (`eventFormLayout.ts`) so the modal never resizes while the chunk lands.
 

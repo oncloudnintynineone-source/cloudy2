@@ -13,6 +13,14 @@ import {
 
 const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365; // one year
 
+/**
+ * Fired after every `writeUiState` so mount-long-lived consumers (the shell's
+ * idle nav preloader in `src/components/NavIdlePreloader.tsx`) can re-key on
+ * the new anchor month without a navigation. Same bus-event style as
+ * `EVENTS_CHANGED_EVENT` in `src/lib/ui/eventChanges.ts`.
+ */
+export const UI_STATE_CHANGED_EVENT = "cloudy2:ui-state-changed";
+
 function readCookieValue(name: string): string | undefined {
   const match = new RegExp(`(?:^|;\\s*)${name}=([^;]*)`).exec(document.cookie);
   return match?.[1];
@@ -28,7 +36,9 @@ export function readUiState(): UiState | null {
 export function writeUiState(patch: UiState): void {
   const current = decodeUiState(readCookieValue(UI_STATE_COOKIE)) ?? {};
   const value = encodeUiState(mergeUiState(current, patch));
+  if (value === readCookieValue(UI_STATE_COOKIE)) return; // no change — no rewrite, no event
   document.cookie = `${UI_STATE_COOKIE}=${value}; path=/; max-age=${COOKIE_MAX_AGE_SECONDS}`;
+  window.dispatchEvent(new CustomEvent(UI_STATE_CHANGED_EVENT));
 }
 
 export function clearUiState(): void {

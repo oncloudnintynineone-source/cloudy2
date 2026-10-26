@@ -48,6 +48,7 @@ export default async function ProtectedLayout({ children }: { children: React.Re
       <MotionProvider motion={motion}>
         <ColdStartReadyProvider>
           <AppShellShell
+            userId={session.user.id}
             role={session.user.role}
             name={session.user.name ?? ""}
             phone={session.user.phone}

@@ -35,6 +35,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { PinnedEventsPanel } from "@/components/PinnedEventsPanel";
 import { PinnedEventsTicker } from "@/components/PinnedEventsTicker";
 import { NavRouteWarmer } from "@/components/NavRouteWarmer";
+import { NavIdlePreloader } from "@/components/NavIdlePreloader";
 import EventSearchModal, { preloadEventSearchBody } from "@/components/EventSearchModal";
 import { ColdStartReadyBar, useColdStartReady } from "@/components/ColdStartReady";
 import {
@@ -433,6 +434,7 @@ function NavButton({
 const HEADER_HEIGHT_PX = 56;
 
 export function AppShellShell({
+  userId,
   role,
   name,
   phone,
@@ -445,6 +447,10 @@ export function AppShellShell({
   kahNavSlot,
   children,
 }: {
+  /** The signed-in user's id, carried via the session callback; keys the idle
+   *  nav preloader's once-per-`userId::anchorMonth` pass (see NavIdlePreloader
+   *  and docs/loading-transitions.md §1.15). */
+  userId: string;
   role: "admin" | "user";
   name: string;
   phone: string | null;
@@ -1124,6 +1130,7 @@ export function AppShellShell({
       {/* Warm the bottom-nav route chunks at idle so the first switch paints
           from cache (see the component for the connection gate). */}
       <NavRouteWarmer hrefs={navItems.map((item) => item.href)} />
+      <NavIdlePreloader userId={userId} />
       <ActivityProvider>
         <InactivityActivityReporter pending={inactivityPending} />
         <AppShell
