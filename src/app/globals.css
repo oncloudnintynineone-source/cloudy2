@@ -1536,12 +1536,18 @@ html {
 */
 .c2-glass-fab--accent-solid {
   background: var(--mantine-color-accent-6) !important;
-  color: var(--mantine-color-accent-9) !important;
+  color: light-dark(var(--mantine-color-white), var(--mantine-color-dark-7)) !important;
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
 }
 
-.c2-glass-fab--accent-solid:hover {
+/* The two-class hover form is deliberate: the build turns the shared
+   `light-dark()` hover rule (above) into a `[data-mantine-color-scheme="dark"]`
+   -scoped rule, which adds an attribute to the specificity — `(0,3,0)`.
+   Repeating the base class here matches that rank so the tint still wins the
+   `!important` tie by source order (otherwise dark-mode hovers would paint
+   the frosted grey over the solid CTAs). */
+.c2-glass-btn.c2-glass-fab--accent-solid:hover {
   background: var(--mantine-color-accent-5) !important;
 }
 
@@ -1556,7 +1562,7 @@ html {
   backdrop-filter: none;
 }
 
-.c2-glass-fab--brand-solid:hover {
+.c2-glass-btn.c2-glass-fab--brand-solid:hover {
   background: var(--mantine-color-brand-6) !important;
 }
 
