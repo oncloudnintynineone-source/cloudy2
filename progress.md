@@ -2130,6 +2130,16 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   intent. The always-mounted modals are now lazy-mounted through their first
   open. Docs: `docs/loading-transitions.md` §1.15/§1.18,
   `docs/event-search.md` §1.9, `AGENTS.md`.
+- 1.344 **Pinned / deep-link event opens are reliable and fast**: the one-shot
+  `?event=`/`?edit=` strip now waits for the link to settle instead of racing
+  the target read (which closed the pending details skeleton — the intermittent
+  "pinned event doesn't open" bug); the target resolves through a new lean
+  `resolveDeepLinkTargetAction` in parallel with the grid read (no longer inside
+  `buildDashboardData`, so a warm grid paints without a round-trip and the cold
+  `+1` month read is gone), and the pinned panel shows a row loader until the
+  navigation commits. Docs: `docs/pinned-events.md` §1.3,
+  `docs/event-search.md` §1.9, `docs/event-lifecycle.md` §1.4.2,
+  `docs/loading-transitions.md` §1.7.
 
 ## 1.4 Open items & next steps
 

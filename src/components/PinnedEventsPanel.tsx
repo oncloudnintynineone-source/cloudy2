@@ -3,6 +3,7 @@
 import {
   Box,
   Group,
+  Loader,
   Modal,
   Paper,
   ScrollArea,
@@ -15,7 +16,7 @@ import {
 import { useMediaQuery, useViewportSize } from "@mantine/hooks";
 import { IconCalendarEvent, IconPin } from "@tabler/icons-react";
 import dayjs from "dayjs";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { buildEventDeepLink } from "@/lib/events/deepLink";
@@ -55,6 +56,27 @@ export function PinnedEventsPanel({ seedEvents = null }: PinnedEventsPanelProps)
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
   const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY);
   const [events, setEvents] = useState<PinnedEvent[] | null>(null);
+  // The tapped row whose deep-link navigation is in flight. Its position (in
+  // the list's content coordinates) drives an overlay spinner that covers
+  // exactly that row until the dashboard navigation commits, then the panel
+  // closes — the same feedback event search gives.
+  const [opening, setOpening] = useState<{
+    top: number;
+    left: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    if (!isPending && opening !== null) {
+      // The navigation transition finished — clear the row spinner and close.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setOpening(null);
+      closePanel();
+    }
+  }, [isPending, opening, closePanel]);
 
   useEffect(() => {
     if (!open) return;
@@ -93,8 +115,14 @@ export function PinnedEventsPanel({ seedEvents = null }: PinnedEventsPanelProps)
   const contentWidth = modalContentWidth(viewport, isNarrow ? 380 : isDesktop ? 620 : 440);
   const transitionProps = modalZoomTransitionProps(motion, originRect, viewport, contentWidth);
 
-  const openEventDay = (event: PinnedEvent) => {
-    closePanel();
+  const openEventDay = (event: PinnedEvent, e: React.MouseEvent<HTMLButtonElement>) => {
+    // Already navigating to this exact event (its param has not been stripped
+    // yet): reopening it would be a no-op navigation and could leave the row
+    // spinner up, so just close the panel.
+    if (event.eventId && pathname === "/dashboard" && searchParams.get("event") === event.eventId) {
+      closePanel();
+      return;
+    }
     const day = formatDay(event.start);
     // Deep-link the event so the dashboard auto-opens its details; legacy
     // events without a group id fall back to landing on the date alone. Built
@@ -103,22 +131,32 @@ export function PinnedEventsPanel({ seedEvents = null }: PinnedEventsPanelProps)
     // never switches the visible filters. `_eventCal` lets the server resolve
     // that one event separately, over the target's own months, even when the
     // current view's filters or month range would exclude it.
-    if (pathname === "/dashboard" && event.eventId) {
-      router.push(
-        buildEventDeepLink({
-          view: searchParams.get("view"),
-          start: event.start,
-          eventId: event.eventId,
-          calendarId: event.calendarId,
-        }),
-      );
-      return;
+    const href =
+      pathname === "/dashboard" && event.eventId
+        ? buildEventDeepLink({
+            view: searchParams.get("view"),
+            start: event.start,
+            eventId: event.eventId,
+            calendarId: event.calendarId,
+          })
+        : event.eventId
+          ? `/dashboard?date=${day}&event=${event.eventId}&_eventCal=${event.calendarId}`
+          : `/dashboard?date=${day}`;
+
+    const list = listRef.current;
+    if (list) {
+      const rowRect = e.currentTarget.getBoundingClientRect();
+      const listRect = list.getBoundingClientRect();
+      setOpening({
+        top: rowRect.top - listRect.top - list.clientTop + list.scrollTop,
+        left: rowRect.left - listRect.left - list.clientLeft + list.scrollLeft,
+        width: rowRect.width,
+        height: rowRect.height,
+      });
     }
-    router.push(
-      event.eventId
-        ? `/dashboard?date=${day}&event=${event.eventId}&_eventCal=${event.calendarId}`
-        : `/dashboard?date=${day}`,
-    );
+    startTransition(() => {
+      router.push(href);
+    });
   };
 
   return (
@@ -139,63 +177,84 @@ export function PinnedEventsPanel({ seedEvents = null }: PinnedEventsPanelProps)
       transitionProps={transitionProps}
     >
       <ScrollArea.Autosize mah="min(70dvh, 560px)" mx="-md" px="md">
-        <Stack gap="xs">
-          {loading ? (
-            <>
-              <LoadingStatus label="Loading pinned events" />
-              {Array.from({ length: 3 }).map((_, i) => (
-                <Skeleton key={i} height={64} radius="md" />
-              ))}
-            </>
-          ) : null}
-          {!loading && visibleEvents?.length === 0 ? (
-            <Paper p="md" radius="md" withBorder>
-              <Group gap="sm" wrap="nowrap" align="flex-start">
-                <ThemeIcon variant="light" color="gray" size="lg" radius="md">
-                  <IconCalendarEvent size={18} />
-                </ThemeIcon>
-                <Text c="dimmed">No upcoming pinned events.</Text>
-              </Group>
-            </Paper>
-          ) : null}
-          {visibleEvents?.map((event) => (
-            <Paper
-              key={event.id}
-              p="md"
-              radius="md"
-              withBorder
-              component="button"
-              type="button"
-              onClick={() => openEventDay(event)}
-              style={{ textAlign: "left", cursor: "pointer" }}
-            >
-              <Group gap="sm" wrap="nowrap" align="flex-start">
-                <Box
-                  style={{
-                    width: 4,
-                    alignSelf: "stretch",
-                    borderRadius: 2,
-                    flexShrink: 0,
-                  }}
-                  bg={event.color}
-                />
-                <Stack gap={2} style={{ minWidth: 0, flex: 1 }}>
-                  <Text fw={600} size="sm" style={{ overflowWrap: "break-word" }}>
-                    {event.title}
-                  </Text>
-                  <Text size="xs" c="dimmed">
-                    {formatDisplay(event.start)}
-                  </Text>
-                  {event.departments.length > 0 ? (
-                    <Text size="xs" c="dimmed" style={{ overflowWrap: "break-word" }}>
-                      {event.departments.join(", ")}
+        <Box ref={listRef} pos="relative">
+          <Stack gap="xs">
+            {loading ? (
+              <>
+                <LoadingStatus label="Loading pinned events" />
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <Skeleton key={i} height={64} radius="md" />
+                ))}
+              </>
+            ) : null}
+            {!loading && visibleEvents?.length === 0 ? (
+              <Paper p="md" radius="md" withBorder>
+                <Group gap="sm" wrap="nowrap" align="flex-start">
+                  <ThemeIcon variant="light" color="gray" size="lg" radius="md">
+                    <IconCalendarEvent size={18} />
+                  </ThemeIcon>
+                  <Text c="dimmed">No upcoming pinned events.</Text>
+                </Group>
+              </Paper>
+            ) : null}
+            {visibleEvents?.map((event) => (
+              <Paper
+                key={event.id}
+                p="md"
+                radius="md"
+                withBorder
+                component="button"
+                type="button"
+                onClick={(e) => openEventDay(event, e)}
+                style={{ textAlign: "left", cursor: "pointer" }}
+              >
+                <Group gap="sm" wrap="nowrap" align="flex-start">
+                  <Box
+                    style={{
+                      width: 4,
+                      alignSelf: "stretch",
+                      borderRadius: 2,
+                      flexShrink: 0,
+                    }}
+                    bg={event.color}
+                  />
+                  <Stack gap={2} style={{ minWidth: 0, flex: 1 }}>
+                    <Text fw={600} size="sm" style={{ overflowWrap: "break-word" }}>
+                      {event.title}
                     </Text>
-                  ) : null}
-                </Stack>
-              </Group>
-            </Paper>
-          ))}
-        </Stack>
+                    <Text size="xs" c="dimmed">
+                      {formatDisplay(event.start)}
+                    </Text>
+                    {event.departments.length > 0 ? (
+                      <Text size="xs" c="dimmed" style={{ overflowWrap: "break-word" }}>
+                        {event.departments.join(", ")}
+                      </Text>
+                    ) : null}
+                  </Stack>
+                </Group>
+              </Paper>
+            ))}
+          </Stack>
+          {opening && (
+            <Box
+              style={{
+                position: "absolute",
+                top: opening.top,
+                left: opening.left,
+                width: opening.width,
+                height: opening.height,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "var(--mantine-color-body)",
+                pointerEvents: "none",
+              }}
+            >
+              <Loader size="sm" color="gray" />
+              <LoadingStatus label="Opening event" />
+            </Box>
+          )}
+        </Box>
       </ScrollArea.Autosize>
     </Modal>
   );

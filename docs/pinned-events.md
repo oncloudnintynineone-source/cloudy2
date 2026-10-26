@@ -55,17 +55,25 @@ where the dashboard's `?event=` deep link opens the event's details modal
 - `view` carries the **active dashboard tab** (when the panel is opened on
   `/dashboard`), so opening a pinned event can never fall back to a different tab
   or switch the visible filters — the same guarantee event search relies on.
-- `_eventCal` names the pinned copy's department calendar. The server resolves
-  that one event **on its own**, over the target's **own** months
-  (`deepLinkMonths(date)` — the event's month plus its neighbours), never the
-  active tab's required months. A pinned event two months out therefore opens
-  even from a Day/Agenda/Week tab, without changing the tab or its filters.
+- `_eventCal` names the pinned copy's department calendar. A **lean server
+  action** (`resolveDeepLinkTargetAction`) resolves that one event on its own —
+  only the target's calendar, empty type/user filters, and its **own** months
+  (`deepLinkMonths(date)` — the event's month plus the previous UTC month), never
+  the active tab's required months. It runs in parallel with the dashboard grid
+  read, so a pinned event two months out opens even from a Day/Agenda/Week tab
+  without changing the tab or its filters.
 - The details modal opens **immediately as a skeleton** and the target resolves
-  underneath (the Double Booking detail's pattern). The "Could not open that
+  underneath (the Double Booking detail's pattern). The one-shot
+  `event`/`_eventCal` params are stripped only **after** the link settles; an
+  early strip used to tear down the pending skeleton before the target arrived
+  (the intermittent “pinned event doesn’t open” bug). The "Could not open that
   event" advisory appears only once the resolution has settled with no match —
   never while the read is still in flight.
-- Opening from a non-dashboard page navigates to the dashboard first (the shell stays
-  mounted, so the modal survives).
+- Tapping a row keeps the panel open with a row-sized loader until the dashboard
+  navigation commits, then closes it (same feedback as event search).
+- Opening from a non-dashboard page navigates to the dashboard first (the shell
+  stays mounted, so the panel survives the jump; the dashboard then opens the
+  target as soon as its grid is ready).
 
 ## 1.4 The header ticker
 
@@ -187,6 +195,8 @@ overshoot the content and collapse the modal.
 | `src/lib/events/pinned.ts` | `fetchPinnedEvents` (panel `title` + ticker `tickerTitle`) |
 | `src/lib/events/pinnedSelect.ts` | Pure upcoming-window selection (unit-tested) |
 | `src/lib/events/deepLink.ts` | Shared deep-link builder + `deepLinkMonths` target-month window |
+| `src/lib/dashboard/deepLinkTarget.ts` | Lean target resolver (own months, empty filters, shared title rendering) |
+| `src/lib/dashboard/deepLinkActions.ts` | `resolveDeepLinkTargetAction` server action called in parallel by `DashboardScreen` |
 | `src/lib/settings/featureFlags.ts` | The `pinnedTickerIndicator` flag registry entry |
 | `src/lib/ui/pinnedPanel.ts` | `PinnedPanelContext` + change event name |
 | `src/components/PinnedEventsTicker.tsx` | The header pill: indicator + countdown chips + rotating titles |

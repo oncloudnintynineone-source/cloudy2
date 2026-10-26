@@ -64,17 +64,17 @@ describe("findEventByGroupId", () => {
 });
 
 describe("deepLinkMonths", () => {
-  it("reads the target's own month plus its neighbours", () => {
-    expect(deepLinkMonths("2026-11-05")).toEqual(["2026-10", "2026-11", "2026-12"]);
+  it("reads the target's own month plus the previous UTC month", () => {
+    expect(deepLinkMonths("2026-11-05")).toEqual(["2026-10", "2026-11"]);
   });
 
   it("wraps across year boundaries", () => {
-    expect(deepLinkMonths("2026-01-02")).toEqual(["2025-12", "2026-01", "2026-02"]);
+    expect(deepLinkMonths("2026-01-02")).toEqual(["2025-12", "2026-01"]);
   });
 
   it("ignores a non-date value and falls back to the current month window", () => {
     const months = deepLinkMonths("not-a-date");
-    expect(months).toHaveLength(3);
+    expect(months).toHaveLength(2);
     expect(months).toContain(formatInstantToNaive(new Date()).slice(0, 7));
   });
 });

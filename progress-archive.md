@@ -9499,3 +9499,49 @@ rendered.
 Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` pass.
 
 Docs: `loading-transitions.md` §1.15/§1.18, `event-search.md` §1.9, `AGENTS.md`.
+
+## 1.344 Reliable, parallel pinned / deep-link event resolution
+
+Clicking a pinned event (and any `?event=`/`?edit=` link) could take a long time
+or never open the details modal. Two coupled causes:
+
+- The one-shot `event`/`_eventCal` strip ran on the first render that saw the
+  param. When the target was not already in the rendered grid (filtered-out
+  calendar or a different month), the strip landed before the target read and
+  the `initialDetailEventId === null` branch cleared `pendingDetailLinkId` /
+  `detailLinkPending`, closing the skeleton. A fast read won the race; a slow
+  one did not — hence the intermittent open.
+- The target read lived inside `buildDashboardData`, serialized after the whole
+  grid read. It also read `M+1`, which the pinned window did not prime, so
+  far-end pinned events paid for a cold Google `events.list`. A cross-month
+  click additionally fired two full `loadDashboardData` actions (the normal
+  context fetch plus the deep-link one-shot), and `hasDeepLink` disabled the
+  warm-cache paint.
+
+**Resolution.**
+
+- New server-only `src/lib/dashboard/deepLinkTarget.ts` + the
+  `resolveDeepLinkTargetAction` server action resolve one target over its own
+  months (`deepLinkMonths` now `[M-1, M]` — UTC+8 can only move an event
+  backwards), with the target calendar when `_eventCal` is live and empty
+  filters. Title rendering shares `displayTitleOptions` with the dashboard.
+- `DashboardScreen` calls the action in parallel as soon as a link appears,
+  guards stale responses / a 20 s timeout, prefers the held grid copy when it
+  already contains the target, and passes the result as `deepLinkEvent`
+  (+ `deepLinkSettled`). The snapshot/record no longer carries the target
+  (`deepLinkEvent` removed from `BuiltDashboardData`/`DashboardSnapshotRecord`),
+  so nothing URL-scoped is cached.
+- The `event`/`edit` strips now wait for `deepLinkSettled`; a manual detail close
+  strips immediately. The edit pending path also waits for settlement before
+  showing the advisory, and re-arms when its param is stripped.
+- `hasDeepLink` was removed from `resolveDashboardNavigation` /
+  `classifyDashboardFetch`: a warm grid paints without a round-trip; only the
+  target resolves over the network.
+- The pinned panel keeps itself open with a row-sized loader overlay
+  (`LoadingStatus` "Opening event") until the navigation transition commits,
+  then closes (mirrors event search).
+
+Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` pass.
+
+Docs: `pinned-events.md` §1.3, `event-search.md` §1.9,
+`event-lifecycle.md` §1.4.2, `loading-transitions.md` §1.7.

@@ -286,24 +286,25 @@ active tab's month range exclude it — without adding it to the grid's filtered
 `events`. The event search modal's "Edit" action instead deep-links
 `?edit=<group id>`, which opens the edit form directly.
 
-- **Server** (`src/lib/dashboard/data.ts`): `initialDetailEventId`
-  / `initialEditEventId` are accepted only when `?event=` / `?edit=` is a valid UUID;
-  the `date` in the same link pins the fetched period so the event is in view. An
-  `event`/`edit` render reads the remembered-UI-state cookie for the period, but the
-  active tab and its stored filters are untouched; `_eventCal`'s copy is resolved into
-  `deepLinkEvent` on the snapshot record root (empty filters, its own calendar over the
-  target's own months), never merged into the grid's `events`.
+- **Server** (`src/lib/dashboard/deepLinkTarget.ts` +
+  `deepLinkActions.ts`): `?event=` / `?edit=` are accepted only when the id is a
+  valid UUID. A lean action resolves the target on its own — `_eventCal`'s
+  calendar (or every calendar when the hint is unknown), empty type/user filters,
+  and the target's own months via `deepLinkMonths` (the link's month plus the
+  previous UTC month). It is **not** part of `buildDashboardData`/the snapshot,
+  so it never serializes behind the grid read; `DashboardScreen` calls it in
+  parallel as soon as the link appears. The active tab and stored filters are
+  untouched.
 - **Client** (`DashboardView.tsx`): the event is resolved synchronously when the
-  props change, from the grid's filtered `events` falling back to the server's
-  `deepLinkEvent` (a filtered-out event). When the target isn't resolvable yet, the
-  details modal opens **immediately as a skeleton** and fills in on arrival (the
-  Double Booking detail's pattern) — the modal is never withheld. If the target is
-  missing from an otherwise-current record (a same-period link, which doesn't refetch
-  on its own), `DashboardScreen` fires a ref-guarded one-shot refetch; the
-  "not in your current view" alert appears only once that resolution has settled
-  (`deepLinkSettled`) with no match, never while the read is in flight.
-  The one-shot `event`/`edit` params are stripped after their render by
-  ref-guarded plain `router.push` calls.
+  props change, from the grid's filtered `events` first, falling back to the
+  client-resolved `deepLinkEvent` (a filtered-out event). When the target isn't
+  resolvable yet, the details modal opens **immediately as a skeleton** and fills
+  in on arrival (the Double Booking detail's pattern) — the modal is never
+  withheld. The "not in your current view" alert appears only once the action has
+  settled (`deepLinkSettled`) with no match, never while the read is in flight.
+  The one-shot `event`/`edit` params are stripped **after** that settlement by
+  ref-guarded plain `router.push` calls (an early strip used to close the pending
+  skeleton before the target arrived).
 - **Form prefill** (`buildInitialValues`, `EventForm.tsx`):
   - `title` = the notes' raw description (`payload.rawTitle`) — never the rendered
  calendar title; a deliberately blank description round-trips as `""` (legacy events

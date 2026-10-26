@@ -26,10 +26,7 @@ import {
   type DashboardViewKind,
   type DashboardViewTab,
 } from "@/lib/dashboardViews/views";
-import type {
-  ReorderDrag,
-  SavedEventToastVariant,
-} from "@/lib/settings/featureFlags";
+import type { ReorderDrag, SavedEventToastVariant } from "@/lib/settings/featureFlags";
 import type { TitleRecipe } from "@/lib/settings/titleRecipe";
 
 /**
@@ -217,13 +214,6 @@ export interface DashboardSnapshotRecord {
   savedAt: number;
   context: DashboardSnapshotContext;
   data: DashboardSnapshot;
-  /**
-   * The `?event=` deep link's target event, resolved separately from the grid
-   * (so a filtered-out event still opens). URL-scoped, so it lives on the
-   * record root and is never written to IndexedDB (which persists `data` +
-   * `context` only).
-   */
-  deepLinkEvent?: CalendarEvent | null;
 }
 
 /**

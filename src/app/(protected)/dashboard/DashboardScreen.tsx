@@ -10,6 +10,8 @@ import { withTimeout } from "@/lib/async";
 import { isColdLaunchActive } from "@/lib/loading/coldLaunch";
 import { useLoadingIndicator } from "@/lib/loading/loadingIndicator";
 import { loadDashboardData, preloadDashboardTabs } from "@/lib/dashboard/actions";
+import { resolveDeepLinkTargetAction } from "@/lib/dashboard/deepLinkActions";
+import type { CalendarEvent } from "@/lib/events/queries";
 import {
   clearDashboardSnapshots,
   readDashboardSnapshots,
@@ -73,9 +75,6 @@ function inputFromParams(params: URLSearchParams) {
     view: params.get("view"),
     month: params.get("month"),
     date: params.get("date"),
-    edit: params.get("edit"),
-    event: params.get("event"),
-    eventCal: params.get("_eventCal"),
     refresh: params.get("refresh"),
   };
 }
@@ -134,7 +133,9 @@ export function DashboardScreen({
         | Map<string, DashboardSnapshotRecord>
         | ((prev: Map<string, DashboardSnapshotRecord>) => Map<string, DashboardSnapshotRecord>),
     ) => {
-      setWarmRecordsRaw((prev) => capSnapshotMap(typeof updater === "function" ? updater(prev) : updater));
+      setWarmRecordsRaw((prev) =>
+        capSnapshotMap(typeof updater === "function" ? updater(prev) : updater),
+      );
     },
     [],
   );
@@ -206,15 +207,12 @@ export function DashboardScreen({
   const eventParam = searchParams.get("event");
   const initialEditEventId = editParam && isUuid(editParam) ? editParam : null;
   const initialDetailEventId = eventParam && isUuid(eventParam) ? eventParam : null;
-  // A deep link targets a specific event that the cached snapshot may not
-  // contain (a different month, a just-created event). Resolve those against
-  // fresh data only: skip the warm paint so the event is found when the form /
-  // details modal opens.
-  const hasDeepLink = initialEditEventId !== null || initialDetailEventId !== null;
 
   // The dashboard navigation module owns the display/fetch decision (the
   // candidate request key, warm-record choice, URL-first tab, coverage/skeleton).
   // The screen is a thin adapter over it (src/lib/dashboard/navigation.ts).
+  // Deep links no longer bypass the warm cache: their target resolves
+  // independently below, so a warm grid can paint without a round-trip.
   const navigation = useMemo(
     () =>
       resolveDashboardNavigation({
@@ -222,10 +220,9 @@ export function DashboardScreen({
         warmRecords,
         previewView,
         url: { view, month, date },
-        hasDeepLink,
         failedKey: failedContextKey,
       }),
-    [record, warmRecords, previewView, view, month, date, hasDeepLink, failedContextKey],
+    [record, warmRecords, previewView, view, month, date, failedContextKey],
   );
   const candidateKey = navigation.candidateKey;
   const isNavigating = navigation.isNavigating;
@@ -257,60 +254,63 @@ export function DashboardScreen({
 
   useReportActivity(refreshing, "dashboard:refresh");
 
-  const fetchFresh = useCallback(async (overrideParams?: URLSearchParams) => {
-    const requestId = ++requestIdRef.current;
-    // Yield first: an effect must not call setState synchronously, and this
-    // fetch is always kicked off from an effect or an event handler.
-    await Promise.resolve();
-    setBusy(true);
-    // The params this read answers: normally the committed URL, but a
-    // definition change (a view's kind edited in place) passes the target URL
-    // the navigation is about to push, so the fetch carries the new period
-    // instead of racing the not-yet-committed address.
-    const params = overrideParams ?? paramsRef.current;
-    // The context this read answers, so a failure is attributed to it (and only
-    // it) for the presentation's heal-back to the held tab.
-    const attemptedKey = candidateKeyForUrl(recordRef.current, {
-      view: params.get("view"),
-      month: params.get("month"),
-      date: params.get("date"),
-    });
-    try {
-      const result = await withTimeout(
-        loadDashboardData(inputFromParams(params)),
-        DASHBOARD_LOAD_TIMEOUT_MS,
-      );
-      if (requestId !== requestIdRef.current) return;
-      if (result.ok) {
-        hasFreshRef.current = true;
-        setSource("fresh");
-        setFailedContextKey(null);
-        setLoadFailed(false);
-        setRecord(result.record);
-        setWarmRecords((current) => {
-          const next = new Map(current);
-          next.set(result.record.context.requestKey, result.record);
-          return next;
-        });
-        void writeDashboardSnapshot(userId, result.record.data, result.record.context);
-      } else {
-        setFailedContextKey(attemptedKey);
-        if (recordRef.current === null) setLoadFailed(true);
+  const fetchFresh = useCallback(
+    async (overrideParams?: URLSearchParams) => {
+      const requestId = ++requestIdRef.current;
+      // Yield first: an effect must not call setState synchronously, and this
+      // fetch is always kicked off from an effect or an event handler.
+      await Promise.resolve();
+      setBusy(true);
+      // The params this read answers: normally the committed URL, but a
+      // definition change (a view's kind edited in place) passes the target URL
+      // the navigation is about to push, so the fetch carries the new period
+      // instead of racing the not-yet-committed address.
+      const params = overrideParams ?? paramsRef.current;
+      // The context this read answers, so a failure is attributed to it (and only
+      // it) for the presentation's heal-back to the held tab.
+      const attemptedKey = candidateKeyForUrl(recordRef.current, {
+        view: params.get("view"),
+        month: params.get("month"),
+        date: params.get("date"),
+      });
+      try {
+        const result = await withTimeout(
+          loadDashboardData(inputFromParams(params)),
+          DASHBOARD_LOAD_TIMEOUT_MS,
+        );
+        if (requestId !== requestIdRef.current) return;
+        if (result.ok) {
+          hasFreshRef.current = true;
+          setSource("fresh");
+          setFailedContextKey(null);
+          setLoadFailed(false);
+          setRecord(result.record);
+          setWarmRecords((current) => {
+            const next = new Map(current);
+            next.set(result.record.context.requestKey, result.record);
+            return next;
+          });
+          void writeDashboardSnapshot(userId, result.record.data, result.record.context);
+        } else {
+          setFailedContextKey(attemptedKey);
+          if (recordRef.current === null) setLoadFailed(true);
+        }
+        // A failed read keeps the cached snapshot on screen (offline reads work);
+        // the OfflineBanner is the user-facing signal.
+      } catch {
+        // Network/session failures: keep the cached render.
+        if (requestId === requestIdRef.current) {
+          setFailedContextKey(attemptedKey);
+          if (recordRef.current === null) setLoadFailed(true);
+        }
+      } finally {
+        if (requestId === requestIdRef.current) {
+          setBusy(false);
+        }
       }
-      // A failed read keeps the cached snapshot on screen (offline reads work);
-      // the OfflineBanner is the user-facing signal.
-    } catch {
-      // Network/session failures: keep the cached render.
-      if (requestId === requestIdRef.current) {
-        setFailedContextKey(attemptedKey);
-        if (recordRef.current === null) setLoadFailed(true);
-      }
-    } finally {
-      if (requestId === requestIdRef.current) {
-        setBusy(false);
-      }
-    }
-  }, [userId, setWarmRecords]);
+    },
+    [userId, setWarmRecords],
+  );
 
   // Retry the first read after the retryable error screen (no cached data to
   // fall back on). Clearing the flag flips the screen back to the skeleton.
@@ -451,8 +451,6 @@ export function DashboardScreen({
       previewPending: previewView !== null,
       hasFresh: hasFreshRef.current,
       busy: busyRef.current,
-      deepLink:
-        isUuid(paramsRef.current.get("edit") ?? "") || isUuid(paramsRef.current.get("event") ?? ""),
       now: Date.now(),
     });
     if (action.kind === "skip") return;
@@ -510,7 +508,12 @@ export function DashboardScreen({
     const months = [
       ...new Set(
         tabs.flatMap((tab) =>
-          requiredMonths(tab.kind, record.context.month, record.context.date, record.data.weekStartsOn),
+          requiredMonths(
+            tab.kind,
+            record.context.month,
+            record.context.date,
+            record.data.weekStartsOn,
+          ),
         ),
       ),
     ].sort();
@@ -654,65 +657,118 @@ export function DashboardScreen({
     [revalidate, isNavigating, setPreviewView, reportNavigationPending, applyViewTab],
   );
 
-  // `_eventCal`/`event` are deliberately absent from the request key, so a deep
-  // link whose tab/month set is unchanged triggers no fetch. When the record is
-  // already for the current context but lacks the target, resolve it once (the
-  // server reads the target separately from the grid); the attempted-id ref
-  // prevents a loop when the event no longer exists.
+  // A `?event=`/`?edit=` link resolves its target independently of the grid and
+  // the snapshot: the lean action reads only the target's own months and runs in
+  // parallel with the dashboard load, so the details modal no longer waits for
+  // (or races) the one-shot URL strip.
   const deepLinkId = initialEditEventId ?? initialDetailEventId;
-  const attemptedDeepLinkRef = useRef<string | null>(null);
-  // The deep link whose one-shot resolution read has finished (success or not).
-  // `DashboardView` opens the details modal as a skeleton immediately; this is
-  // what lets it stop waiting and raise the "not in your current view" advisory
-  // when the read settles with no target. State (not a ref) so the render value
-  // updates once the read lands.
-  const [settledDeepLinkId, setSettledDeepLinkId] = useState<string | null>(null);
+  const deepLinkCalendarId = searchParams.get("_eventCal");
+  const deepLinkRequestKey = deepLinkId
+    ? `${deepLinkId}|${date ?? ""}|${deepLinkCalendarId ?? ""}|${view ?? ""}`
+    : null;
+  // The latest request, read by the effect without re-triggering it when the
+  // held record changes.
+  const deepLinkRequestRef = useRef({
+    date,
+    calendarId: deepLinkCalendarId,
+    view,
+  });
   useEffect(() => {
-    if (!deepLinkId) {
+    deepLinkRequestRef.current = {
+      date,
+      calendarId: deepLinkCalendarId,
+      view,
+    };
+  }, [date, deepLinkCalendarId, view]);
+
+  const [deepLinkTarget, setDeepLinkTarget] = useState<CalendarEvent | null>(null);
+  // The link whose independent read has settled (resolved, missing, failed, or
+  // timed out). `DashboardView` holds its skeleton until this is true-and-no
+  // target, then raises the "Could not open that event" advisory.
+  const [settledDeepLinkId, setSettledDeepLinkId] = useState<string | null>(null);
+  const attemptedDeepLinkRef = useRef<string | null>(null);
+  const deepLinkRequestIdRef = useRef(0);
+
+  useEffect(() => {
+    if (!deepLinkRequestKey || !deepLinkId) {
       attemptedDeepLinkRef.current = null;
+      deepLinkRequestIdRef.current += 1;
       // Deferred: an effect must not call setState synchronously (same pattern
       // as `fetchFresh`).
-      void Promise.resolve().then(() => setSettledDeepLinkId(null));
+      void Promise.resolve().then(() => {
+        setDeepLinkTarget(null);
+        setSettledDeepLinkId(null);
+      });
       return;
     }
-    if (attemptedDeepLinkRef.current === deepLinkId) return;
-    // Only a link arriving after we already hold fresh data needs the extra
-    // read; a context-changing link is covered by the normal revalidation (which
-    // carries `_eventCal`).
-    if (!hasFreshRef.current || !record) return;
-    attemptedDeepLinkRef.current = deepLinkId;
-    const heldIsCandidate = record.context.requestKey === candidateKey;
-    const inEvents =
-      heldIsCandidate && record.data.events.some((event) => event.payload.eventId === deepLinkId);
-    const inDeepLink = heldIsCandidate && record.deepLinkEvent?.payload.eventId === deepLinkId;
-    if (heldIsCandidate && (inEvents || inDeepLink)) {
-      // Already held fresh and carrying the target: nothing to fetch, settled.
+    if (attemptedDeepLinkRef.current === deepLinkRequestKey) return;
+    attemptedDeepLinkRef.current = deepLinkRequestKey;
+    // Invalidate any in-flight read for an earlier link before deciding whether
+    // this one needs a read at all.
+    const requestId = ++deepLinkRequestIdRef.current;
+
+    const request = deepLinkRequestRef.current;
+    const held = recordRef.current;
+    const warm = candidateKey ? (warmRecordsRef.current.get(candidateKey) ?? null) : null;
+    // Mirror `resolveDashboardNavigation`'s display-record pick: a warm record is
+    // used only when it is a different context than the held one.
+    const displayRecord =
+      warm !== null && warm.context.requestKey !== held?.context.requestKey ? warm : held;
+    const gridHasTarget =
+      displayRecord !== null &&
+      displayRecord.context.requestKey === candidateKey &&
+      displayRecord.data.events.some((event) => event.payload.eventId === deepLinkId);
+    if (gridHasTarget) {
+      // The grid the screen will paint already carries the target (and
+      // `DashboardView` prefers the grid copy): nothing to read.
       void Promise.resolve().then(() => setSettledDeepLinkId(deepLinkId));
       return;
     }
-    // `fetchFresh` defers its setState to a microtask (see its own comment); the
-    // `settled` flag lands even later, after the read resolves — never
-    // synchronously in this effect.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void fetchFresh().finally(() => {
-      if (attemptedDeepLinkRef.current === deepLinkId) {
-        setSettledDeepLinkId(deepLinkId);
-      }
-    });
-  }, [deepLinkId, record, candidateKey, fetchFresh]);
 
-  // Whether the held record currently carries the deep link's target (its grid
-  // or the server's separate resolution) — the success half of the resolution.
-  const deepLinkResolved =
+    const viewKind =
+      (request.view
+        ? recordRef.current?.data.tabs.find((tab) => tab.id === request.view)?.kind
+        : undefined) ??
+      recordRef.current?.data.activeView.kind ??
+      null;
+    void withTimeout(
+      resolveDeepLinkTargetAction({
+        eventId: deepLinkId,
+        date: request.date,
+        calendarId: request.calendarId,
+        view: request.view,
+        viewKind,
+        force: isRefreshNonceFresh(refreshParam, Date.now()),
+      }),
+      DASHBOARD_LOAD_TIMEOUT_MS,
+    )
+      .then((result) => {
+        if (deepLinkRequestIdRef.current !== requestId) return;
+        setDeepLinkTarget(result.ok ? result.event : null);
+        setSettledDeepLinkId(deepLinkId);
+      })
+      .catch(() => {
+        if (deepLinkRequestIdRef.current !== requestId) return;
+        setDeepLinkTarget(null);
+        setSettledDeepLinkId(deepLinkId);
+      });
+    // The record/freshness reads happen through refs on purpose: a record
+    // arriving mid-read must not start a second request.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deepLinkRequestKey]);
+
+  // Whether the record the screen is rendering (the held one, or a warm
+  // candidate for this URL) already carries the deep link's target — the grid is
+  // the authoritative copy when it does.
+  const deepLinkGridResolved =
     deepLinkId !== null &&
-    record !== null &&
-    record.context.requestKey === candidateKey &&
-    (record.data.events.some((event) => event.payload.eventId === deepLinkId) ||
-      record.deepLinkEvent?.payload.eventId === deepLinkId);
-  // Whether the deep link has settled: resolved, or its read finished without a
-  // match. `DashboardView` holds the skeleton until this is false-and-missing.
+    navigation.displayRecord !== null &&
+    navigation.displayRecord.context.requestKey === candidateKey &&
+    navigation.displayRecord.data.events.some((event) => event.payload.eventId === deepLinkId);
+  // Whether the deep link has settled: resolved from the grid, or the
+  // independent read finished (with or without a target).
   const deepLinkSettled =
-    deepLinkId !== null && (deepLinkResolved || settledDeepLinkId === deepLinkId);
+    deepLinkId !== null && (deepLinkGridResolved || settledDeepLinkId === deepLinkId);
 
   if (!record) {
     // Nothing cached to paint: a failed/timed-out first read gets a retryable
@@ -748,7 +804,7 @@ export function DashboardScreen({
           initialDualSplit={initialDualSplit}
           initialEditEventId={initialEditEventId}
           initialDetailEventId={initialDetailEventId}
-          deepLinkEvent={shown.deepLinkEvent ?? null}
+          deepLinkEvent={deepLinkTarget}
           deepLinkSettled={deepLinkSettled}
         />
       </DashboardTabStatusProvider>

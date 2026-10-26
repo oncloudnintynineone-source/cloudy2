@@ -1243,9 +1243,10 @@ function DashboardViewImpl({
 
   // A deep-link target resolves from the grid's filtered `events` first (the
   // common case: it is on a selected calendar and matches the filters), then
-  // from the server's separately-resolved `deepLinkEvent` (an event the active
-  // filters would otherwise drop). Resolved synchronously at mount so the edit
-  // form / details modal initialize without a follow-up render.
+  // from the client-resolved `deepLinkEvent` (the lean target action's result,
+  // for an event the active filters or month window would otherwise drop).
+  // Resolved synchronously at mount so the edit form / details modal initialize
+  // without a follow-up render.
   const resolveDeepLinkEvent = (id: string | null): CalendarEvent | null => {
     if (!id) {
       return null;
@@ -1374,20 +1375,18 @@ function DashboardViewImpl({
   // Only touch devices see the caption, and only until the first successful
   // swipe (or a prior visit in this session) marks it seen.
   const showAgendaHint = isCoarsePointer && !agendaHintSeen;
-  // A detail deep link with no mount-time target is not a failure yet: the modal
-  // opens as a skeleton and the alert is raised only if the read settles without
-  // the target (see the pending-link reconciliation below). Only a `?edit=` deep
-  // link with no mount-time target is flagged here.
-  const [editLinkFailed, setEditLinkFailed] = useState(
-    () => initialEditEventId !== null && initialEditEvent === null,
-  );
+  // Neither deep link is a failure while its independent target read is still in
+  // flight: the details modal opens as a skeleton and the edit form opens when
+  // the target lands. The alert is raised only once the link settles without a
+  // match (see the pending-link reconciliation below).
+  const [editLinkFailed, setEditLinkFailed] = useState(false);
   // A `?event=` deep link resolved while the component is already mounted (a
   // pinned-events tap on /dashboard is a same-route param change, so the
   // mount-time initializer above never re-runs). Track the last-handled id and
   // re-open the details for each new one; null (a stripped param) is ignored.
   const [prevDetailLinkId, setPrevDetailLinkId] = useState<string | null>(null);
   // A deep link whose target is not resolvable yet (a filtered-out event the
-  // same-period refetch guard is still fetching) is held "pending" so the
+  // independent target action is still resolving) is held "pending" so the
   // details open when `deepLinkEvent` arrives. A manual close clears it, so a
   // closed modal is never force-reopened.
   const [pendingDetailLinkId, setPendingDetailLinkId] = useState<string | null>(
@@ -1435,13 +1434,19 @@ function DashboardViewImpl({
   const [pendingEditLinkId, setPendingEditLinkId] = useState<string | null>(
     initialEditEventId !== null && initialEditEvent === null ? initialEditEventId : null,
   );
+  // Re-arm the same-id guard when the one-shot `edit` param is stripped, so the
+  // same event can be opened for editing again (mirrors the detail link).
+  if (initialEditEventId === null && prevEditLinkId !== null) {
+    setPrevEditLinkId(null);
+    setPendingEditLinkId(null);
+  }
   if (initialEditEventId !== null && initialEditEventId !== prevEditLinkId) {
     setPrevEditLinkId(initialEditEventId);
     const found = resolveDeepLinkEvent(initialEditEventId);
     if (found) {
       applyDeepLinkEdit(found);
     }
-    setEditLinkFailed(found === null);
+    setEditLinkFailed(false);
     setPendingEditLinkId(found === null ? initialEditEventId : null);
   }
   if (initialEditEventId !== null && pendingEditLinkId === initialEditEventId) {
@@ -1450,6 +1455,11 @@ function DashboardViewImpl({
       setPendingEditLinkId(null);
       setEditLinkFailed(false);
       applyDeepLinkEdit(found);
+    } else if (deepLinkSettled) {
+      // The read settled and the target still isn't present: stop waiting and
+      // surface the advisory.
+      setPendingEditLinkId(null);
+      setEditLinkFailed(true);
     }
   }
   const [filterOpened, { open: openFilter, close: closeFilter }] = useDisclosure(false);
@@ -2768,9 +2778,14 @@ function DashboardViewImpl({
     if (!initialEditEventId || editParamClearedRef.current) {
       return;
     }
+    // Never strip before the target resolves: the form opens from the resolved
+    // event, so an early strip would tear down the pending link first.
+    if (!deepLinkSettled) {
+      return;
+    }
     editParamClearedRef.current = true;
     router.push(buildHref({ edit: null }));
-  }, [buildHref, initialEditEventId, router]);
+  }, [buildHref, initialEditEventId, deepLinkSettled, router]);
 
   // Strip the one-shot `event` param (Google Calendar note / search / Pinned
   // deep link, plus the `_eventCal` that rides alongside it) so a
@@ -2787,9 +2802,17 @@ function DashboardViewImpl({
     if (detailParamClearedRef.current) {
       return;
     }
+    // Never strip before the target resolves: `DashboardView` shows the details
+    // skeleton while the independent target read is in flight, and the pending
+    // link is keyed to this URL param. Stripping early was closing the modal
+    // before `deepLinkEvent` arrived (the intermittent "pinned event doesn't
+    // open" race).
+    if (!deepLinkSettled) {
+      return;
+    }
     detailParamClearedRef.current = true;
     router.push(buildHref({ event: null, _eventCal: null }));
-  }, [buildHref, initialDetailEventId, router]);
+  }, [buildHref, initialDetailEventId, deepLinkSettled, router]);
 
   // Shifts compose on the optimistic chrome values (not the committed props),
   // so rapid taps during a pending navigation accumulate instead of being
@@ -5466,6 +5489,13 @@ function DashboardViewImpl({
             setDetailEvent(null);
             setDetailLinkPending(false);
             setPendingDetailLinkId(null);
+            // Closing while the independent target read is still in flight must
+            // not leave the one-shot param behind (it would reopen on a later
+            // navigation). The settled-path strip normally handles this.
+            if (initialDetailEventId) {
+              detailParamClearedRef.current = true;
+              router.push(buildHref({ event: null, _eventCal: null }));
+            }
           }}
           onEdit={(event, originRect) => {
             setDetailEvent(null);

@@ -53,7 +53,6 @@ function navInput(over: Partial<DashboardNavigationInput> = {}): DashboardNaviga
     warmRecords: new Map(),
     previewView: null,
     url: { view: null, month: null, date: null },
-    hasDeepLink: false,
     failedKey: null,
     ...over,
   };
@@ -343,7 +342,6 @@ describe("classifyDashboardFetch", () => {
     previewPending: false,
     hasFresh: false,
     busy: false,
-    deepLink: false,
     now: 0,
   };
 
@@ -407,7 +405,7 @@ describe("classifyDashboardFetch", () => {
     expect(action.kind).toBe("skip");
   });
 
-  it("ignores the warm candidate for a deep link (resolves fresh)", () => {
+  it("uses the warm candidate for a deep link (target resolves separately)", () => {
     const held = tab({ id: "tab-a", kind: "month" });
     const target = tab({ id: "tab-b", kind: "agenda" });
     const record = recordFor(held, [held, target]);
@@ -419,10 +417,9 @@ describe("classifyDashboardFetch", () => {
       warmRecords: new Map([[key as string, warm]]),
       url: { view: "tab-b", month: null, date: null },
       hasFresh: true,
-      deepLink: true,
       now: warm.savedAt,
     });
-    expect(action.kind).toBe("fetch");
+    expect(action.kind).toBe("skip");
   });
 
   it("skips while an un-warm preview tab is pending", () => {

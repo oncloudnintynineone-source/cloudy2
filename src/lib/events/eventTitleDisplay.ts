@@ -1,5 +1,9 @@
 import { formatFullName } from "@/lib/settings/formatName";
-import { renderTitleRecipe, type EventTitlePerson, type TitleRecipe } from "@/lib/settings/titleRecipe";
+import {
+  renderTitleRecipe,
+  type EventTitlePerson,
+  type TitleRecipe,
+} from "@/lib/settings/titleRecipe";
 import { naiveTimePart } from "@/lib/events/timeOptions";
 import type { CalendarEvent } from "@/lib/events/queries";
 
@@ -26,18 +30,32 @@ export interface DisplayTitleTemplate {
   recipe: TitleRecipe;
 }
 
+export interface DisplayTitleOptions {
+  view: string;
+  nameTemplate: string;
+  masterRecipe: TitleRecipe;
+  assignments: Record<string, string>;
+  templates: DisplayTitleTemplate[];
+  usersById: Map<string, DisplayTitleUser>;
+  eventTypesByName: Map<string, DisplayTitleEventType>;
+  calendarsById: Map<string, string>;
+}
+
+/**
+ * Build the render options for one dashboard view kind. Shared by the dashboard
+ * config pass and the lean deep-link target resolver so a resolved event's
+ * title can never drift from the same event rendered in the grid.
+ */
+export function displayTitleOptions(
+  kind: string,
+  context: Omit<DisplayTitleOptions, "view">,
+): DisplayTitleOptions {
+  return { view: kind, ...context };
+}
+
 export function resolveDisplayTitles(
   events: CalendarEvent[],
-  opts: {
-    view: string;
-    nameTemplate: string;
-    masterRecipe: TitleRecipe;
-    assignments: Record<string, string>;
-    templates: DisplayTitleTemplate[];
-    usersById: Map<string, DisplayTitleUser>;
-    eventTypesByName: Map<string, DisplayTitleEventType>;
-    calendarsById: Map<string, string>;
-  },
+  opts: DisplayTitleOptions,
 ): CalendarEvent[] {
   const recipeMap = new Map(opts.templates.map((t) => [t.id, t.recipe] as const));
   return events.map((event) => {

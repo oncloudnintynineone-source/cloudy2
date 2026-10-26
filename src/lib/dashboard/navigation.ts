@@ -259,8 +259,6 @@ export interface DashboardNavigationInput {
   /** The optimistic tab tap while one is pending, else null. */
   previewView: string | null;
   url: { view: string | null; month: string | null; date: string | null };
-  /** A deep link bypasses the warm cache (its target may not be cached). */
-  hasDeepLink: boolean;
   /** The candidate key whose fetch last failed (heals back to the held tab). */
   failedKey: string | null;
 }
@@ -287,13 +285,14 @@ export interface DashboardNavigation {
 }
 
 /**
- * Resolve the displayed navigation for the current URL and held record. Deep
- * links bypass the warm cache; a warm candidate for the URL paints instantly
- * (and is not treated as a navigation), while the URL-first tab moves the chrome
- * the instant the URL changes.
+ * Resolve the displayed navigation for the current URL and held record. A warm
+ * candidate for the URL paints instantly (and is not treated as a navigation),
+ * while the URL-first tab moves the chrome the instant the URL changes. Deep
+ * links no longer bypass the warm cache: their target resolves independently in
+ * `DashboardScreen`, so the grid need not re-read.
  */
 export function resolveDashboardNavigation(input: DashboardNavigationInput): DashboardNavigation {
-  const { record, warmRecords, previewView, url, hasDeepLink, failedKey } = input;
+  const { record, warmRecords, previewView, url, failedKey } = input;
   const effectiveView = previewView ?? url.view;
   const candidateKey = candidateRequestKey(record, effectiveView, url.month, url.date);
   if (!record) {
@@ -307,7 +306,7 @@ export function resolveDashboardNavigation(input: DashboardNavigationInput): Das
       date: "",
     };
   }
-  const warm = !hasDeepLink && candidateKey ? warmRecords.get(candidateKey) : undefined;
+  const warm = candidateKey ? warmRecords.get(candidateKey) : undefined;
   const displayRecord =
     warm && warm.context.requestKey !== record.context.requestKey ? warm : record;
   const cached = displayRecord !== record;
@@ -421,10 +420,9 @@ export function classifyDashboardFetch(input: {
   previewPending: boolean;
   hasFresh: boolean;
   busy: boolean;
-  deepLink: boolean;
   now: number;
 }): DashboardFetchAction {
-  const { record, warmRecords, url, previewPending, hasFresh, busy, deepLink, now } = input;
+  const { record, warmRecords, url, previewPending, hasFresh, busy, now } = input;
   const candidateKey = candidateRequestKey(record, url.view, url.month, url.date);
   if (record && candidateKey !== null) {
     if (record.context.requestKey === candidateKey) {
@@ -443,10 +441,10 @@ export function classifyDashboardFetch(input: {
       }
     }
     // A previously loaded context inside the freshness window paints from the
-    // warm cache; no read needed. Deep links bypass this so the target event
-    // resolves against fresh data.
+    // warm cache; no read needed. The deep-link target resolves separately, so
+    // it never forces a grid re-read.
     const cached = warmRecords.get(candidateKey);
-    if (!deepLink && cached && isWarmSnapshotFresh(cached.savedAt, now)) {
+    if (cached && isWarmSnapshotFresh(cached.savedAt, now)) {
       return { kind: "skip" };
     }
   }

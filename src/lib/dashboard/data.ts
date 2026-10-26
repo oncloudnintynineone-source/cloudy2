@@ -21,15 +21,13 @@ import type { Session } from "next-auth";
 import { listEventTypes, listEventTypeGroups } from "@/lib/eventTypes/queries";
 import { formatInstantToNaive } from "@/lib/events/datetime";
 import {
-  fetchRangeEvents,
   listCalendars,
   projectRangeEvents,
   readCalendarRange,
-  type CalendarEvent,
   type CalendarRangeData,
 } from "@/lib/events/queries";
-import { deepLinkMonths, findEventByGroupId } from "@/lib/events/deepLink";
 import {
+  displayTitleOptions,
   resolveDisplayTitles,
   type DisplayTitleEventType,
   type DisplayTitleUser,
@@ -52,7 +50,6 @@ import {
 } from "@/lib/settings/featureFlags";
 import { UI_STATE_COOKIE, decodeUiState } from "@/lib/ui/uiState";
 import { getUserPreferences } from "@/lib/userPrefs/queries";
-import { isUuid } from "@/lib/uuid";
 import { getDashboardViews } from "@/lib/dashboardViews/queries";
 import {
   emptyTabFilters,
@@ -91,9 +88,6 @@ export interface BuildDashboardDataInput {
   view: string | null;
   month: string | null;
   date: string | null;
-  edit: string | null;
-  event: string | null;
-  eventCal: string | null;
   /** Bypass the events cache freshness window and block on fresh Google reads. */
   force: boolean;
 }
@@ -104,12 +98,6 @@ export interface BuiltDashboardData {
   date: string;
   viewId: string;
   requestKey: string;
-  /**
-   * The `?event=` deep link's target event, resolved separately from the grid
-   * (empty filters, only its own calendar) so it opens even when the active
-   * tab's filters would drop it. Not part of `data`, so it is never cached.
-   */
-  deepLinkEvent: CalendarEvent | null;
 }
 
 /** The resolved anchor period (URL-first, then cookie, then today). */
@@ -396,16 +384,16 @@ async function resolveDashboardConfig(session: Session): Promise<DashboardConfig
     eventTypes.map((t) => [t.name, { name: t.name, shortname: t.shortname }]),
   );
   const calendarsById = new Map(calendars.map((c) => [c.id, c.name]));
-  const displayOptionsFor = (kind: DashboardViewKind): DisplayOptions => ({
-    view: kind,
-    nameTemplate: settings.nameTemplate,
-    masterRecipe: settings.eventTitleRecipe,
-    assignments,
-    templates: eventTitleTemplates.map((t) => ({ id: t.id, label: t.label, recipe: t.recipe })),
-    usersById,
-    eventTypesByName,
-    calendarsById,
-  });
+  const displayOptionsFor = (kind: DashboardViewKind): DisplayOptions =>
+    displayTitleOptions(kind, {
+      nameTemplate: settings.nameTemplate,
+      masterRecipe: settings.eventTitleRecipe,
+      assignments,
+      templates: eventTitleTemplates.map((t) => ({ id: t.id, label: t.label, recipe: t.recipe })),
+      usersById,
+      eventTypesByName,
+      calendarsById,
+    });
 
   const shared: DashboardSharedConfig = {
     tabs,
@@ -562,36 +550,6 @@ export async function buildDashboardData(
   });
   const { delta, context } = projectTab(config, activeTab, period, rangeData);
 
-  // `?event=` deep links: `_eventCal` names the target copy's calendar. It is
-  // used only to resolve that one event (below) — never added to the grid's
-  // fetch set, so the active filters and the rendered event set stay untouched.
-  const eventCalParam =
-    input.eventCal && config.calendarIds.includes(input.eventCal) ? input.eventCal : null;
-  const deepLinkEventId = input.event && isUuid(input.event) ? input.event : null;
-
-  // Resolve the `?event=` deep-link target on its own — no type/user filters and
-  // the target's **own** months (`deepLinkMonths(input.date)`), never the active
-  // tab's `rangeMonths`. Pinned Events lists a rolling 3-month window regardless
-  // of the active tab, so a tab whose required months don't include the target's
-  // month would otherwise never resolve it (the "not in your current view" alert).
-  // It never joins the grid's `events`, so the filter selection stays visually
-  // authoritative. When `_eventCal` is unknown (a pruned/foreign calendar) fall
-  // back to every calendar for those months so the copy can still be found.
-  let deepLinkEvent: CalendarEvent | null = null;
-  if (deepLinkEventId) {
-    const targetEvents = await fetchRangeEvents({
-      months: deepLinkMonths(input.date),
-      calendarIds: eventCalParam ? [eventCalParam] : config.calendarIds,
-      typeFilter: [],
-      userFilter: [],
-      force: input.force,
-    });
-    deepLinkEvent = findEventByGroupId(
-      resolveDisplayTitles(targetEvents, config.displayOptionsFor(activeTab.kind)),
-      deepLinkEventId,
-    );
-  }
-
   const data: DashboardSnapshot = assembleDashboardSnapshot(config.shared, delta);
 
   return {
@@ -600,7 +558,6 @@ export async function buildDashboardData(
     date: period.date,
     viewId: activeTab.id,
     requestKey: context.requestKey,
-    deepLinkEvent,
   };
 }
 
@@ -681,12 +638,7 @@ export async function buildDashboardPreload(
       );
       // Restrict the projection to this anchor's own months so a future-month
       // snapshot carries only the events its grid renders, not the whole union.
-      const { delta, context } = projectTab(
-        config,
-        activeTab,
-        anchor,
-        { ...futureRange, months },
-      );
+      const { delta, context } = projectTab(config, activeTab, anchor, { ...futureRange, months });
       records.push({ context, delta });
     }
   }

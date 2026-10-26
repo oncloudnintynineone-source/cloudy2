@@ -274,20 +274,21 @@ false`), so the search state resets for free on every reopen; the chrome
   result can never fall back to the remembered tab and switch views. It never
   writes the tab's stored filters: the search covers every calendar and the
   active filters may exclude the event, so `_eventCal` names the tapped copy's
-  calendar and the server resolves **that one event separately** — only its
-  calendar, no type/user filters, and over the target's **own** months
-  (`deepLinkMonths(date)`, never the active tab's required months) — returning it
-  as `deepLinkEvent` on the snapshot record root (not in the cached `data`). The
-  grid's `events` stay the filtered set, so the result does **not** leak a chip
-  the filters hide; the dashboard's own full `EventDetail` (Duplicate/Edit/Delete)
-  opens from the resolved event. `_eventCal`/`event` are absent from
-  `dashboardRequestKey`, so `DashboardScreen` fires a ref-guarded one-shot refetch
-  when a deep link's target is missing from an otherwise-current record (e.g. a
-  same-period link). The details modal opens **immediately as a skeleton** and the
-  target resolves underneath (the Double Booking detail's pattern); the
-  "not in your current view" advisory appears only once that resolution has
-  settled without a match. The one-shot `event`/`_eventCal` params are stripped
-  after opening (re-armed per click, so the same event can be opened again), and
+  calendar and a **lean server action** (`resolveDeepLinkTargetAction`) resolves
+  **that one event separately** — only its calendar, no type/user filters, and
+  over the target's **own** months (`deepLinkMonths(date)`, never the active
+  tab's required months). It returns the event to `DashboardScreen` as
+  `deepLinkEvent`; the snapshot/record no longer carries it, so it is never
+  cached and the grid's `events` stay the filtered set (the result does **not**
+  leak a chip the filters hide). The dashboard's own full `EventDetail`
+  (Duplicate/Edit/Delete) opens from the resolved event. The action runs in
+  parallel with the grid read — `_eventCal`/`event` are absent from
+  `dashboardRequestKey`, so a warm grid can paint without a round-trip. The
+  details modal opens **immediately as a skeleton** and the target resolves
+  underneath (the Double Booking detail's pattern); the "not in your current
+  view" advisory appears only once that resolution has settled without a match.
+  The one-shot `event`/`_eventCal` params are stripped only **after** the link
+  settles (an early strip used to close the pending skeleton first), and
   `DashboardView` re-arms its same-id guard when they clear. Rows stay clickable
   throughout, so a re-click re-triggers navigation. There is no read-only detail
   step.

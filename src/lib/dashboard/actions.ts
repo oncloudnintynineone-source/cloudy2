@@ -29,15 +29,11 @@ export interface LoadDashboardDataInput {
   view?: string | null;
   month?: string | null;
   date?: string | null;
-  edit?: string | null;
-  event?: string | null;
-  eventCal?: string | null;
   refresh?: string | null;
 }
 
 export type LoadDashboardDataResult =
-  | { ok: true; record: DashboardSnapshotRecord }
-  | { ok: false; error: string };
+  { ok: true; record: DashboardSnapshotRecord } | { ok: false; error: string };
 
 function asString(value: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;
@@ -55,9 +51,6 @@ export async function loadDashboardData(
         view: asString(input.view),
         month: asString(input.month),
         date: asString(input.date),
-        edit: asString(input.edit),
-        event: asString(input.event),
-        eventCal: asString(input.eventCal),
         force: isRefreshNonceFresh(asString(input.refresh), Date.now()),
       },
       session,
@@ -74,7 +67,6 @@ export async function loadDashboardData(
           requestKey: built.requestKey,
         },
         data: built.data,
-        deepLinkEvent: built.deepLinkEvent,
       },
     };
   } catch (error) {
@@ -113,9 +105,6 @@ export async function preloadDashboardTabs(
         view: asString(input.view),
         month: asString(input.month),
         date: asString(input.date),
-        edit: asString(input.edit),
-        event: asString(input.event),
-        eventCal: asString(input.eventCal),
         // Preload warms what the active read already fetched; never force.
         force: false,
       },

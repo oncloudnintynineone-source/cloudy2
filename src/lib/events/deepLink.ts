@@ -57,15 +57,18 @@ const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
  * own `?date=` (the target's start day) so a target outside the active tab's
  * months — e.g. a pinned event two months out on a Day tab — is still found.
  *
- * The event's own month plus the adjacent months: a long event (or a copy that
- * starts in the neighbouring month) can otherwise fall outside a single-month
- * read. Pure and I/O-free, so the window is unit-tested. When the link carries
- * no valid date, it falls back to the current month.
+ * The event's own month plus the previous one: an early-morning SGT event
+ * (naive date in the link's month) can be stored under the previous UTC month,
+ * so that month is required. A future month is not — the app's fixed UTC+8
+ * offset can only move an event backwards — and reading it forced a cold
+ * Google fetch for pinned events at the far end of the rolling window. Pure and
+ * I/O-free, so the window is unit-tested. When the link carries no valid date,
+ * it falls back to the current month.
  */
 export function deepLinkMonths(date: string | null | undefined): string[] {
   const anchor =
     typeof date === "string" && DATE_ONLY_PATTERN.test(date)
       ? date.slice(0, 7)
       : formatInstantToNaive(new Date()).slice(0, 7);
-  return [...new Set([shiftMonth(anchor, -1), anchor, shiftMonth(anchor, 1)])].sort();
+  return [...new Set([shiftMonth(anchor, -1), anchor])].sort();
 }
