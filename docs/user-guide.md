@@ -83,13 +83,15 @@ them with the tabs above the grid:
   On a phone the tab strip is a single **four-squares view button** in the top
   row — tap it, then choose **Add view**.
 - **Manage views**: use the **gear** beside the tab strip (tooltip "Manage
-  views"). Your views appear as a **list**; the active one is marked with an
-  amber bar. Each row has **Edit** (name, type — the type chooser shows the same
-  preview grid — and an **Edit filters…** button that switches to the view and
-  opens its filter dialog) and **Delete**, plus ↑/↓ to reorder. On a phone the
-  gear lives inside the four-squares view button as **Manage views**.
-- **Share a view**: choose **Share** on a Manage-views row (or **Share view…**
-  in the Edit-view dialog) and copy the link. Anyone signed in can open it,
+   views"). Your views appear as a **list**; the active one is marked with an
+   amber bar. Each row is one line: **↑/↓** on the left reorder, and a **⋮ menu**
+   on the right holds **Share**, **Edit** (name, type — the type chooser shows
+   the same preview grid — and an **Edit filters…** button that switches to the
+   view and opens its filter dialog) and **Delete**. On a phone the gear lives
+   inside the four-squares view button as **Manage views**.
+- **Share a view**: choose **Share** from a Manage-views row's ⋮ menu (or
+   **Share view…** in the Edit-view dialog) and copy the link. Anyone signed in
+   can open it,
   review the view name/type/filters, and **Add view** — they get an independent
   copy at the end of their tab strip. The link carries only the view definition,
   never event access; it has no separate revoke button (new links stop working

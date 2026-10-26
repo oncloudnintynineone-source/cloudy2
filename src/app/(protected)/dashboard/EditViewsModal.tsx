@@ -5,18 +5,26 @@ import {
   ActionIcon,
   Button,
   Group,
+  Menu,
   Paper,
   ScrollArea,
   Stack,
   Text,
   TextInput,
-  Tooltip,
   useMantineTheme,
 } from "@mantine/core";
 import { MotionModal } from "@/components/MotionModal";
+import { useMotion } from "@/components/MotionProvider";
 import { useMediaQuery } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { IconFilter, IconPencil, IconPlus, IconShare, IconTrash } from "@tabler/icons-react";
+import {
+  IconDotsVertical,
+  IconFilter,
+  IconPencil,
+  IconPlus,
+  IconShare,
+  IconTrash,
+} from "@tabler/icons-react";
 
 import {
   changeDashboardViewKind,
@@ -87,6 +95,7 @@ export function EditViewsModal({
   reorderDrag,
 }: EditViewsModalProps) {
   const theme = useMantineTheme();
+  const motion = useMotion();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
   const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY);
   const dragEnabled = isReorderDragEnabled(reorderDrag);
@@ -310,46 +319,60 @@ export function EditViewsModal({
                       </Stack>
                     </Group>
                   );
-                  const actions = (
-                    <>
-                      <Tooltip label="Share" position="top">
+                  const menu = (
+                    <Menu
+                      shadow="md"
+                      width={200}
+                      position="bottom-end"
+                      transitionProps={{
+                        transition: "pop-top-right",
+                        duration: motion.duration.popover,
+                        timingFunction: motion.easing.out,
+                      }}
+                    >
+                      <Menu.Target>
                         <ActionIcon
                           variant="subtle"
                           color="gray"
                           size={ROW_ACTION_SIZE}
-                          aria-label={`Share ${tab.name}`}
+                          aria-label={`Options for ${tab.name}`}
+                          style={{ flexShrink: 0 }}
+                        >
+                          <IconDotsVertical size={ROW_ACTION_ICON_SIZE} />
+                        </ActionIcon>
+                      </Menu.Target>
+                      <Menu.Dropdown>
+                        <Menu.Label
+                          style={{
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
+                        >
+                          {tab.name}
+                        </Menu.Label>
+                        <Menu.Item
+                          leftSection={<IconShare size={16} />}
                           onClick={() => setSharing(tab)}
                         >
-                          <IconShare size={ROW_ACTION_ICON_SIZE} />
-                        </ActionIcon>
-                      </Tooltip>
-                      <Tooltip label="Edit" position="top">
-                        <ActionIcon
-                          variant="subtle"
-                          color="gray"
-                          size={ROW_ACTION_SIZE}
-                          aria-label={`Edit ${tab.name}`}
+                          Share
+                        </Menu.Item>
+                        <Menu.Item
+                          leftSection={<IconPencil size={16} />}
                           onClick={() => startEdit(tab)}
                         >
-                          <IconPencil size={ROW_ACTION_ICON_SIZE} />
-                        </ActionIcon>
-                      </Tooltip>
-                      <Tooltip
-                        label={tabs.length === 1 ? "Your last view can't be deleted" : "Delete"}
-                        position="top"
-                      >
-                        <ActionIcon
-                          variant="subtle"
+                          Edit
+                        </Menu.Item>
+                        <Menu.Item
                           color="red"
-                          size={ROW_ACTION_SIZE}
-                          aria-label={`Delete ${tab.name}`}
+                          leftSection={<IconTrash size={16} />}
                           disabled={tabs.length === 1}
                           onClick={() => setDeleting(tab)}
                         >
-                          <IconTrash size={ROW_ACTION_ICON_SIZE} />
-                        </ActionIcon>
-                      </Tooltip>
-                    </>
+                          Delete
+                        </Menu.Item>
+                      </Menu.Dropdown>
+                    </Menu>
                   );
                   return (
                     <SortableRow
@@ -372,30 +395,11 @@ export function EditViewsModal({
                               : undefined
                           }
                         >
-                          {isDesktop ? (
-                            <Group justify="space-between" align="center" wrap="nowrap">
-                              <Group
-                                wrap="nowrap"
-                                gap="sm"
-                                align="center"
-                                style={{ minWidth: 0, flex: 1 }}
-                              >
-                                {chevrons(handle)}
-                                {title}
-                              </Group>
-                              <Group wrap="nowrap" gap={4} style={{ flexShrink: 0 }}>
-                                {actions}
-                              </Group>
-                            </Group>
-                          ) : (
-                            <Stack gap={6}>
-                              {title}
-                              <Group wrap="nowrap" gap={4} align="center">
-                                {chevrons(handle)}
-                                {actions}
-                              </Group>
-                            </Stack>
-                          )}
+                          <Group wrap="nowrap" gap="sm" align="center">
+                            {chevrons(handle)}
+                            {title}
+                            {menu}
+                          </Group>
                         </Paper>
                       )}
                     </SortableRow>

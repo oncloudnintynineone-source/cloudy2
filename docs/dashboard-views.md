@@ -96,42 +96,50 @@ string maps to the first tab of that kind.
   **kind icon + name**, with a dimmed **kind label** underneath **only when
   the name is custom** (a default-named tab already reads as its kind, so the
   label would just repeat the name). The active tab is marked with a thin
-  **accent left border** on the row (quiet — no badge). Row actions:
-  - **↑/↓** arrows reorder (commits `reorderDashboardViews`, which renumbers
-    every row in a transaction — the clicked arrow shows an inline spinner while
-    it works; the row's outward arrow is disabled at the list's ends). They use
-    `ReorderUpDown`'s `variant="subtle"` here, so the dense row isn't a wall of
-    bordered boxes. With the `reorderDrag` feature flag a **drag handle** can
-    join or replace the arrows depending on the mode (`drag` default / `arrowsDrag`
-    / `arrows`); a drop commits `reorderDashboardViews` too — see
-    [`reorder.md`](reorder.md);
-  - a **pen** (Edit, subtle) opens a single **Edit view** dialog with the name
-    and the seven-kind picker — one place for both, replacing the old separate
-    inline rename field and Change-type modal. The tab keeps its id, strip order
-    and stored filters; a name that is still the old kind's default label follows
-    to the new kind's default (a custom name is kept; the rule is applied
-    server-side by `changeDashboardViewKind`, and a custom name typed in the
-  dialog is applied after the kind so it always wins). Changing the **active**
-  tab's type re-navigates to the same id under its new kind, so the tab-switch
-  period rules below apply (Month → anchored starts today; anchored → Month
-  keeps the month) — and because the request key (`viewId|months`) is
-  definition-blind, the same id would otherwise look already covered, so the
-  switch also forces a server re-read with the target period (the grid reloads
-  in place instead of waiting for a Force refresh); editing an inactive tab
-    just refreshes the list. This dialog's picker uses the same **thumbnail-grid**
-    variant as the Add-view dialog — choosing a type is the same decision in both
-    places (the row being edited's own kind is shown dimmed with "(current)").
-    The edit is applied **optimistically**: the action returns the updated tab and
-    `applyViewTab` patches the held snapshot, so the strip and this list repaint
-    in the same frame, then the usual re-read reconciles against the server;
-  - a **trash** (subtle red) deletes behind a nested `size="sm"` confirm (the
-    last tab can't be deleted — its trash is disabled; deleting the active tab
-    navigates to the first remaining and forces a re-read, so the deleted row
-    can't linger behind a data-equivalent local swap).
-  Two ~40px actions plus the chevron pair
-  lead each row, so **below `lg` each row reflows to two lines**: the kind icon +
-  name lead on the first, and the controls sit together on a second left-aligned
-  line; at `lg`+ the row keeps its single line. The Edit dialog also carries the per-view
+   **accent left border** on the row (quiet — no badge). Every row is a **single
+   line at all widths**: the **reorder** controls lead on the left, the kind
+   icon + name fill the middle (truncating), and the **⋮ menu** is right-aligned
+   on the row's right edge.
+   - **Reorder** (left): the **↑/↓** arrows reorder (commits
+     `reorderDashboardViews`, which renumbers every row in a transaction — the
+     clicked arrow shows an inline spinner while it works; the row's outward
+     arrow is disabled at the list's ends). They use `ReorderUpDown`'s
+     `variant="subtle"` here, so the dense row isn't a wall of bordered boxes.
+     With the `reorderDrag` feature flag a **drag handle** can join or replace
+     the arrows depending on the mode (`drag` default / `arrowsDrag` /
+     `arrows`); a drop commits `reorderDashboardViews` too — see
+     [`reorder.md`](reorder.md);
+   - **⋮ menu** (right, a subtle `IconDotsVertical` `ActionIcon` on the row's
+     right edge) opens a small dropdown headed by the row's name (truncated)
+     holding the row's three actions — **Share**, **Edit** and **Delete** —
+     replacing the previously inline share/edit/delete icons:
+     - **Share** opens the per-view **Share** dialog (generate + copy the
+       `/share/<token>` link — see §1.10);
+     - **Edit** opens a single **Edit view** dialog with the name and the
+       seven-kind picker — one place for both, replacing the old separate
+       inline rename field and Change-type modal. The tab keeps its id, strip
+       order and stored filters; a name that is still the old kind's default
+       label follows to the new kind's default (a custom name is kept; the rule
+       is applied server-side by `changeDashboardViewKind`, and a custom name
+       typed in the dialog is applied after the kind so it always wins).
+       Changing the **active** tab's type re-navigates to the same id under its
+       new kind, so the tab-switch period rules below apply (Month → anchored
+       starts today; anchored → Month keeps the month) — and because the request
+       key (`viewId|months`) is definition-blind, the same id would otherwise
+       look already covered, so the switch also forces a server re-read with the
+       target period (the grid reloads in place instead of waiting for a Force
+       refresh); editing an inactive tab just refreshes the list. This dialog's
+       picker uses the same **thumbnail-grid** variant as the Add-view dialog —
+       choosing a type is the same decision in both places (the row being
+       edited's own kind is shown dimmed with "(current)"). The edit is applied
+       **optimistically**: the action returns the updated tab and `applyViewTab`
+       patches the held snapshot, so the strip and this list repaint in the same
+       frame, then the usual re-read reconciles against the server;
+     - **Delete** (red; **disabled for the last tab** — it can't be deleted)
+       deletes behind a nested `size="sm"` confirm; deleting the active tab
+       navigates to the first remaining and forces a re-read, so the deleted row
+       can't linger behind a data-equivalent local swap.
+   The Edit dialog also carries the per-view
   **Filters** entry point: an **Edit
   filters…** button closes the modal, switches to that view and opens its filter
   dialog (the dashboard's one per-view filter UI — see §1.2). Filters resolve
@@ -1169,8 +1177,8 @@ flowchart LR
 ## 1.10 Sharing views
 
 A view can be shared as a **self-contained hyperlink** — no `dashboard_view_shares`
-table exists. Manage views exposes a per-row **Share** action (and the Edit-view
-dialog has a **Share view…** button for the saved definition). The link is
+   table exists. Manage views exposes **Share** in each row's **⋮ menu** (and the
+   Edit-view dialog has a **Share view…** button for the saved definition). The link is
 `<origin>/share/<token>`; opening it verifies the token, sends a signed-out
 visitor through login (returning straight to the share dialog) and sends a
 signed-in user to `/dashboard?share=<token>`, where the import dialog previews
@@ -1231,7 +1239,7 @@ flowchart LR
 | `src/lib/userPrefs/queries.ts` + `actions.ts` | `user_preferences` row: parade filters (incl. `saveParadeFilters`) |
 | `src/app/(protected)/dashboard/DashboardView.tsx`  | Tab strip (+ trailing Add-view button, right-side Manage-views gear and All-views jump popover), optimistic tab switch + period rules + tab-URL prefetch, filter state, schedule zoom + month zoom state & widths |
 | `src/app/(protected)/dashboard/DashboardScreen.tsx` | Snapshot/warm-cache/preload owner; resolves the displayed context from `previewView ?? ?view=` so warm tab switches paint without waiting on the RSC |
-| `src/app/(protected)/dashboard/EditViewsModal.tsx` | Manage-views dialog: Add-view button + card manage list (subtle ↑/↓ reorder, per-row Edit dialog for name+type+filters, nested delete confirm) |
+| `src/app/(protected)/dashboard/EditViewsModal.tsx` | Manage-views dialog: Add-view button + single-line card rows (subtle ↑/↓ reorder left, name middle, per-row **⋮ menu** right with Share/Edit/Delete; Edit dialog for name+type+filters, nested delete confirm) |
 | `src/app/(protected)/dashboard/ViewTypePicker.tsx` | Shared seven-kind picker (Month & Agenda/Month/Week (H)/Week (D)/Week (Grid)/Day/Agenda): a **thumbnail grid** in the Add-view dialog and the Edit-view dialog's type chooser, a compact text list for other uses |
 | `src/app/(protected)/dashboard/DualPaneView.tsx` | Month & Agenda renderer: resizable Month + Agenda panes (§1.9) |
 | `src/app/(protected)/dashboard/MonthWeekdayStrip.tsx` | Pinned weekday-initials strip, shared by the Month view and the Month & Agenda view's Month pane |
