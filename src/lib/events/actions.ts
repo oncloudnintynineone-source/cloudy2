@@ -22,12 +22,19 @@ import {
   withEditLink,
   withInternalMarker,
 } from "@/lib/events/notes";
-import { modifyGuard, canChangeLock } from "@/lib/events/guards";
+import { modifyGuard, canChangeLock, registrationEditGuard } from "@/lib/events/guards";
 import { dispatchKahBreachCheck } from "@/lib/kah/notify";
 import { dispatchParticipantNotifications } from "@/lib/events/participantNotify/notify";
 import { naiveTimePart } from "@/lib/events/timeOptions";
 import { renderEventTitle } from "@/lib/events/eventTitle";
 import { invalidatePinnedCache } from "@/lib/events/pinned";
+import {
+  applyRegistrationIntent,
+  eventFormValuesFromCopy,
+  storedEventTypeName,
+  type RegistrationIntent,
+} from "@/lib/events/registration";
+import { getEventTypesByNames } from "@/lib/eventTypes/queries";
 import {
   buildEventTitleContext,
   calendarNames,
@@ -51,9 +58,14 @@ import {
 } from "@/lib/google";
 import { mapWithConcurrency } from "@/lib/async";
 import { invalidateGcalCache } from "@/lib/google/eventsCache";
-import { getUsersByIds, activeMembershipsByDepartment, type UserDisplayInfo } from "@/lib/roster/queries";
+import {
+  getUsersByIds,
+  activeMembershipsByDepartment,
+  type UserDisplayInfo,
+} from "@/lib/roster/queries";
 import { resolveGoogleCalendarId, resolveGoogleCalendarIds } from "@/lib/roster/shares";
 import { requireSession } from "@/lib/session";
+import { isUuid } from "@/lib/uuid";
 import { dispatchEventWebhook } from "@/lib/webhooks/deliver";
 import { WEBHOOK_ACTIONS } from "@/lib/webhooks/payload";
 
@@ -234,15 +246,54 @@ async function legacyFallback(ref: EventRef): Promise<{
   return googleCalendarId ? { googleCalendarId, googleEventId: ref.googleEventId } : null;
 }
 
+/**
+ * Whether the stored copy belongs to a registration-enabled event. This is the
+ * authoritative check used by update/delete (never the client-supplied ref).
+ */
+async function isRegistrationEvent(copy: GcalEventItem): Promise<boolean> {
+  const typeName = storedEventTypeName(copy);
+  if (!typeName) {
+    return false;
+  }
+  const types = await getEventTypesByNames([typeName]);
+  return types.get(typeName)?.registrationEnabled === true;
+}
+
+/**
+ * Find one stored copy of a logical event, preferring the representative
+ * calendar the client saw. Used by self-registration to rebuild the event from
+ * Google rather than trusting client-supplied fields.
+ */
+async function findRepresentativeCopy(
+  ref: EventRef,
+): Promise<{ copy: GcalEventItem; calendarId: string } | null> {
+  if (!ref.eventId) {
+    return null;
+  }
+  const targets = await refTargetCalendars(ref);
+  const ordered = [ref.calendarId, ...targets.filter((id) => id !== ref.calendarId)];
+  const googleIds = await resolveGoogleCalendarIds(ordered);
+  const range = withMargin(absEventRange(ref.start, ref.end, ref.allDay));
+  for (const target of ordered) {
+    const googleCalendarId = googleIds[target];
+    if (!googleCalendarId) {
+      continue;
+    }
+    const found = await findCopies(googleCalendarId, ref.eventId, range, null);
+    if (found.length > 0) {
+      return { copy: found[0], calendarId: target };
+    }
+  }
+  return null;
+}
+
 export async function createEvent(input: EventFormValues): Promise<EventActionResult> {
   const session = await requireSession();
   // The organizer is always the acting session user — admins can no longer
   // create events on behalf of other users. Clamp end to start before
   // validation so a stale client with an inverted range auto-corrects instead
   // of surfacing "End must be on or after start".
-  const normalized = clampEventEnd(
-    resolveEventAuthor(input, session.user.id, null, true),
-  );
+  const normalized = clampEventEnd(resolveEventAuthor(input, session.user.id, null, true));
 
   const errors = validateEventForm(normalized);
   if (Object.keys(errors).length > 0) {
@@ -261,7 +312,10 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
   // Every event must occupy someone: after field resolution a type with
   // invitees disabled always carries the organizer as its sole attendee, so
   // an empty result means the actor tagged no people and no departments.
+  // Registration events are the exception: they may start with zero
+  // registrants (the creator's department is the fallback calendar).
   if (
+    !titleContext.registrationEnabled &&
     effectiveInput.inviteeUserIds.length === 0 &&
     effectiveInput.inviteeDepartments.length === 0
   ) {
@@ -269,7 +323,9 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
   }
   // Targets derive from the effective input so a type with invitees disabled
   // only ever lands in the creator's department.
-  const targets = await resolveTargetCalendars(effectiveInput, null);
+  const targets = await resolveTargetCalendars(effectiveInput, null, {
+    includeCreatorDepartment: titleContext.registrationEnabled,
+  });
   if (targets.length === 0) {
     return {
       ok: false,
@@ -455,23 +511,74 @@ export async function updateEvent(
   }
 
   const eventId = ref.eventId ?? crypto.randomUUID();
-  const integration = await getGoogleIntegration();
   const titleContext = await buildEventTitleContext(normalized);
   const effectiveInput = resolveEffectiveInput(normalized, titleContext);
-  // Same nobody-guard as createEvent (see its note): the resolved attendees
-  // must not be empty, or the saved copies would occupy no one.
+  // Same nobody-guard as createEvent (see its note), except registration
+  // events may keep an empty roster.
   if (
+    !titleContext.registrationEnabled &&
     effectiveInput.inviteeUserIds.length === 0 &&
     effectiveInput.inviteeDepartments.length === 0
   ) {
     return { ok: false, error: "Add at least one participant or department" };
   }
+  return performEventUpdate({
+    session,
+    ref,
+    normalized,
+    effectiveInput,
+    titleContext,
+    eventId,
+    method: "updateEvent",
+    mode: "update",
+  });
+}
+
+interface PerformEventUpdateParams {
+  session: Awaited<ReturnType<typeof requireSession>>;
+  ref: EventRef;
+  normalized: EventFormValues;
+  effectiveInput: EventFormValues;
+  titleContext: EventTitleContext;
+  eventId: string;
+  /** Audit `method` label. */
+  method: string;
+  /**
+   * `update` enforces the stored registration organizer-only restriction;
+   * `registration` is the self-service toggle, which the caller has already
+   * authorized and limited to the acting user's own participant entry.
+   */
+  mode: "update" | "registration";
+  /** Extra flat audit context (e.g. the registration intent). */
+  extraAudit?: Record<string, unknown>;
+}
+
+/**
+ * Shared edit pipeline used by the normal update action and the self-service
+ * registration toggle. Everything after target resolution lives here so the
+ * copy reconciliation, audit, webhook, KAH check, notifications and cache
+ * invalidation can never drift between the two entry points.
+ */
+async function performEventUpdate({
+  session,
+  ref,
+  normalized,
+  effectiveInput,
+  titleContext,
+  eventId,
+  method,
+  mode,
+  extraAudit,
+}: PerformEventUpdateParams): Promise<EventActionResult> {
+  const integration = await getGoogleIntegration();
   // Old targets come from the ref (its stored people); new targets from the
   // effective input, so a type with invitees disabled removes the other
   // departments' copies on save.
   const [oldTargets, newTargets] = await Promise.all([
     refTargetCalendars(ref),
-    resolveTargetCalendars(effectiveInput, ref.calendarId),
+    resolveTargetCalendars(effectiveInput, ref.calendarId, {
+      includeCreatorDepartment: titleContext.registrationEnabled,
+    }),
   ]);
   // The old copies' search range covers both the old and new times (±day), so
   // a date/time change still finds the copies to update or retire.
@@ -498,7 +605,7 @@ export async function updateEvent(
   // the webhook payload.
   const touchedGoogleEventIds = new Set<string>();
   // The first existing copy found anywhere is the event's pre-edit state for
-  // the audit diff (all copies of a logical event are identical).
+  // the audit diff and the authoritative registration check.
   let firstCopy: GcalEventItem | null = null;
 
   try {
@@ -517,14 +624,28 @@ export async function updateEvent(
       return { target, googleCalendarId, found };
     });
 
+    for (const { found } of reads) {
+      if (firstCopy === null && found.length > 0) {
+        firstCopy = found[0];
+      }
+    }
+
+    // Authoritative registration restriction: a registration event may only be
+    // edited by its organizer or an admin, even if a forged ref would satisfy
+    // the preliminary attendee/department guard above.
+    if (mode === "update" && firstCopy && (await isRegistrationEvent(firstCopy))) {
+      const people = parseEventPeople(firstCopy.description);
+      const registrationError = registrationEditGuard(session, people.creatorId);
+      if (registrationError) {
+        return { ok: false, error: registrationError };
+      }
+    }
+
     for (const { target, googleCalendarId, found } of reads) {
       if (!googleCalendarId) {
         continue;
       }
       affectedGoogleIds.add(googleCalendarId);
-      if (firstCopy === null && found.length > 0) {
-        firstCopy = found[0];
-      }
       if (newSet.has(target)) {
         if (found.length > 0) {
           for (const copy of found) {
@@ -616,12 +737,13 @@ export async function updateEvent(
     ...actorFrom(session),
     action: AUDIT_ACTIONS.eventUpdate,
     entityType: "calendar",
-    entityId: newTargets[0],
+    entityId: newTargets[0] ?? ref.calendarId,
     entityName: renderedTitle || "Untitled event",
-    method: "updateEvent",
+    method,
     details: {
       ...diffFields(before, after),
       eventId,
+      ...(extraAudit ?? {}),
     },
   });
   await dispatchEventWebhook({
@@ -691,6 +813,100 @@ export async function updateEvent(
   return { ok: true, eventId, copies: liveCopies };
 }
 
+/**
+ * Self-service registration for a registration-enabled event. Only the acting
+ * user's own participant entry is toggled; every other field comes from the
+ * stored Google copy, never from the client. The shared update pipeline then
+ * reconciles department copies, re-renders the title, and records the change.
+ */
+export async function setEventRegistration(
+  ref: EventRef,
+  intent: RegistrationIntent,
+): Promise<EventActionResult> {
+  const session = await requireSession();
+  if (intent !== "register" && intent !== "deregister") {
+    return { ok: false, error: "Invalid registration action" };
+  }
+  if (!isUuid(session.user.id)) {
+    return { ok: false, error: "Registration is only available for roster users" };
+  }
+  if (!ref.eventId) {
+    return { ok: false, error: "This event is not open for registration" };
+  }
+
+  if (!googleCalendarConfigured()) {
+    return { ok: false, error: "Google Calendar is not configured" };
+  }
+
+  try {
+    const found = await findRepresentativeCopy(ref);
+    if (!found || !(await isRegistrationEvent(found.copy))) {
+      return { ok: false, error: "This event is not open for registration" };
+    }
+    const values = eventFormValuesFromCopy(found.copy);
+    if (!values || !values.creatorId) {
+      return { ok: false, error: "This event is not open for registration" };
+    }
+
+    const nextInvitees = applyRegistrationIntent(values.inviteeUserIds, session.user.id, intent);
+    const unchanged =
+      nextInvitees.length === values.inviteeUserIds.length &&
+      nextInvitees.every((id, index) => id === values.inviteeUserIds[index]);
+    if (unchanged) {
+      return { ok: true, eventId: ref.eventId, copies: [] };
+    }
+
+    const normalized = clampEventEnd({
+      ...values,
+      inviteeUserIds: nextInvitees,
+      // Preserve the stored organizer/lock exactly; self-registration never
+      // adopts the acting user as organizer.
+      creatorId: values.creatorId,
+      ownerOnlyEdits: values.ownerOnlyEdits,
+    });
+    const errors = validateEventForm(normalized);
+    if (Object.keys(errors).length > 0) {
+      return { ok: false, error: "This event cannot be updated" };
+    }
+
+    const titleContext = await buildEventTitleContext(normalized);
+    const effectiveInput = resolveEffectiveInput(normalized, titleContext);
+    if (intent === "register" && !effectiveInput.inviteeUserIds.includes(session.user.id)) {
+      return { ok: false, error: "This event is not open for registration" };
+    }
+
+    // The stored copy is authoritative for target reconciliation and the audit
+    // before-state, so pass the copy's people rather than the client ref's.
+    const storedRef: EventRef = {
+      calendarId: found.calendarId,
+      googleEventId: found.copy.id,
+      eventId: ref.eventId,
+      start: values.start,
+      end: values.end,
+      allDay: found.copy.allDay,
+      creatorId: values.creatorId,
+      inviteeUserIds: values.inviteeUserIds,
+      inviteeDepartmentIds: values.inviteeDepartments,
+      ownerOnlyEdits: values.ownerOnlyEdits,
+    };
+    return performEventUpdate({
+      session,
+      ref: storedRef,
+      normalized,
+      effectiveInput,
+      titleContext,
+      eventId: ref.eventId,
+      method: "setEventRegistration",
+      mode: "registration",
+      extraAudit: {
+        registration: intent === "register" ? "Registered" : "Deregistered",
+      },
+    });
+  } catch (error) {
+    return { ok: false, error: describeError(error, "Could not update registration") };
+  }
+}
+
 /** Delete every linked copy of a logical event. */
 export async function deleteEvent(ref: EventRef): Promise<EventActionResult> {
   const session = await requireSession();
@@ -738,14 +954,27 @@ export async function deleteEvent(ref: EventRef): Promise<EventActionResult> {
       return { target, googleCalendarId, found };
     });
 
+    for (const { found } of reads) {
+      if (firstCopy === null && found.length > 0) {
+        firstCopy = found[0];
+      }
+    }
+
+    // Registration events are organizer/admin-only; enforce it against the
+    // stored copy before any delete runs.
+    if (firstCopy && (await isRegistrationEvent(firstCopy))) {
+      const people = parseEventPeople(firstCopy.description);
+      const registrationError = registrationEditGuard(session, people.creatorId);
+      if (registrationError) {
+        return { ok: false, error: registrationError };
+      }
+    }
+
     for (const { target, googleCalendarId, found } of reads) {
       if (!googleCalendarId) {
         continue;
       }
       affectedGoogleIds.add(googleCalendarId);
-      if (firstCopy === null && found.length > 0) {
-        firstCopy = found[0];
-      }
       for (const copy of found) {
         await integration.deleteEvent(googleCalendarId, copy.id);
         deletedGoogleEventIds.push(copy.id);

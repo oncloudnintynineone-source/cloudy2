@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.335 (minimized draft docks in the mobile FAB row)** is shipped.
+- All work through changelog **1.346 (registration events)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -2148,6 +2148,15 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   paints without a round-trip; re-planned when the month anchor changes via a new
   `UI_STATE_CHANGED_EVENT` from `writeUiState`. Docs: `docs/loading-transitions.md`
   §1.15, `AGENTS.md`.
+
+- 1.346 **Registration events**: event types can be marked **Open for registration**
+  (`event_types.registration_enabled`). Events of that type are organizer/admin-only for
+  parameters and roster management; everyone else can only register/deregister
+  themselves through a narrow `setEventRegistration` action that reuses the shared update
+  pipeline (copy reconciliation, audit/webhook, KAH, cache). Registration types force
+  participants on, may be created with zero registrants, and no longer auto-add the
+  organizer. Docs: `docs/registration-events.md`, `docs/event-lifecycle.md` §1.14,
+  `docs/event-mutations.md` §1.11.
 
 ## 1.4 Open items & next steps
 

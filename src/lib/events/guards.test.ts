@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { canChangeLock, modifyGuard, type EventModifyTarget, type GuardSession } from "./guards";
+import {
+  canChangeLock,
+  modifyGuard,
+  registrationEditGuard,
+  type EventModifyTarget,
+  type GuardSession,
+} from "./guards";
 
 const admin: GuardSession = { user: { id: "admin-1", role: "admin" } };
 const alice: GuardSession = { user: { id: "alice", role: "user" } };
@@ -25,9 +31,7 @@ function target(overrides: Partial<EventModifyTarget> = {}): EventModifyTarget {
 describe("modifyGuard", () => {
   it("allows admins to modify any event, ignoring the owner-only lock", () => {
     expect(modifyGuard(admin, target({ creatorId: "alice" }))).toBeNull();
-    expect(
-      modifyGuard(admin, target({ creatorId: "alice", ownerOnlyEdits: true })),
-    ).toBeNull();
+    expect(modifyGuard(admin, target({ creatorId: "alice", ownerOnlyEdits: true }))).toBeNull();
     expect(modifyGuard(admin, target({}))).toBeNull();
   });
 
@@ -36,16 +40,12 @@ describe("modifyGuard", () => {
   });
 
   it("allows the organizer to modify even when the owner-only lock is on", () => {
-    expect(
-      modifyGuard(alice, target({ creatorId: "alice", ownerOnlyEdits: true })),
-    ).toBeNull();
+    expect(modifyGuard(alice, target({ creatorId: "alice", ownerOnlyEdits: true }))).toBeNull();
   });
 
   it("blocks everyone else when the organizer locked the event", () => {
     const locked = target({ creatorId: "alice", ownerOnlyEdits: true });
-    expect(modifyGuard(bob, locked, memberships)).toBe(
-      "Only the organizer can edit this event",
-    );
+    expect(modifyGuard(bob, locked, memberships)).toBe("Only the organizer can edit this event");
     expect(modifyGuard(bob, { ...locked, inviteeUserIds: ["bob"] }, memberships)).toBe(
       "Only the organizer can edit this event",
     );
@@ -62,12 +62,20 @@ describe("modifyGuard", () => {
     const event = target({ creatorId: "alice", inviteeDepartmentIds: ["cal-1"] });
     expect(modifyGuard(alice, event, memberships)).toBeNull();
     expect(modifyGuard(bob, event, memberships)).toBeNull();
-    expect(modifyGuard(bob, target({ creatorId: "alice", inviteeDepartmentIds: ["cal-2"] }), memberships)).toBeNull();
+    expect(
+      modifyGuard(
+        bob,
+        target({ creatorId: "alice", inviteeDepartmentIds: ["cal-2"] }),
+        memberships,
+      ),
+    ).toBeNull();
   });
 
   it("rejects someone who is neither organizer, attendee, nor tagged-department member", () => {
     const event = target({ creatorId: "alice" });
-    expect(modifyGuard(bob, event, memberships)).toBe("You can only edit or delete events you're on");
+    expect(modifyGuard(bob, event, memberships)).toBe(
+      "You can only edit or delete events you're on",
+    );
     const event2 = target({ creatorId: "alice", inviteeDepartmentIds: ["cal-2"] });
     expect(modifyGuard({ user: { id: "carol", role: "user" } }, event2, memberships)).toBe(
       "You can only edit or delete events you're on",
@@ -76,7 +84,9 @@ describe("modifyGuard", () => {
 
   it("resolves department membership from the roster only (unknown departments deny)", () => {
     const event = target({ creatorId: "alice", inviteeDepartmentIds: ["cal-9"] });
-    expect(modifyGuard(bob, event, memberships)).toBe("You can only edit or delete events you're on");
+    expect(modifyGuard(bob, event, memberships)).toBe(
+      "You can only edit or delete events you're on",
+    );
   });
 
   it("keeps creator-less, people-less events (legacy/external) admin-only", () => {
@@ -97,5 +107,21 @@ describe("canChangeLock", () => {
   it("blocks everyone else", () => {
     expect(canChangeLock(bob, "alice")).toBe(false);
     expect(canChangeLock(alice, null)).toBe(false);
+  });
+});
+
+describe("registrationEditGuard", () => {
+  it("allows admins and the organizer", () => {
+    expect(registrationEditGuard(admin, "alice")).toBeNull();
+    expect(registrationEditGuard(alice, "alice")).toBeNull();
+  });
+
+  it("blocks participants and bystanders", () => {
+    expect(registrationEditGuard(bob, "alice")).toBe(
+      "This event is open for registration — only the organizer can edit it",
+    );
+    expect(registrationEditGuard(bob, null)).toBe(
+      "This event is open for registration — only the organizer can edit it",
+    );
   });
 });

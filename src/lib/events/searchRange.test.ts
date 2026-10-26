@@ -34,6 +34,7 @@ function event(overrides: {
       inviteeUserIds: [],
       inviteeDepartmentIds: [],
       ownerOnlyEdits: false,
+      registrationEnabled: false,
       rawTitle: null,
       timeOption: allDay ? "full" : "range",
       startAmPm: null,
@@ -93,7 +94,11 @@ describe("filterRangeForSearch", () => {
 
   it("returns matches in relevance order (best score first)", () => {
     const ranked = [
-      event({ start: "2026-09-24 09:00:00", end: "2026-09-24 10:00:00", title: "Quarterly report" }),
+      event({
+        start: "2026-09-24 09:00:00",
+        end: "2026-09-24 10:00:00",
+        title: "Quarterly report",
+      }),
       event({ start: "2026-09-24 11:00:00", end: "2026-09-24 12:00:00", title: "Report" }),
     ];
     const result = filterRangeForSearch(ranked, "2026-09-24", "2026-09-24", "report");

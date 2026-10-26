@@ -33,6 +33,7 @@ function makeEvent(
     overseas: overrides.overseas ?? false,
     pinned: overrides.pinned ?? false,
     ownerOnlyEdits: overrides.ownerOnlyEdits ?? false,
+    registrationEnabled: false,
     location: overrides.location ?? "",
     external: overrides.external ?? false,
   };
@@ -71,10 +72,7 @@ describe("gridWeekAllDayLayout", () => {
   });
 
   it("stacks two overlapping full-day events into two lanes", () => {
-    const layout = gridWeekAllDayLayout(
-      [allDayOn(WEEK[1], "A"), allDayOn(WEEK[1], "B")],
-      WEEK,
-    );
+    const layout = gridWeekAllDayLayout([allDayOn(WEEK[1], "A"), allDayOn(WEEK[1], "B")], WEEK);
     expect(layout.laneCount).toBe(2);
     expect(layout.hidden).toEqual([]);
   });
@@ -88,10 +86,7 @@ describe("gridWeekAllDayLayout", () => {
   });
 
   it("shares a lane across non-overlapping days", () => {
-    const layout = gridWeekAllDayLayout(
-      [allDayOn(WEEK[0], "Mon"), allDayOn(WEEK[3], "Thu")],
-      WEEK,
-    );
+    const layout = gridWeekAllDayLayout([allDayOn(WEEK[0], "Mon"), allDayOn(WEEK[3], "Thu")], WEEK);
     expect(layout.laneCount).toBe(1);
     expect(layout.hidden).toEqual([]);
   });

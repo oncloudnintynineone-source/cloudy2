@@ -22,7 +22,8 @@ covered in [`events-cache.md`](events-cache.md).
 - [1.8 Audit integration](#18-audit-integration)
 - [1.9 Cache invalidation & revalidation](#19-cache-invalidation--revalidation)
 - [1.10 Pure helpers & testing](#110-pure-helpers--testing)
-- [1.11 File index & related docs](#111-file-index--related-docs)
+- [1.11 Registration mutations](#111-registration-mutations)
+- [1.12 File index & related docs](#112-file-index--related-docs)
 
 ## 1.1 Problem
 
@@ -312,7 +313,34 @@ helpers (`resolveTargetCalendars`, `findCopies`, `legacyFallback`,
 `buildGcalEventInput`, `buildEventTitleContext`) are not unit-tested — they require a
 live runtime, per the repo convention.
 
-## 1.11 File index & related docs
+## 1.11 Registration mutations
+
+Registration-enabled event types add one server action,
+`setEventRegistration(ref, "register" | "deregister")` (`actions.ts`). It:
+
+1. re-reads a stored copy through the uncached Google path;
+2. resolves the copy's type and rejects unless `registration_enabled` is on;
+3. rebuilds the form values from the stored notes (never from the client), then
+   toggles **only** the session user's `inviteeUserIds` entry;
+4. delegates to the shared `performEventUpdate` pipeline in a `registration`
+   mode that skips the organizer-only registration guard (the action already
+   enforced self-only) and allows an empty roster.
+
+Because it reuses the update pipeline, copy reconciliation, title rendering,
+audit (`event.update` with a `registration` context field), the
+`event.updated` webhook, KAH checks, notifications, cache invalidation and
+`revalidatePath("/dashboard")` all behave exactly like an ordinary edit.
+
+`updateEvent` and `deleteEvent` apply the organizer/admin-only restriction
+authoritatively **after** reading the first stored copy and before any write
+(`registrationEditGuard`), so a forged `EventRef` cannot bypass it. Registration
+events may also be created with zero participants, and their target set always
+includes the organizer's home department (without making the organizer a
+participant), so the event keeps a stable home as registrants come and go.
+
+See [`registration-events.md`](registration-events.md) for the full model.
+
+## 1.12 File index & related docs
 
 | File | Role |
 | ---- | ---- |
@@ -321,7 +349,8 @@ live runtime, per the repo convention.
 | `src/lib/events/eventAudit.ts` | Audit snapshot builders (pure) |
 | `src/lib/events/eventTitle.ts` | `renderEventTitle` — title for write + audit (pure) |
 | `src/lib/events/notes.ts` | Notes codec — group-id identity, before-state (pure) |
-| `src/lib/events/guards.ts` | Access guards (pure) |
+| `src/lib/events/guards.ts` | Access guards (pure), incl. `registrationEditGuard` |
+| `src/lib/events/registration.ts` | Registration roster toggle + copy→form rebuild (pure) |
 | `src/lib/events/validate.ts` | Form validation (pure) |
 | `src/lib/events/datetime.ts` | Ranges + months for invalidation (pure) |
 | `src/lib/audit/diff.ts` | `diffFields` before/after diff (pure) |
@@ -338,6 +367,8 @@ Related docs:
 - [`audit-log.md`](audit-log.md) — the audit rows these mutations write, rendered.
 - [`event-history.md`](event-history.md) — the per-event history and My Events
   pages that read these rows back.
+- [`registration-events.md`](registration-events.md) — the self-registration model,
+  permissions, zero-participant semantics and limitations.
 - [`roster-sharing.md`](roster-sharing.md) — the department calendars (Google ACLs)
   the copies live in.
 - `progress-archive.md` — phase write-ups: 1.16 (events), 1.20 (cross-department copies),

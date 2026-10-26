@@ -195,7 +195,9 @@ async function resolveClashContext(
   const effectiveInput = resolveEffectiveInput(normalized, titleContext);
   // No department calendars derive — the mutation itself would be rejected
   // ("Assign yourself to a department or tag an invitee"), so nothing to warn about.
-  const targets = await resolveTargetCalendars(effectiveInput, request.ref?.calendarId ?? null);
+  const targets = await resolveTargetCalendars(effectiveInput, request.ref?.calendarId ?? null, {
+    includeCreatorDepartment: titleContext.registrationEnabled,
+  });
   if (targets.length === 0) {
     return null;
   }

@@ -16,6 +16,8 @@ export interface EventTypeOption {
   allowedLocations: LocationCategory[];
   showRemarks: boolean;
   showInvitees: boolean;
+  /** Whether events of this type are open for self-registration. */
+  registrationEnabled: boolean;
   /** Whether the wizard shows the Location step for this type (off = skip). */
   showLocation: boolean;
   /** Admin-pinned event color, null = the deterministic default. */

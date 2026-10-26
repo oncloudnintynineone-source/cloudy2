@@ -28,6 +28,7 @@ function makeEvent(id: string, start: string, end: string, allDay = false): Cale
       overseas: false,
       pinned: false,
       ownerOnlyEdits: false,
+      registrationEnabled: false,
       location: "",
       external: false,
     },
@@ -100,10 +101,6 @@ describe("eventsOnDay", () => {
       makeEvent("spanning", "2026-08-19 00:00:00", "2026-08-23 00:00:00", true),
       makeEvent("day-after-alm", "2026-08-22 00:00:00", "2026-08-23 00:00:00", true),
     ];
-    expect(eventsOnDay(events, D).map((e) => e.id)).toEqual([
-      "day-timed",
-      "day-alm",
-      "spanning",
-    ]);
+    expect(eventsOnDay(events, D).map((e) => e.id)).toEqual(["day-timed", "day-alm", "spanning"]);
   });
 });

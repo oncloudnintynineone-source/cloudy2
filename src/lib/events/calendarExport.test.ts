@@ -33,6 +33,7 @@ function makeEvent(
       inviteeUserIds: [],
       inviteeDepartmentIds: [],
       ownerOnlyEdits: false,
+      registrationEnabled: false,
       rawTitle: opts.rawTitle ?? null,
       timeOption: opts.timeOption ?? (allDay ? "full" : "range"),
       startAmPm: null,

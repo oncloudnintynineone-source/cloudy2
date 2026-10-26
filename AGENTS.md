@@ -130,6 +130,13 @@ doc content here.
   (`activeMembershipsByDepartment`); the notes `ownerOnlyEdits` flag locks to the organizer
   (only organizer/admin may set/clear it). Creator-less, people-less events are admin-only.
   Design: [docs/event-lifecycle.md](docs/event-lifecycle.md), [docs/event-mutations.md](docs/event-mutations.md).
+- **Registration events:** an event type may be marked **Open for registration**
+  (`event_types.registration_enabled`). Events of that type are organizer/admin-only for
+  parameters and roster management; everyone else may only register/deregister
+  themselves as participants (a narrow `setEventRegistration` toggle around the shared
+  update pipeline, never a full edit). Registration types force participants on, may be
+  created with zero registrants, and do not auto-add the organizer. Design:
+  [docs/registration-events.md](docs/registration-events.md).
 - **Optimistic mutations:** the dashboard renders a short-lived stand-in chip at confirm
   (not after the Google write) by merging an `optimisticOps` overlay into the server
   `events` prop — pure engine + builder in `src/lib/events/optimistic.ts` (client-safe,

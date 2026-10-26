@@ -36,6 +36,7 @@ function calendarEvent(overrides: {
       inviteeUserIds: overrides.inviteeUserIds ?? [],
       inviteeDepartmentIds: [],
       ownerOnlyEdits: false,
+      registrationEnabled: false,
       rawTitle: "Event",
       timeOption: "range",
       startAmPm: null,

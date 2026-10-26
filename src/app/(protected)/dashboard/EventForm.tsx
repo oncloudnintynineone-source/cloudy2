@@ -47,10 +47,7 @@ import {
 import type { EventClashCheckRequest } from "@/lib/events/clashActions";
 import { fetchRecentLocations } from "@/lib/events/recentLocations";
 import { EventClashCheck } from "./EventClashCheck";
-import {
-  WIZARD_BODY_HEIGHT_DESKTOP,
-  WIZARD_BODY_HEIGHT_MOBILE,
-} from "./eventFormLayout";
+import { WIZARD_BODY_HEIGHT_DESKTOP, WIZARD_BODY_HEIGHT_MOBILE } from "./eventFormLayout";
 import { subOneDay } from "@/lib/events/datetime";
 import {
   buildOptimisticEvent,
@@ -335,7 +332,7 @@ export function EventForm({
         inviteeUserIds: [],
         inviteeDepartments: [],
         invitees:
-          selectedType && selectedType.showInvitees === false
+          selectedType && selectedType.showInvitees === false && !selectedType.registrationEnabled
             ? []
             : [
                 ...event.payload.inviteeDepartmentIds.map((id) => `dept:${id}`),
@@ -379,17 +376,20 @@ export function EventForm({
         end: allDay ? `${subOneDay(src.end.slice(0, 10))} 00:00:00` : src.end,
         eventType: src.payload.eventType ?? "",
         // A duplicate is a brand-new event owned by the acting user — the
-        // source organizer never carries over (source attendees do).
+        // source organizer never carries over. Registrations are per-event, so
+        // a duplicated registration event starts with an empty roster.
         creatorId: currentUser,
         inviteeUserIds: [],
         inviteeDepartments: [],
         invitees:
           selectedType && selectedType.showInvitees === false
             ? []
-            : [
-                ...src.payload.inviteeDepartmentIds.map((id) => `dept:${id}`),
-                ...src.payload.inviteeUserIds.map((id) => `user:${id}`),
-              ],
+            : selectedType?.registrationEnabled
+              ? []
+              : [
+                  ...src.payload.inviteeDepartmentIds.map((id) => `dept:${id}`),
+                  ...src.payload.inviteeUserIds.map((id) => `user:${id}`),
+                ],
         outOfCamp: clamped.outOfCamp,
         overseas: clamped.overseas,
         pinned: src.payload.pinned,
@@ -478,6 +478,7 @@ export function EventForm({
   // editing can't silently drop them — see `mergeInviteeSelection`. The
   // organizer is NOT forced in: attendees are exactly what was picked.
   function applyInviteePicker(values: Record<string, string[]>) {
+    autoSeededSelfRef.current = false;
     form.setFieldValue(
       "invitees",
       mergeInviteeSelection(
@@ -508,6 +509,8 @@ export function EventForm({
   );
 
   const selectedType = sortedEventTypes.find((type) => type.name === form.values.eventType) ?? null;
+  /** Whether the selected type is open for self-registration. */
+  const registrationType = selectedType?.registrationEnabled === true;
   const allowedOptions: TimeOption[] = selectedType ? selectedType.timeOptions : ["range"];
   const effectiveTimeOption = resolveTimeOption(allowedOptions, form.values.timeOption);
   /**
@@ -527,7 +530,11 @@ export function EventForm({
   /** Whether the wizard shows the Remarks step (per-type toggle). */
   const showRemarksStep = selectedType ? selectedType.showRemarks !== false : true;
   /** Whether the wizard shows the Participants step (per-type toggle). */
-  const showInviteesStep = selectedType ? selectedType.showInvitees !== false : true;
+  const showInviteesStep = registrationType
+    ? true
+    : selectedType
+      ? selectedType.showInvitees !== false
+      : true;
   /**
    * The category a hidden-location type pins every event to (its sole allowed
    * category); null when the step is still shown or no type is selected.
@@ -582,6 +589,10 @@ export function EventForm({
   // the top even if the previous step had scrolled deep (a long type list, the
   // review step, ...).
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  // True while the create form's initial self-participant is still untouched
+  // (edit/duplicate forms never auto-seed). Switching to a registration type
+  // clears that seed; a list the user edited is left alone.
+  const autoSeededSelfRef = useRef(!isEdit && templateEvent === null);
 
   // On a step change: reset the body scroll and announce the arrival through
   // the shell's polite live region (the step indicator alone is not enough for
@@ -786,7 +797,21 @@ export function EventForm({
       form.setFieldValue("title", "");
     }
     // A type with invitees disabled carries no attendees beyond the creator.
-    if (type && type.showInvitees === false) {
+    // Registration types always show participants, even if a stale flag says
+    // otherwise.
+    if (type && type.showInvitees === false && !type.registrationEnabled) {
+      form.setFieldValue("invitees", []);
+    }
+    // The organizer is not registered automatically for a registration event.
+    // Drop the create form's untouched self seed when switching to such a type;
+    // a list the user has edited is left alone.
+    if (
+      type?.registrationEnabled &&
+      autoSeededSelfRef.current &&
+      form.values.invitees.length === 1 &&
+      form.values.invitees[0] === `user:${currentUser}`
+    ) {
+      autoSeededSelfRef.current = false;
       form.setFieldValue("invitees", []);
     }
   }
@@ -1045,6 +1070,7 @@ export function EventForm({
       // reach zero). Bounce back to the step before building any optimistic
       // chip — a blocked save must leave no stand-in behind.
       if (
+        !registrationType &&
         showInviteesStep &&
         payload.inviteeUserIds.length === 0 &&
         payload.inviteeDepartments.length === 0
@@ -1086,6 +1112,7 @@ export function EventForm({
         // that exact string, so the stand-in matches the authoritative chip.
         title: previewTitles.view,
         eventTypeColor: selectedType?.color ?? null,
+        registrationEnabled: registrationType,
       });
       onOptimistic(optimisticUpsert(optimisticId, optimisticEvent));
 
@@ -1366,7 +1393,7 @@ export function EventForm({
             key: "people",
             span: 6,
             node: reviewDef(
-              "Participants",
+              registrationType ? "Registered" : "Participants",
               <Group gap={6} wrap="wrap">
                 {reviewPeople.map((person) => (
                   <Badge
@@ -1414,7 +1441,7 @@ export function EventForm({
           },
         ]
       : []),
-    ...(form.values.pinned || form.values.ownerOnlyEdits
+    ...(form.values.pinned || form.values.ownerOnlyEdits || registrationType
       ? [
           {
             key: "other-settings",
@@ -1427,7 +1454,12 @@ export function EventForm({
                     Pinned
                   </Badge>
                 )}
-                {form.values.ownerOnlyEdits && (
+                {registrationType && (
+                  <Badge variant="light" color="accent">
+                    Registration event
+                  </Badge>
+                )}
+                {!registrationType && form.values.ownerOnlyEdits && (
                   <Badge variant="light" color="red">
                     Organizer-only editing
                   </Badge>
@@ -1667,8 +1699,12 @@ export function EventForm({
             <Stack gap="sm">
               {inviteePickerGroups.length > 0 ? (
                 <PickerField
-                  label="Participants"
-                  description="Participants can edit this event too. You're in by default — remove yourself if you won't take part; an event must keep at least one participant or department"
+                  label={registrationType ? "Registered attendees" : "Participants"}
+                  description={
+                    registrationType
+                      ? "Registered attendees. The organizer is not added automatically — add yourself only if you'll attend. People can register themselves from the event; only you and admins can edit it."
+                      : "Participants can edit this event too. You're in by default — remove yourself if you won't take part; an event must keep at least one participant or department"
+                  }
                   items={inviteeSummaryItems}
                   onOpen={() => setInviteePickerOpen(true)}
                 />
@@ -1690,12 +1726,13 @@ export function EventForm({
                       <IconUserPlus size={14} stroke={1.5} />
                     )
                   }
-                  onClick={() =>
+                  onClick={() => {
+                    autoSeededSelfRef.current = false;
                     form.setFieldValue(
                       "invitees",
                       toggleInviteeUser(form.values.invitees, currentUser),
-                    )
-                  }
+                    );
+                  }}
                 >
                   {selfIncluded ? "Remove myself" : "Add myself"}
                 </Button>
@@ -1773,16 +1810,23 @@ export function EventForm({
                 }
                 {...form.getInputProps("pinned", { type: "checkbox" })}
               />
-              {canSetOwnerLock && (
-                <Switch
-                  label={
-                    effectiveCreatorId === currentUser
-                      ? "Only I can edit this event"
-                      : "Only the organizer can edit this event"
-                  }
-                  description="Participants and tagged department members lose edit rights; admins always keep them"
-                  {...form.getInputProps("ownerOnlyEdits", { type: "checkbox" })}
-                />
+              {registrationType ? (
+                <Text size="sm" c="dimmed">
+                  Registration event — only you and admins can edit it or manage participants.
+                  Everyone else can register or deregister themselves.
+                </Text>
+              ) : (
+                canSetOwnerLock && (
+                  <Switch
+                    label={
+                      effectiveCreatorId === currentUser
+                        ? "Only I can edit this event"
+                        : "Only the organizer can edit this event"
+                    }
+                    description="Participants and tagged department members lose edit rights; admins always keep them"
+                    {...form.getInputProps("ownerOnlyEdits", { type: "checkbox" })}
+                  />
+                )
               )}
             </Stack>
           </div>

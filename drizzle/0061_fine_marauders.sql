@@ -1,0 +1,1 @@
+ALTER TABLE "event_types" ADD COLUMN "registration_enabled" boolean DEFAULT false NOT NULL;

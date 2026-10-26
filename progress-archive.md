@@ -9545,3 +9545,41 @@ Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` pass.
 
 Docs: `pinned-events.md` §1.3, `event-search.md` §1.9,
 `event-lifecycle.md` §1.4.2, `loading-transitions.md` §1.7.
+
+## 1.346 Registration events
+
+**Goal.** Support an alternate, sign-up style event type without introducing a second
+event store: the organizer/admin control parameters and the roster, while ordinary users
+get exactly one action — register or deregister themselves.
+
+**Implementation.**
+
+- `event_types.registration_enabled` (migration `0061`, default `false`), edited as
+  **Open for registration** in Settings → Event Types. The flag forces `show_invitees`
+  on, is shown as a Registration badge, and is resolved at read time into the event
+  payload (`CalendarEventPayload.registrationEnabled`).
+- New pure `registrationEditGuard` (organizer/admin only) plus an authoritative check
+  inside `performEventUpdate` / `deleteEvent`: the first stored copy's type is resolved
+  from the notes before any write, so a forged client `EventRef` cannot bypass the
+  restriction.
+- `updateEvent`'s post-validation pipeline was extracted into `performEventUpdate`.
+  The new `setEventRegistration(ref, intent)` re-reads a stored copy, verifies the type,
+  rebuilds the form values from the notes (`registration.ts`), toggles only the session
+  user's `inviteeUsers` entry, and delegates to the shared pipeline. Audit is an
+  `event.update` participant diff with a `registration` context field; the
+  `event.updated` webhook, KAH check, notifications and cache invalidation follow.
+- Registration types may be created with zero participants (target fallback: the
+  organizer's department), never auto-add the organizer, and clear the roster when
+  duplicated. The wizard hides the owner-only lock and explains the rule.
+- Event details show a Registration badge, label the roster “Registered (N)”, and give
+  non-organizer/non-admin users a Register/Deregister button instead of edit actions.
+  `?edit=` links for these events open the details modal for those users.
+- Dashboard snapshot version bumped to 8; optimistic events carry the flag.
+
+**Verification.** `pnpm lint`, `pnpm typecheck`, `pnpm test` (122 files / 1614 tests),
+`pnpm db:generate` (migration `0061_fine_marauders.sql`). Unit coverage added for the
+guard, roster toggle, copy→form rebuild, registration payload flag and optimistic flag.
+
+**Limitations.** Concurrent self-registrations are last-write-wins (Google notes
+read-modify-write); type renames still orphan per-type flags on existing events
+(pre-existing); zero-registrant discovery relies on the event's calendars / pinning.

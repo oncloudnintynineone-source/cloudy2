@@ -70,6 +70,24 @@ export function modifyGuard(
 }
 
 /**
+ * Whether the actor may edit/delete a **registration-enabled** event. These
+ * events are organizer/admin-only: participants may register or deregister
+ * themselves, but must not change the event or manage the roster.
+ */
+export function registrationEditGuard(
+  session: GuardSession,
+  creatorId: string | null,
+): string | null {
+  if (session.user.role === "admin") {
+    return null;
+  }
+  if (creatorId !== null && creatorId === session.user.id) {
+    return null;
+  }
+  return "This event is open for registration — only the organizer can edit it";
+}
+
+/**
  * Whether the actor may change the owner-only edit lock of an event: the
  * organizer themselves or an admin (admins bypass the lock, so they may also
  * set or clear it).

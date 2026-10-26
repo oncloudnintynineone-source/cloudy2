@@ -28,6 +28,7 @@ function makeEvent(id: string, start: string, end: string): CalendarEvent {
       overseas: false,
       pinned: false,
       ownerOnlyEdits: false,
+      registrationEnabled: false,
       location: "",
       external: false,
     },

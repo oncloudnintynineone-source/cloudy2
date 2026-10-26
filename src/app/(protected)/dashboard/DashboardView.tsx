@@ -1261,7 +1261,17 @@ function DashboardViewImpl({
 
   const initialDetailEvent = resolveDeepLinkEvent(initialDetailEventId);
 
-  const [detailEvent, setDetailEvent] = useState<CalendarEvent | null>(initialDetailEvent);
+  // Registration events are organizer/admin-only. A `?edit=` link from a
+  // participant or bystander opens the details modal instead of the wizard;
+  // the server action enforces the same rule authoritatively.
+  const canOpenEditForm = (event: CalendarEvent): boolean =>
+    !event.payload.registrationEnabled || isAdmin || event.payload.creatorId === currentUser;
+  const initialEditBlocked =
+    initialEditEvent !== null && !canOpenEditForm(initialEditEvent) ? initialEditEvent : null;
+
+  const [detailEvent, setDetailEvent] = useState<CalendarEvent | null>(
+    initialDetailEvent ?? initialEditBlocked,
+  );
   // A `?event=` deep link opens the details modal **immediately** as a skeleton
   // and resolves the target in the background, matching the app's standard
   // "open the modal, fetch underneath" pattern (the Double Booking detail). The
@@ -1273,7 +1283,7 @@ function DashboardViewImpl({
   // Mount the lazy details modal on first open, then keep it mounted so its
   // close animation is preserved. A deep link mounts it immediately.
   const [detailEverOpened, setDetailEverOpened] = useState(
-    initialDetailEvent !== null || initialDetailEventId !== null,
+    initialDetailEvent !== null || initialDetailEventId !== null || initialEditBlocked !== null,
   );
   if ((detailEvent !== null || detailLinkPending) && !detailEverOpened) {
     setDetailEverOpened(true);
@@ -1284,7 +1294,7 @@ function DashboardViewImpl({
   const [agendaOriginRect, setAgendaOriginRect] = useState<Rect | null>(null);
   const [formOriginRect, setFormOriginRect] = useState<Rect | null>(null);
   const [formState, setFormState] = useState<FormState | null>(() =>
-    initialEditEvent
+    initialEditEvent && !initialEditBlocked
       ? {
           event: initialEditEvent,
           templateEvent: null,
@@ -2236,6 +2246,19 @@ function DashboardViewImpl({
     () => applyOptimisticOps(events, optimisticOps),
     [events, optimisticOps],
   );
+
+  // Keep an open details modal in sync with the current event data. A
+  // register/deregister revalidates the grid, and the modal's roster/title
+  // should update in place rather than waiting for a close/reopen. This is the
+  // same render-phase derived-state pattern used for `detailEvent` above.
+  if (detailEvent !== null && detailEvent.payload.eventId !== null) {
+    const freshDetail = viewEvents.find(
+      (event) => event.payload.eventId === detailEvent.payload.eventId,
+    );
+    if (freshDetail && freshDetail !== detailEvent) {
+      setDetailEvent(freshDetail);
+    }
+  }
 
   // The latest merged events, so the post-save "View event" pill resolves
   // against current data. The pill stores its `onAction` in provider state, so
@@ -3270,6 +3293,14 @@ function DashboardViewImpl({
    * defer the viewport capture / focus work to the confirm handler.
    */
   function applyDeepLinkEdit(found: CalendarEvent) {
+    if (!canOpenEditForm(found)) {
+      // The link cannot open the wizard for this actor: show the event details
+      // instead (where the registration action lives). Leave any open draft
+      // alone — a blocked edit link must never discard it.
+      setDetailLinkPending(false);
+      setDetailEvent(found);
+      return;
+    }
     const start: PendingFormStart = {
       state: { event: found, templateEvent: null, defaultDate: found.start.slice(0, 10) },
       originRect: null,
@@ -5519,6 +5550,10 @@ function DashboardViewImpl({
             setDetailEvent(null);
             setAgendaDate(null);
             window.dispatchEvent(new CustomEvent(PINNED_EVENTS_CHANGED_EVENT));
+            notifyEventsChanged();
+            refreshAfterSave();
+          }}
+          onRegistrationChanged={() => {
             notifyEventsChanged();
             refreshAfterSave();
           }}

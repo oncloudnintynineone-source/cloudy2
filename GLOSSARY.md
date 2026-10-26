@@ -8,6 +8,7 @@ names in code, docs, and reviews.
 - [1. Dashboard navigation](#1-dashboard-navigation)
 - [2. Settings write](#2-settings-write)
 - [3. Dashboard snapshot](#3-dashboard-snapshot)
+- [4. Registration event](#4-registration-event)
 
 ## 1. Dashboard navigation
 
@@ -38,3 +39,14 @@ shape is **owned by** `src/lib/dashboard/snapshot.ts` as `DashboardSnapshot` (a 
 versioned contract), not derived from a component's props; the view adds its own
 view-local fields (URL period, zoom seeds, deep-link ids). Device-local one-shot state is
 excluded — the record carries its resolved period in the snapshot context.
+
+## 4. Registration event
+
+An event whose **event type** is marked *Open for registration*
+(`event_types.registration_enabled`). It uses the ordinary event/participant model — the
+roster is the participant list (`inviteeUsers`) — but the permission rule flips: only the
+organizer and admins may edit the event or manage participants, while every other user
+may only add/remove **themselves** through `setEventRegistration`. Registration types
+force participants on, may start with zero registrants (the organizer is not
+auto-registered), and keep the organizer's home department as a stable calendar target.
+See `docs/registration-events.md`.

@@ -12,10 +12,7 @@
  * - `json`: anything else — pretty-printed JSON fallback.
  */
 
-import {
-  isLocationCategory,
-  LOCATION_CATEGORY_LABELS,
-} from "@/lib/events/locationPolicy";
+import { isLocationCategory, LOCATION_CATEGORY_LABELS } from "@/lib/events/locationPolicy";
 import { isTimeOption, TIME_OPTION_LABELS } from "@/lib/events/timeOptions";
 import type { AuditLog } from "@/db/schema";
 
@@ -103,6 +100,8 @@ const FIELD_LABELS: Record<string, string> = {
   allowedLocations: "Allowed locations",
   showLocation: "Show location",
   showRemarks: "Show remarks",
+  registrationEnabled: "Open for registration",
+  registration: "Registration",
   excludeFromClash: "Exclude from conflict checks",
   userKeyword: "Login keyword",
   nameTemplate: "Name template",
@@ -159,7 +158,9 @@ export function valueString(key: string, value: unknown): string {
       .join(", ");
   }
   if (key === "timeOptions" && Array.isArray(value)) {
-    return value.map((entry) => (isTimeOption(entry) ? TIME_OPTION_LABELS[entry] : String(entry))).join(", ");
+    return value
+      .map((entry) => (isTimeOption(entry) ? TIME_OPTION_LABELS[entry] : String(entry)))
+      .join(", ");
   }
   if (typeof value === "boolean") {
     return value ? "Yes" : "No";
@@ -168,7 +169,9 @@ export function valueString(key: string, value: unknown): string {
     return value;
   }
   if (Array.isArray(value)) {
-    return value.map((entry) => (typeof entry === "string" ? entry : JSON.stringify(entry))).join(", ");
+    return value
+      .map((entry) => (typeof entry === "string" ? entry : JSON.stringify(entry)))
+      .join(", ");
   }
   return JSON.stringify(value);
 }
@@ -185,7 +188,10 @@ function isFlatValue(value: unknown): boolean {
   if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
     return true;
   }
-  return Array.isArray(value) && value.every((entry) => typeof entry === "string" || typeof entry === "number");
+  return (
+    Array.isArray(value) &&
+    value.every((entry) => typeof entry === "string" || typeof entry === "number")
+  );
 }
 
 function toValueLines(record: Record<string, unknown>): DetailValue[] {
@@ -212,7 +218,8 @@ export function formatAuditDetails(details: unknown): AuditDisplayDetails {
       const values = toValueLines(
         Object.fromEntries(
           Object.entries(details).filter(
-            ([key, value]) => key !== "before" && key !== "after" && key !== "changes" && isFlatValue(value),
+            ([key, value]) =>
+              key !== "before" && key !== "after" && key !== "changes" && isFlatValue(value),
           ),
         ),
       );
@@ -223,7 +230,13 @@ export function formatAuditDetails(details: unknown): AuditDisplayDetails {
       return { kind: "fields", lines: [], values: toValueLines(details), after: [], json: null };
     }
   }
-  return { kind: "json", lines: [], values: [], after: [], json: JSON.stringify(details ?? null, null, 2) };
+  return {
+    kind: "json",
+    lines: [],
+    values: [],
+    after: [],
+    json: JSON.stringify(details ?? null, null, 2),
+  };
 }
 
 /**
@@ -234,9 +247,7 @@ export function formatAuditDetails(details: unknown): AuditDisplayDetails {
 export function changeSummary(details: unknown, entityName: string | null): string | null {
   const formatted = formatAuditDetails(details);
   if (formatted.kind === "changes") {
-    return formatted.lines.length > 0
-      ? formatted.lines.map((line) => line.label).join(", ")
-      : null;
+    return formatted.lines.length > 0 ? formatted.lines.map((line) => line.label).join(", ") : null;
   }
   return entityName;
 }

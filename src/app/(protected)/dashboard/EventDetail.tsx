@@ -25,11 +25,13 @@ import {
   IconHistory,
   IconPencil,
   IconTrash,
+  IconUserMinus,
+  IconUserPlus,
 } from "@tabler/icons-react";
 
 import { EventHistoryModal } from "@/components/EventHistoryModal";
 import { LoadingStatus } from "@/components/LoadingStatus";
-import { deleteEvent, type EventActionOk } from "@/lib/events/actions";
+import { deleteEvent, setEventRegistration, type EventActionOk } from "@/lib/events/actions";
 import { buildEventIcs, buildGoogleCalendarUrl, icsFileName } from "@/lib/events/calendarExport";
 import { subOneDay } from "@/lib/events/datetime";
 import { prefetchEventHistory } from "@/lib/events/historyCache";
@@ -83,6 +85,8 @@ interface EventDetailProps {
   readOnly?: boolean;
   /** Invoked by the read-only "Open in calendar" action. */
   onOpenInCalendar?: (event: CalendarEvent) => void;
+  /** Refresh the surrounding calendar after a successful register/deregister. */
+  onRegistrationChanged?: () => void;
   /**
    * The event is still being fetched: opens the modal immediately and shows a
    * shaped skeleton instead of a spinner/dim (skeleton-only loading rule).
@@ -112,11 +116,17 @@ export function EventDetail({
   myActiveDepartmentIds,
   readOnly = false,
   onOpenInCalendar,
+  onRegistrationChanged,
   loading = false,
   zIndex,
 }: EventDetailProps) {
   const [confirmOpen, { open, close }] = useDisclosure(false);
   const [deleting, setDeleting] = useState(false);
+  const [registrationBusy, setRegistrationBusy] = useState(false);
+  const [registrationPatch, setRegistrationPatch] = useState<{
+    eventId: string;
+    inviteeUserIds: string[];
+  } | null>(null);
   // The shared history modal, opened by the History button (stacked above this
   // modal via zIndex, replacing the old navigation to the history page).
   const [historyEventId, setHistoryEventId] = useState<string | null>(null);
@@ -130,6 +140,7 @@ export function EventDetail({
   if (event && event !== prevEvent) {
     setPrevEvent(event);
     setDisplayEvent(event);
+    setRegistrationPatch(null);
   }
 
   const theme = useMantineTheme();
@@ -148,6 +159,13 @@ export function EventDetail({
 
   const showEvent = event ?? displayEvent;
   const payload = showEvent?.payload;
+  const registrationEnabled = payload?.registrationEnabled === true;
+  const effectiveInviteeUserIds =
+    payload && registrationPatch && payload.eventId === registrationPatch.eventId
+      ? registrationPatch.inviteeUserIds
+      : (payload?.inviteeUserIds ?? []);
+  const isRegistered = effectiveInviteeUserIds.includes(currentUserId);
+  const registeredCount = new Set(effectiveInviteeUserIds).size;
 
   const ownerName = payload && payload.creatorId ? (peopleNames[payload.creatorId] ?? null) : null;
   // Attendees are the full invitee list — an organizer who tagged themselves
@@ -155,7 +173,7 @@ export function EventDetail({
   // the event, not attendance). Id-keyed (not name-keyed) so the signed-in
   // user's badge is detectable even when display names collide.
   const peopleResolved = payload
-    ? [...new Set(payload.inviteeUserIds)].flatMap((id) => {
+    ? [...new Set(effectiveInviteeUserIds)].flatMap((id) => {
         const name = peopleNames[id];
         return name ? [{ id, name }] : [];
       })
@@ -167,18 +185,22 @@ export function EventDetail({
     : [];
   // Who may edit/delete/duplicate: admins always; otherwise the organizer, any
   // attendee, and active members of tagged departments — unless the organizer
-  // locked the event to themselves (admins bypass the lock). Mirrors the
-  // server-side modifyGuard.
+  // locked the event to themselves (admins bypass the lock). Registration
+  // events are organizer/admin-only; everyone else may only register.
+  // Mirrors the server-side modifyGuard + registrationEditGuard.
   const isCreator = payload ? payload.creatorId === currentUserId : false;
   const isOnEvent = payload
-    ? payload.inviteeUserIds.includes(currentUserId) ||
+    ? effectiveInviteeUserIds.includes(currentUserId) ||
       payload.inviteeDepartmentIds.some((id) => myActiveDepartmentIds.includes(id))
     : false;
   const canModify =
     isAdmin ||
     (payload !== undefined &&
-      (payload.ownerOnlyEdits ? isCreator : true) &&
-      (isCreator || isOnEvent));
+      (registrationEnabled
+        ? isCreator
+        : (payload.ownerOnlyEdits ? isCreator : true) && (isCreator || isOnEvent)));
+  const showRegistrationAction =
+    !readOnly && registrationEnabled && !canModify && Boolean(payload?.eventId);
   const endDisplay =
     showEvent && payload
       ? payload.allDay
@@ -214,6 +236,35 @@ export function EventDetail({
       }
     } finally {
       setDeleting(false);
+    }
+  }
+
+  async function handleRegistration() {
+    if (!showEvent || !payload?.eventId || registrationBusy) {
+      return;
+    }
+    const intent = isRegistered ? "deregister" : "register";
+    setRegistrationBusy(true);
+    try {
+      const result = await setEventRegistration(eventRefFromCalendarEvent(showEvent), intent);
+      if (result.ok) {
+        const next =
+          intent === "register"
+            ? [...new Set([...effectiveInviteeUserIds, currentUserId])]
+            : effectiveInviteeUserIds.filter((id) => id !== currentUserId);
+        setRegistrationPatch({ eventId: payload.eventId, inviteeUserIds: next });
+        notifications.show({
+          color: "green",
+          message: intent === "register" ? "Registered for event" : "Deregistered from event",
+        });
+        onRegistrationChanged?.();
+      } else {
+        notifications.show({ color: "red", message: result.error });
+      }
+    } catch {
+      notifications.show({ color: "red", message: "Could not update registration" });
+    } finally {
+      setRegistrationBusy(false);
     }
   }
 
@@ -278,6 +329,11 @@ export function EventDetail({
             </Text>
             <Group gap={6} wrap="wrap">
               {payload.eventType && <Badge variant="light">{payload.eventType}</Badge>}
+              {registrationEnabled && (
+                <Badge variant="light" color="accent">
+                  Registration event
+                </Badge>
+              )}
             </Group>
 
             {payload.external && (
@@ -297,7 +353,7 @@ export function EventDetail({
                   <Badge variant="light" color="brand">
                     {ownerName}
                   </Badge>
-                  {payload.ownerOnlyEdits && (
+                  {payload.ownerOnlyEdits && !registrationEnabled && (
                     <Badge variant="light" color="red">
                       Organizer-only editing
                     </Badge>
@@ -306,10 +362,10 @@ export function EventDetail({
               </>
             )}
 
-            {peopleResolved.length > 0 && (
+            {(registrationEnabled ? registeredCount > 0 : peopleResolved.length > 0) ? (
               <>
                 <Text size="xs" c="dimmed" fw={600}>
-                  Participants
+                  {registrationEnabled ? `Registered (${registeredCount})` : "Participants"}
                 </Text>
                 <Group gap={6} wrap="wrap">
                   {peopleResolved.map(({ id, name }) => (
@@ -323,7 +379,16 @@ export function EventDetail({
                   ))}
                 </Group>
               </>
-            )}
+            ) : registrationEnabled ? (
+              <>
+                <Text size="xs" c="dimmed" fw={600}>
+                  Registered (0)
+                </Text>
+                <Text size="sm" c="dimmed">
+                  No one has registered yet.
+                </Text>
+              </>
+            ) : null}
 
             {departmentNamesResolved.length > 0 && (
               <>
@@ -401,12 +466,37 @@ export function EventDetail({
                   </ActionIcon>
                 </Tooltip>
               </Group>
+            ) : showRegistrationAction ? (
+              <Stack gap="xs" mt="md">
+                <Text size="xs" c="dimmed">
+                  This event is open for registration. Only the organizer and admins can edit it.
+                </Text>
+                <Button
+                  fullWidth
+                  size="md"
+                  color={isRegistered ? "gray" : "brand"}
+                  variant={isRegistered ? "light" : "filled"}
+                  loading={registrationBusy}
+                  loaderProps={BUTTON_LOADER_PROPS}
+                  leftSection={
+                    isRegistered ? <IconUserMinus size={18} /> : <IconUserPlus size={18} />
+                  }
+                  onClick={handleRegistration}
+                >
+                  {isRegistered ? "Deregister" : "Register"}
+                </Button>
+                <Group justify="flex-end" gap="xs">
+                  <AddToCalendarMenu event={showEvent} />
+                </Group>
+              </Stack>
             ) : (
               <>
                 <Text size="xs" c="dimmed" mt="xs">
-                  {payload.ownerOnlyEdits && !isCreator
+                  {registrationEnabled
                     ? "Only the organizer can edit this event."
-                    : "You can view this event but not edit it."}
+                    : payload.ownerOnlyEdits && !isCreator
+                      ? "Only the organizer can edit this event."
+                      : "You can view this event but not edit it."}
                 </Text>
                 <Group justify="flex-end" gap="xs" mt="md">
                   <AddToCalendarMenu event={showEvent} />
@@ -501,12 +591,7 @@ function AddToCalendarMenu({ event }: { event: CalendarEvent }) {
     <Menu position="bottom-end" zIndex={400} transitionProps={popoverTransitionProps(motion)}>
       <Menu.Target>
         <Tooltip label="Add to other Calendars" position="top">
-          <ActionIcon
-            variant="light"
-            color="gray"
-            size="xl"
-            aria-label="Add to other Calendars"
-          >
+          <ActionIcon variant="light" color="gray" size="xl" aria-label="Add to other Calendars">
             <IconCalendarPlus size={22} />
           </ActionIcon>
         </Tooltip>

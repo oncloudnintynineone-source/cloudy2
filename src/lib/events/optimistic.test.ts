@@ -55,6 +55,7 @@ function baseEvent(
       overseas: false,
       pinned: false,
       ownerOnlyEdits: false,
+      registrationEnabled: false,
       location: "",
       external: false,
     },
@@ -77,7 +78,10 @@ describe("applyOptimisticOps", () => {
 
   it("does not mutate the base array", () => {
     const base = [baseEvent("a", "2026-08-21 08:00:00", "2026-08-21 09:00:00")];
-    const op = optimisticUpsert("op1", baseEvent("x", "2026-08-21 07:00:00", "2026-08-21 07:30:00"));
+    const op = optimisticUpsert(
+      "op1",
+      baseEvent("x", "2026-08-21 07:00:00", "2026-08-21 07:30:00"),
+    );
     applyOptimisticOps(base, [op]);
     expect(base.map((e) => e.id)).toEqual(["a"]);
   });
@@ -177,13 +181,19 @@ describe("applyOptimisticOps", () => {
         eventId: null,
       }),
     ];
-    const op = optimisticRemove("op1", { calendarId: "cal-1", googleEventId: "one", eventId: null });
+    const op = optimisticRemove("op1", {
+      calendarId: "cal-1",
+      googleEventId: "one",
+      eventId: null,
+    });
     const out = applyOptimisticOps(base, [op]);
     expect(ids(out)).toEqual(["cal-1:two"]);
   });
 
   it("applies create + delete ops from different mutations together", () => {
-    const base = [baseEvent("keep", "2026-08-21 08:00:00", "2026-08-21 09:00:00", { eventId: "keep" })];
+    const base = [
+      baseEvent("keep", "2026-08-21 08:00:00", "2026-08-21 09:00:00", { eventId: "keep" }),
+    ];
     const toDelete = baseEvent("gone", "2026-08-21 10:00:00", "2026-08-21 11:00:00", {
       googleEventId: "gone",
       eventId: "gone",
@@ -321,6 +331,18 @@ describe("buildOptimisticEvent", () => {
     expect(event.payload.creatorId).toBe("user-7");
     expect(event.payload.inviteeUserIds).toEqual([]);
     expect(event.payload.external).toBe(false);
+  });
+
+  it("carries the registration flag into the stand-in payload", () => {
+    const event = buildOptimisticEvent({
+      identity,
+      values: formValues(),
+      actingUserId: "user-7",
+      title: "Patrol A",
+      eventTypeColor: null,
+      registrationEnabled: true,
+    });
+    expect(event.payload.registrationEnabled).toBe(true);
   });
 
   it("clamps an inverted end to start (mirroring the server safety net)", () => {

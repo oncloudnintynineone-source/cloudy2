@@ -29,7 +29,8 @@ month cache is covered in [`events-cache.md`](events-cache.md).
 - [1.11 Time options & datetime math](#111-time-options--datetime-math)
 - [1.12 Add to calendar (personal copy)](#112-add-to-calendar-personal-copy)
 - [1.13 Pure helpers & testing](#113-pure-helpers--testing)
-- [1.14 File index & related docs](#114-file-index--related-docs)
+- [1.14 Registration events](#114-registration-events)
+- [1.15 File index & related docs](#115-file-index--related-docs)
 
 ## 1.1 Problem
 
@@ -406,6 +407,10 @@ Two layers, both pure and unit-tested.
 | ----- | ---- | ----- |
 | `modifyGuard(session, event, activeMembersByDepartment)` (`guards.ts`) | The single edit/delete/duplicate authorization (there is no "on behalf of" any more). Admins always pass, ignoring the owner lock. A creator-less event with no people (legacy/external) is admin-only. When the notes `ownerOnlyEdits` lock is set, only the organizer passes. Otherwise the organizer, every tagged attendee, and every **active member of each tagged department** (resolved from the active roster per action) pass. | "Only the organizer can edit this event" / "You can only edit or delete events you're on" / "You can only edit or delete events you created" |
 | `canChangeLock(session, creatorId)` (`guards.ts`) | Whether the actor may set/clear `ownerOnlyEdits`: the organizer or an admin. | — |
+
+For **registration-enabled** event types there is an additional restriction: even
+tagged attendees and members of tagged departments may only register/deregister
+themselves; edit/delete/duplicate is organizer/admin-only (§1.14).
 
 Server application: `createEvent` needs no guard (every signed-in user may create; the
 organizer is the acting session user). `updateEvent` and `deleteEvent` run
@@ -974,7 +979,23 @@ I/O-bound (not unit-tested, per the repo convention): `actions.ts` (the server
 actions), `queries.ts` (DB + cache reads, `mapCalendarItem`), `appUrl.ts`
 (`next/headers`), and the form/UI components.
 
-## 1.14 File index & related docs
+## 1.14 Registration events
+
+An event type may be marked **Open for registration** (`event_types.registration_enabled`).
+Events of such a type keep the ordinary event model — the organizer and admins
+set parameters and manage the participant list — but every other user may only
+add or remove themselves as a participant. Registration is therefore a narrow
+self-service toggle around the shared update pipeline, not a separate event
+store.
+
+Registration types force the Participants step on, may be created with zero
+participants (the organizer is not auto-added), keep the organizer's home
+department as a target so the event has a stable home, and hide the
+organizer-only lock switch in the wizard. The full permission matrix, storage semantics,
+target-calendar behavior, audit/webhook details and limitations live in
+[`registration-events.md`](registration-events.md).
+
+## 1.15 File index & related docs
 
 | File | Role |
 | ---- | ---- |

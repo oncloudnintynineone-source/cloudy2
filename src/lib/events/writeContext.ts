@@ -53,6 +53,8 @@ export interface EventTitleContext {
   showRemarks: boolean;
   /** Whether the event type shows the Participants field. */
   showInvitees: boolean;
+  /** Whether events of this type are open for self-registration. */
+  registrationEnabled: boolean;
   /**
    * Whether the wizard shows the Location step for this type. When false, the
    * type has a sole allowed location and events save in it with no specific
@@ -87,7 +89,11 @@ export async function buildEventTitleContext(input: EventFormValues): Promise<Ev
     getEventTypesByNames(eventTypeName ? [eventTypeName] : []),
   ]);
   const eventTypeRow = eventTypeName ? eventTypesByName.get(eventTypeName) : undefined;
-  const inviteesHidden = eventTypeRow ? eventTypeRow.showInvitees === false : false;
+  // Registration types always carry a participant roster, even if the stored
+  // flag combination is inconsistent (the event-type form/action force it on).
+  const registrationEnabled = eventTypeRow ? eventTypeRow.registrationEnabled === true : false;
+  const inviteesHidden =
+    eventTypeRow && eventTypeRow.showInvitees === false && !registrationEnabled;
   // Types with invitees disabled carry no attendees beyond the creator, so the
   // {people} token never names someone the event no longer has.
   const peopleUserIds = inviteesHidden
@@ -124,6 +130,7 @@ export async function buildEventTitleContext(input: EventFormValues): Promise<Ev
     allowedLocations: eventTypeRow ? eventTypeRow.allowedLocations : null,
     showRemarks: eventTypeRow ? eventTypeRow.showRemarks : true,
     showInvitees: eventTypeRow ? eventTypeRow.showInvitees : true,
+    registrationEnabled,
     showLocation: eventTypeRow ? eventTypeRow.showLocation : true,
     excludeFromClash: eventTypeRow ? eventTypeRow.excludeFromClash === true : false,
   };
@@ -160,7 +167,9 @@ async function resolveTargets(
  * Department calendars a logical event must live in, from its participants:
  * each invited user's department plus each tagged department. The organizer's
  * home department is included only when the organizer is a participant (their
- * department is then among the invited users' departments) or as a fallback
+ * department is then among the invited users' departments), when
+ * `includeCreatorDepartment` is set (registration events keep a stable home
+ * there even though the organizer is not auto-registered), or as a fallback
  * when no participant carries a department. When nothing derives (e.g. a
  * legacy event with no creator stored) and a fallback calendar is given, that
  * calendar alone is the target set.
@@ -172,8 +181,9 @@ export async function resolveTargetCalendars(
     inviteeDepartments: string[];
   },
   fallbackCalendarId: string | null,
+  options?: { includeCreatorDepartment?: boolean },
 ): Promise<string[]> {
-  return resolveTargets(input, fallbackCalendarId, false);
+  return resolveTargets(input, fallbackCalendarId, options?.includeCreatorDepartment === true);
 }
 
 /**
@@ -274,7 +284,7 @@ export function resolveEventFields(
   if (!context.showRemarks) {
     next = { ...next, title: "" };
   }
-  if (!context.showInvitees) {
+  if (!context.showInvitees && !context.registrationEnabled) {
     next = {
       ...next,
       inviteeUserIds: next.creatorId ? [next.creatorId] : [],

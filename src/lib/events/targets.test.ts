@@ -131,6 +131,7 @@ function makeEvent(eventId: string | null, calendarId = "cal-1"): CalendarEvent 
       overseas: false,
       pinned: false,
       ownerOnlyEdits: false,
+      registrationEnabled: false,
       location: "",
       external: false,
     },

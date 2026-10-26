@@ -73,10 +73,14 @@ describe("validateEventTypeForm", () => {
     expect(validateEventTypeForm({ ...base, allowedLocations: ["in"] })).toEqual({});
   });
 
+  it("accepts the registration flag (the action forces participants on)", () => {
+    expect(validateEventTypeForm({ ...base, registrationEnabled: true })).toEqual({});
+  });
+
   it("requires exactly one allowed location when the Location step is hidden", () => {
-    expect(validateEventTypeForm({ ...base, showLocation: false, allowedLocations: ["overseas"] })).toEqual(
-      {},
-    );
+    expect(
+      validateEventTypeForm({ ...base, showLocation: false, allowedLocations: ["overseas"] }),
+    ).toEqual({});
     expect(
       validateEventTypeForm({
         ...base,

@@ -33,6 +33,7 @@ function makeEvent(
     overseas: overrides.overseas ?? false,
     pinned: overrides.pinned ?? false,
     ownerOnlyEdits: overrides.ownerOnlyEdits ?? false,
+    registrationEnabled: false,
     location: overrides.location ?? "",
     external: overrides.external ?? false,
   };
@@ -277,10 +278,7 @@ describe("buildWeekLanes", () => {
     const earlier = makeEvent(`${WEEK[4]} 08:00:00`, `${WEEK[4]} 09:00:00`, { title: "Alpha" });
     const sameTimeB = makeEvent(`${WEEK[4]} 10:00:00`, `${WEEK[4]} 10:30:00`, { title: "Bravo" });
     const sameTimeA = makeEvent(`${WEEK[4]} 10:00:00`, `${WEEK[4]} 11:00:00`, { title: "Alpha" });
-    const lanes = buildWeekLanes(
-      [later, earlier, sameTimeB, sameTimeA].map(withCreator),
-      WEEK,
-    );
+    const lanes = buildWeekLanes([later, earlier, sameTimeB, sameTimeA].map(withCreator), WEEK);
     const row = lanes.get("u1")!;
     // All same-day events share the same day range → they overlap in the
     // grid and each gets its own lane.  Sort order is verified by the

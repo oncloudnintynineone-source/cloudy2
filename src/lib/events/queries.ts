@@ -51,6 +51,8 @@ export interface CalendarEventPayload {
   inviteeDepartmentIds: string[];
   /** Organizer-only modification lock (admins bypass); absence means open to attendees. */
   ownerOnlyEdits: boolean;
+  /** Whether the event's type is open for self-registration. */
+  registrationEnabled: boolean;
   /** Raw (pre-template) description from the notes block; null for legacy events. */
   rawTitle: string | null;
   /** Datetime option used to create the event; defaults to the timed "range". */
@@ -141,6 +143,7 @@ export function mapCalendarItem(
   filters: { typeFilter: string[]; userFilter: string[] },
   typeColors: Map<string, string | null>,
   memberships?: ReadonlyMap<string, string[]>,
+  registrationTypeNames?: ReadonlySet<string>,
 ): CalendarEvent | null {
   const eventType = parseEventType(item.description);
   if (filters.typeFilter.length > 0 && (!eventType || !filters.typeFilter.includes(eventType))) {
@@ -180,6 +183,8 @@ export function mapCalendarItem(
       inviteeUserIds: people.userIds,
       inviteeDepartmentIds: people.departmentIds,
       ownerOnlyEdits: parseEventOwnerOnlyEdits(item.description),
+      registrationEnabled:
+        eventType !== null && registrationTypeNames ? registrationTypeNames.has(eventType) : false,
       rawTitle: parseEventTitle(item.description),
       timeOption: parseEventTimeOption(item.description) ?? (item.allDay ? "full" : "range"),
       startAmPm: parseEventStartAmPm(item.description),
@@ -208,6 +213,8 @@ export interface CalendarRangeData {
   rows: CalendarRow[];
   /** Event type name → pinned color (null = deterministic default). */
   typeColors: Map<string, string | null>;
+  /** Event type names whose events are open for self-registration. */
+  registrationTypeNames: Set<string>;
   /** Raw cached Google items, keyed by month then Google calendar id. */
   cached: MultiMonthEventsResult;
   /** The deduped, sorted months this read covers. */
@@ -230,7 +237,13 @@ export async function readCalendarRange(params: {
 }): Promise<CalendarRangeData> {
   const months = [...new Set(params.months)].sort();
   if (params.calendarIds.length === 0 || months.length === 0) {
-    return { rows: [], typeColors: new Map(), cached: { events: {}, allServed: true }, months };
+    return {
+      rows: [],
+      typeColors: new Map(),
+      registrationTypeNames: new Set(),
+      cached: { events: {}, allServed: true },
+      months,
+    };
   }
 
   // sortOrder then name makes the representative copy (first per group id) deterministic
@@ -246,6 +259,9 @@ export async function readCalendarRange(params: {
   // change takes effect on the next render with no cache invalidation).
   const allEventTypes = await listEventTypes();
   const typeColors = new Map(allEventTypes.map((row) => [row.name, row.color]));
+  const registrationTypeNames = new Set(
+    allEventTypes.filter((row) => row.registrationEnabled).map((row) => row.name),
+  );
 
   // One batched cache read (metadata + full-row SELECTs are shared across
   // months).
@@ -265,7 +281,7 @@ export async function readCalendarRange(params: {
     });
   }
 
-  return { rows, typeColors, cached, months };
+  return { rows, typeColors, registrationTypeNames, cached, months };
 }
 
 /**
@@ -303,7 +319,14 @@ export function projectRangeEvents(
           continue;
         }
         seen.add(key);
-        const mapped = mapCalendarItem(calendar, item, filters, data.typeColors, memberships);
+        const mapped = mapCalendarItem(
+          calendar,
+          item,
+          filters,
+          data.typeColors,
+          memberships,
+          data.registrationTypeNames,
+        );
         if (mapped) {
           events.push(mapped);
         }

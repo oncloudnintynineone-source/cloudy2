@@ -61,10 +61,34 @@ describe("projectRangeEvents", () => {
     const empty: CalendarRangeData = {
       rows: [],
       typeColors: new Map(),
+      registrationTypeNames: new Set(),
       cached: { events: {}, allServed: true },
       months: [],
     };
     expect(projectRangeEvents(empty, { typeFilter: [], userFilter: [] })).toEqual([]);
+  });
+
+  it("marks events whose type is open for registration", () => {
+    const description = encodeEventNotes({ eventType: "Training", eventId: "g-1" });
+    const data = {
+      rows: [{ id: "cal-a", name: "Alpha", googleCalendarId: "gcal-a", color: null }],
+      typeColors: new Map(),
+      registrationTypeNames: new Set(["Training"]),
+      cached: {
+        events: {
+          "2026-09": {
+            "gcal-a": [
+              { ...item("a1", "gcal-a", "Training", "2026-09-10T10:00:00Z"), description },
+            ],
+          },
+        },
+        allServed: true,
+      },
+      months: ["2026-09"],
+    } as unknown as CalendarRangeData;
+
+    const [event] = projectRangeEvents(data, { typeFilter: [], userFilter: [] });
+    expect(event.payload.registrationEnabled).toBe(true);
   });
 
   it("keeps a department-tagged event for an active member only when memberships are given", () => {

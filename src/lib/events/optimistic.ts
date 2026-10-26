@@ -97,7 +97,9 @@ function eventMatchesOp(event: CalendarEvent, op: OptimisticOp): boolean {
     if (op.eventId) {
       return event.payload.eventId === op.eventId;
     }
-    return event.payload.calendarId === op.calendarId && event.payload.googleEventId === op.googleEventId;
+    return (
+      event.payload.calendarId === op.calendarId && event.payload.googleEventId === op.googleEventId
+    );
   }
   const standIn = op.event;
   const key = optimisticEventKey(standIn);
@@ -115,7 +117,15 @@ function eventMatchesOp(event: CalendarEvent, op: OptimisticOp): boolean {
 
 /** Chronological order — the base is already sorted; the merge keeps it stable. */
 function byStart(a: CalendarEvent, b: CalendarEvent): number {
-  return a.start < b.start ? -1 : a.start > b.start ? 1 : a.end < b.end ? -1 : a.end > b.end ? 1 : 0;
+  return a.start < b.start
+    ? -1
+    : a.start > b.start
+      ? 1
+      : a.end < b.end
+        ? -1
+        : a.end > b.end
+          ? 1
+          : 0;
 }
 
 /**
@@ -192,6 +202,8 @@ export interface OptimisticBuildParams {
   title: string;
   /** Pinned color of the event's type; null falls back to the deterministic default. */
   eventTypeColor: string | null;
+  /** Whether the event's type is open for self-registration. */
+  registrationEnabled?: boolean;
 }
 
 /**
@@ -212,7 +224,7 @@ export interface OptimisticBuildParams {
  *   type's effective color).
  */
 export function buildOptimisticEvent(params: OptimisticBuildParams): CalendarEvent {
-  const { identity, values, actingUserId, title, eventTypeColor } = params;
+  const { identity, values, actingUserId, title, eventTypeColor, registrationEnabled } = params;
   const normalized = clampEventEnd({
     ...values,
     creatorId: values.creatorId.trim() || actingUserId,
@@ -242,6 +254,7 @@ export function buildOptimisticEvent(params: OptimisticBuildParams): CalendarEve
       inviteeUserIds: normalized.inviteeUserIds,
       inviteeDepartmentIds: normalized.inviteeDepartments,
       ownerOnlyEdits: normalized.ownerOnlyEdits,
+      registrationEnabled: registrationEnabled === true,
       rawTitle: normalized.title,
       timeOption: normalized.timeOption,
       startAmPm: normalized.timeOption === "half" ? amPmOf(normalized.startAmPm) : null,

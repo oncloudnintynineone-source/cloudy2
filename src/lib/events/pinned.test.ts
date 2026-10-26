@@ -28,6 +28,7 @@ function event(start: string, end: string, pinned: boolean, allDay = false): Cal
       overseas: false,
       pinned,
       ownerOnlyEdits: false,
+      registrationEnabled: false,
       location: "",
       external: false,
     },
@@ -44,10 +45,7 @@ describe("selectUpcomingPinnedEvents", () => {
       ],
       "2026-09-01 08:00:00",
     );
-    expect(result.map((e) => e.start)).toEqual([
-      "2026-09-01 09:00:00",
-      "2026-09-03 09:00:00",
-    ]);
+    expect(result.map((e) => e.start)).toEqual(["2026-09-01 09:00:00", "2026-09-03 09:00:00"]);
   });
 
   it("drops unpinned events even when they tag a whole department", () => {
