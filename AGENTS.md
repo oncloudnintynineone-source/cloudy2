@@ -83,8 +83,8 @@ doc content here.
   - **Admin-role user**: a modal prompts for the **shared admin PIN** (`settings.admin_pin_hash`).
   - **Break-glass root**: no keyword, matches `ADMIN_INITIAL_PASSWORD`
     (`settings.admin_password_hash`); phone-less, no PIN.
-  `authorize` (`src/lib/auth.ts`) re-checks every credential and is the **only** place a
-  session is issued or a failure audited.
+    `authorize` (`src/lib/auth.ts`) re-checks every credential and is the **only** place a
+    session is issued or a failure audited.
 - **Google** access only via `getGoogleIntegration()` (`src/lib/google/index.ts`) — never
   call Google APIs directly. It loads `./real` via a **dynamic
   `import()`** — keep it that way (a static import drags the ~200 MB `googleapis` package
@@ -109,8 +109,13 @@ doc content here.
   `buildDashboardPreload`: one union `readCalendarRange` for the anchor + a second read
   scoped to the active tab's calendars for the future months, each projected by
   `projectRangeEvents` and reassembled by `assembleDashboardSnapshot`) so tab switches and
-  forward month navigations paint from the warm cache with no round-trip. Design:
-  [docs/events-cache.md](docs/events-cache.md) §1.5.1, [docs/pwa-offline.md](docs/pwa-offline.md) §1.11/§1.18.
+  forward month navigations paint from the warm cache with no round-trip. **Code**
+  warming is narrower: only the active renderer + the renderer kinds the account has
+  tabs for, plus event details, warm at idle; the wizard waits 5 s on capable devices;
+  the date picker, manage-views and non-target nav routes are intent-only. Design:
+  [docs/events-cache.md](docs/events-cache.md) §1.5.1,
+  [docs/loading-transitions.md](docs/loading-transitions.md) §1.15,
+  [docs/pwa-offline.md](docs/pwa-offline.md) §1.11/§1.18.
 - **Event lifecycle & mutations:** staged wizard → Google copies with notes-block
   round-trip; cross-department copies reconciled by `findCopies` (deliberately uncached).
   Wizard body is a fixed-height column + bottom **step strip** (caption + non-wrapping
@@ -144,32 +149,32 @@ doc content here.
   opens the manage modal — an Add-view button, subtle ↑/↓ reorder, a per-row **Edit** dialog
   (name + type + an **Edit filters…** button that switches to the view and opens its filter
   dialog), delete, and a quiet accent left bar on the active row, plus the shared manage-row
-  recipe (`reorderUpDown.tsx`, `variant="subtle"`) + optimistic `useReorderRows` FLIP.   Below
+  recipe (`reorderUpDown.tsx`, `variant="subtle"`) + optimistic `useReorderRows` FLIP. Below
   `lg` the chrome **splits**: a thin view-name strip stays pinned at the top,
   and the date controls move to **floating bottom rows** — a frosted
   control pill (period label left + circular **search**/filter/date/view/**fullscreen**
   buttons right, inset 16px from the viewport edges) bottom-most, with the
-   right-anchored FAB row (`[<|>]` step pill whose 56px chevron circles size it
-   + Quick-links **circle button** — solid amber `c2-glass-fab--accent-solid` — +
-   New-event **circle button** — solid brand-blue `c2-glass-fab--brand-solid`;
-   both 56px, so the whole row is one height) floating above it — for thumb
-   reach; pinned
-   strips dock under the name strip (`chromeOffset` = `topChromeHeight`),
-   bounded grids run flush to the bottom nav, and page pads clear the pill/FAB
-   row; at `lg`+ one box (tabs + nav row) pins top, and in the compact desktop
-   tier that box is a **single row** (`isCompactDesktop`): the narrow 640–799px
-   band, or any viewport whose wide-layout month day cell would fit only two event
-   chips (projected with `monthFitChipCount` over a fixed wide-chrome budget). The
-   tab strip folds into a **navigator squircle** (`.c2-compact-cluster`, 40px tall,
-   12px radius — not a pill) on the left — view trigger · period label + grouped
-   `[‹][›]` pair · filter/date, divided into sections — and the primary
-   New-event / Quick-links actions sit outside it at the same 40px/12px squircle,
-   **fully saturated** (`c2-glass-fab--brand-solid` / `--accent-solid`, no frosted
-   tint) at every width. They go icon-only only in the narrow band (a wide-but-short
-   viewport keeps the labels). Saves a full row of chrome. The mobile floating rows
-   **auto-hide while the user touches the calendar pane** (touch alone, or any
-   scroll, either axis) and slide back only when the last finger/pointer is
-   lifted AND the scroll has settled — they stay hidden through the scroll,
+  right-anchored FAB row (`[<|>]` step pill whose 56px chevron circles size it
+  - Quick-links **circle button** — solid amber `c2-glass-fab--accent-solid` — +
+    New-event **circle button** — solid brand-blue `c2-glass-fab--brand-solid`;
+    both 56px, so the whole row is one height) floating above it — for thumb
+    reach; pinned
+    strips dock under the name strip (`chromeOffset` = `topChromeHeight`),
+    bounded grids run flush to the bottom nav, and page pads clear the pill/FAB
+    row; at `lg`+ one box (tabs + nav row) pins top, and in the compact desktop
+    tier that box is a **single row** (`isCompactDesktop`): the narrow 640–799px
+    band, or any viewport whose wide-layout month day cell would fit only two event
+    chips (projected with `monthFitChipCount` over a fixed wide-chrome budget). The
+    tab strip folds into a **navigator squircle** (`.c2-compact-cluster`, 40px tall,
+    12px radius — not a pill) on the left — view trigger · period label + grouped
+    `[‹][›]` pair · filter/date, divided into sections — and the primary
+    New-event / Quick-links actions sit outside it at the same 40px/12px squircle,
+    **fully saturated** (`c2-glass-fab--brand-solid` / `--accent-solid`, no frosted
+    tint) at every width. They go icon-only only in the narrow band (a wide-but-short
+    viewport keeps the labels). Saves a full row of chrome. The mobile floating rows
+    **auto-hide while the user touches the calendar pane** (touch alone, or any
+    scroll, either axis) and slide back only when the last finger/pointer is
+    lifted AND the scroll has settled — they stay hidden through the scroll,
     momentum and any hold-still. Touch contact is tracked via `touchend` /
     `touches.length`, **never** `pointercancel` (that fires mid-scroll while the
     finger is down). The same behavior extends to the **Contacts + Parade State
@@ -177,14 +182,14 @@ doc content here.
     attendance-mode change resets it). Pure `advanceChromeHide` state machine +
     `useChromeHide` in `src/lib/ui/chromeHide.ts` (mobile only, always on, no
     reflow — the rows are `Affix`-fixed).
-  Month
-  grids zoom from fit-to-width (`src/lib/ui/monthZoom.ts`,
-  `dashboard.monthZoom`) and fit the whole screen at `lg` (bounded column +
-  the pure `monthFillEvents` row fill + `monthFitChipCount` legibility floor (21px
-  chip slot — above the library's 9px auto-size text tier — count shrinks from 4 as
-  fitted rows get shorter) — §1.8.1); Week (D) is a custom matrix (`buildWeekLanes`). Entry highlights:
-  amber = mine, purple = external (`c2-my-*` / `c2-ext-*` in `globals.css`).
-  Design: [docs/dashboard-views.md](docs/dashboard-views.md).
+    Month
+    grids zoom from fit-to-width (`src/lib/ui/monthZoom.ts`,
+    `dashboard.monthZoom`) and fit the whole screen at `lg` (bounded column +
+    the pure `monthFillEvents` row fill + `monthFitChipCount` legibility floor (21px
+    chip slot — above the library's 9px auto-size text tier — count shrinks from 4 as
+    fitted rows get shorter) — §1.8.1); Week (D) is a custom matrix (`buildWeekLanes`). Entry highlights:
+    amber = mine, purple = external (`c2-my-*` / `c2-ext-*` in `globals.css`).
+    Design: [docs/dashboard-views.md](docs/dashboard-views.md).
 - **Wide grids pan + zoom** via `useGridPan` + the shared `GridNavControls`
   right-edge cluster (pan arrows + the zoom +/− pair(s); `zoomMin`/`zoomMax` per
   view; the whole cluster is centered on the grid's visible-slice center, the
@@ -226,14 +231,15 @@ doc content here.
   button, via `SearchPanelContext`) opens a modal whose **chrome is always
   mounted** (zoom-from-trigger transition like `PinnedEventsPanel`) while only the
   **body is lazy-loaded** (`dynamic` + `ssr: false`, skeleton fallback inside the
-  open dialog; chunk idle-preloaded + near-signal `preloadEventSearchBody()`), so
-  the open animation never races the chunk. It free-text searches every
+  open dialog; chunk idle-preloaded only when recent searches exist, plus
+  near-signal `preloadEventSearchBody()`), so the open animation never races the
+  chunk. It free-text searches every
   department calendar through the **cache-backed month read** (`readCalendarRange`
-  + Fuse rank), rendered as a flat relevance list; recent-search pills skeleton-load
-  first and hide once results exist; tapping deep-links
-  `/dashboard?date=…&event=…&_eventCal=<calendar id>` to the shared `EventDetail`.
-  Matching covers title/location/event type/calendar name, not the compressed notes.
-  Design: [docs/event-search.md](docs/event-search.md).
+  - Fuse rank), rendered as a flat relevance list; recent-search pills skeleton-load
+    first and hide once results exist; tapping deep-links
+    `/dashboard?date=…&event=…&_eventCal=<calendar id>` to the shared `EventDetail`.
+    Matching covers title/location/event type/calendar name, not the compressed notes.
+    Design: [docs/event-search.md](docs/event-search.md).
 - **Event clash warnings (pre-submit, notify-only):** the review step runs read-only
   `checkEventClashes` (`src/lib/events/clashActions.ts`), re-resolving the candidate via the
   shared `writeContext.ts` chain, reading overlaps from the cache (`clashQuery.ts`, never raw
@@ -339,9 +345,9 @@ doc content here.
 - **Mobile-first; desktop layout at `lg` (pinned to 640px; sidebar auto-collapses to the
   icon rail until 800px).** Detect the breakpoint with
   `useMediaQuery(\`(min-width: ${theme.breakpoints.lg})\`)`— do **not** append px (it's an
-  em string; appending makes an invalid query that always returns false). Pure-CSS switches
-  go under `@media (min-width: 40em)` in `globals.css`. **Very small phones (≤ 360px)** get
-  a compact tier via `NARROW_MEDIA_QUERY` (`src/lib/theme.ts`) + `useMediaQuery` `isNarrow`.
+em string; appending makes an invalid query that always returns false). Pure-CSS switches
+go under `@media (min-width: 40em)`in`globals.css`. **Very small phones (≤ 360px)** get
+a compact tier via `NARROW_MEDIA_QUERY` (`src/lib/theme.ts`) + `useMediaQuery` `isNarrow`.
   Design: [docs/desktop-responsive.md](docs/desktop-responsive.md).
 - **No mobile keyboard pop-up from dropdown taps:** never render a `searchable`
   `Select`/`MultiSelect` directly — use `NoKeyboardSelect`/`NoKeyboardMultiSelect`. Picking
@@ -364,7 +370,7 @@ doc content here.
   (`RAIL_TILE_WIDTHS`, fixed — wider viewports simply reveal more tiles). Tiles
   beyond the viewport hide behind a right-edge fade and come with a swipe; the
   edge **chevron** (`RailEdgeControl`) is a decorative hint only — `pointer-events:
-  none` so taps pass through to the clipped tile, and it hides on a side once
+none` so taps pass through to the clipped tile, and it hides on a side once
   the rail reaches that extreme. The desktop sidebar always shows every entry. `SettingsTabs` stacks
   directly above the footer.
 - **Admin settings live under `/settings`** (admin-only): Users, Departments, Event Types,
@@ -389,22 +395,22 @@ doc content here.
   calendar chrome, bottom nav, sidebar, floating controls; the header and overlays stay opaque,
   and the standalone round FABs are solid while the dashboard's glass buttons stay frosted),
   published on `<html>` as `data-c2-glass` by the shell
-   ([`dashboard-views.md`](docs/dashboard-views.md) §1.1); `reorderDrag` — the
-   reorder interaction for the manageable lists ([`reorder.md`](docs/reorder.md));
-   and `bottomNavVariant` — the mobile footer's always-scrolling rail tile
-   width (`wide` 96px / `medium` 84px default / `tight` 72px; fixed tiles,
-   wider screens reveal more), in the fixed original nav order (`RAIL_ORDER`
-   — `src/lib/bottomNav.ts`) in the shell
-    ([`desktop-responsive.md`](docs/desktop-responsive.md) §1.2); and
-    `motionProfile` — the app-wide animation cadence (`calm` / `standard`
-    default / `snappy` / `playful`) scaling every duration, distance and
-    stagger and setting the easing family, published on `<html>` as `:root:root`
-    `--c2-*` vars by the shell and read by JS via `useMotion()`; modal/dialog/
-    popover entrances use the profile's `pop` curve (so `playful` overshoots)
-    while exits stay on `out`, plain dialogs render through the shared
-    `MotionModal`, and Collapse/Accordion pass `transitionDuration`
-    ([`motion.md`](docs/motion.md)). Design:
-    [docs/feature-flags.md](docs/feature-flags.md).
+  ([`dashboard-views.md`](docs/dashboard-views.md) §1.1); `reorderDrag` — the
+  reorder interaction for the manageable lists ([`reorder.md`](docs/reorder.md));
+  and `bottomNavVariant` — the mobile footer's always-scrolling rail tile
+  width (`wide` 96px / `medium` 84px default / `tight` 72px; fixed tiles,
+  wider screens reveal more), in the fixed original nav order (`RAIL_ORDER`
+  — `src/lib/bottomNav.ts`) in the shell
+  ([`desktop-responsive.md`](docs/desktop-responsive.md) §1.2); and
+  `motionProfile` — the app-wide animation cadence (`calm` / `standard`
+  default / `snappy` / `playful`) scaling every duration, distance and
+  stagger and setting the easing family, published on `<html>` as `:root:root`
+  `--c2-*` vars by the shell and read by JS via `useMotion()`; modal/dialog/
+  popover entrances use the profile's `pop` curve (so `playful` overshoots)
+  while exits stay on `out`, plain dialogs render through the shared
+  `MotionModal`, and Collapse/Accordion pass `transitionDuration`
+  ([`motion.md`](docs/motion.md)). Design:
+  [docs/feature-flags.md](docs/feature-flags.md).
 - **Templates:** display-name template + **structured recipes** (`src/lib/settings/titleRecipe.ts`,
   no free text beyond an optional per-segment Text field) with per-target assignments
   (incl. `pinned`/`pinnedHeader` and the push bodies `notifyCreated`/`notifyAdded`).

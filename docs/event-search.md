@@ -30,10 +30,10 @@ Results render as a flat, tier-then-relevance-ranked list; tapping one shows a
 ## 1.1 Problem
 
 The dashboard answers "what is happening this month in these departments", but
-it has no way to answer "where and when did we mention *X*" — the three views
+it has no way to answer "where and when did we mention _X_" — the three views
 (five calendar views + filters) only show the currently fetched month range,
 and the event cache only holds months that have already been viewed. Finding an
-event means knowing roughly *when* it happened and paging to it. Search closes
+event means knowing roughly _when_ it happened and paging to it. Search closes
 that gap: enter a term (typos welcome), choose a (defaulted) date window, and
 get every matching event across every department, best matches first.
 
@@ -53,7 +53,7 @@ get every matching event across every department, best matches first.
 - Not a structured query: the term matches a fixed set of event fields (title,
   location, event type, calendar name) — no people/date-range beyond the window.
 - No separate search index: results are derived from the cache-backed month read
-  and recomputed on every search. (The *query history* is a small per-account
+  and recomputed on every search. (The _query history_ is a small per-account
   preference — see §1.10 — not a results cache.)
 - No Google-side search: the app no longer calls `events.list` with `q` for this
   feature (see §1.4); a cold month is filled by the normal month fetch.
@@ -130,7 +130,7 @@ dashboard consumes.
 
 Search runs over **every** registry calendar (`listCalendars()`), for **every
 authenticated user** — no admin/own-department narrowing. This mirrors "any
-user can invite anyone / tag any department" policy: calendar *visibility* is
+user can invite anyone / tag any department" policy: calendar _visibility_ is
 department scoped via Google ACLs, but the app does not hide other departments'
 events from signed-in users. Editing an event from a result is still gated by
 `modifyGuard` in the detail modal it deep-links to. Stub (unconfigured Google)
@@ -195,7 +195,7 @@ returning them:
 
 The buckets are concatenated in that order, and each keeps Fuse's relevance order
 (the partition is a stable concatenation, and the chronological pre-sort still
-resolves score ties), so the list reads *literal first, then typo-tolerant* with
+resolves score ties), so the list reads _literal first, then typo-tolerant_ with
 no section headers in the UI — the tiering is purely an ordering, and the modal
 renders the returned array as-is. `fuzzySearchRanked` (`src/lib/search/fuzzy.ts`)
 returns `{ item, score }` so the tiering needs no second Fuse pass; `fuzzySearch`
@@ -209,36 +209,38 @@ is now a thin wrapper over it.
   chrome — the `Modal` itself, its responsive size and the zoom-from-trigger
   `transitionProps` — is **static and always mounted** (Mantine core is already
   in the shell bundle), exactly like `PinnedEventsPanel`: `opened` is passed
-  straight through, so the zoom-out plays on *every* open, including a click
+  straight through, so the zoom-out plays on _every_ open, including a click
   that beats the chunk. Only the body (`EventSearchBody.tsx` — the toolbar,
   `DatePickerInput`s, recents and results) is lazy:
   `dynamic(() => import("./EventSearchBody"), { ssr: false, loading: () =>
-  <EventSearchBodySkeleton /> })` renders a dependency-free skeleton *inside*
+<EventSearchBodySkeleton /> })` renders a dependency-free skeleton _inside_
   the already-animating dialog, and the real content swaps in place when the
   chunk lands — no placeholder modal, no second animation. The body chunk is
-  **prefetched in the background**: `requestIdleCallback(cb, { timeout: 2000 })`
-  on chrome mount, plus the header trigger's near signals (hover/focus/
-  pointer-down/touch-start) calling the exported `preloadEventSearchBody()`.
+  **prefetched in the background only for accounts that use search**: once the
+  recent-search list resolves non-empty, an idle `requestIdleCallback` warms it
+  (capable devices only, `canPreloadTabs()`). With no history it stays cold until
+  the header trigger's near signals (hover/focus/pointer-down/touch-start)
+  call the exported `preloadEventSearchBody()` or the modal opens.
   The Modal unmounts its children on close (Mantine's default `keepMounted:
-  false`), so the search state resets for free on every reopen; the chrome
+false`), so the search state resets for free on every reopen; the chrome
   stays mounted and keeps the history list (§1.10).
 - Owned by `AppShellShell` and **calendar-only**: at `lg`+ the shell header's
   "Search events" button opens it; below `lg` the floating control pill's own
   search circle (left of the filter button) does. The desktop trigger is a
-   `brand-8` pill **34px** tall — one step taller than the 30px pinned-events pill,
-   so it lines up with the refresh/profile icons (`size="compact-md"`, `radius="xl"`,
-   `--button-bg`/`--button-hover` set through Mantine's button vars, height from
-   `.c2-header-search` → `--c2-search-button-height`). Its magnifier sits in a
-   `brand-7` (header-blue) **29px disc** concentric with the pill's left cap:
-   `radius="xl"` (32px) clamps to half the height, so the end is a 17px-radius arc
-   centred at (17,17), and the disc — absolutely positioned 2.5px in from the button
-   root's left edge (Mantine's root is already `position: relative`), not a
-   `leftSection`, whose padding would offset it — shares that centre, leaving a
-   uniform thin `brand-8` ring instead of a circle cutting across the cap; the label
-   text is offset by `--c2-search-disc-inset + --c2-search-disc-size + 8px`.
-   `.c2-header-search-icon` in
-   `globals.css`; the disc steps to `brand-8` on hover so it stays lighter than the
-   darkened pill. Both are triggers into the
+  `brand-8` pill **34px** tall — one step taller than the 30px pinned-events pill,
+  so it lines up with the refresh/profile icons (`size="compact-md"`, `radius="xl"`,
+  `--button-bg`/`--button-hover` set through Mantine's button vars, height from
+  `.c2-header-search` → `--c2-search-button-height`). Its magnifier sits in a
+  `brand-7` (header-blue) **29px disc** concentric with the pill's left cap:
+  `radius="xl"` (32px) clamps to half the height, so the end is a 17px-radius arc
+  centred at (17,17), and the disc — absolutely positioned 2.5px in from the button
+  root's left edge (Mantine's root is already `position: relative`), not a
+  `leftSection`, whose padding would offset it — shares that centre, leaving a
+  uniform thin `brand-8` ring instead of a circle cutting across the cap; the label
+  text is offset by `--c2-search-disc-inset + --c2-search-disc-size + 8px`.
+  `.c2-header-search-icon` in
+  `globals.css`; the disc steps to `brand-8` on hover so it stays lighter than the
+  darkened pill. Both are triggers into the
   shell-owned modal through `SearchPanelContext` (`src/lib/ui/searchPanel.ts`,
   the same channel pattern as `PinnedPanelContext`); the tapped trigger's rect
   rides along as `originRect`, so the modal zooms out of / shrinks back into it
@@ -311,14 +313,14 @@ removes it.
 - **Server actions** (`src/lib/events/searchHistoryActions.ts`, `"use server"`):
   `getSearchHistory`, `recordSearchHistory` (fire-and-forget after a successful
   search), `removeSearchHistory`. The virtual break-glass admin (`id ===
-  "admin"`, no `users` row) returns an empty history and no-op writes.
+"admin"`, no `users` row) returns an empty history and no-op writes.
 - **Modal wiring**: the history lives in the chrome (`EventSearchModal.tsx`),
   prefetched once when the chrome mounts (long before the first open, so the
   pills are usually warm) and refreshed on every open (so queries run on other
   devices surface here); the body only renders pills from the `history` prop.
   The body records a query + updates the badge list optimistically after a
   successful search via `onRecordSearch`/`onRemoveSearch`, which also write
-  server-side. History is *not* cleared by the close/reset path (which only
+  server-side. History is _not_ cleared by the close/reset path (which only
   resets the query/results).
 
 This history is a convenience shortcut, not a results cache — a badge re-runs
@@ -345,37 +347,37 @@ The shared `src/lib/search/fuzzy.ts` wraps Fuse.js once for the whole app
   `{ item, score }` so a caller can re-tier the ranking (event search).
 - `fuzzyMatches(fields, query)` — one-off boolean test.
 
-| Helper | Module | Tests |
-| ------ | ------ | ----- |
-| `addMonthsClamped` | `events/searchRange.ts` | `searchRange.test.ts` |
-| `defaultSearchFrom` / `defaultSearchTo` | `events/searchRange.ts` | `searchRange.test.ts` |
-| `searchRangeBoundaries` | `events/searchRange.ts` | `searchRange.test.ts` |
-| `coerceSearchRange` | `events/searchRange.ts` | `searchRange.test.ts` |
-| `eventWithinRange` / `filterRangeForSearch` | `events/searchRange.ts` | `searchRange.test.ts` |
-| `eventSubstringMatch` / `searchMatchTier` | `events/searchRange.ts` | `searchRange.test.ts` |
-| `fuzzyFilter` / `fuzzySearch` / `fuzzySearchRanked` / `fuzzyMatches` | `search/fuzzy.ts` | `fuzzy.test.ts` |
+| Helper                                                                          | Module                    | Tests                   |
+| ------------------------------------------------------------------------------- | ------------------------- | ----------------------- |
+| `addMonthsClamped`                                                              | `events/searchRange.ts`   | `searchRange.test.ts`   |
+| `defaultSearchFrom` / `defaultSearchTo`                                         | `events/searchRange.ts`   | `searchRange.test.ts`   |
+| `searchRangeBoundaries`                                                         | `events/searchRange.ts`   | `searchRange.test.ts`   |
+| `coerceSearchRange`                                                             | `events/searchRange.ts`   | `searchRange.test.ts`   |
+| `eventWithinRange` / `filterRangeForSearch`                                     | `events/searchRange.ts`   | `searchRange.test.ts`   |
+| `eventSubstringMatch` / `searchMatchTier`                                       | `events/searchRange.ts`   | `searchRange.test.ts`   |
+| `fuzzyFilter` / `fuzzySearch` / `fuzzySearchRanked` / `fuzzyMatches`            | `search/fuzzy.ts`         | `fuzzy.test.ts`         |
 | `addSearchHistoryEntry` / `removeSearchHistoryEntry` / `cleanSearchHistoryList` | `events/searchHistory.ts` | `searchHistory.test.ts` |
 
 ## 1.12 File index & related docs
 
-| File | Role |
-| ---- | ---- |
-| `src/lib/search/fuzzy.ts` | Shared Fuse.js wrapper (fuzzy filter/search/matches) |
-| `src/lib/events/search.ts` | `searchEvents` server action (cache read → project → fuzzy rank) |
-| `src/lib/events/searchRange.ts` | Pure date-range helpers + window trim + Fuse rank (tested) |
-| `src/lib/events/searchHistory.ts` | Pure history-list helpers (tested) |
-| `src/lib/events/searchHistoryActions.ts` | `getSearchHistory` / `recordSearchHistory` / `removeSearchHistory` actions |
-| `src/lib/userPrefs/queries.ts` | `getUserPreferences` (now exposes `searchHistory`) |
-| `src/lib/events/queries.ts` | `readCalendarRange` / `projectRangeEvents` (the cache-backed read) |
-| `src/lib/google/types.ts` | `searchEvents` contract (retained; not called by search) |
-| `src/lib/google/real.ts` | `events.list({ ..., q })` implementation (retained) |
-| `src/lib/google/stub.ts` | `searchEvents` → `[]` |
-| `src/app/(protected)/dashboard/EventDetail.tsx` | The shared detail modal the deep link lands on (unchanged) |
-| `src/components/EventSearchModal.tsx` | Search modal chrome: always-mounted `Modal` + zoom transition + history state + body chunk preload |
-| `src/components/EventSearchBody.tsx` | Lazy body: toolbar + flat relevance list + history badges + row-spinner deep link |
-| `src/components/EventSearchBodySkeleton.tsx` | Dependency-free body loading fallback painted inside the open chrome |
-| `src/components/AppShellShell.tsx` | Desktop header "Search events" trigger + ⌘/Ctrl-K + always-mounted modal + origin rect + near-signal body preload + `SearchPanelContext` provider |
-| `src/lib/ui/searchPanel.ts` | `SearchPanelContext` — the calendar's search triggers (desktop header + mobile pill) → shell-owned modal |
+| File                                            | Role                                                                                                                                              |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/lib/search/fuzzy.ts`                       | Shared Fuse.js wrapper (fuzzy filter/search/matches)                                                                                              |
+| `src/lib/events/search.ts`                      | `searchEvents` server action (cache read → project → fuzzy rank)                                                                                  |
+| `src/lib/events/searchRange.ts`                 | Pure date-range helpers + window trim + Fuse rank (tested)                                                                                        |
+| `src/lib/events/searchHistory.ts`               | Pure history-list helpers (tested)                                                                                                                |
+| `src/lib/events/searchHistoryActions.ts`        | `getSearchHistory` / `recordSearchHistory` / `removeSearchHistory` actions                                                                        |
+| `src/lib/userPrefs/queries.ts`                  | `getUserPreferences` (now exposes `searchHistory`)                                                                                                |
+| `src/lib/events/queries.ts`                     | `readCalendarRange` / `projectRangeEvents` (the cache-backed read)                                                                                |
+| `src/lib/google/types.ts`                       | `searchEvents` contract (retained; not called by search)                                                                                          |
+| `src/lib/google/real.ts`                        | `events.list({ ..., q })` implementation (retained)                                                                                               |
+| `src/lib/google/stub.ts`                        | `searchEvents` → `[]`                                                                                                                             |
+| `src/app/(protected)/dashboard/EventDetail.tsx` | The shared detail modal the deep link lands on (unchanged)                                                                                        |
+| `src/components/EventSearchModal.tsx`           | Search modal chrome: always-mounted `Modal` + zoom transition + history state + body chunk preload                                                |
+| `src/components/EventSearchBody.tsx`            | Lazy body: toolbar + flat relevance list + history badges + row-spinner deep link                                                                 |
+| `src/components/EventSearchBodySkeleton.tsx`    | Dependency-free body loading fallback painted inside the open chrome                                                                              |
+| `src/components/AppShellShell.tsx`              | Desktop header "Search events" trigger + ⌘/Ctrl-K + always-mounted modal + origin rect + near-signal body preload + `SearchPanelContext` provider |
+| `src/lib/ui/searchPanel.ts`                     | `SearchPanelContext` — the calendar's search triggers (desktop header + mobile pill) → shell-owned modal                                          |
 
 Related docs:
 

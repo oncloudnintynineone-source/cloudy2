@@ -42,12 +42,12 @@ rail. The card grids (`ContactList`, `ParadeStateView`) keep an **earlier**
 the 576–639px mobile band (where two 300px columns don't actually fit yet) and
 is kept as harmless insurance for future breakpoint moves.
 
-| Medium | Where | Usage |
-| ------ | ----- | ----- |
-| CSS | `src/app/globals.css` | `@media (min-width: 36em)` (576px: card-grid ≥300px, vestigial) + `@media (min-width: 40em)` block (40em = 640px at the default 16px root: shell + card-grid ≥320px) |
-| Theme | `src/lib/theme.ts` | `breakpoints.lg: "40em"` — aligns Mantine's `lg` with the CSS (`xs` is 36em; note `lg` now sits *below* `sm` = 48em, so prefer `lg:` and don't mix `sm:`/`md:` in one responsive prop). `NARROW_MEDIA_QUERY` (`(max-width: 22.5em)`, 360px) is the compact-tier query — deliberately **not** a Mantine breakpoint, because responsive props like `{ base: … }` use min-width keys and can't express "below X" |
-| Client components | `@mantine/hooks` | `const theme = useMantineTheme(); const isDesktop = useMediaQuery(\`(min-width: ${theme.breakpoints.lg})\`)` (do **not** append `px` — `theme.breakpoints.lg` is an em string); `const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY)` for the compact tier; `DESKTOP_WIDE_MEDIA_QUERY` for the ≥ 800px full-sidebar band |
-| Mantine props | core | `visibleFrom="lg"` / `hiddenFrom="lg"` (note: v9 has no `hiddenDown`/`visibleDown`), responsive props like `maw={{ base: 380, lg: 440 }}`, `Grid.Col span={{ base: 12, lg: 6 }}` |
+| Medium            | Where                 | Usage                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ----------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CSS               | `src/app/globals.css` | `@media (min-width: 36em)` (576px: card-grid ≥300px, vestigial) + `@media (min-width: 40em)` block (40em = 640px at the default 16px root: shell + card-grid ≥320px)                                                                                                                                                                                                                                          |
+| Theme             | `src/lib/theme.ts`    | `breakpoints.lg: "40em"` — aligns Mantine's `lg` with the CSS (`xs` is 36em; note `lg` now sits _below_ `sm` = 48em, so prefer `lg:` and don't mix `sm:`/`md:` in one responsive prop). `NARROW_MEDIA_QUERY` (`(max-width: 22.5em)`, 360px) is the compact-tier query — deliberately **not** a Mantine breakpoint, because responsive props like `{ base: … }` use min-width keys and can't express "below X" |
+| Client components | `@mantine/hooks`      | `const theme = useMantineTheme(); const isDesktop = useMediaQuery(\`(min-width: ${theme.breakpoints.lg})\`)`(do **not** append`px`—`theme.breakpoints.lg`is an em string);`const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY)`for the compact tier;`DESKTOP_WIDE_MEDIA_QUERY` for the ≥ 800px full-sidebar band                                                                                               |
+| Mantine props     | core                  | `visibleFrom="lg"` / `hiddenFrom="lg"` (note: v9 has no `hiddenDown`/`visibleDown`), responsive props like `maw={{ base: 380, lg: 440 }}`, `Grid.Col span={{ base: 12, lg: 6 }}`                                                                                                                                                                                                                              |
 
 Server components do not need the flag: they render both variants and let the
 CSS/`visibleFrom`/`hiddenFrom` props decide.
@@ -73,7 +73,7 @@ flowchart LR
 `src/components/AppShellShell.tsx` (client) renders the whole authenticated shell:
 
 - **Navbar** — `AppShell navbar={{ width: collapsed ? 64 : 240, breakpoint: "lg",
-  collapsed: { mobile: true } }}`: appears at `lg`
+collapsed: { mobile: true } }}`: appears at `lg`
   with the four nav items (Calendar, Parade State, Contacts, Settings for admins) as
   `NavLink`s driven by the same local `items` array (the `NavItem` constants defined in
   the same file) the mobile footer renders. Below `lg` Mantine collapses it
@@ -96,26 +96,27 @@ flowchart LR
   cookie on every toggle. The rail never affects < `lg` (the navbar is hidden
   there by Mantine's `collapsed.mobile`).
   - **Auto-collapse in the foldable band:** entering the 640–799px band
- (`isDesktop && !isDesktopWide`, `DESKTOP_WIDE_MEDIA_QUERY` = 800px)
- one-shot sets `collapsed = true`, since 240px of full sidebar would eat a
- third of a 640px viewport. The effect only fires on *entry* into the band,
- so a manual expand inside it survives until the next entry (resize across
- 800px and back, or a fresh load in the band); above 800px the remembered
- cookie state rules untouched.
+    (`isDesktop && !isDesktopWide`, `DESKTOP_WIDE_MEDIA_QUERY` = 800px)
+    one-shot sets `collapsed = true`, since 240px of full sidebar would eat a
+    third of a 640px viewport. The effect only fires on _entry_ into the band,
+    so a manual expand inside it survives until the next entry (resize across
+    800px and back, or a fresh load in the band); above 800px the remembered
+    cookie state rules untouched.
 - **Footer** — `footer={{ height: `${BOTTOM_NAV_HEIGHT}px`, collapsed: isDesktop }}`:
   the bottom nav stays for mobile; at `lg` it collapses off-screen and its layout
   offset drops to 0 (Mantine's `collapsed` footer behavior), so the FAB clearance
-  below it no longer applies. A collapsed footer is only *translated* off-screen,
+  below it no longer applies. A collapsed footer is only _translated_ off-screen,
   so its measured height is still 56px — the iOS/Android **PWA-standalone
   viewport sync** (`AppShellShell`, `--app-shell-vh` effect) must therefore skip
   writing `--app-shell-footer-offset` when `isDesktop` (an inline custom property
   on the shell root beats Mantine's `:root { …: 0px !important }` for all
   descendants — the old unconditional write left the navbar 56px short of the
   viewport bottom and padded Main's bottom by the same amount on installed PWAs
-  at desktop width). The effect now measures `window.visualViewport` (the
-  visible area) rather than `documentElement.clientHeight` (the layout viewport
-  `position: fixed` resolves against), exposes the difference as
-  `--app-shell-visual-bottom-gap`, and adds the JS-detected
+  at desktop width). The effect uses the resolved shell height (iOS: visual
+  viewport; Android/foldables: `max(layout, visual)` so a transient mid-fold
+  value cannot shorten the shell), exposes the layout-vs-visual difference as
+  `--app-shell-visual-bottom-gap`, re-syncs after the fold settles (250/600/1200
+  ms + a `documentElement` observer), and adds the JS-detected
   `app-shell-standalone` class that gates the standalone CSS; see
   [docs/pwa-offline.md](pwa-offline.md) §1.19.
   - **Scrolling rail (`bottomNavVariant` flag):** the mobile footer is always
@@ -151,15 +152,15 @@ Pure-CSS switches live in `@media (min-width: 36em)` (card-grid early grid)
 and `@media (min-width: 40em)` (desktop shell) blocks in
 `src/app/globals.css`, plus a few base classes:
 
-| Class / var | Mobile `< 36em` | Mid `36em – 40em` | At `lg` `≥ 40em` | Consumed by |
-| ----------- | -------------- | ----------------- | --------------- | ----------- |
-| `.app-shell-root` → `--app-floating-bottom-offset` | `calc(56px + env(safe-area-inset-bottom) + 16px)` (clears bottom nav) | same | `16px` | `FloatingToolbar` default `bottomOffset` |
-| `.settings-page-pad` → `--settings-fab-bottom` + `padding-bottom` | `calc(108px + env(safe-area-inset-bottom) + 16px)` (clears bottom nav + settings tab bar) | same | `16px` | settings `layout.tsx` wrapper; the four settings FABs pass it to `FloatingToolbar` |
-| `.app-shell-root` → `--app-shell-header-offset` | `calc(env(safe-area-inset-top) + 56px + var(--app-banner-height))` (declared unconditionally — the AppShell header is fixed at every width and this mirrors its `height` prop exactly; consumers that want desktop-only stickiness gate in JS) | same | same | `AppShell` navbar `top`; `SettingsTabs` sticky row (JS-gated to `lg`+); the dashboard's sticky tabs+date-nav chrome block and Week (D) day-header strip (sticky at all widths); the Week (H) view's day-label strip |
-| `.app-shell-root > nav` (at `lg`+) | — | — | `height: auto; bottom: var(--app-shell-visual-bottom-gap, 0px)` — the sidebar spans header-offset → viewport bottom instead of relying on Mantine's `100dvh - offset` height, so a banner toggle can't leave a bottom gap (installed-PWA safe; the gap var stays 0 outside standalone) | `AppShell.Navbar` |
-| `.app-shell-root > footer` + `--app-shell-footer-offset` (mobile only) | Chrome edge-to-edge fast path: `height: calc(56px + var(--c2-safe-area-max-bottom))`, `padding-bottom: var(--c2-safe-area-max-bottom)`, `bottom: calc(env(safe-area-inset-bottom) - var(--c2-safe-area-max-bottom))`; overridden on iOS/WebKit (`@supports (-webkit-touch-callout: none) and (font: -apple-system-body)`) to the plain live-inset box + `bottom: 0`, and in standalone re-pinned to the visual bottom via `--app-shell-visual-bottom-gap`; offset re-declared as `56px + env(safe-area-inset-bottom)` (minus immersive) | same | untouched (footer collapsed; desktop insets 0) | `AppShell.Footer`; AppShell main padding. See [docs/pwa-offline.md](pwa-offline.md) §1.19 |
-| `.page-container` | full width | full width | `max-width: 1200px; margin-inline: auto` | `PageContainer` component |
-| `.card-grid` | `1fr` single column | `repeat(auto-fill, minmax(300px, 1fr))` — still bottom-nav, 2 columns only from ~644px (in practice the band is too narrow, so it renders 1 column) | `repeat(auto-fill, minmax(320px, 1fr))` | `ContactList`, `ParadeStateView` |
+| Class / var                                                            | Mobile `< 36em`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Mid `36em – 40em`                                                                                                                                   | At `lg` `≥ 40em`                                                                                                                                                                                                                                                                       | Consumed by                                                                                                                                                                                                         |
+| ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.app-shell-root` → `--app-floating-bottom-offset`                     | `calc(56px + env(safe-area-inset-bottom) + 16px)` (clears bottom nav)                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | same                                                                                                                                                | `16px`                                                                                                                                                                                                                                                                                 | `FloatingToolbar` default `bottomOffset`                                                                                                                                                                            |
+| `.settings-page-pad` → `--settings-fab-bottom` + `padding-bottom`      | `calc(108px + env(safe-area-inset-bottom) + 16px)` (clears bottom nav + settings tab bar)                                                                                                                                                                                                                                                                                                                                                                                                                                               | same                                                                                                                                                | `16px`                                                                                                                                                                                                                                                                                 | settings `layout.tsx` wrapper; the four settings FABs pass it to `FloatingToolbar`                                                                                                                                  |
+| `.app-shell-root` → `--app-shell-header-offset`                        | `calc(env(safe-area-inset-top) + 56px + var(--app-banner-height))` (declared unconditionally — the AppShell header is fixed at every width and this mirrors its `height` prop exactly; consumers that want desktop-only stickiness gate in JS)                                                                                                                                                                                                                                                                                          | same                                                                                                                                                | same                                                                                                                                                                                                                                                                                   | `AppShell` navbar `top`; `SettingsTabs` sticky row (JS-gated to `lg`+); the dashboard's sticky tabs+date-nav chrome block and Week (D) day-header strip (sticky at all widths); the Week (H) view's day-label strip |
+| `.app-shell-root > nav` (at `lg`+)                                     | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | —                                                                                                                                                   | `height: auto; bottom: var(--app-shell-visual-bottom-gap, 0px)` — the sidebar spans header-offset → viewport bottom instead of relying on Mantine's `100dvh - offset` height, so a banner toggle can't leave a bottom gap (installed-PWA safe; the gap var stays 0 outside standalone) | `AppShell.Navbar`                                                                                                                                                                                                   |
+| `.app-shell-root > footer` + `--app-shell-footer-offset` (mobile only) | Chrome edge-to-edge fast path: `height: calc(56px + var(--c2-safe-area-max-bottom))`, `padding-bottom: var(--c2-safe-area-max-bottom)`, `bottom: calc(env(safe-area-inset-bottom) - var(--c2-safe-area-max-bottom))`; overridden on iOS/WebKit (`@supports (-webkit-touch-callout: none) and (font: -apple-system-body)`) to the plain live-inset box + `bottom: 0`, and in standalone re-pinned to the visual bottom via `--app-shell-visual-bottom-gap`; offset re-declared as `56px + env(safe-area-inset-bottom)` (minus immersive) | same                                                                                                                                                | untouched (footer collapsed; desktop insets 0)                                                                                                                                                                                                                                         | `AppShell.Footer`; AppShell main padding. See [docs/pwa-offline.md](pwa-offline.md) §1.19                                                                                                                           |
+| `.page-container`                                                      | full width                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | full width                                                                                                                                          | `max-width: 1200px; margin-inline: auto`                                                                                                                                                                                                                                               | `PageContainer` component                                                                                                                                                                                           |
+| `.card-grid`                                                           | `1fr` single column                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | `repeat(auto-fill, minmax(300px, 1fr))` — still bottom-nav, 2 columns only from ~644px (in practice the band is too narrow, so it renders 1 column) | `repeat(auto-fill, minmax(320px, 1fr))`                                                                                                                                                                                                                                                | `ContactList`, `ParadeStateView`                                                                                                                                                                                    |
 
 `PageContainer` (`src/components/PageContainer.tsx`) is the thin wrapper
 (`<Box className="page-container">`) that data pages apply to their root so
@@ -185,16 +186,16 @@ never replays on state changes.
 `DashboardView.tsx` owns the desktop differences for the calendar tabs (all
 gated on `isDesktop`):
 
-| Element | Mobile | At `lg` |
-| ------- | ------ | ------- |
-| Sticky chrome rows (view tabs + date-nav) | thin name strip + floating bottom pill | two rows at `lg`+; **one row** in the compact desktop tier (`isCompactDesktop`): the narrow 640-799px band, or any desktop viewport whose wide-layout month day cell would fit at most two event chips — the tab strip folds into a view trigger, and New event / Quick links go icon-only only in the narrow band — see below |
-| Schedule views' resource/group label widths (`--resources-day-view-*` / `--resources-week-view-*` vars) | `3rem` / `1.5rem` | `6rem` / `3.5rem` — shortnames get room to stop ellipsizing |
-| Week (H) timeline slot width (`--resources-week-view-slot-width`) | Mantine default (`calc(3.75rem * var(--mantine-scale))`, 60px/hour) | `calc(4.5rem * var(--mantine-scale))` (72px/hour) |
-| Day timeline slot width (`--resources-day-view-slot-width`) | Mantine default (`calc(5rem * var(--mantine-scale))`, 80px/hour) | same — both slot widths are then multiplied by the shared **timeline zoom** level (0.25–6, default 1; see [`dashboard-views.md`](dashboard-views.md#17-timeline-and-column-zoom-day-week-h-week-d-and-week-grid)) |
-| Week (D) matrix label columns | `MOBILE_LABEL_WIDTH` 3rem / group 1.5rem | `DESKTOP_LABEL_WIDTH` 5rem / group 2.5rem (header spacers, sticky row labels, `contentMinWidth`, `labelLeft`) |
-| Month view `maxEventsPerDay` | 3 | 4 |
-| "New event" | FAB only | FAB **hidden** (`hiddenFrom="lg"`) — replaced by a `Button visibleFrom="lg"` in the header row beside the ⋮ menu |
-| Agenda day / event form / detail / filter / date-picker modals | `sm` | `md` (see 1.7) |
+| Element                                                                                                 | Mobile                                                              | At `lg`                                                                                                                                                                                                                                                                                                                        |
+| ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Sticky chrome rows (view tabs + date-nav)                                                               | thin name strip + floating bottom pill                              | two rows at `lg`+; **one row** in the compact desktop tier (`isCompactDesktop`): the narrow 640-799px band, or any desktop viewport whose wide-layout month day cell would fit at most two event chips — the tab strip folds into a view trigger, and New event / Quick links go icon-only only in the narrow band — see below |
+| Schedule views' resource/group label widths (`--resources-day-view-*` / `--resources-week-view-*` vars) | `3rem` / `1.5rem`                                                   | `6rem` / `3.5rem` — shortnames get room to stop ellipsizing                                                                                                                                                                                                                                                                    |
+| Week (H) timeline slot width (`--resources-week-view-slot-width`)                                       | Mantine default (`calc(3.75rem * var(--mantine-scale))`, 60px/hour) | `calc(4.5rem * var(--mantine-scale))` (72px/hour)                                                                                                                                                                                                                                                                              |
+| Day timeline slot width (`--resources-day-view-slot-width`)                                             | Mantine default (`calc(5rem * var(--mantine-scale))`, 80px/hour)    | same — both slot widths are then multiplied by the shared **timeline zoom** level (0.25–6, default 1; see [`dashboard-views.md`](dashboard-views.md#17-timeline-and-column-zoom-day-week-h-week-d-and-week-grid))                                                                                                              |
+| Week (D) matrix label columns                                                                           | `MOBILE_LABEL_WIDTH` 3rem / group 1.5rem                            | `DESKTOP_LABEL_WIDTH` 5rem / group 2.5rem (header spacers, sticky row labels, `contentMinWidth`, `labelLeft`)                                                                                                                                                                                                                  |
+| Month view `maxEventsPerDay`                                                                            | 3                                                                   | 4                                                                                                                                                                                                                                                                                                                              |
+| "New event"                                                                                             | FAB only                                                            | FAB **hidden** (`hiddenFrom="lg"`) — replaced by a `Button visibleFrom="lg"` in the header row beside the ⋮ menu                                                                                                                                                                                                               |
+| Agenda day / event form / detail / filter / date-picker modals                                          | `sm`                                                                | `md` (see 1.7)                                                                                                                                                                                                                                                                                                                 |
 
 **Month view shows adjacent-month days with their events (every width):**
 `MonthView` renders dimmed outside days with no consistent-weeks padding
@@ -211,32 +212,32 @@ chrome as **frosted-glass sticky boxes** (background bled corner-to-corner
 via negative `margin-inline` + matching `padding-inline`, compact 36px controls)
 so the period label, filter and date buttons stay
 reachable while any view's grid scrolls — on phones too, where losing them
- mid-scroll was the old default. At `lg`+ ONE box pins at the top
- (`top: var(--app-shell-header-offset)`, bottom divider) holding the view-tab
- strip row and the date-nav row together — except in the **compact desktop tier
- (`isCompactDesktop`)**, where vertical space is the scarce dimension: there the
- box is a **single row**, laid out as two groups. A frosted **navigator slab**
- (`.c2-compact-cluster`, a **squircle**: 40px tall, 12px radius) holds the active
- view's kind icon + name + chevron (opening the same dropdown the mobile view menu
- uses), the period label with the **grouped `[‹][›]` pair immediately after it**,
- and the filter/date controls, with hairline dividers between sections; its 36px
- controls are ghost (`.c2-compact-control`) with a nested 10px radius, so only the
- slab carries the surface. The **New event / Quick links** actions sit outside it,
- right-aligned, at the same 40px height and 12px squircle, fully saturated (solid
- brand blue / amber); they run icon-only squircles in the 640–799px band. The tier
- has two triggers:
- `isNarrowDesktop` (`isDesktop && !isDesktopWide`, the 640-799px band) — where
- New event / Quick links also run icon-only to fit the ~544px content width the
- 64px icon rail leaves — and a **short wide viewport**, where the wide-layout
- month day cell would fit **at most two event chips**. That capacity is projected
- with the tested `monthFitChipCount` (`src/lib/ui/monthZoom.ts`) over
- `viewportHeight − WIDE_DESKTOP_CHROME_RESERVE_PX` (160px = 56px header + the
- wide two-row chrome) and the current month's row count; the fixed wide budget
- (never the live compact height) keeps the decision stable. On a wide-but-short
- screen the labels stay (there is horizontal room). Either way a full row of
- chrome (~45px) is saved. With enough height at 800px+ the two-row chrome
- returns unchanged, and below `lg` the mobile recipe is untouched. **Below `lg`
- the chrome splits**: a
+mid-scroll was the old default. At `lg`+ ONE box pins at the top
+(`top: var(--app-shell-header-offset)`, bottom divider) holding the view-tab
+strip row and the date-nav row together — except in the **compact desktop tier
+(`isCompactDesktop`)**, where vertical space is the scarce dimension: there the
+box is a **single row**, laid out as two groups. A frosted **navigator slab**
+(`.c2-compact-cluster`, a **squircle**: 40px tall, 12px radius) holds the active
+view's kind icon + name + chevron (opening the same dropdown the mobile view menu
+uses), the period label with the **grouped `[‹][›]` pair immediately after it**,
+and the filter/date controls, with hairline dividers between sections; its 36px
+controls are ghost (`.c2-compact-control`) with a nested 10px radius, so only the
+slab carries the surface. The **New event / Quick links** actions sit outside it,
+right-aligned, at the same 40px height and 12px squircle, fully saturated (solid
+brand blue / amber); they run icon-only squircles in the 640–799px band. The tier
+has two triggers:
+`isNarrowDesktop` (`isDesktop && !isDesktopWide`, the 640-799px band) — where
+New event / Quick links also run icon-only to fit the ~544px content width the
+64px icon rail leaves — and a **short wide viewport**, where the wide-layout
+month day cell would fit **at most two event chips**. That capacity is projected
+with the tested `monthFitChipCount` (`src/lib/ui/monthZoom.ts`) over
+`viewportHeight − WIDE_DESKTOP_CHROME_RESERVE_PX` (160px = 56px header + the
+wide two-row chrome) and the current month's row count; the fixed wide budget
+(never the live compact height) keeps the decision stable. On a wide-but-short
+screen the labels stay (there is horizontal room). Either way a full row of
+chrome (~45px) is saved. With enough height at 800px+ the two-row chrome
+returns unchanged, and below `lg` the mobile recipe is untouched. **Below `lg`
+the chrome splits**: a
 thin **view-name strip stays pinned at the top** under the header, and the
 date controls move to **two floating rows at the bottom** (thumb-zone reach):
 a frosted **control pill** (`.c2-control-pill`, an Affix inset **16px from the
@@ -274,12 +275,12 @@ the pill + FAB stack (the bounded grids run flush to the bottom nav):
   views' `scrollAreaProps.viewportRef` lets a layout effect re-sync the track
   after mounts/loads, since the libraries' `startScrollTime` /
   `startScrollDateTime` effects reposition the grid without a scroll event.
- (Side fix: Week (H) now passes the supported `startScrollDateTime` instead of a
- bogus `startScrollPosition: {y}` prop that was silently ignored.) The anchor
- is dynamic: the Day view uses the current time when its date is today, the
- Week (H) view uses `{today} {now}` when the shown week contains today — both fall
- back to 07:00 / Monday 07:00 otherwise (`DashboardView`:
- `currentScrollTime`).
+  (Side fix: Week (H) now passes the supported `startScrollDateTime` instead of a
+  bogus `startScrollPosition: {y}` prop that was silently ignored.) The anchor
+  is dynamic: the Day view uses the current time when its date is today, the
+  Week (H) view uses `{today} {now}` when the shown week contains today — both fall
+  back to 07:00 / Monday 07:00 otherwise (`DashboardView`:
+  `currentScrollTime`).
 
 The **Month weekday-initials row** is replaced by a pinned `MonthWeekdayStrip`
 (like the Week (H) day-label strip): Mantine's own row lives inside `MonthView`'s
@@ -314,7 +315,7 @@ widths as props (`resourceLabelWidth`/`groupLabelWidth`) so its corner spacers
 track the label columns at both breakpoints.
 
 **FAB-hiding gotcha:** `FloatingToolbar`'s `Affix` portals its content to
-`<body>` (`withinPortal` default), so a `hiddenFrom` wrapper *around* the
+`<body>` (`withinPortal` default), so a `hiddenFrom` wrapper _around_ the
 toolbar hides only an empty div while the portaled FABs stay visible at every
 width. Responsive visibility must be passed as `hiddenFrom` **on
 `FloatingToolbar` itself** — it forwards to the portaled Affix root, where the
@@ -337,12 +338,12 @@ Contacts/Audit-log "Export", Parade-state attendance).
   the mobile card-list rule — cards stay below `lg` via `hiddenFrom="lg"`, the
   table wrapper uses `visibleFrom="lg"`):
 
-  | Page | Desktop columns |
-  | ---- | --------------- |
-  | Users (`UserTable`) | Name · Phone · Role · Department · Status · Edit (row click = edit) |
-  | Departments (`DepartmentTable`) | Name · Calendar ID · Share · Rename · Delete |
-  | Event Types (`EventTypeTable`) | Name · Group · Acronym · Color · Time options · Allowed locations (row click = edit) |
-  | Audit Log (`AuditLogView`) | Time · Actor · Action · Entity · Route · Details (row click = detail modal) |
+  | Page                            | Desktop columns                                                                      |
+  | ------------------------------- | ------------------------------------------------------------------------------------ |
+  | Users (`UserTable`)             | Name · Phone · Role · Department · Status · Edit (row click = edit)                  |
+  | Departments (`DepartmentTable`) | Name · Calendar ID · Share · Rename · Delete                                         |
+  | Event Types (`EventTypeTable`)  | Name · Group · Acronym · Color · Time options · Allowed locations (row click = edit) |
+  | Audit Log (`AuditLogView`)      | Time · Actor · Action · Entity · Route · Details (row click = detail modal)          |
 
 - **Audit Log filters** — mobile keeps them in the ⋮ menu; at `lg` they render as
   an inline bar (search field + Actor/Action/Entity selects + from/to date inputs +
@@ -393,18 +394,18 @@ modal's vertical space** (equal gutters, see below). The `size` steps at each br
 are detected with `useMediaQuery` inside the client components. The compact tier (§1.10)
 drops the mobile sizes one step so the dialog never approaches the viewport edge:
 
-| Modal | Compact ≤ 360px | Mobile | At `lg` |
-| ----- | --------------- | ------ | ------- |
-| Event form (`DashboardView`) | `xs` (320px) | `sm` (380px) | `md` (440px) → `lg` (620px) ≥ 800px |
-| Event detail (`EventDetail`) | `xs` | `sm` | `md` |
-| Agenda day modal | `xs` | `sm` | `md` (max-height `56dvh` → `70dvh`) |
-| Filter modal (`FilterModal`) | `xs` | `sm` | `md` |
-| Date picker (`DateSelectorModal`) | `xs` | `sm` | `md` |
-| User form | `md` | `md` | `lg` |
-| Event type form | `sm` | `sm` | `lg` |
-| Event search (`EventSearchModal`) | `sm` | `md` | `lg` |
-| Pinned events (`PinnedEventsPanel`) | `sm` | `md` | `lg` |
-| Audit detail (`LogDetailModal`) | `md` | `md` | `lg` |
+| Modal                               | Compact ≤ 360px | Mobile       | At `lg`                             |
+| ----------------------------------- | --------------- | ------------ | ----------------------------------- |
+| Event form (`DashboardView`)        | `xs` (320px)    | `sm` (380px) | `md` (440px) → `lg` (620px) ≥ 800px |
+| Event detail (`EventDetail`)        | `xs`            | `sm`         | `md`                                |
+| Agenda day modal                    | `xs`            | `sm`         | `md` (max-height `56dvh` → `70dvh`) |
+| Filter modal (`FilterModal`)        | `xs`            | `sm`         | `md`                                |
+| Date picker (`DateSelectorModal`)   | `xs`            | `sm`         | `md`                                |
+| User form                           | `md`            | `md`         | `lg`                                |
+| Event type form                     | `sm`            | `sm`         | `lg`                                |
+| Event search (`EventSearchModal`)   | `sm`            | `md`         | `lg`                                |
+| Pinned events (`PinnedEventsPanel`) | `sm`            | `md`         | `lg`                                |
+| Audit detail (`LogDetailModal`)     | `md`            | `md`         | `lg`                                |
 
 `EventDetail`'s shrink animation sizes off the same value through
 `modalContentWidth(viewport, sizePx)` in `src/lib/motion/origin.ts`
@@ -422,19 +423,20 @@ gutter. The header's minimize / discard controls are 44px targets (`py={8}` on t
 keeps the ~60px chrome height the body math assumes). Minimized, the wizard docks into the
 mobile chrome: below `lg` it becomes an `EventDraftChip` **inside the FAB row**, to the
 left of the period chevrons, flexing into the space the fixed 56px controls leave (label
-+ detail when there's room, icon-only on tight phones; on the narrowest phones the
-New-event circle gives way to the chip, so it always docks — the control pill stays
-bottom-most in every case). At `lg`+
-it stays the centred,
-max-560px frosted `EventDraftBar` bottom-inset bar with a 44px Resume action and a 44px
-discard control. In both cases it rides the floating-control z-index and — on mobile — the
-chrome auto-hide state. On
-the desktop shell
-the centered modal's body grows with the viewport up to
-`min(68dvh, 720px, calc(100dvh - 200px))`. The body height never depends on the active
-step's content, so the pinned step strip and Back/Next bar stay put. At the wide band
-(≥ 800px, where the form reaches its `lg` width) the review step's definition rows
-reflow into a 2-column grid under the full-width calendar preview.
+
+- detail when there's room, icon-only on tight phones; on the narrowest phones the
+  New-event circle gives way to the chip, so it always docks — the control pill stays
+  bottom-most in every case). At `lg`+
+  it stays the centred,
+  max-560px frosted `EventDraftBar` bottom-inset bar with a 44px Resume action and a 44px
+  discard control. In both cases it rides the floating-control z-index and — on mobile — the
+  chrome auto-hide state. On
+  the desktop shell
+  the centered modal's body grows with the viewport up to
+  `min(68dvh, 720px, calc(100dvh - 200px))`. The body height never depends on the active
+  step's content, so the pinned step strip and Back/Next bar stay put. At the wide band
+  (≥ 800px, where the form reaches its `lg` width) the review step's definition rows
+  reflow into a 2-column grid under the full-width calendar preview.
 
 ## 1.8 Login & PWA
 
@@ -444,34 +446,34 @@ reflow into a 2-column grid under the full-width calendar preview.
 
 ## 1.9 File index
 
-| File | Role |
-| ---- | ---- |
-| `src/app/globals.css` | `@media (min-width: 36em)` (card-grid ≥300px) + `@media (min-width: 40em)` block: offset vars, `.page-container`, `.card-grid` ≥320px |
-| `src/lib/theme.ts` | `breakpoints.lg: "40em"`; `DESKTOP_MEDIA_QUERY` (40em) + `DESKTOP_WIDE_MEDIA_QUERY` (50em, full-sidebar band) + `NARROW_MEDIA_QUERY` (compact tier) |
-| `src/components/AppShellShell.tsx` | Navbar (240px ↔ 64px rail, `breakpoint: "lg"`, remembered via `sidebarCollapsed`, auto-collapsed entering the 640–799px band), footer `collapsed: isDesktop`, standalone viewport sync (skips `--app-shell-footer-offset` at desktop), compact header/nav via `isNarrow`, `.app-shell-root` |
-| `src/components/PageContainer.tsx` | 1200px-centered wrapper |
-| `src/components/FloatingToolbar.tsx` | Default `bottomOffset` = `var(--app-floating-bottom-offset)` |
-| `src/lib/bottomNav.ts` | `BOTTOM_NAV_HEIGHT` / `BOTTOM_NAV_HEIGHT_CSS` (floating offset var moved to CSS) |
-| `src/app/(protected)/settings/layout.tsx` | `.settings-page-pad` wrapper + `PageContainer` |
-| `src/app/(protected)/settings/SettingsTabs.tsx` | Fixed strip < `lg`, sticky top row ≥ `lg` |
-| `src/app/(protected)/settings/users/UserTable.tsx` | Cards < `lg`, `Table` ≥ `lg` |
-| `src/app/(protected)/settings/departments/DepartmentTable.tsx` | Cards < `lg`, `Table` ≥ `lg` |
-| `src/app/(protected)/settings/event-types/EventTypeTable.tsx` | Cards < `lg`, `Table` ≥ `lg` |
-| `src/app/(protected)/settings/audit-log/AuditLogView.tsx` | Menu filters < `lg`, inline bar + `Table` ≥ `lg` |
-| `src/app/(protected)/settings/users/UserForm.tsx` | 2-col `Grid` at `lg` |
-| `src/app/(protected)/settings/event-types/EventTypeForm.tsx` | 2-col `Grid` at `lg` |
-| `src/app/(protected)/settings/templates/TemplatesForm.tsx` | Side-by-side cards at `lg` |
-| `src/app/(protected)/settings/general/SettingsForm.tsx` | Side-by-side cards at `lg` |
-| `src/app/(protected)/dashboard/DashboardView.tsx` | Schedule label/slot widths, header New-event button, hidden FAB, modal size tiers (`isNarrow` → `xs`; event form `md` → `lg` on the wide band); event-form host `centered` at every width with `yOffset="44px"` (equal gutters, caption at the bottom) |
-| `src/app/(protected)/dashboard/WeekMatrixView.tsx` | MOBILE_/DESKTOP_ label widths, responsive `contentMinWidth`/`labelLeft` |
-| `src/app/(protected)/dashboard/EventForm.tsx` | Body-height tiers (phone fills the centered box vs desktop capped growth), Timestamp 2-col at `lg`, Review 2-col at wide band |
-| `src/app/(protected)/dashboard/EventDetail.tsx`, `src/components/FilterModal.tsx`, `src/components/DateSelectorModal.tsx` | `xs` → `sm` → `md` (compact/mobile/lg) |
-| `src/components/EventSearchModal.tsx`, `src/components/PinnedEventsPanel.tsx`, `src/components/UserSelectModal.tsx` | Modal sizes via `isNarrow`/`isDesktop` |
-| `src/lib/motion/origin.ts` | `modalContentWidth(viewport, sizePx)` |
-| `src/app/(protected)/contacts/page.tsx` + `ContactList.tsx` | `PageContainer` + `.card-grid` |
-| `src/app/(protected)/parade-state/page.tsx` + `ParadeStateView.tsx` | `PageContainer` + `.card-grid` |
-| `src/components/LoginForm.tsx` | `maw={{ base: 380, lg: 440 }}` |
-| `src/app/manifest.ts` | `orientation: "any"` |
+| File                                                                                                                      | Role                                                                                                                                                                                                                                                                                        |
+| ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/app/globals.css`                                                                                                     | `@media (min-width: 36em)` (card-grid ≥300px) + `@media (min-width: 40em)` block: offset vars, `.page-container`, `.card-grid` ≥320px                                                                                                                                                       |
+| `src/lib/theme.ts`                                                                                                        | `breakpoints.lg: "40em"`; `DESKTOP_MEDIA_QUERY` (40em) + `DESKTOP_WIDE_MEDIA_QUERY` (50em, full-sidebar band) + `NARROW_MEDIA_QUERY` (compact tier)                                                                                                                                         |
+| `src/components/AppShellShell.tsx`                                                                                        | Navbar (240px ↔ 64px rail, `breakpoint: "lg"`, remembered via `sidebarCollapsed`, auto-collapsed entering the 640–799px band), footer `collapsed: isDesktop`, standalone viewport sync (skips `--app-shell-footer-offset` at desktop), compact header/nav via `isNarrow`, `.app-shell-root` |
+| `src/components/PageContainer.tsx`                                                                                        | 1200px-centered wrapper                                                                                                                                                                                                                                                                     |
+| `src/components/FloatingToolbar.tsx`                                                                                      | Default `bottomOffset` = `var(--app-floating-bottom-offset)`                                                                                                                                                                                                                                |
+| `src/lib/bottomNav.ts`                                                                                                    | `BOTTOM_NAV_HEIGHT` / `BOTTOM_NAV_HEIGHT_CSS` (floating offset var moved to CSS)                                                                                                                                                                                                            |
+| `src/app/(protected)/settings/layout.tsx`                                                                                 | `.settings-page-pad` wrapper + `PageContainer`                                                                                                                                                                                                                                              |
+| `src/app/(protected)/settings/SettingsTabs.tsx`                                                                           | Fixed strip < `lg`, sticky top row ≥ `lg`                                                                                                                                                                                                                                                   |
+| `src/app/(protected)/settings/users/UserTable.tsx`                                                                        | Cards < `lg`, `Table` ≥ `lg`                                                                                                                                                                                                                                                                |
+| `src/app/(protected)/settings/departments/DepartmentTable.tsx`                                                            | Cards < `lg`, `Table` ≥ `lg`                                                                                                                                                                                                                                                                |
+| `src/app/(protected)/settings/event-types/EventTypeTable.tsx`                                                             | Cards < `lg`, `Table` ≥ `lg`                                                                                                                                                                                                                                                                |
+| `src/app/(protected)/settings/audit-log/AuditLogView.tsx`                                                                 | Menu filters < `lg`, inline bar + `Table` ≥ `lg`                                                                                                                                                                                                                                            |
+| `src/app/(protected)/settings/users/UserForm.tsx`                                                                         | 2-col `Grid` at `lg`                                                                                                                                                                                                                                                                        |
+| `src/app/(protected)/settings/event-types/EventTypeForm.tsx`                                                              | 2-col `Grid` at `lg`                                                                                                                                                                                                                                                                        |
+| `src/app/(protected)/settings/templates/TemplatesForm.tsx`                                                                | Side-by-side cards at `lg`                                                                                                                                                                                                                                                                  |
+| `src/app/(protected)/settings/general/SettingsForm.tsx`                                                                   | Side-by-side cards at `lg`                                                                                                                                                                                                                                                                  |
+| `src/app/(protected)/dashboard/DashboardView.tsx`                                                                         | Schedule label/slot widths, header New-event button, hidden FAB, modal size tiers (`isNarrow` → `xs`; event form `md` → `lg` on the wide band); event-form host `centered` at every width with `yOffset="44px"` (equal gutters, caption at the bottom)                                      |
+| `src/app/(protected)/dashboard/WeekMatrixView.tsx`                                                                        | MOBILE_/DESKTOP_ label widths, responsive `contentMinWidth`/`labelLeft`                                                                                                                                                                                                                     |
+| `src/app/(protected)/dashboard/EventForm.tsx`                                                                             | Body-height tiers (phone fills the centered box vs desktop capped growth), Timestamp 2-col at `lg`, Review 2-col at wide band                                                                                                                                                               |
+| `src/app/(protected)/dashboard/EventDetail.tsx`, `src/components/FilterModal.tsx`, `src/components/DateSelectorModal.tsx` | `xs` → `sm` → `md` (compact/mobile/lg)                                                                                                                                                                                                                                                      |
+| `src/components/EventSearchModal.tsx`, `src/components/PinnedEventsPanel.tsx`, `src/components/UserSelectModal.tsx`       | Modal sizes via `isNarrow`/`isDesktop`                                                                                                                                                                                                                                                      |
+| `src/lib/motion/origin.ts`                                                                                                | `modalContentWidth(viewport, sizePx)`                                                                                                                                                                                                                                                       |
+| `src/app/(protected)/contacts/page.tsx` + `ContactList.tsx`                                                               | `PageContainer` + `.card-grid`                                                                                                                                                                                                                                                              |
+| `src/app/(protected)/parade-state/page.tsx` + `ParadeStateView.tsx`                                                       | `PageContainer` + `.card-grid`                                                                                                                                                                                                                                                              |
+| `src/components/LoginForm.tsx`                                                                                            | `maw={{ base: 380, lg: 440 }}`                                                                                                                                                                                                                                                              |
+| `src/app/manifest.ts`                                                                                                     | `orientation: "any"`                                                                                                                                                                                                                                                                        |
 
 ## 1.10 Compact tier
 
@@ -482,14 +484,14 @@ tier** tightens these with the `isNarrow` flag — `useMediaQuery(NARROW_MEDIA_Q
 (`(max-width: 22.5em)` from `src/lib/theme.ts`) — mirroring how `isDesktop`
 drives the wide layout:
 
-| Surface | Regular mobile | Compact ≤ 360px |
-| ------- | -------------- | ---------------- |
-| Header gutters | `px="md"`, `gap="md"` | `px="xs"`, `gap` 4 (both `wrap="nowrap"`) |
-| Pinned-events ticker | pill with count + countdown chips + rotating title (CSS max-width tier) | same pill — the removed logo freed the space |
-| Bottom nav | icon + text label per item | icon only (`NavButton` `compact`; `aria-label` preserved) |
-| Modals (event form/detail, agenda, filter, date picker) | `sm` | `xs` |
-| Modals (event search, pinned events) | `md` | `sm` |
-| Shrink-animation widths | 380/440/620px per modal | same values via the `isNarrow` branch in `modalContentWidth(...)` |
+| Surface                                                 | Regular mobile                                                          | Compact ≤ 360px                                                   |
+| ------------------------------------------------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Header gutters                                          | `px="md"`, `gap="md"`                                                   | `px="xs"`, `gap` 4 (both `wrap="nowrap"`)                         |
+| Pinned-events ticker                                    | pill with count + countdown chips + rotating title (CSS max-width tier) | same pill — the removed logo freed the space                      |
+| Bottom nav                                              | icon + text label per item                                              | icon only (`NavButton` `compact`; `aria-label` preserved)         |
+| Modals (event form/detail, agenda, filter, date picker) | `sm`                                                                    | `xs`                                                              |
+| Modals (event search, pinned events)                    | `md`                                                                    | `sm`                                                              |
+| Shrink-animation widths                                 | 380/440/620px per modal                                                 | same values via the `isNarrow` branch in `modalContentWidth(...)` |
 
 Deliberate limits:
 

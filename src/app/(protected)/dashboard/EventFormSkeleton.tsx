@@ -9,7 +9,8 @@ import { WIZARD_BODY_HEIGHT_DESKTOP, WIZARD_BODY_HEIGHT_MOBILE } from "./eventFo
 /**
  * Loading fallback for the lazy `EventForm` chunk. It mirrors the wizard's
  * fixed body height so the modal never resizes while the chunk downloads
- * (the chunk is preloaded at idle, so this normally never shows).
+ * (the chunk warms on intent and after a longer idle delay, so this normally
+ * never shows on capable devices).
  */
 export function EventFormSkeleton() {
   const theme = useMantineTheme();

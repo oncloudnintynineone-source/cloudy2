@@ -31,10 +31,10 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
   policy, with outbound webhooks to any number of admin-registered external endpoints on
   create/update/delete and pre-submit event clash warnings on the wizard's review step;
   a Double Booking page that scans an existing schedule for double-bookings over the next
-   30 days, surfaced by a live count pill on its nav entry; an on-demand set of user-created
-     dashboard **Views (tabs)** over the six renderer kinds (Month / Week (H) / Week (D) / Day /
-     Agenda / Month & Agenda; each tab has its own name, order and Cal/Users/Types filters, stored server-side) over
-   a layered calendar cache; parade-state page with local attendance mode; contacts page;
+  30 days, surfaced by a live count pill on its nav entry; an on-demand set of user-created
+  dashboard **Views (tabs)** over the six renderer kinds (Month / Week (H) / Week (D) / Day /
+  Agenda / Month & Agenda; each tab has its own name, order and Cal/Users/Types filters, stored server-side) over
+  a layered calendar cache; parade-state page with local attendance mode; contacts page;
   PWA installability with offline & instant open (SWR document + RSC, precached offline.html);
   mobile-first UI with a desktop layout at `lg`; remembered UI state across relaunch;
   audit-log viewer with retention + CSV export; admin-managed quick-links menu
@@ -417,9 +417,9 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   instead of dropped: event-wizard invitees, dashboard + parade-state Users filter
   options (`FilterOption.departmentSort` → `FilterModal.searchGroupPickerGroups`),
   Double Booking scan targets, KAH `pickerUsers`, and audit-log Actors (whose unmatched
-   "Admin"/deleted names stay in a trailing unranked "Other" section); the
-   calendar/department grid chips were already `sortOrder`-ordered. Pure sorting +
-   section tail unit-tested (`docs/user-picker.md` §1.3, `docs/roster-sharing.md` §1.7)
+  "Admin"/deleted names stay in a trailing unranked "Other" section); the
+  calendar/department grid chips were already `sortOrder`-ordered. Pure sorting +
+  section tail unit-tested (`docs/user-picker.md` §1.3, `docs/roster-sharing.md` §1.7)
 - 1.187 Create/edit event wizard UX: the wizard body is now a fixed-height flex column
   (`WIZARD_BODY_HEIGHT`, viewport-aware) whose step content scrolls internally, so the
   modal no longer resizes between steps and the Back/Next/Submit bar never jumps; a
@@ -453,7 +453,7 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
 - 1.190 Activity bar no longer blips on quick loads + no abrupt vanish: the bar
   now only appears once a busy source has persisted `ACTIVITY_SHOW_DELAY_MS`
   (300 ms) — warm-cache page switches/refreshes that finish sooner never flash it
-  (the previous immediate-show policy showed a split-second bar on *every*
+  (the previous immediate-show policy showed a split-second bar on _every_
   navigation) — and its exit is animated: after the existing 150 ms min-hold the
   class drops and CSS retracts/fades the strip over ~230 ms (destination-state
   `transition` trick: the base rule carries the slow exit, the active rule a
@@ -473,173 +473,173 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   change + edit/duplicate prefill; the server re-enforces in `resolveEventLocation`,
   writeContext) so even re-saving a legacy event converts it — the
   show-remarks/show-invitees hidden-field pattern applied to location.
-   `docs/event-lifecycle.md` §1.9.2, `docs/admin-guide.md` §1.4
+  `docs/event-lifecycle.md` §1.9.2, `docs/admin-guide.md` §1.4
 - 1.192 Event organizer & collaborative editing rework: the organizer (`createdBy`) is
-   fixed to the acting user at create and never changes — the admin "On behalf of"
-   wizard step is gone. The organizer is no longer auto-added as an attendee
-   (`withCreatorInvited`/creator lock removed; edit prefill keeps stored attendees,
-   deselectable). Edit/delete/duplicate now opens to the organizer, individually tagged
-   attendees, and active members of tagged departments via pure `modifyGuard` (+ new
-   notes `ownerOnlyEdits` organizer-only lock the organizer/admin may set; admins always
-   bypass). Occupancy is decoupled — the organizer counts only when self-invited — across
-   schedule rows, the clash/double-booking engine, KAH away counts, the Myself filter +
-   amber "mine" highlights, `{people}` title tokens and Parade State. `guards.ts`
-   replaces `creatorGuard`/`ownershipGuard`; `validate.ts` replaces
-   `withSelfCreator`/`withCreatorInvited` with `resolveEventAuthor`. Docs:
-   `docs/event-lifecycle.md`, `docs/event-mutations.md`, `docs/event-clashes.md`,
-   `docs/admin-guide.md`, `docs/user-guide.md`
+  fixed to the acting user at create and never changes — the admin "On behalf of"
+  wizard step is gone. The organizer is no longer auto-added as an attendee
+  (`withCreatorInvited`/creator lock removed; edit prefill keeps stored attendees,
+  deselectable). Edit/delete/duplicate now opens to the organizer, individually tagged
+  attendees, and active members of tagged departments via pure `modifyGuard` (+ new
+  notes `ownerOnlyEdits` organizer-only lock the organizer/admin may set; admins always
+  bypass). Occupancy is decoupled — the organizer counts only when self-invited — across
+  schedule rows, the clash/double-booking engine, KAH away counts, the Myself filter +
+  amber "mine" highlights, `{people}` title tokens and Parade State. `guards.ts`
+  replaces `creatorGuard`/`ownershipGuard`; `validate.ts` replaces
+  `withSelfCreator`/`withCreatorInvited` with `resolveEventAuthor`. Docs:
+  `docs/event-lifecycle.md`, `docs/event-mutations.md`, `docs/event-clashes.md`,
+  `docs/admin-guide.md`, `docs/user-guide.md`
 - 1.193 Event wizard "Other settings" step + Participants rename: the wizard's always-
-   present "Pin this event" and "Only the organizer can edit this event" switches move
-   onto a new **Other settings** step between Remarks and Review (so even invitees-hidden
-   types can pin/lock; the review step drops its redundant Pinned row). "Invited
-   Attendees" is renamed **Participants** everywhere user-facing (wizard picker + step
-   chip + review row, EventDetail, audit detail labels/counts, event-type settings
-   toggle "Show participants", table badge "No participants", webhook payload guide);
-   internal identifiers (`invitees`, `showInvitees`) unchanged. No behavior/logic
-   change.
+  present "Pin this event" and "Only the organizer can edit this event" switches move
+  onto a new **Other settings** step between Remarks and Review (so even invitees-hidden
+  types can pin/lock; the review step drops its redundant Pinned row). "Invited
+  Attendees" is renamed **Participants** everywhere user-facing (wizard picker + step
+  chip + review row, EventDetail, audit detail labels/counts, event-type settings
+  toggle "Show participants", table badge "No participants", webhook payload guide);
+  internal identifiers (`invitees`, `showInvitees`) unchanged. No behavior/logic
+  change.
 - 1.194 Participants "Add myself" toggle + clearer owner-lock wording: the wizard's
-   Participants step gains a compact **Add myself / Remove myself** button below the
-   badges (pure `toggleInviteeUser` in `userSelect.ts`) so the organizer (or anyone)
-   self-invites without opening the picker dialog. The Other settings owner-lock switch
-   is per-actor labelled: "Only I can edit this event" to the organizer (create flow and
-   own events), "Only the organizer can edit this event" to an admin editing someone
-   else's event — server semantics unchanged (`guards.ts` message + EventDetail badge
-   keep the organizer wording). Docs/changelog below.
+  Participants step gains a compact **Add myself / Remove myself** button below the
+  badges (pure `toggleInviteeUser` in `userSelect.ts`) so the organizer (or anyone)
+  self-invites without opening the picker dialog. The Other settings owner-lock switch
+  is per-actor labelled: "Only I can edit this event" to the organizer (create flow and
+  own events), "Only the organizer can edit this event" to an admin editing someone
+  else's event — server semantics unchanged (`guards.ts` message + EventDetail badge
+  keep the organizer wording). Docs/changelog below.
 - 1.195 "(You)" participant highlight: the signed-in user's badge is marked wherever
-   participants are listed — wizard Participants step, wizard Review Participants row,
-   and the EventDetail modal's Participants list — via a shared `.c2-my-badge` amber
-   mine treatment (cream `--c2-my-row-tint` fill + `accent-6` ring + a "(You)" suffix;
-   `globals.css`, double-scoped to beat Mantine and work in modal portals). `PickerBadgeItem`
-   gains an optional `self` flag; EventForm's review People and EventDetail's Participants
-   resolve id-keyed (not name-keyed) so the current user is detected even with duplicate
-    display names. Presentational only.
+  participants are listed — wizard Participants step, wizard Review Participants row,
+  and the EventDetail modal's Participants list — via a shared `.c2-my-badge` amber
+  mine treatment (cream `--c2-my-row-tint` fill + `accent-6` ring + a "(You)" suffix;
+  `globals.css`, double-scoped to beat Mantine and work in modal portals). `PickerBadgeItem`
+  gains an optional `self` flag; EventForm's review People and EventDetail's Participants
+  resolve id-keyed (not name-keyed) so the current user is detected even with duplicate
+  display names. Presentational only.
 - 1.196 Post-review hygiene on the organizer/participant rework: the owner-lock switch on
-   the wizard's Other settings step is keyed off the **stored** organizer
-   (`payload.creatorId`, mirroring `canChangeLock`), so a non-admin editing a creator-less
-   event no longer sees a switch the server would silently drop (they are adopted as the
-   stored organizer on that save, so the switch appears from their next edit). Events can
-   no longer be saved with no one on them: a fresh create **pre-selects the acting user as
-   a participant by default** (deselectable), and an all-empty invitee set is rejected both
-   in the wizard (bounce back to the Participants step before any optimistic chip is
-   staged) and server-side (`createEvent`/`updateEvent` refuse an effective input with no
-   attendees and no tagged departments, "Add at least one participant or department").
-   Docs/comments: organizer adoption reworded to "acting editor"; AGENTS.md, event-lifecycle,
-   user-guide, user-picker, event-mutations.
+  the wizard's Other settings step is keyed off the **stored** organizer
+  (`payload.creatorId`, mirroring `canChangeLock`), so a non-admin editing a creator-less
+  event no longer sees a switch the server would silently drop (they are adopted as the
+  stored organizer on that save, so the switch appears from their next edit). Events can
+  no longer be saved with no one on them: a fresh create **pre-selects the acting user as
+  a participant by default** (deselectable), and an all-empty invitee set is rejected both
+  in the wizard (bounce back to the Participants step before any optimistic chip is
+  staged) and server-side (`createEvent`/`updateEvent` refuse an effective input with no
+  attendees and no tagged departments, "Add at least one participant or department").
+  Docs/comments: organizer adoption reworded to "acting editor"; AGENTS.md, event-lifecycle,
+  user-guide, user-picker, event-mutations.
 - 1.197 Refresh re-homed + pull-to-refresh disabled: the dashboard ⋮ kebab's Force refresh
-   and the "Saved · HH:MM" freshness indicator are removed, and native pull-to-refresh is
-   disabled app-wide (root-scroller `overscroll-behavior-y: contain`, `globals.css`). The
-   profile menu (all pages) gains **Force refresh**: a full-page reload to a one-shot
-   `?refresh=<epoch-ms>` URL the SW never caches (`ONE_SHOT_PARAMS`) — a network render on
-   every page (Settings included, fixing the stale-data-on-pull symptom that was SWR-served
-   cached docs/RSC); `/dashboard` still honors the nonce → forced Google read. The nonce is
-   stripped after the reloaded document mounts by the new global `useOneShotRefreshStrip`
-   (`src/lib/pwa/client.ts`, mounted in `AppShellShell`, RSC path entries cleared before the
-   clean-URL `router.replace`). `googleConfigured` threads layout → shell → profile menu so
-   the item greys out on the calendar when Google is unconfigured.    `docs/events-cache.md`
-   §1.5.1, `docs/pwa-offline.md` §1.11, `docs/loading-transitions.md` §1.5/§1.7/§1.12/§1.13,
-   `docs/immersive-mode.md`, `docs/dashboard-views.md`, `docs/user-guide.md`, `AGENTS.md`
+  and the "Saved · HH:MM" freshness indicator are removed, and native pull-to-refresh is
+  disabled app-wide (root-scroller `overscroll-behavior-y: contain`, `globals.css`). The
+  profile menu (all pages) gains **Force refresh**: a full-page reload to a one-shot
+  `?refresh=<epoch-ms>` URL the SW never caches (`ONE_SHOT_PARAMS`) — a network render on
+  every page (Settings included, fixing the stale-data-on-pull symptom that was SWR-served
+  cached docs/RSC); `/dashboard` still honors the nonce → forced Google read. The nonce is
+  stripped after the reloaded document mounts by the new global `useOneShotRefreshStrip`
+  (`src/lib/pwa/client.ts`, mounted in `AppShellShell`, RSC path entries cleared before the
+  clean-URL `router.replace`). `googleConfigured` threads layout → shell → profile menu so
+  the item greys out on the calendar when Google is unconfigured. `docs/events-cache.md`
+  §1.5.1, `docs/pwa-offline.md` §1.11, `docs/loading-transitions.md` §1.5/§1.7/§1.12/§1.13,
+  `docs/immersive-mode.md`, `docs/dashboard-views.md`, `docs/user-guide.md`, `AGENTS.md`
 - 1.198 Create/edit event modal makes use of the viewport: the wizard's sizing is no
-   longer locked to phone tiers everywhere. The host modal keeps `xs`/`sm` on phones
-   but widens `md` (440px) → `lg` (620px) once the shell reaches the wide-desktop band
-   (≥800px, `DESKTOP_WIDE_MEDIA_QUERY`, `DashboardView`), and the fixed body height
-   grows on the desktop shell (`WIZARD_BODY_HEIGHT_DESKTOP` = `min(68dvh, 720px,
-   calc(100dvh - 200px))`) while phones keep the compact `WIZARD_BODY_HEIGHT_MOBILE` —
-   the height stays a pure function of the viewport, never of the active step, so the
-   pinned step strip and Back/Next/Submit bar never move. At `lg` the review step's
-   definition rows reflow into a two-column grid beneath the full-width calendar
-   preview / clash check; the shrink-out motion feeds on the form's own
-   `formContentWidth` so the zoom still lands on the originating button.
-   `docs/event-lifecycle.md` §1.4, `docs/desktop-responsive.md` §1.7, `AGENTS.md`
+  longer locked to phone tiers everywhere. The host modal keeps `xs`/`sm` on phones
+  but widens `md` (440px) → `lg` (620px) once the shell reaches the wide-desktop band
+  (≥800px, `DESKTOP_WIDE_MEDIA_QUERY`, `DashboardView`), and the fixed body height
+  grows on the desktop shell (`WIZARD_BODY_HEIGHT_DESKTOP` = `min(68dvh, 720px,
+ calc(100dvh - 200px))`) while phones keep the compact `WIZARD_BODY_HEIGHT_MOBILE` —
+  the height stays a pure function of the viewport, never of the active step, so the
+  pinned step strip and Back/Next/Submit bar never move. At `lg` the review step's
+  definition rows reflow into a two-column grid beneath the full-width calendar
+  preview / clash check; the shrink-out motion feeds on the form's own
+  `formContentWidth` so the zoom still lands on the originating button.
+  `docs/event-lifecycle.md` §1.4, `docs/desktop-responsive.md` §1.7, `AGENTS.md`
 - 1.199 Event wizard is a bottom sheet on phones: below the desktop band the host
-   modal (`DashboardView`) stops centering and bottom-docks — `.c2-event-form-sheet`
-   (`globals.css`) bottom-aligns Mantine's modal inner and drops its symmetric y
-   gutter (`yOffset="0px"`), so the sheet sits flush with the screen's bottom edge and
-   the body fills from there up (`WIZARD_BODY_HEIGHT_SHEET` = `calc(100dvh - 132px)`,
-   replacing the phone half-sheet cap), leaving a ~56px top gutter as the overlay's
-   tap-to-minimize zone (the header's minimize chevron / X remain). The motion's
-   grow/shrink collapses to the sheet's `center bottom` origin (the rect-pinned pivot
-   assumes a centered modal); the bottom action bar clears gesture bars via an
-   `env(safe-area-inset-bottom)` pad. Desktop (centered `md`/`lg`) is unchanged.
-   `docs/event-lifecycle.md` §1.4, `docs/desktop-responsive.md` §1.7, `AGENTS.md`
+  modal (`DashboardView`) stops centering and bottom-docks — `.c2-event-form-sheet`
+  (`globals.css`) bottom-aligns Mantine's modal inner and drops its symmetric y
+  gutter (`yOffset="0px"`), so the sheet sits flush with the screen's bottom edge and
+  the body fills from there up (`WIZARD_BODY_HEIGHT_SHEET` = `calc(100dvh - 132px)`,
+  replacing the phone half-sheet cap), leaving a ~56px top gutter as the overlay's
+  tap-to-minimize zone (the header's minimize chevron / X remain). The motion's
+  grow/shrink collapses to the sheet's `center bottom` origin (the rect-pinned pivot
+  assumes a centered modal); the bottom action bar clears gesture bars via an
+  `env(safe-area-inset-bottom)` pad. Desktop (centered `md`/`lg`) is unchanged.
+  `docs/event-lifecycle.md` §1.4, `docs/desktop-responsive.md` §1.7, `AGENTS.md`
 - 1.200 Mobile bottom-sheet polish (sheet read too low): the "Tap outside to minimize"
-   caption — which sat at the viewport bottom and now overlapped the docked sheet — is
-   moved into the sheet's **top gutter** on phones (`DashboardView` branches it on
-   `isDesktop`: bottom caption for the centered desktop modal, a `safe-area-inset-top`-
-   aware top caption for the sheet). The gutter grows to ~68px:
-   `WIZARD_BODY_HEIGHT_SHEET` = `calc(100dvh - env(safe-area-inset-top, 0px) - 144px)`
-   (was `calc(100dvh - 132px)`), so the caption is clearly visible and there's a
-   comfortable tap target above the sheet; the action bar's bottom clearance is bumped
-   (`safe-area-inset-bottom` + `sm` spacing) so the Back/Next/Create bar isn't glued to
-   the screen edge. Desktop centered modal is unchanged. `docs/event-lifecycle.md` §1.4,
-   `docs/desktop-responsive.md` §1.7, `AGENTS.md`
+  caption — which sat at the viewport bottom and now overlapped the docked sheet — is
+  moved into the sheet's **top gutter** on phones (`DashboardView` branches it on
+  `isDesktop`: bottom caption for the centered desktop modal, a `safe-area-inset-top`-
+  aware top caption for the sheet). The gutter grows to ~68px:
+  `WIZARD_BODY_HEIGHT_SHEET` = `calc(100dvh - env(safe-area-inset-top, 0px) - 144px)`
+  (was `calc(100dvh - 132px)`), so the caption is clearly visible and there's a
+  comfortable tap target above the sheet; the action bar's bottom clearance is bumped
+  (`safe-area-inset-bottom` + `sm` spacing) so the Back/Next/Create bar isn't glued to
+  the screen edge. Desktop centered modal is unchanged. `docs/event-lifecycle.md` §1.4,
+  `docs/desktop-responsive.md` §1.7, `AGENTS.md`
 - 1.202 On-demand dashboard Views (tabs): the fixed five-view dashboard is gone — the calendar
-   is a per-account set of views (`user_dashboard_views`: renderer kind + user name + strip
-   order + that tab's own Cal/Users/Types filters; duplicates allowed), created via a (＋)
-   button at the end of the scrolling tab strip ("Add view": kind picker + name) and managed
-   through an **Edit views** mode (↑/↓ reorder, tap-to-rename, delete — the last tab can't
-   go). Filters are **server-side per tab** (`NULL` = role default, explicit array = the
-   selection), applied/cleared via `saveDashboardViewFilters` + `router.refresh()` — the
-   `cal/users/types` URL params, the `_fresh` machinery and the pin/unpin star UI are
-   deleted. The active tab rides the URL as `?view=<tab id>` (legacy `<kind>` maps to the
-   first tab of that kind), is remembered server-side (`user_preferences.dashboardActiveViewId`),
-   and resolves URL → remembered → first tab; a single "Month" tab is seeded lazily under a
-   `user_preferences` row lock. Scalar preferences moved server-side too (`user_preferences`:
-   last-active tab + parade filters; zoom/sidebar/lastPage/date/month stay in the reduced
-   device `cloudy2.ui` cookie — major v3). Period is preserved on same-kind and
-   anchored↔anchored tab switches; route/cold-start loading is one plain box
-   (`loading.tsx` + `public/loading.html`); in-page skeletons still shape to the kind.
-   Break-glass admin has no rows (static Month tab, no management). Migrations 0037 +
-   `user_preferences`/`user_dashboard_views`; `docs/ui-state.md` rewritten,
-   `docs/dashboard-views.md` §1.1/§1.2/§1.8, `AGENTS.md`, `progress-archive.md`
+  is a per-account set of views (`user_dashboard_views`: renderer kind + user name + strip
+  order + that tab's own Cal/Users/Types filters; duplicates allowed), created via a (＋)
+  button at the end of the scrolling tab strip ("Add view": kind picker + name) and managed
+  through an **Edit views** mode (↑/↓ reorder, tap-to-rename, delete — the last tab can't
+  go). Filters are **server-side per tab** (`NULL` = role default, explicit array = the
+  selection), applied/cleared via `saveDashboardViewFilters` + `router.refresh()` — the
+  `cal/users/types` URL params, the `_fresh` machinery and the pin/unpin star UI are
+  deleted. The active tab rides the URL as `?view=<tab id>` (legacy `<kind>` maps to the
+  first tab of that kind), is remembered server-side (`user_preferences.dashboardActiveViewId`),
+  and resolves URL → remembered → first tab; a single "Month" tab is seeded lazily under a
+  `user_preferences` row lock. Scalar preferences moved server-side too (`user_preferences`:
+  last-active tab + parade filters; zoom/sidebar/lastPage/date/month stay in the reduced
+  device `cloudy2.ui` cookie — major v3). Period is preserved on same-kind and
+  anchored↔anchored tab switches; route/cold-start loading is one plain box
+  (`loading.tsx` + `public/loading.html`); in-page skeletons still shape to the kind.
+  Break-glass admin has no rows (static Month tab, no management). Migrations 0037 +
+  `user_preferences`/`user_dashboard_views`; `docs/ui-state.md` rewritten,
+  `docs/dashboard-views.md` §1.1/§1.2/§1.8, `AGENTS.md`, `progress-archive.md`
 - 1.201 Event wizard back to a centered modal (the bottom-sheet model was wrong — it gave
-   unequal gutters and dragged the caption to the top). The host modal is `centered` at
-   every width again; on phones the body **fills the centered box** to use as much
-   vertical space as possible: `DashboardView` sets `yOffset="44px"` so Mantine centers
-   inside a `100dvh - 88px` box and `WIZARD_BODY_HEIGHT_MOBILE` = `calc(100dvh - 164px)`
-   fills it, leaving equal ~44px top/bottom gutters. The "Tap outside to minimize"
-   caption returns to `bottom: 16` (it was over the sheet / at the top). The rect-pinned
-   motion origin is restored (a centered modal again), and the `.c2-event-form-sheet`
-   CSS + `WIZARD_BODY_HEIGHT_SHEET` are removed. Desktop keeps its capped height
-   (`min(68dvh, 720px, calc(100dvh - 200px))`) unchanged. `docs/event-lifecycle.md` §1.4,
-    `docs/desktop-responsive.md` §1.7, `AGENTS.md`
+  unequal gutters and dragged the caption to the top). The host modal is `centered` at
+  every width again; on phones the body **fills the centered box** to use as much
+  vertical space as possible: `DashboardView` sets `yOffset="44px"` so Mantine centers
+  inside a `100dvh - 88px` box and `WIZARD_BODY_HEIGHT_MOBILE` = `calc(100dvh - 164px)`
+  fills it, leaving equal ~44px top/bottom gutters. The "Tap outside to minimize"
+  caption returns to `bottom: 16` (it was over the sheet / at the top). The rect-pinned
+  motion origin is restored (a centered modal again), and the `.c2-event-form-sheet`
+  CSS + `WIZARD_BODY_HEIGHT_SHEET` are removed. Desktop keeps its capped height
+  (`min(68dvh, 720px, calc(100dvh - 200px))`) unchanged. `docs/event-lifecycle.md` §1.4,
+  `docs/desktop-responsive.md` §1.7, `AGENTS.md`
 - 1.203 Month-grid zoom (fit-to-width): the Month view's default is now **zoom 100% =
-   all seven day columns fit the viewport width** — Mantine's 84px `--min-day-width`
-   floor is zeroed and the MonthView ScrollArea content (`monthViewInner`) is widened to
-   `zoom × 100%`, so every column/event scales together. Zooming in (levels
-   1/1.25/1.5/2/2.5/3, pure `src/lib/ui/monthZoom.ts`) overflows the grid into the
-   dashboard's horizontal pan: the MonthView's ScrollArea gets its own `useGridPan`
-   instance (`monthPan`) and the shared `GridNavControls` right-edge cluster (zoom +/−
-   + pan arrows), which now takes a caller `zoomMin`/`zoomMax` range. Zooming keeps the
-   centered day anchored (`reanchorScrollLeft`, no label column); the pinned weekday
-   strip is sized to the same zoomed width so initials stay over their columns. Level
-   remembered per device as `dashboard.monthZoom` (cookie minor v3.1, distinct from the
-   Day/Week (H) `zoom`), read pre-paint and seeded server-side. Columns only —
-   `maxEventsPerDay`, cell height and the day modal are unchanged. `docs/dashboard-views.md`
+  all seven day columns fit the viewport width** — Mantine's 84px `--min-day-width`
+  floor is zeroed and the MonthView ScrollArea content (`monthViewInner`) is widened to
+  `zoom × 100%`, so every column/event scales together. Zooming in (levels
+  1/1.25/1.5/2/2.5/3, pure `src/lib/ui/monthZoom.ts`) overflows the grid into the
+  dashboard's horizontal pan: the MonthView's ScrollArea gets its own `useGridPan`
+  instance (`monthPan`) and the shared `GridNavControls` right-edge cluster (zoom +/−
+  - pan arrows), which now takes a caller `zoomMin`/`zoomMax` range. Zooming keeps the
+    centered day anchored (`reanchorScrollLeft`, no label column); the pinned weekday
+    strip is sized to the same zoomed width so initials stay over their columns. Level
+    remembered per device as `dashboard.monthZoom` (cookie minor v3.1, distinct from the
+    Day/Week (H) `zoom`), read pre-paint and seeded server-side. Columns only —
+    `maxEventsPerDay`, cell height and the day modal are unchanged. `docs/dashboard-views.md`
     §1.8 (the file index becomes §1.9), `docs/grid-pan.md`, `docs/ui-state.md`,
     `docs/user-guide.md`, `AGENTS.md`
 - 1.204 Participant notifications via Web Push (migration 0038 `push_subscriptions`
-  + `user_preferences.event_invite_push`): after every successful event
-  **create/update** (never delete), users **newly included** as participants are
-  notified by browser push through `dispatchParticipantNotifications`
-  (`src/lib/events/participantNotify/`, the `after()` best-effort pattern — never
-  blocks/fails the mutation). "Included" = tagged users + **active members of
-  tagged departments** (the clash occupancy model); the pure unit-tested
-  `computeAddedUserIds` diffs old vs new occupancy against the mutation-time
-  membership map, so a no-op/time-only edit adds nobody and the acting user is
-  never notified. Recipients are filtered to active roster users with the
-  account-wide master switch on and a stored `push_subscriptions` row
-  (per-device endpoints, upsert-by-endpoint and re-`userId`d to the signed-in
-  account on sync so a shared device never leaks another account's pushes; 404/410
-  endpoints prune their row). Delivery needs the VAPID env trio
-  (`NEXT_PUBLIC_VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT`, one
-  shared pair — without it push is skipped gracefully). The Serwist SW
-  (`sw.ts`) gains `push`/`notificationclick` handlers that show the small payload
-  and deep-link the event's details on tap; UX is the profile menu's
-  **Notifications** dialog (`NotificationSettings.tsx`): enable on this device
-  (permission + subscribe) + the pause switch, with iOS-installed-PWA-only and
-  denied-state guidance. Audit rows `event.participantNotify`.
-  `docs/event-notifications.md`, `AGENTS.md`, `.env.example`,
-  `docs/developer-guide.md` §1.4/§1.9/§1.9.1/§1.12
+  - `user_preferences.event_invite_push`): after every successful event
+    **create/update** (never delete), users **newly included** as participants are
+    notified by browser push through `dispatchParticipantNotifications`
+    (`src/lib/events/participantNotify/`, the `after()` best-effort pattern — never
+    blocks/fails the mutation). "Included" = tagged users + **active members of
+    tagged departments** (the clash occupancy model); the pure unit-tested
+    `computeAddedUserIds` diffs old vs new occupancy against the mutation-time
+    membership map, so a no-op/time-only edit adds nobody and the acting user is
+    never notified. Recipients are filtered to active roster users with the
+    account-wide master switch on and a stored `push_subscriptions` row
+    (per-device endpoints, upsert-by-endpoint and re-`userId`d to the signed-in
+    account on sync so a shared device never leaks another account's pushes; 404/410
+    endpoints prune their row). Delivery needs the VAPID env trio
+    (`NEXT_PUBLIC_VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT`, one
+    shared pair — without it push is skipped gracefully). The Serwist SW
+    (`sw.ts`) gains `push`/`notificationclick` handlers that show the small payload
+    and deep-link the event's details on tap; UX is the profile menu's
+    **Notifications** dialog (`NotificationSettings.tsx`): enable on this device
+    (permission + subscribe) + the pause switch, with iOS-installed-PWA-only and
+    denied-state guidance. Audit rows `event.participantNotify`.
+    `docs/event-notifications.md`, `AGENTS.md`, `.env.example`,
+    `docs/developer-guide.md` §1.4/§1.9/§1.9.1/§1.12
 - 1.205 Participant-push hardening + self-test: real-device QA found the
   Notifications dialog could spin forever when the service worker never became
   active (an unraced `navigator.serviceWorker.ready`), and every delivery
@@ -653,7 +653,7 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   **Send test notification** button (`sendTestPush` server action) pushes one
   notification through the identical `web-push` path (shared `sender.ts`) and
   reports 403/401 (VAPID pair mismatch), 404/410 (stale endpoint → prune +
-  re-enable prompt), or success.   `docs/event-notifications.md` gains §1.10.1
+  re-enable prompt), or success. `docs/event-notifications.md` gains §1.10.1
   troubleshooting (NEXT_PUBLIC rebuild, key-pair mismatch, two-account test,
   migration, audit/log tell-tales)
 - 1.206 Participant push on the Cloud Run shadow: device QA showed the `*.run.app`
@@ -807,10 +807,10 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   keyboard via the shared `activatable`); section headers + summary Total now say
   `X/Y present` in attendance mode vs `X/Y in camp` otherwise (same format, explicit
   metric); the copied report headers read `(X of Y present)`; the mode survives a reload
-via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` external
-   store (stable snapshot identity, cross-tab storage events); "Saved on this device only"
-   caption in the mode bar (pure store snapshots unit-tested;
-   `docs/user-guide.md` §1.7, `docs/roster-sharing.md` §1.7)
+  via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` external
+  store (stable snapshot identity, cross-tab storage events); "Saved on this device only"
+  caption in the mode bar (pure store snapshots unit-tested;
+  `docs/user-guide.md` §1.7, `docs/roster-sharing.md` §1.7)
 - 1.218 Banner/initial-loading alignment fix: the announcement banner is no longer
   **streamed** — `(protected)/layout.tsx` resolves `getBanner()` in parallel with the
   session and passes `bannerConfig` to `AppShellShell` as a prop, so `bannerActive`
@@ -842,10 +842,10 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
   per-call `lightColor`/`darkColor`/`duration`, defaulting to the brand blue pair
   `brand-3`/`brand-7`). Legibility on both tones uses a duplicated label: white over the
   dark body + a dark copy clipped to the light fill via `clip-path`. `ActionPillProvider`
-  + `useActionPill()` mount in `AppProviders`; EventForm's post-save success now calls
-  `showActionPill({ title, label: "View event", onAction })` (plain green/red
-  notifications untouched); `.c2-action-pill*` CSS in globals.css; reduced-motion snaps
-  the sweep.
+  - `useActionPill()` mount in `AppProviders`; EventForm's post-save success now calls
+    `showActionPill({ title, label: "View event", onAction })` (plain green/red
+    notifications untouched); `.c2-action-pill*` CSS in globals.css; reduced-motion snaps
+    the sweep.
 - 1.221 Keyboard-free event wizard: the create/edit modal no longer needs the on-screen
   keyboard for anything except the optional Remarks textarea — the date/time inputs are
   natively read-only via the styles-API `attributes` (never the `readOnly` prop, which
@@ -853,276 +853,276 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
   `TimeChipSelector` (horizontally scrollable hour row 00–23 + fixed minute row
   00/15/30/45) sits above each `TimePicker` for two-tap times; and the Location step
   gains a "Recent locations" chip row of the acting user's own past destinations
-   (`fetchRecentLocations` server action, month cache, most recent first, at most 8) that
-   fills the `TextInput` on tap (`docs/event-lifecycle.md` §1.4.1)
+  (`fetchRecentLocations` server action, month cache, most recent first, at most 8) that
+  fills the `TextInput` on tap (`docs/event-lifecycle.md` §1.4.1)
 - 1.222 System-bar sync `removeChild` crash fix: `SystemBarSync` removed Next's
-   React-hoisted `<meta name="theme-color">` (from `viewport.themeColor`) and appended its
-   own node, so React's later `<head>` re-render (soft navigation) deleted a detached
-   hoistable fiber → repeated `can't access property "removeChild", finishedRoot.parentNode
-   is null`. The meta is now rendered by `SystemBarSync` and remounted via React (a
-   hydration-flipped `key`): `viewport.themeColor` is gone, the component's SSR output is
-   the pre-hydration meta (manifest `theme_color` still backs the splash), and React
-   itself removes/inserts the node at hydration and on each scheme change — the same
-   fresh-node swap Chrome needs, with no detached-node deletion (bugfix)
+  React-hoisted `<meta name="theme-color">` (from `viewport.themeColor`) and appended its
+  own node, so React's later `<head>` re-render (soft navigation) deleted a detached
+  hoistable fiber → repeated `can't access property "removeChild", finishedRoot.parentNode
+ is null`. The meta is now rendered by `SystemBarSync` and remounted via React (a
+  hydration-flipped `key`): `viewport.themeColor` is gone, the component's SSR output is
+  the pre-hydration meta (manifest `theme_color` still backs the splash), and React
+  itself removes/inserts the node at hydration and on each scheme change — the same
+  fresh-node swap Chrome needs, with no detached-node deletion (bugfix)
 - 1.223 Search / Pinned / note deep links no longer switch the active view or touch
-   filters: clicking a search result (or any `?event=` link) opens the target's details
-   on the **current** tab — the search link now carries `?view=` for the active tab
-   (`buildEventDeepLink`, pure + unit-tested), so it can't fall back to the remembered
-   tab, and `_eventCal` is no longer added to the grid's fetch set. The server instead
-   resolves that one event separately (its own calendar, empty type/user filters) into
-   `deepLinkEvent` on the snapshot record root (never cached), so an event the active
-   filters hide still opens **without leaking a chip** into the grid or altering any
-   saved filter; the same-period case (`_eventCal`/`event` are absent from
-   `dashboardRequestKey`, so no refetch) is covered by a ref-guarded one-shot refetch in
-   `DashboardScreen` plus a "pending" deep link in `DashboardView` that opens the modal
-   once `deepLinkEvent` lands (bugfix; `docs/event-search.md` §1.9,
-   `docs/event-lifecycle.md` §1.4.2, `docs/loading-transitions.md` §1.7,
-   `docs/ui-state.md`, `docs/pinned-events.md`)
+  filters: clicking a search result (or any `?event=` link) opens the target's details
+  on the **current** tab — the search link now carries `?view=` for the active tab
+  (`buildEventDeepLink`, pure + unit-tested), so it can't fall back to the remembered
+  tab, and `_eventCal` is no longer added to the grid's fetch set. The server instead
+  resolves that one event separately (its own calendar, empty type/user filters) into
+  `deepLinkEvent` on the snapshot record root (never cached), so an event the active
+  filters hide still opens **without leaking a chip** into the grid or altering any
+  saved filter; the same-period case (`_eventCal`/`event` are absent from
+  `dashboardRequestKey`, so no refetch) is covered by a ref-guarded one-shot refetch in
+  `DashboardScreen` plus a "pending" deep link in `DashboardView` that opens the modal
+  once `deepLinkEvent` lands (bugfix; `docs/event-search.md` §1.9,
+  `docs/event-lifecycle.md` §1.4.2, `docs/loading-transitions.md` §1.7,
+  `docs/ui-state.md`, `docs/pinned-events.md`)
 - 1.224 Instant dashboard tab switches via preload: after the active context is fresh and
-   idle, `DashboardScreen` calls the new `preloadDashboardTabs` action once per anchor (the
-   tab set + the months those tabs need), deferred to `requestIdleCallback` and skipped
-   offline; `buildDashboardPreload` resolves the shared config once and does a single
-   `readCalendarRange` over the union of every tab's calendars/months, then projects each
-   tab (`projectRangeEvents` + `resolveDisplayTitles`) into a delta, and the client
-   `assembleDashboardSnapshot`s each into the warm map + IndexedDB — so a tab switch paints
-   with no server round-trip (revalidating only past `WARM_SNAPSHOT_FRESH_MS`). The read
-   never forces Google (it warms what the active read fetched; only cold `(calendar, month)`
-   combinations fetch), `MAX_SNAPSHOTS_PER_USER` rises 6 → 12 to hold the preloaded tabs,
-   and a mutation / force refresh bumps a generation ref so an in-flight preload can't
-   repopulate stale records; `fetchRangeEvents` is now a thin wrapper over
-   `readCalendarRange` + `projectRangeEvents` (no behavior change), with unit tests for the
-   projector and the assembler (`docs/pwa-offline.md` §1.18, `docs/dashboard-views.md`
-   §1.4, `docs/events-cache.md` §1.8, `AGENTS.md`)
+  idle, `DashboardScreen` calls the new `preloadDashboardTabs` action once per anchor (the
+  tab set + the months those tabs need), deferred to `requestIdleCallback` and skipped
+  offline; `buildDashboardPreload` resolves the shared config once and does a single
+  `readCalendarRange` over the union of every tab's calendars/months, then projects each
+  tab (`projectRangeEvents` + `resolveDisplayTitles`) into a delta, and the client
+  `assembleDashboardSnapshot`s each into the warm map + IndexedDB — so a tab switch paints
+  with no server round-trip (revalidating only past `WARM_SNAPSHOT_FRESH_MS`). The read
+  never forces Google (it warms what the active read fetched; only cold `(calendar, month)`
+  combinations fetch), `MAX_SNAPSHOTS_PER_USER` rises 6 → 12 to hold the preloaded tabs,
+  and a mutation / force refresh bumps a generation ref so an in-flight preload can't
+  repopulate stale records; `fetchRangeEvents` is now a thin wrapper over
+  `readCalendarRange` + `projectRangeEvents` (no behavior change), with unit tests for the
+  projector and the assembler (`docs/pwa-offline.md` §1.18, `docs/dashboard-views.md`
+  §1.4, `docs/events-cache.md` §1.8, `AGENTS.md`)
 - 1.225 Daily parade-state email (Settings → Parade State Email): admins pick roster
-   recipients, a UTC+8 send time, and subject/body templates (shared `renderTemplate`,
-   `{departments}` required); a new `CRON_SECRET`-protected `/api/cron/parade-state-email`
-   route (triggered by Cloud Scheduler, not Vercel Cron) claims the day via the unique
-   `parade_email_sends.send_date` and emails an org-wide snapshot derived from the same
-   shared pure helpers as the parade page (`src/lib/parade/*`; attendance localStorage
-   excluded), with a Send Test Now action; `settings` gains five `parade_email_*` columns,
-   a `paradeState.emailSend` audit action is logged, and the KAH renderer now shares the
-   generic template helper (`docs/parade-state-email.md`)
+  recipients, a UTC+8 send time, and subject/body templates (shared `renderTemplate`,
+  `{departments}` required); a new `CRON_SECRET`-protected `/api/cron/parade-state-email`
+  route (triggered by Cloud Scheduler, not Vercel Cron) claims the day via the unique
+  `parade_email_sends.send_date` and emails an org-wide snapshot derived from the same
+  shared pure helpers as the parade page (`src/lib/parade/*`; attendance localStorage
+  excluded), with a Send Test Now action; `settings` gains five `parade_email_*` columns,
+  a `paradeState.emailSend` audit action is logged, and the KAH renderer now shares the
+  generic template helper (`docs/parade-state-email.md`)
 - 1.226 Loading-indicator fixes + per-view tab load state: (a) the global activity
-   bar's refcount no longer leaks when a reporter unmounts mid-load —
-   `useReportActivity` releases its key in the effect cleanup and the arithmetic moved
-   to the pure, unit-tested `src/lib/ui/activity.ts`, so navigating away from the
-   dashboard while a read is in flight can't leave the bar running until a full reload;
-   (b) the activity bar's show/hold timers key on `busy`, not the cold-start phase, so
-   the cold-start → activity hand-off is seamless (no vanish-for-the-green then
-   reappear); (c) the cold-start legs and the first dashboard read are bounded by
-   `withTimeout` (`src/lib/async.ts`), and a failed first read with nothing cached shows
-   a retryable `EmptyState` instead of an endless skeleton; (d) each dashboard tab now
-   shows its own view's load state — loaded solid, loading faded + breathing,
-   not-loaded faded — via pure `tabLoadStates` + `DashboardScreen.tabStatus` on the
-   existing data context; (e) `resolveDashboardConfig` batches its reads and single-tab
-   accounts skip the preload's second config pass (`docs/loading-transitions.md`
-   §1.13/§1.13.1/§1.13.2, `AGENTS.md`)
+  bar's refcount no longer leaks when a reporter unmounts mid-load —
+  `useReportActivity` releases its key in the effect cleanup and the arithmetic moved
+  to the pure, unit-tested `src/lib/ui/activity.ts`, so navigating away from the
+  dashboard while a read is in flight can't leave the bar running until a full reload;
+  (b) the activity bar's show/hold timers key on `busy`, not the cold-start phase, so
+  the cold-start → activity hand-off is seamless (no vanish-for-the-green then
+  reappear); (c) the cold-start legs and the first dashboard read are bounded by
+  `withTimeout` (`src/lib/async.ts`), and a failed first read with nothing cached shows
+  a retryable `EmptyState` instead of an endless skeleton; (d) each dashboard tab now
+  shows its own view's load state — loaded solid, loading faded + breathing,
+  not-loaded faded — via pure `tabLoadStates` + `DashboardScreen.tabStatus` on the
+  existing data context; (e) `resolveDashboardConfig` batches its reads and single-tab
+  accounts skip the preload's second config pass (`docs/loading-transitions.md`
+  §1.13/§1.13.1/§1.13.2, `AGENTS.md`)
 - 1.227 Instant dashboard tab switches (optimistic + prefetch) and a reflow-free
-   grid swipe: a tab tap was still gated on the RSC round-trip because the data
-   layer resolved the active context from `useSearchParams`, which only updates
-   when the payload lands — even though the tapped tab's data was already warm in
-   the device cache. `switchTab` now sets a `previewView` in
-   `DashboardDataContext` and `DashboardScreen` resolves `candidateKey` /
-   `presentation` / `displayRecord` / `tabStatus` / the fetch decision from
-   `previewView ?? ?view=`, so a warm tab paints at once (and a cold tab fetches
-   immediately, not after the URL commits); the preview clears when the URL
-   catches up or after a 6 s revert window (`PREVIEW_REVERT_MS`), and
-   `DashboardView` `router.prefetch`es each tab's target URL (the period rule
-   extracted to pure `tabSwitchTarget`) so the URL catches up promptly. The grid
-   swipe moved from a CSS class + `void el.offsetWidth` forced reflow to the Web
-   Animations API (`el.animate`), removing a full-grid synchronous layout on every
-   tab/date change (`docs/loading-transitions.md` §1.10/§1.13.2,
-   `docs/dashboard-views.md` §1.4, `AGENTS.md`)
+  grid swipe: a tab tap was still gated on the RSC round-trip because the data
+  layer resolved the active context from `useSearchParams`, which only updates
+  when the payload lands — even though the tapped tab's data was already warm in
+  the device cache. `switchTab` now sets a `previewView` in
+  `DashboardDataContext` and `DashboardScreen` resolves `candidateKey` /
+  `presentation` / `displayRecord` / `tabStatus` / the fetch decision from
+  `previewView ?? ?view=`, so a warm tab paints at once (and a cold tab fetches
+  immediately, not after the URL commits); the preview clears when the URL
+  catches up or after a 6 s revert window (`PREVIEW_REVERT_MS`), and
+  `DashboardView` `router.prefetch`es each tab's target URL (the period rule
+  extracted to pure `tabSwitchTarget`) so the URL catches up promptly. The grid
+  swipe moved from a CSS class + `void el.offsetWidth` forced reflow to the Web
+  Animations API (`el.animate`), removing a full-grid synchronous layout on every
+  tab/date change (`docs/loading-transitions.md` §1.10/§1.13.2,
+  `docs/dashboard-views.md` §1.4, `AGENTS.md`)
 - 1.228 Parade-state email fixed to a weekday 08:00 schedule: Cloud Scheduler now fires
-   `0 8 * * 1-5` (Asia/Singapore) and the in-app send-time setting is removed — the
-   scheduler is authoritative, so `paradeEmailDue` keeps only the enabled/recipients/
-   already-sent gates and the `settings.parade_email_send_time` column is dropped
-   (migration 0045). The settings tab shows the schedule read-only and the test button is
-   relabelled "Send test to my email" (it still emails only the acting admin); public
-   holidays remain included, documented as a deliberate limitation
-   (`docs/parade-state-email.md`)
+  `0 8 * * 1-5` (Asia/Singapore) and the in-app send-time setting is removed — the
+  scheduler is authoritative, so `paradeEmailDue` keeps only the enabled/recipients/
+  already-sent gates and the `settings.parade_email_send_time` column is dropped
+  (migration 0045). The settings tab shows the schedule read-only and the test button is
+  relabelled "Send test to my email" (it still emails only the acting admin); public
+  holidays remain included, documented as a deliberate limitation
+  (`docs/parade-state-email.md`)
 - 1.229 View loads leave the global activity bar; the active tab carries the signal:
-   the dashboard no longer reports its view/date navigations (`useReportActivity(isPending,
-   "dashboard:nav")` removed) and a filter apply now calls `revalidate({ report: false })`,
-   so the bar is reserved for refreshes with no in-page skeleton (post-mutation, view CRUD,
-   settings, route navs). `DashboardScreen` gains a `refreshing` flag reported as
-   `dashboard:refresh`. Because view loads no longer surface on the bar, `tabStatus` now
-   forces the **active** tab to `loading` while any read of its context is in flight (cold
-   nav, post-mutation refresh, filter apply), and the breathing pulse is stronger — opacity
-   `0.35 ↔ 1` over 1.3 s (was `0.45 ↔ 0.8` / 1.6 s) (`docs/loading-transitions.md`
-   §1.13/§1.13.2, `AGENTS.md`)
+  the dashboard no longer reports its view/date navigations (`useReportActivity(isPending,
+ "dashboard:nav")` removed) and a filter apply now calls `revalidate({ report: false })`,
+  so the bar is reserved for refreshes with no in-page skeleton (post-mutation, view CRUD,
+  settings, route navs). `DashboardScreen` gains a `refreshing` flag reported as
+  `dashboard:refresh`. Because view loads no longer surface on the bar, `tabStatus` now
+  forces the **active** tab to `loading` while any read of its context is in flight (cold
+  nav, post-mutation refresh, filter apply), and the breathing pulse is stronger — opacity
+  `0.35 ↔ 1` over 1.3 s (was `0.45 ↔ 0.8` / 1.6 s) (`docs/loading-transitions.md`
+  §1.13/§1.13.2, `AGENTS.md`)
 
 - 1.230 Android edge-to-edge for the bottom nav: the shell footer now uses Chrome's
-   fast-path pattern (grow by `safe-area-max-inset-bottom`, pull down with
-   `calc(env(safe-area-inset-bottom) - max)`) instead of Mantine's live-inset
-   `padding-bottom`, which Chrome reads as a signal to keep its bottom chin and clamp
-   the viewport. `--c2-safe-area-max-bottom` falls back to the live inset off Chrome,
-   so non-supporting browsers keep the old exact behavior; the override is mobile-scoped
-   (`max-width: 39.99em`) and `--app-shell-footer-offset` is re-declared (minus immersive)
-   so AppShell main clears the footer's in-viewport height. The launch shell
-   (`public/loading.html`) mirrors the pattern, guarded by `launchShell.test.ts`.
-   Improves **browser-tab** compatibility only — installed WebAPK edge-to-edge is gated
-   on Chrome shipping the fix (`docs/pwa-offline.md` §1.19)
+  fast-path pattern (grow by `safe-area-max-inset-bottom`, pull down with
+  `calc(env(safe-area-inset-bottom) - max)`) instead of Mantine's live-inset
+  `padding-bottom`, which Chrome reads as a signal to keep its bottom chin and clamp
+  the viewport. `--c2-safe-area-max-bottom` falls back to the live inset off Chrome,
+  so non-supporting browsers keep the old exact behavior; the override is mobile-scoped
+  (`max-width: 39.99em`) and `--app-shell-footer-offset` is re-declared (minus immersive)
+  so AppShell main clears the footer's in-viewport height. The launch shell
+  (`public/loading.html`) mirrors the pattern, guarded by `launchShell.test.ts`.
+  Improves **browser-tab** compatibility only — installed WebAPK edge-to-edge is gated
+  on Chrome shipping the fix (`docs/pwa-offline.md` §1.19)
 - 1.231 Tab freshness indicators: the dashboard tab strip now distinguishes five states
-   instead of three — `fresh` (solid), `stale` (warm snapshot older than the 60 s window,
-   background tabs: a small static amber dot), `queued` (the background preload is warming
-   it: a pulsing amber dot), `loading` (a read for the active tab: fade + breathe), and
-   `not-loaded` (static fade). The active tab is always `fresh` unless a read is in flight.
-   `tabLoadStates` (`snapshot.ts`) takes `freshKeys`/`staleKeys`/`queuedKeys`/`loadingKeys`
-   + `activeTabId`; `DashboardScreen` computes them from `warmRecords`/`savedAt` via a
-   **freshness tick** (a single scheduled timeout at the earliest record expiry, re-armed,
-   no polling) so `stale` appears on time. `stale`/`queued` render an absolutely-positioned
-   `::after` dot on the `Tabs.Tab` (no layout shift). Stale is indicate-only (tapping
-   revalidates); the strip is not auto-refreshed (`docs/loading-transitions.md` §1.13.2,
-   `AGENTS.md`)
+  instead of three — `fresh` (solid), `stale` (warm snapshot older than the 60 s window,
+  background tabs: a small static amber dot), `queued` (the background preload is warming
+  it: a pulsing amber dot), `loading` (a read for the active tab: fade + breathe), and
+  `not-loaded` (static fade). The active tab is always `fresh` unless a read is in flight.
+  `tabLoadStates` (`snapshot.ts`) takes `freshKeys`/`staleKeys`/`queuedKeys`/`loadingKeys`
+  - `activeTabId`; `DashboardScreen` computes them from `warmRecords`/`savedAt` via a
+    **freshness tick** (a single scheduled timeout at the earliest record expiry, re-armed,
+    no polling) so `stale` appears on time. `stale`/`queued` render an absolutely-positioned
+    `::after` dot on the `Tabs.Tab` (no layout shift). Stale is indicate-only (tapping
+    revalidates); the strip is not auto-refreshed (`docs/loading-transitions.md` §1.13.2,
+    `AGENTS.md`)
 - 1.232 Removed the stale/queued amber badge from the dashboard tab strip: the corner dot
-   read as an unread-notification badge and confused users. The strip is back to three
-   states — `fresh` (solid, any age), `loading` (active read: fade + breathe), `not-loaded`
-   (static fade) — and `tabLoadStates` takes `warmKeys` + `loadingKeys` + `activeTabId`. A
-   warm-but-old tab now just renders solid and revalidates silently on tap; the freshness
-   tick and the `preloadBusy` tab signal were deleted (`docs/loading-transitions.md`
-   §1.13.2, `AGENTS.md`)
+  read as an unread-notification badge and confused users. The strip is back to three
+  states — `fresh` (solid, any age), `loading` (active read: fade + breathe), `not-loaded`
+  (static fade) — and `tabLoadStates` takes `warmKeys` + `loadingKeys` + `activeTabId`. A
+  warm-but-old tab now just renders solid and revalidates silently on tap; the freshness
+  tick and the `preloadBusy` tab signal were deleted (`docs/loading-transitions.md`
+  §1.13.2, `AGENTS.md`)
 - 1.233 Events no longer land in the organizer's home department unless the organizer is a
-   participant: `deriveTargetCalendarIds` now derives the target set purely from
-   participants (tagged users' departments + tagged departments), falling back to the
-   organizer's department only when no participant carries one. Previously the organizer's
-   department was always a target, so an event owned by Dept 1 with its only participant
-   in Dept 2 got a copy in Dept 1's calendar and showed up when the dashboard Calendars
-   filter was set to Dept 1. `refTargetCalendars` (update/delete reconciliation) keeps the
-   old superset via a new `deriveLegacyTargetCalendarIds`, so copies placed under the
-   previous rule are still found and removed on the next save/delete. Docs:
-   `docs/event-lifecycle.md` §1.6, `docs/event-mutations.md`, `docs/event-clashes.md` §1.4
+  participant: `deriveTargetCalendarIds` now derives the target set purely from
+  participants (tagged users' departments + tagged departments), falling back to the
+  organizer's department only when no participant carries one. Previously the organizer's
+  department was always a target, so an event owned by Dept 1 with its only participant
+  in Dept 2 got a copy in Dept 1's calendar and showed up when the dashboard Calendars
+  filter was set to Dept 1. `refTargetCalendars` (update/delete reconciliation) keeps the
+  old superset via a new `deriveLegacyTargetCalendarIds`, so copies placed under the
+  previous rule are still found and removed on the next save/delete. Docs:
+  `docs/event-lifecycle.md` §1.6, `docs/event-mutations.md`, `docs/event-clashes.md` §1.4
 - 1.234 View management is discoverable again: the tab strip's only entry point used to be
-   an unlabeled gear, with Add view buried two levels deep (gear → Manage-views modal → Add
-   view), so users didn't find they could create/modify tabs. A **+** button is now the last
-   item in the scrolling tab strip and opens the Add-view dialog in one tap; the gear gains
-   a real Mantine `Tooltip` and is relabeled
-   **Manage views** (aria-label/title + the modal title) — "edit" implied existing-only. Both
-   keep the native `title` and open on touch tap (`events.touch`); hidden for the break-glass
-   admin (`canManageViews`). Docs: `docs/dashboard-views.md` §1.1/§1.9, `docs/user-guide.md`
-   §1.3.1, `docs/immersive-mode.md` §1.4, `docs/ui-state.md`, `AGENTS.md`
+  an unlabeled gear, with Add view buried two levels deep (gear → Manage-views modal → Add
+  view), so users didn't find they could create/modify tabs. A **+** button is now the last
+  item in the scrolling tab strip and opens the Add-view dialog in one tap; the gear gains
+  a real Mantine `Tooltip` and is relabeled
+  **Manage views** (aria-label/title + the modal title) — "edit" implied existing-only. Both
+  keep the native `title` and open on touch tap (`events.touch`); hidden for the break-glass
+  admin (`canManageViews`). Docs: `docs/dashboard-views.md` §1.1/§1.9, `docs/user-guide.md`
+  §1.3.1, `docs/immersive-mode.md` §1.4, `docs/ui-state.md`, `AGENTS.md`
 - 1.235 Manage-views modal rework: the modal's rows were five cryptic icon-only controls
-   (up/down/swap/pencil/trash) with no sense of which tab was active or what kind it was,
-   and creation was a footer button opening yet another modal. Now the modal stays lean: a
-   compact **Add view** button at the top reuses the strip's quick Add-view dialog (no
-   inline form), each row shows the kind icon + name with a dimmed kind label **only when
-   the name is custom** (default-named tabs no longer repeat themselves), the active row
-   gets a quiet **accent left bar** (no badge), and the row actions are just **Edit** and
-   **Delete** — both `variant="subtle"`, with the reorder pair switched to
-   `ReorderUpDown`'s new `variant="subtle"` so a row isn't a wall of bordered boxes. Edit
-   opens one dialog for name + type (kind applied first so a custom name typed there wins;
-   replacing the separate inline rename and Change-type modal) and carries an **Edit
-   filters…** button that closes the modal, switches to that view and opens its filter
-   dialog once the tab is active (filters resolve server-side per tab). Docs:
-   `docs/dashboard-views.md` §1.1/§1.9, `docs/user-guide.md` §1.3.1, `AGENTS.md`
+  (up/down/swap/pencil/trash) with no sense of which tab was active or what kind it was,
+  and creation was a footer button opening yet another modal. Now the modal stays lean: a
+  compact **Add view** button at the top reuses the strip's quick Add-view dialog (no
+  inline form), each row shows the kind icon + name with a dimmed kind label **only when
+  the name is custom** (default-named tabs no longer repeat themselves), the active row
+  gets a quiet **accent left bar** (no badge), and the row actions are just **Edit** and
+  **Delete** — both `variant="subtle"`, with the reorder pair switched to
+  `ReorderUpDown`'s new `variant="subtle"` so a row isn't a wall of bordered boxes. Edit
+  opens one dialog for name + type (kind applied first so a custom name typed there wins;
+  replacing the separate inline rename and Change-type modal) and carries an **Edit
+  filters…** button that closes the modal, switches to that view and opens its filter
+  dialog once the tab is active (filters resolve server-side per tab). Docs:
+  `docs/dashboard-views.md` §1.1/§1.9, `docs/user-guide.md` §1.3.1, `AGENTS.md`
 - 1.236 Dual Pane dashboard view: a sixth renderer kind (`dual`) shows the Month grid and
-   the Agenda list in one view — side by side at `lg` with a **draggable split handle**
-   (device-remembered `dashboard.dualSplit`, clamp 25–75%, arrow keys + double-click reset),
-   stacked below `lg`. It is day-anchored (one `?date=` anchor): nav-row chevrons move ±1
-   month, the pane header moves ±1 day, and tapping a day cell selects it in the agenda pane
-   (no day modal). Pure `src/lib/ui/dualSplit.ts`, new    `DualPaneView.tsx` + `DualPaneSkeleton`
-   (reusing extracted `MonthWeekdayStrip`/`AgendaSwipeHint`); `dual` joins the title-template
-   targets. Docs: `docs/dashboard-views.md` §1.9, `docs/ui-state.md` §1.5, `AGENTS.md`
+  the Agenda list in one view — side by side at `lg` with a **draggable split handle**
+  (device-remembered `dashboard.dualSplit`, clamp 25–75%, arrow keys + double-click reset),
+  stacked below `lg`. It is day-anchored (one `?date=` anchor): nav-row chevrons move ±1
+  month, the pane header moves ±1 day, and tapping a day cell selects it in the agenda pane
+  (no day modal). Pure `src/lib/ui/dualSplit.ts`, new `DualPaneView.tsx` + `DualPaneSkeleton`
+  (reusing extracted `MonthWeekdayStrip`/`AgendaSwipeHint`); `dual` joins the title-template
+  targets. Docs: `docs/dashboard-views.md` §1.9, `docs/ui-state.md` §1.5, `AGENTS.md`
 - 1.237 Dual Pane overlap fix: the floating fullscreen toggle (fixed, 8px below the chrome
-   and 8px inside the grid's right edge) sat exactly over the agenda pane's sticky day
-   header, swallowing the day chevrons' taps. The header now reserves the toggle's box on
-   its right (desktop side-by-side only; exported `FULLSCREEN_BUTTON_SIZE`/`EDGE_INSET`),
-   and the toggle geometry is exported from    `FullscreenToggle.tsx` instead of module-private.
-   Docs: `docs/dashboard-views.md` §1.9
+  and 8px inside the grid's right edge) sat exactly over the agenda pane's sticky day
+  header, swallowing the day chevrons' taps. The header now reserves the toggle's box on
+  its right (desktop side-by-side only; exported `FULLSCREEN_BUTTON_SIZE`/`EDGE_INSET`),
+  and the toggle geometry is exported from `FullscreenToggle.tsx` instead of module-private.
+  Docs: `docs/dashboard-views.md` §1.9
 - 1.238 Month & Agenda follow-ups: the month pane's event chips are now inert
-   (no `onEventClick` + `tabIndex: -1`; a `c2-inert-event` class from
-   `DualPaneView`'s renderEvent disables the chip's whole subtree in `globals.css`
-   — Mantine re-enables `pointer-events` on the inner chip, so a root-only
-   override left taps swallowed by the chip instead of reaching the day cell —
-   so every month-pane tap falls through to the day-cell button with the correct
-   cell date and selects the day in the agenda pane; day cells keep their roving
-   tabindex), and the view is renamed from "Dual Pane" to **"Month & Agenda"**
-   (kind id `dual` unchanged — no migration; tabs already created keep their
-   stored "Dual Pane" name, new tabs default to the new label). Docs:
-   `docs/dashboard-views.md` §1.9, `docs/user-guide.md`, `AGENTS.md`
+  (no `onEventClick` + `tabIndex: -1`; a `c2-inert-event` class from
+  `DualPaneView`'s renderEvent disables the chip's whole subtree in `globals.css`
+  — Mantine re-enables `pointer-events` on the inner chip, so a root-only
+  override left taps swallowed by the chip instead of reaching the day cell —
+  so every month-pane tap falls through to the day-cell button with the correct
+  cell date and selects the day in the agenda pane; day cells keep their roving
+  tabindex), and the view is renamed from "Dual Pane" to **"Month & Agenda"**
+  (kind id `dual` unchanged — no migration; tabs already created keep their
+  stored "Dual Pane" name, new tabs default to the new label). Docs:
+  `docs/dashboard-views.md` §1.9, `docs/user-guide.md`, `AGENTS.md`
 - 1.239 Month & Agenda layout fixes: (1) the month pane's zoom/pan cluster stopped
-   following the pane once it narrowed past half the viewport — `GridNavControls`
-   clamped the edge controls to the **viewport's** midpoint; it now clamps to the
-   **anchor's** own midpoint (identical for full-width grids, fixes the dual pane);
-   (2) the two panes no longer scroll together — at `lg`+ (the app's desktop layout,
-   which large phones like an unfolded Fold adopt) the whole view is bounded to the
-   viewport's remaining height and each pane is a fixed-header column with its own
-   vertical scroll (`overflow-y: auto` + `overscroll-behavior: contain`); below `lg`
-   the panes stack and the document scrolls (calendar first, agenda below) as before.
-   `MonthWeekdayStrip` gains a `sticky` prop (`false` inside the bounded pane), the
-   agenda day header goes non-sticky at `lg`, and `DualPaneSkeleton` mirrors the
-   bounded layout. Docs: `docs/dashboard-views.md` §1.9, `docs/grid-pan.md` §1.2
- - 1.240 Dashboard no longer remembers the last-active view: `setActiveDashboardView`,
-   the `user_preferences.dashboard_active_view_id` column (migration 0046) and its
-   read in `resolveRequestedTab` are removed, so a bare `/dashboard` always resolves
-   `?view=` → first tab. The device snapshot hydration also stops painting the
-   last-viewed tab on a cold load (it paints the first tab's cached context, else
-   fetches), so a cold open always lands on the first view. `?view=` stays
-   authoritative for deep links/reloads. `docs/ui-state.md` §1.2/§1.3/§1.7,
-   `docs/dashboard-views.md` §1.1, `docs/pwa-offline.md` §1.18, `AGENTS.md`
- - 1.241 Month & Agenda narrow-screen behavior: below `lg` the agenda pane is no
-   longer stacked below the month grid — it is hidden, and the month pane behaves
-   exactly like the standalone Month view: chips open the event detail (live
-   `renderMonthEvent` + `onEventClick`, no inert pass-through), a cell tap opens
-   the shared agenda day modal (the Month view's `onDayClick` body extracted to a
-   shared `openDayModal` helper), and the `+N more` popover works too. At `lg` and
-   up the interaction is unchanged (inert chips, cell tap re-anchors the agenda
-   pane). `DualPaneSkeleton` is month-only below `lg`. Docs:
-   `docs/dashboard-views.md` §1.9, `docs/user-guide.md`, `docs/loading-transitions.md`
+  following the pane once it narrowed past half the viewport — `GridNavControls`
+  clamped the edge controls to the **viewport's** midpoint; it now clamps to the
+  **anchor's** own midpoint (identical for full-width grids, fixes the dual pane);
+  (2) the two panes no longer scroll together — at `lg`+ (the app's desktop layout,
+  which large phones like an unfolded Fold adopt) the whole view is bounded to the
+  viewport's remaining height and each pane is a fixed-header column with its own
+  vertical scroll (`overflow-y: auto` + `overscroll-behavior: contain`); below `lg`
+  the panes stack and the document scrolls (calendar first, agenda below) as before.
+  `MonthWeekdayStrip` gains a `sticky` prop (`false` inside the bounded pane), the
+  agenda day header goes non-sticky at `lg`, and `DualPaneSkeleton` mirrors the
+  bounded layout. Docs: `docs/dashboard-views.md` §1.9, `docs/grid-pan.md` §1.2
+- 1.240 Dashboard no longer remembers the last-active view: `setActiveDashboardView`,
+  the `user_preferences.dashboard_active_view_id` column (migration 0046) and its
+  read in `resolveRequestedTab` are removed, so a bare `/dashboard` always resolves
+  `?view=` → first tab. The device snapshot hydration also stops painting the
+  last-viewed tab on a cold load (it paints the first tab's cached context, else
+  fetches), so a cold open always lands on the first view. `?view=` stays
+  authoritative for deep links/reloads. `docs/ui-state.md` §1.2/§1.3/§1.7,
+  `docs/dashboard-views.md` §1.1, `docs/pwa-offline.md` §1.18, `AGENTS.md`
+- 1.241 Month & Agenda narrow-screen behavior: below `lg` the agenda pane is no
+  longer stacked below the month grid — it is hidden, and the month pane behaves
+  exactly like the standalone Month view: chips open the event detail (live
+  `renderMonthEvent` + `onEventClick`, no inert pass-through), a cell tap opens
+  the shared agenda day modal (the Month view's `onDayClick` body extracted to a
+  shared `openDayModal` helper), and the `+N more` popover works too. At `lg` and
+  up the interaction is unchanged (inert chips, cell tap re-anchors the agenda
+  pane). `DualPaneSkeleton` is month-only below `lg`. Docs:
+  `docs/dashboard-views.md` §1.9, `docs/user-guide.md`, `docs/loading-transitions.md`
 - 1.242 Per-tab loading bar → top-right spinner: each dashboard tab's `loading`
-   state now shows a small traditional amber `Loader` in the tab's top-right corner
-   (absolutely positioned, `aria-hidden`) instead of the sweeping bottom-edge bar;
-   `fresh`/`not-loaded` states and the `tabStatus` / flicker-control model are
-   unchanged. `.c2-tab-load-bar` + its sweep keyframes are replaced by
-   `.c2-tab-spinner` in `globals.css`. `docs/loading-transitions.md` §1.13.2,
-   `AGENTS.md`
+  state now shows a small traditional amber `Loader` in the tab's top-right corner
+  (absolutely positioned, `aria-hidden`) instead of the sweeping bottom-edge bar;
+  `fresh`/`not-loaded` states and the `tabStatus` / flicker-control model are
+  unchanged. `.c2-tab-load-bar` + its sweep keyframes are replaced by
+  `.c2-tab-spinner` in `globals.css`. `docs/loading-transitions.md` §1.13.2,
+  `AGENTS.md`
 - 1.243 Event-search modal launch + layout: the chunk now preloads at idle with a
-   2s deadline (plus hover/focus/pointer-down/touch-start and a desktop ⌘/Ctrl-K)
-   and the modal **mounts closed** the moment the preload resolves, so the first
-   open is an instant `opened` flip (a dependency-free `EventSearchModalSkeleton`
-   covers the racing-click case); recent searches are prefetched on mount instead
-   of on open. The form collapses to a single toolbar row (input + Search + a date
-   filter popover with From/To and a non-default badge), recent-search badges are
-   a one-line chip row hidden once results exist, results get a count + active-range
-   caption with Clear, and the column is capped at `min(72dvh, 680px)` with the
-   list as the only scroll region (skeleton while searching, `EmptyState` for no
-   matches, amber/purple mine/external row highlight via the action's new
-   `myEventIds`, no autofocus). `docs/event-search.md` §1.5/§1.9/§1.12
+  2s deadline (plus hover/focus/pointer-down/touch-start and a desktop ⌘/Ctrl-K)
+  and the modal **mounts closed** the moment the preload resolves, so the first
+  open is an instant `opened` flip (a dependency-free `EventSearchModalSkeleton`
+  covers the racing-click case); recent searches are prefetched on mount instead
+  of on open. The form collapses to a single toolbar row (input + Search + a date
+  filter popover with From/To and a non-default badge), recent-search badges are
+  a one-line chip row hidden once results exist, results get a count + active-range
+  caption with Clear, and the column is capped at `min(72dvh, 680px)` with the
+  list as the only scroll region (skeleton while searching, `EmptyState` for no
+  matches, amber/purple mine/external row highlight via the action's new
+  `myEventIds`, no autofocus). `docs/event-search.md` §1.5/§1.9/§1.12
 - 1.244 Pinned-events ticker pills: the header pill drops its pin icon, the amber
-   `1/N` count chip moves into the leading (icon) slot, and a new subdued
-   days-remaining countdown chip (`5d` lower-d, `0d` for a same-day or
-   already-started event, never months) takes the count chip's old slot between
-   it and the rotating title; the countdown re-reads the clock every 60s so a
-   single non-rotating event still rolls over at midnight (new pure
-   `daysUntilDate` in `datetime.ts`, unit-tested). `docs/pinned-events.md` §1.4
+  `1/N` count chip moves into the leading (icon) slot, and a new subdued
+  days-remaining countdown chip (`5d` lower-d, `0d` for a same-day or
+  already-started event, never months) takes the count chip's old slot between
+  it and the rotating title; the countdown re-reads the clock every 60s so a
+  single non-rotating event still rolls over at midnight (new pure
+  `daysUntilDate` in `datetime.ts`, unit-tested). `docs/pinned-events.md` §1.4
 - 1.245 Grid-nav controls no longer displaced by the grid-slide transform: the
-   fixed pan/zoom cluster measured its anchor with `getBoundingClientRect`, which
-   includes ancestor transforms — so for Week (D) and Month & Agenda (whose
-   anchors sit inside the transiently transformed slide wrapper) a measurement
-   taken mid-slide left the cluster displaced left/right until a resize. It now
-   measures with the new transform-free `layoutRect` (`src/lib/ui/layoutRect.ts`),
-   reads the anchor ref fresh, re-measures on a `layoutKey` flip (breakpoint +
-   measured chrome height, passed by DashboardView / DualPaneView /
-   WeekMatrixView), and measures in `useLayoutEffect`. `docs/grid-pan.md` §1.2
+  fixed pan/zoom cluster measured its anchor with `getBoundingClientRect`, which
+  includes ancestor transforms — so for Week (D) and Month & Agenda (whose
+  anchors sit inside the transiently transformed slide wrapper) a measurement
+  taken mid-slide left the cluster displaced left/right until a resize. It now
+  measures with the new transform-free `layoutRect` (`src/lib/ui/layoutRect.ts`),
+  reads the anchor ref fresh, re-measures on a `layoutKey` flip (breakpoint +
+  measured chrome height, passed by DashboardView / DualPaneView /
+  WeekMatrixView), and measures in `useLayoutEffect`. `docs/grid-pan.md` §1.2
 - 1.246 Week (Grid) all-day overflow trigger moved inline: the `+N more`
-   `MoreEvents` no longer sits in the date-nav row — it overlays the strip's
-   sticky-left "All day" cell (hidden via `fontSize: 0` while the trigger shows),
-   anchored to the now-`position: relative` `gridSlideRef` with geometry mirroring
-   Mantine's WeekView defaults; the button fills the cell (full-cell tap target)
-   and opens `bottom-start`. Pure binning / chip suppression unchanged.
-   `docs/dashboard-views.md` §1.7.1
+  `MoreEvents` no longer sits in the date-nav row — it overlays the strip's
+  sticky-left "All day" cell (hidden via `fontSize: 0` while the trigger shows),
+  anchored to the now-`position: relative` `gridSlideRef` with geometry mirroring
+  Mantine's WeekView defaults; the button fills the cell (full-cell tap target)
+  and opens `bottom-start`. Pure binning / chip suppression unchanged.
+  `docs/dashboard-views.md` §1.7.1
 - 1.247 Double Booking & wizard clash timelines go per-day: a multi-day episode was
-   drawn on a single (first-day) axis, so events on later days clamped to a ~15-min
-   sliver at the right edge and the axis stretched across the empty span — the timed
-   bars became unlabeled squares. New pure `clashDayBuckets` (`clashDisplay.ts`,
-   unit-tested) buckets entries by the civil days they cover and drops days carrying
-   fewer than two entries; the new shared `ClashTimelineDays` (`clashTimeline.tsx`)
-   renders one `ClashTimeline` per clash day behind a `clashDayLabel` subheading
-   (capped at five, then `+N more days`), so each day gets a tight axis and full-width
-   labels and a multi-day event's all-day band repeats per clash day. Both the Double
-   Booking page and the wizard's review-step advisory now render through it
-   (`minEntriesPerDay={2}`), and the wizard no longer shows conflict-free covered
-   days. `docs/user-clashes.md` §1.8, `docs/event-clashes.md` §1.6
+  drawn on a single (first-day) axis, so events on later days clamped to a ~15-min
+  sliver at the right edge and the axis stretched across the empty span — the timed
+  bars became unlabeled squares. New pure `clashDayBuckets` (`clashDisplay.ts`,
+  unit-tested) buckets entries by the civil days they cover and drops days carrying
+  fewer than two entries; the new shared `ClashTimelineDays` (`clashTimeline.tsx`)
+  renders one `ClashTimeline` per clash day behind a `clashDayLabel` subheading
+  (capped at five, then `+N more days`), so each day gets a tight axis and full-width
+  labels and a multi-day event's all-day band repeats per clash day. Both the Double
+  Booking page and the wizard's review-step advisory now render through it
+  (`minEntriesPerDay={2}`), and the wizard no longer shows conflict-free covered
+  days. `docs/user-clashes.md` §1.8, `docs/event-clashes.md` §1.6
 
 - 1.248 Event-type folders collapse in the wizard type picker: with more than one
   section the type step renders a Mantine `Accordion` (folder name + count badge in the
@@ -1180,828 +1180,828 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
   `SerwistProvider` now gets `reloadOnOnline={false}`, removing Serwist's default
   hard-reload on every `online` event (a surprise on flaky mobile connections, and
   redundant with the app's own refresh paths). New `docs/pwa-offline.md` §1.8.1
-   documents the iOS-vs-Android behavior and the multi-tab unregister caveat.
+  documents the iOS-vs-Android behavior and the multi-tab unregister caveat.
 - 1.254 iOS standalone bottom-nav detach fix: on iOS 18 installed PWAs the fixed bottom
-   nav could sit above the visible bottom on short-content pages (empty space below it),
-   because the standalone shell was sized/positioned from the *layout* viewport while the
-   visible area is the *visual* viewport. The `AppShellShell` sync now measures
-   `window.visualViewport`, exposes `--app-shell-visual-bottom-gap`, listens to
-   `visualViewport` `scroll`, and gates its CSS through a JS-added `app-shell-standalone`
-   class (so iOS launch paths that miss the `display-mode` query still sync). The footer's
-   Chrome edge-to-edge fast path is overridden on iOS/WebKit
-   (`@supports (-webkit-touch-callout: none)`) to the plain live-inset box + `bottom: 0`,
-   with an explicit `var(…, env(safe-area-inset-bottom))` fallback so an unresolved custom
-   property can't collapse `bottom` to `auto`; in standalone the footer re-pins to the
-   visual bottom via the measured gap. `docs/pwa-offline.md` §1.19,
-   `docs/desktop-responsive.md` §1.2/§1.3
+  nav could sit above the visible bottom on short-content pages (empty space below it),
+  because the standalone shell was sized/positioned from the _layout_ viewport while the
+  visible area is the _visual_ viewport. The `AppShellShell` sync now measures
+  `window.visualViewport`, exposes `--app-shell-visual-bottom-gap`, listens to
+  `visualViewport` `scroll`, and gates its CSS through a JS-added `app-shell-standalone`
+  class (so iOS launch paths that miss the `display-mode` query still sync). The footer's
+  Chrome edge-to-edge fast path is overridden on iOS/WebKit
+  (`@supports (-webkit-touch-callout: none)`) to the plain live-inset box + `bottom: 0`,
+  with an explicit `var(…, env(safe-area-inset-bottom))` fallback so an unresolved custom
+  property can't collapse `bottom` to `auto`; in standalone the footer re-pins to the
+  visual bottom via the measured gap. `docs/pwa-offline.md` §1.19,
+  `docs/desktop-responsive.md` §1.2/§1.3
 - 1.255 Immediate propagation for admin settings + per-user View edits: admin writes now
-   clear the affected `getCachedValue` config keys via the new
-   `invalidateConfigCache([...])` (`src/lib/configCache.ts`), so a settings / event-type /
-   department / user / template / quick-link edit is visible on the next dashboard read
-   instead of after the 60s TTL (per-instance, like the cache itself — other instances
-   converge on TTL expiry). Renaming a dashboard View or changing its type is now
-   optimistic: `renameDashboardView` / `changeDashboardViewKind` return the updated tab,
-   the pure `patchSnapshotTab` patches the held snapshot via the new
-   `applyViewTab` context method, so the strip and Manage-views list repaint in the same
-   frame before the usual re-read reconciles. `docs/pwa-offline.md` §1.19,
-   `docs/events-cache.md` §1.12, `docs/dashboard-views.md` §1.1
+  clear the affected `getCachedValue` config keys via the new
+  `invalidateConfigCache([...])` (`src/lib/configCache.ts`), so a settings / event-type /
+  department / user / template / quick-link edit is visible on the next dashboard read
+  instead of after the 60s TTL (per-instance, like the cache itself — other instances
+  converge on TTL expiry). Renaming a dashboard View or changing its type is now
+  optimistic: `renameDashboardView` / `changeDashboardViewKind` return the updated tab,
+  the pure `patchSnapshotTab` patches the held snapshot via the new
+  `applyViewTab` context method, so the strip and Manage-views list repaint in the same
+  frame before the usual re-read reconciles. `docs/pwa-offline.md` §1.19,
+  `docs/events-cache.md` §1.12, `docs/dashboard-views.md` §1.1
 
 - 1.256 Month & Agenda desktop fill: the bounded panes no longer leave a blank
-   strip at the bottom. The Agenda card now stretches to the pane (`flex: 1` +
-   `agendaViewBody` scroll), so a short day scrolls inside the card instead of
-   leaving space below it; the Month grid's six rows grow to fill the pane by
-   measuring the pane's scroll box and overriding Mantine's
-   `--month-view-max-events` with a fractional value (4-event floor keeps the
-   natural height + pane scroll on shorter viewports, chips scale with the row).
-   `DualPaneSkeleton` mirrors both fills. `docs/dashboard-views.md` §1.9
+  strip at the bottom. The Agenda card now stretches to the pane (`flex: 1` +
+  `agendaViewBody` scroll), so a short day scrolls inside the card instead of
+  leaving space below it; the Month grid's six rows grow to fill the pane by
+  measuring the pane's scroll box and overriding Mantine's
+  `--month-view-max-events` with a fractional value (4-event floor keeps the
+  natural height + pane scroll on shorter viewports, chips scale with the row).
+  `DualPaneSkeleton` mirrors both fills. `docs/dashboard-views.md` §1.9
 
 - 1.257 Feature Flags + pinned-events indicator variants: a new admin **Settings → Feature
-   Flags** tab (last strip slot) built on a small **flag registry**
-   (`src/lib/settings/featureFlags.ts`, pure + unit-tested) — each `FeatureFlagDef` maps to
-   a typed `settings` column, `getFeatureFlags` resolves every registered flag from the 60s-
-   cached singleton row, and a single `updateFeatureFlags` server action validates against
-   the closed option set, audits via `diffFields`, invalidates the config cache and
-   revalidates; the page renders controls generically from the registry (SegmentedControl +
-   Save in the standard form pattern, plus a live mock-pill preview for the ticker flag),
-   so a future flag is just a column + an entry. The first flag, `pinnedTickerIndicator`
-   (default `classic`), swaps the header pill's `1/N` chip for four org-wide variants that
-   free title space (~33–37px): `classic` (inline `1/N` chip), `segmented` (3px bottom
-   rotation bar, active segment lit amber, zero in-flow width), `badge` (amber count badge
-   on the pill's corner, absolutely positioned), `stacked` (`1/N` over `5d` two-line leading
-   block). The `(protected)` layout resolves the flag through the registry and passes it to
-   the shell like `bannerConfig`, so a save applies after the next `router.refresh()`; count
-   stays in the pill's `aria-label` and all new chrome is `aria-hidden`. New
-   `docs/feature-flags.md`; `docs/pinned-events.md` §1.4/§1.6, `docs/user-guide.md` §1.5,
-`AGENTS.md` updated (migration: `settings.pinned_ticker_indicator` text NOT NULL default
-    `'classic'`, `pnpm db:migrate`)
+  Flags** tab (last strip slot) built on a small **flag registry**
+  (`src/lib/settings/featureFlags.ts`, pure + unit-tested) — each `FeatureFlagDef` maps to
+  a typed `settings` column, `getFeatureFlags` resolves every registered flag from the 60s-
+  cached singleton row, and a single `updateFeatureFlags` server action validates against
+  the closed option set, audits via `diffFields`, invalidates the config cache and
+  revalidates; the page renders controls generically from the registry (SegmentedControl +
+  Save in the standard form pattern, plus a live mock-pill preview for the ticker flag),
+  so a future flag is just a column + an entry. The first flag, `pinnedTickerIndicator`
+  (default `classic`), swaps the header pill's `1/N` chip for four org-wide variants that
+  free title space (~33–37px): `classic` (inline `1/N` chip), `segmented` (3px bottom
+  rotation bar, active segment lit amber, zero in-flow width), `badge` (amber count badge
+  on the pill's corner, absolutely positioned), `stacked` (`1/N` over `5d` two-line leading
+  block). The `(protected)` layout resolves the flag through the registry and passes it to
+  the shell like `bannerConfig`, so a save applies after the next `router.refresh()`; count
+  stays in the pill's `aria-label` and all new chrome is `aria-hidden`. New
+  `docs/feature-flags.md`; `docs/pinned-events.md` §1.4/§1.6, `docs/user-guide.md` §1.5,
+  `AGENTS.md` updated (migration: `settings.pinned_ticker_indicator` text NOT NULL default
+  `'classic'`, `pnpm db:migrate`)
 - 1.258 Zoomed-in grids reclaim the shell's side gutters: the dashboard content
-    sat inside the shell's `md` 16px gutters, so once any zoom level pushed a grid
-    past the viewport (overflowing into the horizontal pan) those sides became dead
-    space. `DashboardView` now derives `reclaimGutter` from the shown view's
-    horizontal zoom (> its fit/base level: Month/Dual `monthZoom`, Day/Week (H)
-    shared `zoom`, Week (D) `weekMatrixZoom`, Week (Grid) columns
-    `gridWeekColZoom`) and flushes the whole content stack flush to the shell edges
-    using exactly the same `calc(-1 * var(--app-shell-padding))` the top already used,
-    winning back ~16px of visible content per side while zoomed; the chrome, pinned
-    strips and grid widen together so alignment holds, and returning to fit restores
-    the gutter. Week (Grid)'s default 2× column zoom reclaims immediately; Agenda
-    never zoom → never reclaims. `docs/dashboard-views.md` §1.7/§1.8 updated.
+  sat inside the shell's `md` 16px gutters, so once any zoom level pushed a grid
+  past the viewport (overflowing into the horizontal pan) those sides became dead
+  space. `DashboardView` now derives `reclaimGutter` from the shown view's
+  horizontal zoom (> its fit/base level: Month/Dual `monthZoom`, Day/Week (H)
+  shared `zoom`, Week (D) `weekMatrixZoom`, Week (Grid) columns
+  `gridWeekColZoom`) and flushes the whole content stack flush to the shell edges
+  using exactly the same `calc(-1 * var(--app-shell-padding))` the top already used,
+  winning back ~16px of visible content per side while zoomed; the chrome, pinned
+  strips and grid widen together so alignment holds, and returning to fit restores
+  the gutter. Week (Grid)'s default 2× column zoom reclaims immediately; Agenda
+  never zoom → never reclaims. `docs/dashboard-views.md` §1.7/§1.8 updated.
 - 1.259 Canvas-only gutter bleed + fixed chrome/controls + animated zoom: 1.258
-    bled the whole dashboard stack, which moved the tabs/date-nav and jumped the
-    canvas at the zoom-1 boundary. The bleed moved to an inner canvas wrapper
-    inside the padded `weekBoxRef`, so only the grid (and its pinned strips) goes
-    corner-to-corner; the tabs, date-nav, floating zoom/pan controls and fullscreen
-    toggle stay put (Week (D)'s controls now anchor to `weekBoxRef` via a new
-    `controlsAnchorRef`). The zoom is now eased: the schedule hour-slot width rides
-    a registered `--c2-slot` (transitioned via `.c2-zoom-anim`; grid consumes
-    `--resources-*-view-slot-width`, rulers `--ruler-slot`), Month/Week (Grid)
-    transition `width` (`.c2-zoom-width`), the Week (D) matrix transitions
-    `grid-template-columns`/`min-width` (`.c2-zoom-cols`), and the gutter
-    `margin-inline` morphs — all under `prefers-reduced-motion: no-preference`. The
-    scroll re-anchor is tweened by the new `src/lib/ui/scrollTween.ts`
-    (`MOTION.zoom`, house easing) instead of snapping, and `useGridPan` sets
-    `overflow-anchor: none` so browser scroll anchoring can't fight it — fixing the
-    "flashes the previous zoom" resize artifact. Week (Grid) row zoom stays instant.
-    Docs: `dashboard-views.md` §1.7, `grid-pan.md` §1.1.
+  bled the whole dashboard stack, which moved the tabs/date-nav and jumped the
+  canvas at the zoom-1 boundary. The bleed moved to an inner canvas wrapper
+  inside the padded `weekBoxRef`, so only the grid (and its pinned strips) goes
+  corner-to-corner; the tabs, date-nav, floating zoom/pan controls and fullscreen
+  toggle stay put (Week (D)'s controls now anchor to `weekBoxRef` via a new
+  `controlsAnchorRef`). The zoom is now eased: the schedule hour-slot width rides
+  a registered `--c2-slot` (transitioned via `.c2-zoom-anim`; grid consumes
+  `--resources-*-view-slot-width`, rulers `--ruler-slot`), Month/Week (Grid)
+  transition `width` (`.c2-zoom-width`), the Week (D) matrix transitions
+  `grid-template-columns`/`min-width` (`.c2-zoom-cols`), and the gutter
+  `margin-inline` morphs — all under `prefers-reduced-motion: no-preference`. The
+  scroll re-anchor is tweened by the new `src/lib/ui/scrollTween.ts`
+  (`MOTION.zoom`, house easing) instead of snapping, and `useGridPan` sets
+  `overflow-anchor: none` so browser scroll anchoring can't fight it — fixing the
+  "flashes the previous zoom" resize artifact. Week (Grid) row zoom stays instant.
+  Docs: `dashboard-views.md` §1.7, `grid-pan.md` §1.1.
 - 1.260 Zoom recoil fix: 1.259's scroll re-anchor tween used an ease-out cubic while
-    the grid's width/slot CSS transitions use `cubic-bezier(0.22, 1, 0.36, 1)`, which
-    is much faster early — so on a button zoom the width outran the scroll, drifting
-    the anchored column and snapping it back (a recoil right on zoom-in, left on
-    zoom-out). `scrollTween.ts` now evaluates the literal house cubic-bezier (new
-    `cubicBezier` solver + `zoomEase`), so the tween and the CSS transition share the
-    exact same progress curve and the anchor stays put; unit-tested in
-    `scrollTween.test.ts`.
+  the grid's width/slot CSS transitions use `cubic-bezier(0.22, 1, 0.36, 1)`, which
+  is much faster early — so on a button zoom the width outran the scroll, drifting
+  the anchored column and snapping it back (a recoil right on zoom-in, left on
+  zoom-out). `scrollTween.ts` now evaluates the literal house cubic-bezier (new
+  `cubicBezier` solver + `zoomEase`), so the tween and the CSS transition share the
+  exact same progress curve and the anchor stays put; unit-tested in
+  `scrollTween.test.ts`.
 - 1.261 Post-save event confirmation variants behind a feature flag: the bespoke
-    post-save action pill ("View event") read as a progress/cancel bar next to the
-    app's standard toasts, so `savedEventToastVariant` (Settings → Feature Flags,
-    default `pill`) now picks one of four presentations: the **classic** two-tone
-    pill, a **restyled pill** (new `ActionPill` `variant: "toast"` — light surface,
-    green success rail, no sweep fill, single-line copy, nested into the
-    notification corners top-center/bottom-right via `.c2-action-pill-host--toast`),
-    a **standard toast + "View event"** action (`notifications.show` with an
-    embedded compact button, `notifications.hide` on click, stale-closure-safe via
-    the captured group id), or a **plain toast**. The SW-update pill stays classic,
-    where the sweep is a meaningful auto-apply countdown. The flag rides
-    `settings.featureFlags` → `DashboardSharedConfig` → `EventForm`
-    (`resolveFlagValue`), so it works from cached offline snapshots; migration
-    `settings.saved_event_toast_variant` text NOT NULL default `'pill'`. Docs:
-    `action-pill.md` §1.1/§1.3/§1.5, `feature-flags.md`, AGENTS.md.
-    (contents in `progress-archive.md` §1.261)
+  post-save action pill ("View event") read as a progress/cancel bar next to the
+  app's standard toasts, so `savedEventToastVariant` (Settings → Feature Flags,
+  default `pill`) now picks one of four presentations: the **classic** two-tone
+  pill, a **restyled pill** (new `ActionPill` `variant: "toast"` — light surface,
+  green success rail, no sweep fill, single-line copy, nested into the
+  notification corners top-center/bottom-right via `.c2-action-pill-host--toast`),
+  a **standard toast + "View event"** action (`notifications.show` with an
+  embedded compact button, `notifications.hide` on click, stale-closure-safe via
+  the captured group id), or a **plain toast**. The SW-update pill stays classic,
+  where the sweep is a meaningful auto-apply countdown. The flag rides
+  `settings.featureFlags` → `DashboardSharedConfig` → `EventForm`
+  (`resolveFlagValue`), so it works from cached offline snapshots; migration
+  `settings.saved_event_toast_variant` text NOT NULL default `'pill'`. Docs:
+  `action-pill.md` §1.1/§1.3/§1.5, `feature-flags.md`, AGENTS.md.
+  (contents in `progress-archive.md` §1.261)
 - 1.262 JS-driven zoom animation (fixes the zoom recoil/jumpiness): 1.259–1.260
-    animated the grid width via CSS transitions and the scroll re-anchor via a
-    separate JS tween — two clocks that drifted (content slid/recoiled), and the
-    registered `--c2-slot` custom-property transition didn't run at all in Chrome
-    (the schedule columns snapped). Replaced with **one** rAF loop
-    (`src/lib/ui/zoomAnim.ts`, new; `scrollTween.ts` removed) that writes both the
-    zoom-derived width/slot and the scroll from the same interpolated value. React
-    publishes the active view's multiplier as `--c2-zoom` (+ `--c2-slot-base`) on
-    the canvas wrapper; every zoomed width/slot derives from
-    `var(--c2-zoom-anim, var(--c2-zoom))` — Month inner + weekday strip, Week (Grid)
-    rows, the schedule slot + ruler, and the Week (D) matrix template/min-width.
-    `animateZoom` writes `--c2-zoom-anim` and the anchored scroll each frame, then
-    clears the override; motion collapses under `prefers-reduced-motion`/`c2-low-end`.
-    Removed the `.c2-zoom-*` transitions and `@property --c2-slot`; the gutter
-    `margin-inline` still animates via `.c2-gutter-anim`. Docs: `dashboard-views.md`
-    §1.7, `grid-pan.md` §1.1.
+  animated the grid width via CSS transitions and the scroll re-anchor via a
+  separate JS tween — two clocks that drifted (content slid/recoiled), and the
+  registered `--c2-slot` custom-property transition didn't run at all in Chrome
+  (the schedule columns snapped). Replaced with **one** rAF loop
+  (`src/lib/ui/zoomAnim.ts`, new; `scrollTween.ts` removed) that writes both the
+  zoom-derived width/slot and the scroll from the same interpolated value. React
+  publishes the active view's multiplier as `--c2-zoom` (+ `--c2-slot-base`) on
+  the canvas wrapper; every zoomed width/slot derives from
+  `var(--c2-zoom-anim, var(--c2-zoom))` — Month inner + weekday strip, Week (Grid)
+  rows, the schedule slot + ruler, and the Week (D) matrix template/min-width.
+  `animateZoom` writes `--c2-zoom-anim` and the anchored scroll each frame, then
+  clears the override; motion collapses under `prefers-reduced-motion`/`c2-low-end`.
+  Removed the `.c2-zoom-*` transitions and `@property --c2-slot`; the gutter
+  `margin-inline` still animates via `.c2-gutter-anim`. Docs: `dashboard-views.md`
+  §1.7, `grid-pan.md` §1.1.
 - 1.263 Zoom-out-to-fit jump fix: 1.262's re-anchor used the zoom ratio and
-    `reanchorScrollLeft`, which assumes a **constant viewport width**. On the last
-    step (back to 100%) the canvas un-bleeds, so the inner wrapper's `margin-inline`
-    morphs `-16px → 0` and the ScrollArea viewport narrows ~32px mid-animation;
-    for the percentage-width views the content shrinks with the wrapper too. On
-    zoom-out the ratio-based target exceeded the shrunken `maxScroll`, so the
-    browser clamped `scrollLeft` → a jump (zoom-in was conservative, hence the
-    asymmetry). New `scrollAnchorTracker` (`zoomAnim.ts`) captures the
-    time-content point under the anchor at the start zoom and re-centres it each
-    frame from the **measured** `viewport.scrollWidth` and the **current** viewport
-    width, clamped to the real max — correct for percentage and rem widths and
-    across the viewport resize. `animateZoom` now calls `apply(from)` + `onStart()`
-    before snapping/animating so the capture sees the old geometry. Wired the five
-    re-anchor sites (schedule, Month, Week (Grid) col, dual-pane month, matrix).
-    Docs: `dashboard-views.md` §1.7.
+  `reanchorScrollLeft`, which assumes a **constant viewport width**. On the last
+  step (back to 100%) the canvas un-bleeds, so the inner wrapper's `margin-inline`
+  morphs `-16px → 0` and the ScrollArea viewport narrows ~32px mid-animation;
+  for the percentage-width views the content shrinks with the wrapper too. On
+  zoom-out the ratio-based target exceeded the shrunken `maxScroll`, so the
+  browser clamped `scrollLeft` → a jump (zoom-in was conservative, hence the
+  asymmetry). New `scrollAnchorTracker` (`zoomAnim.ts`) captures the
+  time-content point under the anchor at the start zoom and re-centres it each
+  frame from the **measured** `viewport.scrollWidth` and the **current** viewport
+  width, clamped to the real max — correct for percentage and rem widths and
+  across the viewport resize. `animateZoom` now calls `apply(from)` + `onStart()`
+  before snapping/animating so the capture sees the old geometry. Wired the five
+  re-anchor sites (schedule, Month, Week (Grid) col, dual-pane month, matrix).
+  Docs: `dashboard-views.md` §1.7.
 - 1.264 Animate the vertical (Week (Grid) row) zoom: it previously snapped while
-    every horizontal zoom eased. The row height is Mantine's
-    `--week-view-slot-height`, set from the `slotHeight` prop; event positions are
-    percentage-based and the library never reads `slotHeight` numerically, so the
-    prop now carries `calc(3.5rem * var(--mantine-scale) * ROW_ZOOM_VAR)` and the
-    multiplier rides `--c2-row-zoom` / `--c2-row-zoom-anim` on the canvas wrapper —
-    `animateZoom` drives it per frame with **no re-render**. Generalized
-    `scrollAnchorTracker` to either axis (`axis`/`label`/`focal`); the vertical
-    re-anchor measures the content and current viewport (the `maxHeight`-bounded
-    ScrollArea shrinks at low row zoom) and subtracts the sticky day-header +
-    all-day offset (which doesn't scale). `animateZoom` gained `overrideVar` and a
-    per-`(element,var)` in-flight registry so the column and row axes can animate
-    the same wrapper concurrently. Removed the now-dead `reanchorScrollLeft` /
-    `reanchorScrollTop` helpers (+ tests). Docs: `dashboard-views.md` §1.7,
-    `grid-pan.md` §1.1.
+  every horizontal zoom eased. The row height is Mantine's
+  `--week-view-slot-height`, set from the `slotHeight` prop; event positions are
+  percentage-based and the library never reads `slotHeight` numerically, so the
+  prop now carries `calc(3.5rem * var(--mantine-scale) * ROW_ZOOM_VAR)` and the
+  multiplier rides `--c2-row-zoom` / `--c2-row-zoom-anim` on the canvas wrapper —
+  `animateZoom` drives it per frame with **no re-render**. Generalized
+  `scrollAnchorTracker` to either axis (`axis`/`label`/`focal`); the vertical
+  re-anchor measures the content and current viewport (the `maxHeight`-bounded
+  ScrollArea shrinks at low row zoom) and subtracts the sticky day-header +
+  all-day offset (which doesn't scale). `animateZoom` gained `overrideVar` and a
+  per-`(element,var)` in-flight registry so the column and row axes can animate
+  the same wrapper concurrently. Removed the now-dead `reanchorScrollLeft` /
+  `reanchorScrollTop` helpers (+ tests). Docs: `dashboard-views.md` §1.7,
+  `grid-pan.md` §1.1.
 - 1.265 Month & Agenda agenda swipe fix (touch): the pane's day swipe stopped
-    working on touch once the card began scrolling internally — `agendaViewBody`
-    is a scroll container nested inside the swipe container, and the browser
-    intersects `touch-action` only up to the **first containing scrolling
-    element**, so the outer container's `pan-y` was never consulted; the browser
-    claimed the horizontal pan, fired `pointercancel` and `useDrag` dropped the
-    gesture. Both the AgendaView root (`overflow: hidden`) and `agendaViewBody`
-    now set `touch-action: pan-y`, keeping the vertical scroll native while the
-    app owns horizontal. The Agenda tab and day modal have no nested scroller, so
-    they were unaffected. Docs: `dashboard-views.md` §1.9.
+  working on touch once the card began scrolling internally — `agendaViewBody`
+  is a scroll container nested inside the swipe container, and the browser
+  intersects `touch-action` only up to the **first containing scrolling
+  element**, so the outer container's `pan-y` was never consulted; the browser
+  claimed the horizontal pan, fired `pointercancel` and `useDrag` dropped the
+  gesture. Both the AgendaView root (`overflow: hidden`) and `agendaViewBody`
+  now set `touch-action: pan-y`, keeping the vertical scroll native while the
+  app owns horizontal. The Agenda tab and day modal have no nested scroller, so
+  they were unaffected. Docs: `dashboard-views.md` §1.9.
 - 1.266 Pinned-events indicator `split` variant: the `1/N` position counter and
-    the `5d` countdown now merge into one **two-tone leading pill** — amber left
-    half (counter, `accent-6` on `brand-9`) + blue right half (`brand-6` on
-    white) countdown, content-sized and joined with `overflow: hidden` (each half
-    keeps a 7px outer cap but only a 4px inner seam, so the two read as one tight
-    token; the variant also halves the pill's token→title gap, 8px → 4px) — as a
-    fifth `pinnedTickerIndicator` option ("Split pill", Settings →
-    Feature Flags; default stays `classic`; no schema change — the option set is
-    code-side). Renders in the ticker and the Feature Flags live preview; the
-    standalone countdown chip is omitted for it (like `stacked`). Docs:
-    `pinned-events.md` §1.4, `feature-flags.md` §1.5, `user-guide.md` §1.5.
+  the `5d` countdown now merge into one **two-tone leading pill** — amber left
+  half (counter, `accent-6` on `brand-9`) + blue right half (`brand-6` on
+  white) countdown, content-sized and joined with `overflow: hidden` (each half
+  keeps a 7px outer cap but only a 4px inner seam, so the two read as one tight
+  token; the variant also halves the pill's token→title gap, 8px → 4px) — as a
+  fifth `pinnedTickerIndicator` option ("Split pill", Settings →
+  Feature Flags; default stays `classic`; no schema change — the option set is
+  code-side). Renders in the ticker and the Feature Flags live preview; the
+  standalone countdown chip is omitted for it (like `stacked`). Docs:
+  `pinned-events.md` §1.4, `feature-flags.md` §1.5, `user-guide.md` §1.5.
 - 1.267 Mobile view menu + natural month grid. Below `lg` the dashboard's
-    view-tab strip row (tabs, `+` Add-view, All-views chevron, Manage-views gear)
-    is dropped to save a full row of sticky chrome; the date-nav row gains one
-    compact 36px four-squares (`IconLayoutGrid`) view-menu button at its right
-    edge, beside the date selector, whose
-    dropdown lists every tab plus **Add view** / **Manage views** (icon-only
-    trigger; active name in `aria-label`/tooltip). The Month grid also stops
-    Mantine's `consistentWeeks` padding (`consistentWeeks={false}` on both the
-    Month and Month & Agenda `MonthView`s): it renders the month's natural 4–6
-    rows, never a full trailing week pulled from the next month, and
-    `monthGridRows`/`monthGridMonths` (skeleton rows + range read) plus the
-    Dual-Pane fill math now follow that count. Docs: `dashboard-views.md` §1.1,
-    `desktop-responsive.md`, `events-cache.md` §1.4.1, `immersive-mode.md` §1.4,
-    `loading-transitions.md` §1.13.2, `user-guide.md` §1.3.1.
+  view-tab strip row (tabs, `+` Add-view, All-views chevron, Manage-views gear)
+  is dropped to save a full row of sticky chrome; the date-nav row gains one
+  compact 36px four-squares (`IconLayoutGrid`) view-menu button at its right
+  edge, beside the date selector, whose
+  dropdown lists every tab plus **Add view** / **Manage views** (icon-only
+  trigger; active name in `aria-label`/tooltip). The Month grid also stops
+  Mantine's `consistentWeeks` padding (`consistentWeeks={false}` on both the
+  Month and Month & Agenda `MonthView`s): it renders the month's natural 4–6
+  rows, never a full trailing week pulled from the next month, and
+  `monthGridRows`/`monthGridMonths` (skeleton rows + range read) plus the
+  Dual-Pane fill math now follow that count. Docs: `dashboard-views.md` §1.1,
+  `desktop-responsive.md`, `events-cache.md` §1.4.1, `immersive-mode.md` §1.4,
+  `loading-transitions.md` §1.13.2, `user-guide.md` §1.3.1.
 - 1.268 Month weekday strip whitespace fix. The pinned weekday strip was a fixed
-    36px box (`2.25rem`) while its height-less inner zoom track only occupied the
-    ~22px text line, wasting ~14px before the grid; and the page `Stack`'s
-    `gap="sm"` left another 12px above it at rest (which the sticky strip
-    swallowed on scroll, so the gap appeared only at the top of the page). The
-    strip now hugs its labels (`height: auto` + 2px `paddingBlock`) and the
-    month view's grid wrapper cancels the page gap
-    (`marginTop: calc(-1 * var(--mantine-spacing-sm))` when `shownView ===
-    "month"`), so it docks flush under the chrome at rest and on scroll with no
-    jump. Docs: `desktop-responsive.md`.
+  36px box (`2.25rem`) while its height-less inner zoom track only occupied the
+  ~22px text line, wasting ~14px before the grid; and the page `Stack`'s
+  `gap="sm"` left another 12px above it at rest (which the sticky strip
+  swallowed on scroll, so the gap appeared only at the top of the page). The
+  strip now hugs its labels (`height: auto` + 2px `paddingBlock`) and the
+  month view's grid wrapper cancels the page gap
+  (`marginTop: calc(-1 * var(--mantine-spacing-sm))` when `shownView ===
+  "month"`), so it docks flush under the chrome at rest and on scroll with no
+  jump. Docs: `desktop-responsive.md`.
 - 1.269 KAH fixes: the KAH Status nav entry now carries the shared amber
-    active-breach count badge (groups breaching today — all groups for admins,
-    the viewer's own for members) fed by a new read-only `checkKahBreaches`
-    server action (`src/lib/kah/statusActions.ts`), fetched on mount/refocus and
-    after event changes like Double Booking; and the KAH day scan no longer
-    spills a one-day all-day event into the next UTC+8 day —
-    `overseasEventsInRange` now reads each overseas event's effective occupancy
-    via the clash engine's `effectiveEventWindow` (all-day UTC-midnight bounds
-    realigned to the SGT civil day, half-day AM/PM honored) and
-    `busyDaysInRange` uses half-open boundaries, with the breach email/audit
-    `{window}` showing the inclusive all-day end. Docs: `kah.md`
-    §1.1/§1.5.1/§1.7/§1.8.
+  active-breach count badge (groups breaching today — all groups for admins,
+  the viewer's own for members) fed by a new read-only `checkKahBreaches`
+  server action (`src/lib/kah/statusActions.ts`), fetched on mount/refocus and
+  after event changes like Double Booking; and the KAH day scan no longer
+  spills a one-day all-day event into the next UTC+8 day —
+  `overseasEventsInRange` now reads each overseas event's effective occupancy
+  via the clash engine's `effectiveEventWindow` (all-day UTC-midnight bounds
+  realigned to the SGT civil day, half-day AM/PM honored) and
+  `busyDaysInRange` uses half-open boundaries, with the breach email/audit
+  `{window}` showing the inclusive all-day end. Docs: `kah.md`
+  §1.1/§1.5.1/§1.7/§1.8.
 - 1.270 KAH nav badge looks forward 30 days: `checkKahBreaches`
-    (`src/lib/kah/statusActions.ts`) no longer counts only groups breaching
-    *today* (which left the badge empty whenever breaches were only upcoming,
-    unlike Double Booking's 30-day scan) — it now runs the `/kah-status` page's
-    own per-day math over `[today, today + KAH_BADGE_LOOKAHEAD_DAYS)` via
-    `overseasEventsInRange` → `busyDaysInRange` → `kahStatusForWindow` and counts
-    distinct groups with any breached day (new pure, unit-tested
-    `breachedGroupCount` in `src/lib/kah/status.ts`). Docs: `kah.md` §1.7/§1.8,
-    `loading-transitions.md` §1.13.1.
+  (`src/lib/kah/statusActions.ts`) no longer counts only groups breaching
+  _today_ (which left the badge empty whenever breaches were only upcoming,
+  unlike Double Booking's 30-day scan) — it now runs the `/kah-status` page's
+  own per-day math over `[today, today + KAH_BADGE_LOOKAHEAD_DAYS)` via
+  `overseasEventsInRange` → `busyDaysInRange` → `kahStatusForWindow` and counts
+  distinct groups with any breached day (new pure, unit-tested
+  `breachedGroupCount` in `src/lib/kah/status.ts`). Docs: `kah.md` §1.7/§1.8,
+  `loading-transitions.md` §1.13.1.
 - 1.271 KAH breach cards: each `/kah-status` breach period now renders as a
-    collapsible clash-style `ClashCard` (reusing the Double Booking card/row
-    components) — the always-visible summary lists the group's **full active
-    roster** (away in red, in-country muted, "You" emphasised) with an
-    away/in-country count and the Active/Upcoming/Resolved status, and the
-    expanded body lists the **overseas events that took those members away**
-    (cross-calendar copies collapsed by the new pure
-    `dedupeOverseasEventsByGroupId`), each opening the shared read-only
-    `EventDetail` in place via the new read-only `getKahBreachEventDetail`
-    action (admin, or a member of an affected group; the copy is re-verified
-    against the enriched read). The KAH read gained
-    `overseasEventEntriesInRange` (`KahBreachEvent` with type/title/color/
-    calendar/windows) while `overseasEventsInRange` stays lean for notify; new
-    pure `eventsForGroupEpisode` + `memberIdsAwayOnEvent` are unit-tested.
-    `conflictWindowNaive` (clashDisplay) and `shapeClashDetail` (new
-    `events/clashDetail.ts`) are now shared with the clash reports. Docs:
-    `kah.md` §1.7/§1.8,     `user-clashes.md` §1.8, guides.
+  collapsible clash-style `ClashCard` (reusing the Double Booking card/row
+  components) — the always-visible summary lists the group's **full active
+  roster** (away in red, in-country muted, "You" emphasised) with an
+  away/in-country count and the Active/Upcoming/Resolved status, and the
+  expanded body lists the **overseas events that took those members away**
+  (cross-calendar copies collapsed by the new pure
+  `dedupeOverseasEventsByGroupId`), each opening the shared read-only
+  `EventDetail` in place via the new read-only `getKahBreachEventDetail`
+  action (admin, or a member of an affected group; the copy is re-verified
+  against the enriched read). The KAH read gained
+  `overseasEventEntriesInRange` (`KahBreachEvent` with type/title/color/
+  calendar/windows) while `overseasEventsInRange` stays lean for notify; new
+  pure `eventsForGroupEpisode` + `memberIdsAwayOnEvent` are unit-tested.
+  `conflictWindowNaive` (clashDisplay) and `shapeClashDetail` (new
+  `events/clashDetail.ts`) are now shared with the clash reports. Docs:
+  `kah.md` §1.7/§1.8, `user-clashes.md` §1.8, guides.
 - 1.272 KAH look-ahead & badge fix: the nav badge now counts breach **periods**
-    (maximal runs) over the forward window from today through the end of the
-    month 3 months ahead (the page's default) — admins combined across all
-    groups, members their own — instead of distinct groups over a bare 30-day
-    window, so a resolved/past or >30-day breach no longer leaves it hidden. The
-    `/kah-status` page is now **forward-only** (no past half) with a **Look
-    ahead** dropdown (3 months default / 6 months / 1 year) that is per-view only
-    — never saved, so a refresh resets it. `checkKahBreaches` and the page share
-    one builder (`buildKahStatusViewData` in new `src/lib/kah/viewData.ts`, with
-    the pure client-safe `src/lib/kah/range.ts` helpers); the new
-    `getKahStatusView` action serves range changes, and `Resolved` can no longer
-    occur. Docs: `kah.md` §1.7/§1.8/§1.9, `loading-transitions.md` §1.13.1.
+  (maximal runs) over the forward window from today through the end of the
+  month 3 months ahead (the page's default) — admins combined across all
+  groups, members their own — instead of distinct groups over a bare 30-day
+  window, so a resolved/past or >30-day breach no longer leaves it hidden. The
+  `/kah-status` page is now **forward-only** (no past half) with a **Look
+  ahead** dropdown (3 months default / 6 months / 1 year) that is per-view only
+  — never saved, so a refresh resets it. `checkKahBreaches` and the page share
+  one builder (`buildKahStatusViewData` in new `src/lib/kah/viewData.ts`, with
+  the pure client-safe `src/lib/kah/range.ts` helpers); the new
+  `getKahStatusView` action serves range changes, and `Resolved` can no longer
+  occur. Docs: `kah.md` §1.7/§1.8/§1.9, `loading-transitions.md` §1.13.1.
 - 1.273 Parade-state email cron fix + hardening: the Cloud Scheduler job was created with
-    gcloud's default HTTP method (POST) while the route exported only GET, so every scheduled
-    tick 405'd and Cloud Scheduler recorded `status.code` 2 (UNKNOWN) while a manual GET
-    succeeded — the route now exports GET and POST (GET canonical,
-    `src/app/api/cron/parade-state-email/route.ts`). `runParadeStateEmail` now audits every
-    non-test attempt (`paradeState.emailSend`) with a flat `outcome`
-    (`sent`/`failed`/`skipped`) plus a `reason`
-    (`disabled`/`no-recipients`/`already-sent`/`no-emails`) or the swallowed `error`, and
-    returns that reason/error in its result so a silent no-op is diagnosable;
-    `saveParadeEmailSettings` now calls `invalidateConfigCache(["settings"])` like every
-    sibling settings action (a just-enabled config no longer serves stale `disabled` for up
-    to 60 s). Docs: `parade-state-email.md` §1.1/§1.4/§1.5, `developer-guide.md` §1.9.1,
-    `AGENTS.md`.
+  gcloud's default HTTP method (POST) while the route exported only GET, so every scheduled
+  tick 405'd and Cloud Scheduler recorded `status.code` 2 (UNKNOWN) while a manual GET
+  succeeded — the route now exports GET and POST (GET canonical,
+  `src/app/api/cron/parade-state-email/route.ts`). `runParadeStateEmail` now audits every
+  non-test attempt (`paradeState.emailSend`) with a flat `outcome`
+  (`sent`/`failed`/`skipped`) plus a `reason`
+  (`disabled`/`no-recipients`/`already-sent`/`no-emails`) or the swallowed `error`, and
+  returns that reason/error in its result so a silent no-op is diagnosable;
+  `saveParadeEmailSettings` now calls `invalidateConfigCache(["settings"])` like every
+  sibling settings action (a just-enabled config no longer serves stale `disabled` for up
+  to 60 s). Docs: `parade-state-email.md` §1.1/§1.4/§1.5, `developer-guide.md` §1.9.1,
+  `AGENTS.md`.
 - 1.274 Mobile period chevrons move to the thumb zone. Below `lg` the dashboard
-    nav row's prev/next `<` `>` leave the sticky top row (`visibleFrom="lg"` on
-    the desktop row) and join the bottom-right FAB cluster
-    (`[<] [>] [LINK] [CREATE]`) beside the Quick-links / New-event FABs as 44px
-    circular frosted-glass controls (`.c2-glass-fab` + amber/brand tints); the
-    whole mobile cluster is glass, every other page's FABs stay solid. The top
-    row keeps the period label, filter, date and view-menu; both sets call one
-    shared view-aware `navigatePeriod(±1)` and read their accessible name from
-    `periodStepLabel`, so behaviour and the existing live-region announcements
-    are unchanged. Also fixes the pre-existing `react-hooks/refs` lint error by
-    capturing the modal viewport size on open (`captureModalViewport`) instead
-    of reading a ref during render. Docs: `dashboard-views.md` §1.1,
-    `desktop-responsive.md`, `immersive-mode.md` §1.4, `accessibility.md` §1.2,
-    `AGENTS.md`.
+  nav row's prev/next `<` `>` leave the sticky top row (`visibleFrom="lg"` on
+  the desktop row) and join the bottom-right FAB cluster
+  (`[<] [>] [LINK] [CREATE]`) beside the Quick-links / New-event FABs as 44px
+  circular frosted-glass controls (`.c2-glass-fab` + amber/brand tints); the
+  whole mobile cluster is glass, every other page's FABs stay solid. The top
+  row keeps the period label, filter, date and view-menu; both sets call one
+  shared view-aware `navigatePeriod(±1)` and read their accessible name from
+  `periodStepLabel`, so behaviour and the existing live-region announcements
+  are unchanged. Also fixes the pre-existing `react-hooks/refs` lint error by
+  capturing the modal viewport size on open (`captureModalViewport`) instead
+  of reading a ref during render. Docs: `dashboard-views.md` §1.1,
+  `desktop-responsive.md`, `immersive-mode.md` §1.4, `accessibility.md` §1.2,
+  `AGENTS.md`.
 - 1.275 Adjustable glass-FAB opacity: the Calendar mobile bottom button cluster's
-    frosted-glass transparency is now a feature flag, `glassFabLevel`
-    (subtle / medium / strong; medium = the shipped look) — new
-    `settings.glass_fab_level` column (migration 0050) + one registry entry, so
-    Settings → Feature Flags auto-renders the control (with a live four-button
-    preview over a two-tone checker). The alphas moved into `.c2-glass-fab`
-    `--c2g-*` CSS vars consumed by the visual rules (accent/brand hover + active
-    derive with `calc()`), and the level applies as a `c2-glass-fab--<level>`
-    modifier on the cluster. Resolved into `DashboardSharedConfig` →
-    `DashboardView`; `DASHBOARD_SNAPSHOT_VERSION` bumped 1 → 2 so stale device
-    snapshots are dropped. Docs: `feature-flags.md`, `dashboard-views.md` §1.1,
-    `AGENTS.md`.
+  frosted-glass transparency is now a feature flag, `glassFabLevel`
+  (subtle / medium / strong; medium = the shipped look) — new
+  `settings.glass_fab_level` column (migration 0050) + one registry entry, so
+  Settings → Feature Flags auto-renders the control (with a live four-button
+  preview over a two-tone checker). The alphas moved into `.c2-glass-fab`
+  `--c2g-*` CSS vars consumed by the visual rules (accent/brand hover + active
+  derive with `calc()`), and the level applies as a `c2-glass-fab--<level>`
+  modifier on the cluster. Resolved into `DashboardSharedConfig` →
+  `DashboardView`; `DASHBOARD_SNAPSHOT_VERSION` bumped 1 → 2 so stale device
+  snapshots are dropped. Docs: `feature-flags.md`, `dashboard-views.md` §1.1,
+  `AGENTS.md`.
 - 1.276 Drag-to-reorder on every manageable list: a new `reorderDrag` feature flag
-    (Settings → Feature Flags, default `arrows`) adds a dnd-kit drag handle beside the
-    existing ↑/↓ chevrons (kept as the a11y fallback) across dashboard views, event-type
-    groups, departments, quick links and title-recipe segments. New
-    `settings.reorder_drag` column (migration 0051) + one registry entry; shared
-    `SortableList`/`SortableRow`/`DragHandle` (`@dnd-kit/react`) and a `moveTo(id, toIndex)`
-    path in `useReorderRows`; server-backed drag persists a whole-list
-    `reorderX(orderedIds, movedId?)` (transaction renumber) — `reorderQuickLinks`,
-    `reorderEventTypeGroups`, `reorderDepartments`; departments drag sibling-only via
-    `moveToSiblingIndex`. Resolved into `DashboardSharedConfig.reorderDrag` and the
-    settings pages; `DASHBOARD_SNAPSHOT_VERSION` bumped 2 → 3. Docs: new `reorder.md`,
-    `feature-flags.md`, `accessibility.md`, `dashboard-views.md`, `quick-links.md`,
-    `roster-sharing.md`, `event-lifecycle.md`, `AGENTS.md`.
+  (Settings → Feature Flags, default `arrows`) adds a dnd-kit drag handle beside the
+  existing ↑/↓ chevrons (kept as the a11y fallback) across dashboard views, event-type
+  groups, departments, quick links and title-recipe segments. New
+  `settings.reorder_drag` column (migration 0051) + one registry entry; shared
+  `SortableList`/`SortableRow`/`DragHandle` (`@dnd-kit/react`) and a `moveTo(id, toIndex)`
+  path in `useReorderRows`; server-backed drag persists a whole-list
+  `reorderX(orderedIds, movedId?)` (transaction renumber) — `reorderQuickLinks`,
+  `reorderEventTypeGroups`, `reorderDepartments`; departments drag sibling-only via
+  `moveToSiblingIndex`. Resolved into `DashboardSharedConfig.reorderDrag` and the
+  settings pages; `DASHBOARD_SNAPSHOT_VERSION` bumped 2 → 3. Docs: new `reorder.md`,
+  `feature-flags.md`, `accessibility.md`, `dashboard-views.md`, `quick-links.md`,
+  `roster-sharing.md`, `event-lifecycle.md`, `AGENTS.md`.
 - 1.277 Drag-only default for reorder: the `reorderDrag` flag gains a third option
-    and a new default — `drag` (handle only), `arrowsDrag` (chevrons + handle),
-    `arrows` (chevrons only). `settings.reorder_drag` default changed to `'drag'`
-    (migration 0051 edited in place, since it was uncommitted); the leaf surfaces
-    now take the resolved mode and derive two booleans via `isReorderDragEnabled`
-    (handle) / `isReorderArrowsEnabled` (chevrons), rendering the chevrons
-    conditionally. `DASHBOARD_SNAPSHOT_VERSION` bumped 3 → 4. In `drag` mode the
-    non-mouse path is dnd-kit's KeyboardSensor bound to the grip (Space/Enter +
-    arrows); `arrowsDrag` stays available for strict WCAG 2.5.7. Docs:
-    `reorder.md`, `feature-flags.md`, `accessibility.md`, `AGENTS.md`.
+  and a new default — `drag` (handle only), `arrowsDrag` (chevrons + handle),
+  `arrows` (chevrons only). `settings.reorder_drag` default changed to `'drag'`
+  (migration 0051 edited in place, since it was uncommitted); the leaf surfaces
+  now take the resolved mode and derive two booleans via `isReorderDragEnabled`
+  (handle) / `isReorderArrowsEnabled` (chevrons), rendering the chevrons
+  conditionally. `DASHBOARD_SNAPSHOT_VERSION` bumped 3 → 4. In `drag` mode the
+  non-mouse path is dnd-kit's KeyboardSensor bound to the grip (Space/Enter +
+  arrows); `arrowsDrag` stays available for strict WCAG 2.5.7. Docs:
+  `reorder.md`, `feature-flags.md`, `accessibility.md`, `AGENTS.md`.
 - 1.278 Fuse.js fuzzy search across the app's client text-search surfaces: new
-    `search/fuzzy.ts` (threshold 0.22, `ignoreLocation`, field-norm on, exact
-    substring for identifier fields) wired into the user/department pickers
-    (`userSelect.ts` — upgrades UserSelectModal, filters, invitees),
-    Contacts (`contacts/filter.ts`), and the Users table. Event search is
-    reworked to read the month cache (`readCalendarRange` →
-    `projectRangeEvents`), trim to the exact window (`eventWithinRange`) and
-    fuzzy-rank title/location/type/calendar (`filterRangeForSearch`), replacing
-    the per-calendar Google `q` fan-out; its modal now renders a flat
-    relevance-ordered list instead of `AgendaView`. Docs: `event-search.md`,
-    `user-picker.md`.
+  `search/fuzzy.ts` (threshold 0.22, `ignoreLocation`, field-norm on, exact
+  substring for identifier fields) wired into the user/department pickers
+  (`userSelect.ts` — upgrades UserSelectModal, filters, invitees),
+  Contacts (`contacts/filter.ts`), and the Users table. Event search is
+  reworked to read the month cache (`readCalendarRange` →
+  `projectRangeEvents`), trim to the exact window (`eventWithinRange`) and
+  fuzzy-rank title/location/type/calendar (`filterRangeForSearch`), replacing
+  the per-calendar Google `q` fan-out; its modal now renders a flat
+  relevance-ordered list instead of `AgendaView`. Docs: `event-search.md`,
+  `user-picker.md`.
 - 1.279 App-wide frosted glass: the `glassFabLevel` flag is broadened into one global
-    `translucencyLevel` (subtle / medium / strong) governing every surface that overlaps
-    content — the navy header, sticky calendar chrome + its inline buttons, the pinned grid
-    headers, bottom nav, settings tab strip, desktop sidebar, floating zoom/pan + fullscreen
-    controls and every FAB, menus, popovers, modals and tooltips. The column is renamed
-    `settings.glass_fab_level` → `settings.translucency_level` (migration 0052) and the shell
-    publishes the level on `<html>` as `data-c2-glass`, consumed by the generalized
-    `--c2g-*` / `--c2-glass-*` tokens and the `.c2-glass-surface` / `-header` / `-fab` /
-    `-btn` classes. Sticky-left label columns stay opaque for legibility, and low-end devices
-    (`c2-low-end`) fall back to tint-only. `DASHBOARD_SNAPSHOT_VERSION` bumped 4 → 5 so a
-    stale device snapshot (carrying the old field name) is dropped. Docs: `feature-flags.md`,
-    `dashboard-views.md` §1.1, `desktop-responsive.md`, `AGENTS.md`.
+  `translucencyLevel` (subtle / medium / strong) governing every surface that overlaps
+  content — the navy header, sticky calendar chrome + its inline buttons, the pinned grid
+  headers, bottom nav, settings tab strip, desktop sidebar, floating zoom/pan + fullscreen
+  controls and every FAB, menus, popovers, modals and tooltips. The column is renamed
+  `settings.glass_fab_level` → `settings.translucency_level` (migration 0052) and the shell
+  publishes the level on `<html>` as `data-c2-glass`, consumed by the generalized
+  `--c2g-*` / `--c2-glass-*` tokens and the `.c2-glass-surface` / `-header` / `-fab` /
+  `-btn` classes. Sticky-left label columns stay opaque for legibility, and low-end devices
+  (`c2-low-end`) fall back to tint-only. `DASHBOARD_SNAPSHOT_VERSION` bumped 4 → 5 so a
+  stale device snapshot (carrying the old field name) is dropped. Docs: `feature-flags.md`,
+  `dashboard-views.md` §1.1, `desktop-responsive.md`, `AGENTS.md`.
 - 1.280 Translucency theme fix: the composite `--c2-glass-bg` / `--c2-glass-header-bg`
-    tokens no longer use `light-dark()` inside a custom property (which resolved to the
-    light branch even in dark mode, rendering the sticky chrome / grid headers / bottom nav
-    light over a dark body). Scheme-specific values are now scoped with
-    `[data-mantine-color-scheme="dark"]`, and the low-end tint-only override matches. Also
-    re-applies `c2-glass-fab` to the two mobile period-chevron `ActionIcon`s (dropped during
-    the class rename, so they rendered as plain `variant="default"`).
+  tokens no longer use `light-dark()` inside a custom property (which resolved to the
+  light branch even in dark mode, rendering the sticky chrome / grid headers / bottom nav
+  light over a dark body). Scheme-specific values are now scoped with
+  `[data-mantine-color-scheme="dark"]`, and the low-end tint-only override matches. Also
+  re-applies `c2-glass-fab` to the two mobile period-chevron `ActionIcon`s (dropped during
+  the class rename, so they rendered as plain `variant="default"`).
 - 1.281 Translucency polish: the dashboard sticky chrome now bleeds its frosted
-    background corner-to-corner (negative `margin-inline` + matching `padding-inline` on the
-    shell padding var) so grid content scrolling beneath is masked at the sides, with the
-    tab/date-nav controls unmoved. `.c2-glass-btn` gets an explicit scheme-aware icon colour
-    so the zoom/fullscreen controls (Mantine `variant="filled"`) are visible in light mode.
-    Overlays are now opaque: the theme-level glass on Modal/Menu/Popover/Tooltip is removed,
-    along with the glass modal scrim, frosted tooltip, Mantine notification card and the
-    action-pill toast — glass stays on page-level surfaces only.
+  background corner-to-corner (negative `margin-inline` + matching `padding-inline` on the
+  shell padding var) so grid content scrolling beneath is masked at the sides, with the
+  tab/date-nav controls unmoved. `.c2-glass-btn` gets an explicit scheme-aware icon colour
+  so the zoom/fullscreen controls (Mantine `variant="filled"`) are visible in light mode.
+  Overlays are now opaque: the theme-level glass on Modal/Menu/Popover/Tooltip is removed,
+  along with the glass modal scrim, frosted tooltip, Mantine notification card and the
+  action-pill toast — glass stays on page-level surfaces only.
 - 1.282 Frosted button shadows: `.c2-glass-btn` gains `box-shadow: var(--mantine-shadow-md)`
-    (matching the round FABs), so the date-nav / filter / date / view-menu buttons, the
-    New-event and Quick-links buttons, and the floating zoom/pan/fullscreen controls lift off
-    the frosted chrome instead of blending into it.
+  (matching the round FABs), so the date-nav / filter / date / view-menu buttons, the
+  New-event and Quick-links buttons, and the floating zoom/pan/fullscreen controls lift off
+  the frosted chrome instead of blending into it.
 - 1.283 Tab-row buttons + colourless header: the desktop tab-strip trailing icons
-    (Add / All / Manage views) drop `c2-glass-btn` — fully transparent, no shadow, matching
-    the view tabs. The header is now colourless: `--c2-glass-header-bg` is a neutral
-    near-black at the same level alphas as every other surface (`--c2g-base-*`), a shade
-    darker than the body tint (light `rgba(18,20,24,α)`, dark `rgba(8,9,11,α)`), with the
-    opaque fallbacks and `HEADER_STYLE` switched to neutral `dark-8`; white header chrome
-    (icons, ticker, profile) is unchanged. Brand navy remains only as the Android/PWA
-    status-bar accent. Docs: `dashboard-views.md` §1.1, `announcement-banner.md`.
+  (Add / All / Manage views) drop `c2-glass-btn` — fully transparent, no shadow, matching
+  the view tabs. The header is now colourless: `--c2-glass-header-bg` is a neutral
+  near-black at the same level alphas as every other surface (`--c2g-base-*`), a shade
+  darker than the body tint (light `rgba(18,20,24,α)`, dark `rgba(8,9,11,α)`), with the
+  opaque fallbacks and `HEADER_STYLE` switched to neutral `dark-8`; white header chrome
+  (icons, ticker, profile) is unchanged. Brand navy remains only as the Android/PWA
+  status-bar accent. Docs: `dashboard-views.md` §1.1, `announcement-banner.md`.
 - 1.284 Colourless status bar + neutral loading/offline chrome: the last brand-navy
-    surfaces are gone. `SystemBarSync`'s `theme-color` meta and the manifest `theme_color` are
-    neutral (`#111111` splash / scheme-aware `#6C6D70` light · `#151516` dark — the header
-    composited over the body); the PWA launch shell (`public/loading.html`) and the offline
-    pages (`public/offline.html` + the `sw.ts` inline fallback) drop their navy header/button/
-    accent for the neutral header tone (scheme-aware, media + `data-c2-scheme`) and greys.
-    Docs: `pwa-offline.md`, `loading-transitions.md`.
+  surfaces are gone. `SystemBarSync`'s `theme-color` meta and the manifest `theme_color` are
+  neutral (`#111111` splash / scheme-aware `#6C6D70` light · `#151516` dark — the header
+  composited over the body); the PWA launch shell (`public/loading.html`) and the offline
+  pages (`public/offline.html` + the `sw.ts` inline fallback) drop their navy header/button/
+  accent for the neutral header tone (scheme-aware, media + `data-c2-scheme`) and greys.
+  Docs: `pwa-offline.md`, `loading-transitions.md`.
 - 1.285 Restore brand blue (soft) + drop the header border: the header is brand blue again but
-    at the app-wide translucency alpha (`rgba(13,71,161, var(--c2g-base-*))`) — softened, and
-    it now tracks the `translucencyLevel` flag like every other surface. The status bar
-    (`theme-color` meta, scheme-aware `#698DC5` light / `#173769` dark), manifest `theme_color`
-    (`#0D47A1`), the launch shell (`public/loading.html`) and the offline pages
-    (`public/offline.html` + the `sw.ts` fallback) all go blue again. `HEADER_STYLE` drops its
-    bottom border (`border: "none"`) — the hard dark line under the translucent header is gone.
+  at the app-wide translucency alpha (`rgba(13,71,161, var(--c2g-base-*))`) — softened, and
+  it now tracks the `translucencyLevel` flag like every other surface. The status bar
+  (`theme-color` meta, scheme-aware `#698DC5` light / `#173769` dark), manifest `theme_color`
+  (`#0D47A1`), the launch shell (`public/loading.html`) and the offline pages
+  (`public/offline.html` + the `sw.ts` fallback) all go blue again. `HEADER_STYLE` drops its
+  bottom border (`border: "none"`) — the hard dark line under the translucent header is gone.
 - 1.286 Opaque header: the header is now a solid brand-navy bar (`HEADER_STYLE` background
-    `brand-7`, no `.c2-glass-header`, no `--c2-glass-header-bg` token) — deliberately outside
-    the `translucencyLevel` system. Related colours adjusted: the status bar `theme-color` is
-    the static brand `#0D47A1`, the pinned ticker reverts to its opaque `brand-8`/`brand-7`/
-    `brand-9` pill (no blur), and the launch shell header is opaque `#0d47a1`. Manifest/offline
-    pages already brand navy. The `translucencyLevel` flag still governs the remaining page
-    surfaces (chrome, bottom nav, sidebar, grid headers, floating controls, FABs). Docs:
-    `feature-flags.md`, `AGENTS.md`, `dashboard-views.md` §1.1, `pwa-offline.md`,
-    `loading-transitions.md`.
+  `brand-7`, no `.c2-glass-header`, no `--c2-glass-header-bg` token) — deliberately outside
+  the `translucencyLevel` system. Related colours adjusted: the status bar `theme-color` is
+  the static brand `#0D47A1`, the pinned ticker reverts to its opaque `brand-8`/`brand-7`/
+  `brand-9` pill (no blur), and the launch shell header is opaque `#0d47a1`. Manifest/offline
+  pages already brand navy. The `translucencyLevel` flag still governs the remaining page
+  surfaces (chrome, bottom nav, sidebar, grid headers, floating controls, FABs). Docs:
+  `feature-flags.md`, `AGENTS.md`, `dashboard-views.md` §1.1, `pwa-offline.md`,
+  `loading-transitions.md`.
 - 1.287 Month & Agenda layout fixes: the weekday strip is pinned non-shrinkable
-    (`flex-shrink: 0` in `MonthWeekdayStrip`) so the bounded pane's overflowing
-    grid can no longer crush and clip its labels, and the panes now run flush to
-    the viewport bottom — the dual's bounded-height recipe drops the shell/page
-    padding terms and a new `dual-page-pad` class (0 bottom padding at `lg` + a
-    negative bottom margin that reclaims `AppShell.Main`'s padding) keeps the
-    container totalling exactly `100dvh` with no document scroll.
-    `DualPaneSkeleton` mirrors the flush height. Docs:
-    `dashboard-views.md` §1.9, `desktop-responsive.md`.
+  (`flex-shrink: 0` in `MonthWeekdayStrip`) so the bounded pane's overflowing
+  grid can no longer crush and clip its labels, and the panes now run flush to
+  the viewport bottom — the dual's bounded-height recipe drops the shell/page
+  padding terms and a new `dual-page-pad` class (0 bottom padding at `lg` + a
+  negative bottom margin that reclaims `AppShell.Main`'s padding) keeps the
+  container totalling exactly `100dvh` with no document scroll.
+  `DualPaneSkeleton` mirrors the flush height. Docs:
+  `dashboard-views.md` §1.9, `desktop-responsive.md`.
 - 1.288 Week (Grid) under-chrome + flush: at `lg` the grid is lifted behind the
-    sticky chrome (a negative top margin on the shared `.c2-gutter-anim`) so its
-    hour rows scroll under the frosted chrome like every other week view, with
-    the library day header and the app all-day row re-pinned below the chrome
-    (`weekViewHeader`/`weekViewAllDaySlots` `top` offsets), the row-zoom
-    re-anchor's leading overlay including the chrome, and a one-shot mount nudge
-    keeping the opened time unchanged; `--c2-weekgrid-bottom-budget` is now 0 at
-    every breakpoint and `.weekgrid-page-pad` drops the page's bottom padding at
-    `lg` (with a reclaiming negative margin), so the grid runs flush to the
-    viewport bottom.     `WeekGridViewSkeleton` mirrors both. Docs:
-    `dashboard-views.md` §1.7.
+  sticky chrome (a negative top margin on the shared `.c2-gutter-anim`) so its
+  hour rows scroll under the frosted chrome like every other week view, with
+  the library day header and the app all-day row re-pinned below the chrome
+  (`weekViewHeader`/`weekViewAllDaySlots` `top` offsets), the row-zoom
+  re-anchor's leading overlay including the chrome, and a one-shot mount nudge
+  keeping the opened time unchanged; `--c2-weekgrid-bottom-budget` is now 0 at
+  every breakpoint and `.weekgrid-page-pad` drops the page's bottom padding at
+  `lg` (with a reclaiming negative margin), so the grid runs flush to the
+  viewport bottom. `WeekGridViewSkeleton` mirrors both. Docs:
+  `dashboard-views.md` §1.7.
 - 1.289 Mobile view indicator: below `lg` the tab strip row is dropped, so the active
-    view was announced (the view-menu trigger's accessible name + the live region) but
-    never shown. A thin dimmed `text-xs` line naming the active view — the account's
-    **own view name**, never the built-in kind label — now sits under the date-nav row
-    inside the sticky chrome (`hiddenFrom="lg"`), reading the same optimistic
-    `shownTabName` the trigger and the announcement use, so it moves on tap. Passive (no
-    focusable element, no new a11y surface). Costs ~20px of mobile sticky chrome, which
-    `chromeHeight` propagates to every pinned grid strip's `chromeOffset` and to the
-    bounded Week (Grid) container for free. Docs: `dashboard-views.md` §1.1,
-    `accessibility.md` §1.2.
+  view was announced (the view-menu trigger's accessible name + the live region) but
+  never shown. A thin dimmed `text-xs` line naming the active view — the account's
+  **own view name**, never the built-in kind label — now sits under the date-nav row
+  inside the sticky chrome (`hiddenFrom="lg"`), reading the same optimistic
+  `shownTabName` the trigger and the announcement use, so it moves on tap. Passive (no
+  focusable element, no new a11y surface). Costs ~20px of mobile sticky chrome, which
+  `chromeHeight` propagates to every pinned grid strip's `chromeOffset` and to the
+  bounded Week (Grid) container for free. Docs: `dashboard-views.md` §1.1,
+  `accessibility.md` §1.2.
 - 1.290 Parade-state email lazy trigger: the external Cloud Scheduler job and the
-    `CRON_SECRET`-protected route are gone. Admins set a **send time** (`HH:mm`, UTC+8,
-    default 08:00) and **send days** (ISO weekdays, default Mon–Fri) on the settings tab;
-    a lazy in-app tick (`useParadeEmailTick` → `maybeDispatchParadeEmail`, `after()`)
-    fires on the first authenticated activity at/after the cutoff and claims the day via
-    the unique `send_date`. The pure window gate runs before any per-tick DB read, and
-    benign opportunistic skips are no longer audited. Docs: `parade-state-email.md`
-    §1.1/§1.4/§1.5/§1.6, `developer-guide.md` §1.9.1.
+  `CRON_SECRET`-protected route are gone. Admins set a **send time** (`HH:mm`, UTC+8,
+  default 08:00) and **send days** (ISO weekdays, default Mon–Fri) on the settings tab;
+  a lazy in-app tick (`useParadeEmailTick` → `maybeDispatchParadeEmail`, `after()`)
+  fires on the first authenticated activity at/after the cutoff and claims the day via
+  the unique `send_date`. The pure window gate runs before any per-tick DB read, and
+  benign opportunistic skips are no longer audited. Docs: `parade-state-email.md`
+  §1.1/§1.4/§1.5/§1.6, `developer-guide.md` §1.9.1.
 - 1.291 Mobile view indicator polish: the below-`lg` view-name line is now
-    **centered** (`ta="center"`), has its top margin removed (flush under the
-    date-nav row) and the sticky chrome's bottom padding is trimmed on phones
-    (`var(--mantine-spacing-xs)` → `calc(0.125rem * var(--mantine-scale))`;
-    `lg`+ unchanged) so the line tucks against the grid. Docs:
-    `dashboard-views.md` §1.1.
+  **centered** (`ta="center"`), has its top margin removed (flush under the
+  date-nav row) and the sticky chrome's bottom padding is trimmed on phones
+  (`var(--mantine-spacing-xs)` → `calc(0.125rem * var(--mantine-scale))`;
+  `lg`+ unchanged) so the line tucks against the grid. Docs:
+  `dashboard-views.md` §1.1.
 
 - 1.292 Dashboard navigation deepening (refactor): the URL→displayed
-    tab/period, coverage/`isNavigating`, warm-record and fetch-decision rules that
-    were spread across `snapshot.ts`, `DashboardScreen`'s effects and
-    `DashboardView.switchTab` now live in one pure module
-    `src/lib/dashboard/navigation.ts` (`resolveDashboardNavigation`,
-    `planDashboardSwitch`, `classifyDashboardFetch`, `candidateKeyForUrl`); the
-    five former helpers (`tabSwitchTarget`/`tabSwitchNeedsReload`/
-    `dashboardCandidateRequestKey`/`equivalentDashboardTab`/
-    `resolveDashboardPresentation`) are now internal seams, with their tests moved
-    to `navigation.test.ts` driven through the new interface. Behavior-preserving;
-    `GLOSSARY.md` created. Docs: `dashboard-views.md` §1.10,
-    `loading-transitions.md` §1.13, `pwa-offline.md`.
+  tab/period, coverage/`isNavigating`, warm-record and fetch-decision rules that
+  were spread across `snapshot.ts`, `DashboardScreen`'s effects and
+  `DashboardView.switchTab` now live in one pure module
+  `src/lib/dashboard/navigation.ts` (`resolveDashboardNavigation`,
+  `planDashboardSwitch`, `classifyDashboardFetch`, `candidateKeyForUrl`); the
+  five former helpers (`tabSwitchTarget`/`tabSwitchNeedsReload`/
+  `dashboardCandidateRequestKey`/`equivalentDashboardTab`/
+  `resolveDashboardPresentation`) are now internal seams, with their tests moved
+  to `navigation.test.ts` driven through the new interface. Behavior-preserving;
+  `GLOSSARY.md` created. Docs: `dashboard-views.md` §1.10,
+  `loading-transitions.md` §1.13, `pwa-offline.md`.
 
 - 1.293 Settings-write deepening (refactor): the singleton-settings write ritual
-    (auth → read before-row → update → audit diff → invalidate config cache →
-    revalidate paths), previously copy-pasted across the eight field actions in
-    `src/lib/settings/actions.ts`, now lives once in `editSetting`
-    (`src/lib/settings/write.ts`; side effects injectable so the ritual is
-    unit-tested without a DB). The pure per-field patch/audit/targets live in
-    `src/lib/settings/edits.ts` (keyword, name template, title recipe, assignments,
-    retention, banner, feature flags, KAH templates); `updateFeatureFlags` routes
-    through `validateFeatureFlags` while keeping its labeled message;
-    `prepareTitleRecipe` is shared with the template CRUD. Title-template CRUD and
-    `purgeCalendarCache` are unchanged. Behavior-preserving; new `edits.test.ts` /
-    `write.test.ts`. GLOSSARY term "settings write". Docs: `feature-flags.md`,
-    `event-lifecycle.md`.
+  (auth → read before-row → update → audit diff → invalidate config cache →
+  revalidate paths), previously copy-pasted across the eight field actions in
+  `src/lib/settings/actions.ts`, now lives once in `editSetting`
+  (`src/lib/settings/write.ts`; side effects injectable so the ritual is
+  unit-tested without a DB). The pure per-field patch/audit/targets live in
+  `src/lib/settings/edits.ts` (keyword, name template, title recipe, assignments,
+  retention, banner, feature flags, KAH templates); `updateFeatureFlags` routes
+  through `validateFeatureFlags` while keeping its labeled message;
+  `prepareTitleRecipe` is shared with the template CRUD. Title-template CRUD and
+  `purgeCalendarCache` are unchanged. Behavior-preserving; new `edits.test.ts` /
+  `write.test.ts`. GLOSSARY term "settings write". Docs: `feature-flags.md`,
+  `event-lifecycle.md`.
 
- - 1.294 Dashboard snapshot ownership (refactor): `DashboardSnapshot` is now
-    defined in `src/lib/dashboard/snapshot.ts` as a deliberate typed contract
-    instead of `Omit<DashboardViewProps, …>` (which made the client data module
-    depend on the 4.9k-line view). `DashboardViewProps` now *extends*
-    `DashboardSnapshot` with the view-local fields (URL period, zoom seeds,
-    deep-link ids); `EventTypeOption` moved to `src/lib/dashboard/types.ts`
-    (deduped from the view + `EventForm`) and `QuickLinkMenuItem` to
-    `src/lib/quickLinks/types.ts`, so `lib` owns every snapshot field type.
-    `DASHBOARD_SNAPSHOT_VERSION` 5 → 6 drops each device's warm snapshot once
-    (first open re-reads). GLOSSARY term "dashboard snapshot". Docs:
-    `pwa-offline.md`.
- - 1.295 Event history & My Events: two read-only surfaces over the event audit
-    rows — a per-event changelog (`/event-history/[eventId]`, opened from a
-    standalone History button in the event modal's action row) and **My Events**
-    (`/my-events`, a union of a live all-calendar read by organizer plus deleted
-    events from audit, over an adjustable ±3/±6/±12-month window; deleted ones
-    flagged but still trackable). Both `requireSession()` (reads aren't
-    ACL-gated) and always-fresh. New expression index `audit_logs_event_id_idx`
-    (migration `0056`) on `details->>'eventId'`; new reads in
-    `src/lib/audit/queries.ts`, a union builder in `src/lib/events/myEventsData.ts`,
-    pure shaping in `src/lib/events/history.ts`/`myEvents.ts`/`myEventsRange.ts`,
-    and a shared `AuditDetails` component with the audit log. History entries are
-    collapsible (newest expanded). Bottom nav keeps its four primary tiles and
-    moves My Events / KAH Status / Settings into an animated **More** popup
-    `Menu`. Docs: `event-history.md`.
+- 1.294 Dashboard snapshot ownership (refactor): `DashboardSnapshot` is now
+  defined in `src/lib/dashboard/snapshot.ts` as a deliberate typed contract
+  instead of `Omit<DashboardViewProps, …>` (which made the client data module
+  depend on the 4.9k-line view). `DashboardViewProps` now _extends_
+  `DashboardSnapshot` with the view-local fields (URL period, zoom seeds,
+  deep-link ids); `EventTypeOption` moved to `src/lib/dashboard/types.ts`
+  (deduped from the view + `EventForm`) and `QuickLinkMenuItem` to
+  `src/lib/quickLinks/types.ts`, so `lib` owns every snapshot field type.
+  `DASHBOARD_SNAPSHOT_VERSION` 5 → 6 drops each device's warm snapshot once
+  (first open re-reads). GLOSSARY term "dashboard snapshot". Docs:
+  `pwa-offline.md`.
+- 1.295 Event history & My Events: two read-only surfaces over the event audit
+  rows — a per-event changelog (`/event-history/[eventId]`, opened from a
+  standalone History button in the event modal's action row) and **My Events**
+  (`/my-events`, a union of a live all-calendar read by organizer plus deleted
+  events from audit, over an adjustable ±3/±6/±12-month window; deleted ones
+  flagged but still trackable). Both `requireSession()` (reads aren't
+  ACL-gated) and always-fresh. New expression index `audit_logs_event_id_idx`
+  (migration `0056`) on `details->>'eventId'`; new reads in
+  `src/lib/audit/queries.ts`, a union builder in `src/lib/events/myEventsData.ts`,
+  pure shaping in `src/lib/events/history.ts`/`myEvents.ts`/`myEventsRange.ts`,
+  and a shared `AuditDetails` component with the audit log. History entries are
+  collapsible (newest expanded). Bottom nav keeps its four primary tiles and
+  moves My Events / KAH Status / Settings into an animated **More** popup
+  `Menu`. Docs: `event-history.md`.
 - 1.296 Micro-motion pass (seven presentational animations, all `--c2-dur-*`-tokened,
-    reduced-motion guarded, low-end-tier neutered): optimistic **hand-off pop** —
-    the guarded reconcile parks just-settled group ids in state and the `renderEvent`
-    hooks + a new `settledIds` prop on `WeekMatrixView` add `c2-chip-settle`
-    (fade+scale; agenda rows fade-only) to the incoming authoritative chip, so the
-    stand-in→server swap reads as motion; **count-badge tick** — nav count pills,
-    the filter-button badge and the pinned ticker count chips are keyed by their
-    count so a changed value remounts and replays `c2-badge-tick` (0.72→1.06→1 pop;
-    rotation keeps the key, no pop); **settings-tab amber pill** — the active
-    settings tab carries an amber-tinted pill (`c2-settings-tabs [data-active]`)
-    that pops in while the outgoing tab's fades out; **banner height reflow** —
-    the AppShell header element carries a `height` transition so a re-wrapped
-    banner grows smoothly (`@property` custom-property registration deliberately
-    avoided: Next 16's CSS pipeline can't parse the at-rule and the build fails);
-    **login→dashboard crossfade** — the `/login` form branch wraps in `PageTransition`
-    so `completeLogin()`'s router-push gets its missing `c2-page-out` exit half;
-    **empty-state reveal** — shared `EmptyState` fades/rises in with the icon a
-    beat behind; **FAB cluster entrance** — `FloatingToolbar`'s Affix root carries
-    `c2-fab-cluster` and the FABs pop in per-child staggered on first paint. Docs:
-    `loading-transitions.md` §1.17,     `optimistic-mutations.md` §1.3.1,
-    `pinned-events.md` §1.4, `announcement-banner.md` §1.3.2,
-    `desktop-responsive.md` §1.3.
+  reduced-motion guarded, low-end-tier neutered): optimistic **hand-off pop** —
+  the guarded reconcile parks just-settled group ids in state and the `renderEvent`
+  hooks + a new `settledIds` prop on `WeekMatrixView` add `c2-chip-settle`
+  (fade+scale; agenda rows fade-only) to the incoming authoritative chip, so the
+  stand-in→server swap reads as motion; **count-badge tick** — nav count pills,
+  the filter-button badge and the pinned ticker count chips are keyed by their
+  count so a changed value remounts and replays `c2-badge-tick` (0.72→1.06→1 pop;
+  rotation keeps the key, no pop); **settings-tab amber pill** — the active
+  settings tab carries an amber-tinted pill (`c2-settings-tabs [data-active]`)
+  that pops in while the outgoing tab's fades out; **banner height reflow** —
+  the AppShell header element carries a `height` transition so a re-wrapped
+  banner grows smoothly (`@property` custom-property registration deliberately
+  avoided: Next 16's CSS pipeline can't parse the at-rule and the build fails);
+  **login→dashboard crossfade** — the `/login` form branch wraps in `PageTransition`
+  so `completeLogin()`'s router-push gets its missing `c2-page-out` exit half;
+  **empty-state reveal** — shared `EmptyState` fades/rises in with the icon a
+  beat behind; **FAB cluster entrance** — `FloatingToolbar`'s Affix root carries
+  `c2-fab-cluster` and the FABs pop in per-child staggered on first paint. Docs:
+  `loading-transitions.md` §1.17, `optimistic-mutations.md` §1.3.1,
+  `pinned-events.md` §1.4, `announcement-banner.md` §1.3.2,
+  `desktop-responsive.md` §1.3.
 - 1.297 Mobile tab-switch entrance: the grid swipe's strip-order `translateX(±10%)`
-    direction only exists where the tab strip is on screen, so below `lg` a **tab
-    switch** now plays a fade + 8px rise entrance instead (same WAAPI `el.animate`
-    on `gridSlideRef`, same cancel/reduced-motion guards — `DashboardView.tsx`
-    slide effect); date moves keep the horizontal swipe at every width (chevrons
-    carry the direction), desktop switch keeps the strip swipe. Docs:
-    `dashboard-views.md` §1.1, `globals.css` swipe comment.
+  direction only exists where the tab strip is on screen, so below `lg` a **tab
+  switch** now plays a fade + 8px rise entrance instead (same WAAPI `el.animate`
+  on `gridSlideRef`, same cancel/reduced-motion guards — `DashboardView.tsx`
+  slide effect); date moves keep the horizontal swipe at every width (chevrons
+  carry the direction), desktop switch keeps the strip swipe. Docs:
+  `dashboard-views.md` §1.1, `globals.css` swipe comment.
 - 1.298 More-popup pop direction: the footer's **More** `Menu` (and the
-    `FloatingBottomNav` twin) sits `position="top"` above its tile but used
-    `pop-top-right`, so it grew away from the button; switched to
-    `pop-bottom-right` (unfurls upward from the More tile, matching
-    `QuickLinksMenu`'s top-positioned pattern).
+  `FloatingBottomNav` twin) sits `position="top"` above its tile but used
+  `pop-top-right`, so it grew away from the button; switched to
+  `pop-bottom-right` (unfurls upward from the More tile, matching
+  `QuickLinksMenu`'s top-positioned pattern).
 - 1.299 Bottom-nav variants (`bottomNavVariant` flag, Settings → Feature Flags):
-    mobile footer overflow was always crammed behind one More popup — research
-    says bottom bars want 3–5 destinations (Material) and hidden menus
-    discount feature use (NN/g). Three variants: `classic` (today), `roleAware`
-    (admins surface Double Booking/KAH Status/Settings as tiles), `sheetExpand`
-    (Google Maps expanding rail — hamburger toggle slides the overflow tiles
-    out of zero-width flex slots via an animated `max-width` with the delayed-
-    `visibility` focusability trick; height fixed so footer offsets untouched;
-    tapping the active tile collapses). Primary-tile rule is pure
-    `footerPrimaryFor` (`src/lib/bottomNav.ts`, unit-tested); flag resolved in
-    the (protected) layout into the shell. Docs: `feature-flags.md`,
-    `desktop-responsive.md` §1.2.
+  mobile footer overflow was always crammed behind one More popup — research
+  says bottom bars want 3–5 destinations (Material) and hidden menus
+  discount feature use (NN/g). Three variants: `classic` (today), `roleAware`
+  (admins surface Double Booking/KAH Status/Settings as tiles), `sheetExpand`
+  (Google Maps expanding rail — hamburger toggle slides the overflow tiles
+  out of zero-width flex slots via an animated `max-width` with the delayed-
+  `visibility` focusability trick; height fixed so footer offsets untouched;
+  tapping the active tile collapses). Primary-tile rule is pure
+  `footerPrimaryFor` (`src/lib/bottomNav.ts`, unit-tested); flag resolved in
+  the (protected) layout into the shell. Docs: `feature-flags.md`,
+  `desktop-responsive.md` §1.2.
 - 1.300 Bottom-nav variant round 2: users rejected the expanded/More-menu UX
-    (two taps to reach hidden pages + small popup tap targets). Flag options
-    cut to `roleAware` (new default) + `scrollRail`; legacy `classic`/
-    `sheetExpand` fall back via `resolveFlagValue`. `scrollRail` puts every
-    destination in the bar at full tap-target size (72px floor tiles, labels
-    kept, `railOrderFor` role ordering leads with the role's own
-    destinations), overflow behind a right-edge gradient fade panned by touch
-    swipe or snapped by `RailEdgeControl` chevrons (`c2-scroll-rail` +
-    `c2-rail-nudge` hint in globals.css); height fixed → offsets intact.
-    Schema column default flipped to `roleAware` (new migration).
+  (two taps to reach hidden pages + small popup tap targets). Flag options
+  cut to `roleAware` (new default) + `scrollRail`; legacy `classic`/
+  `sheetExpand` fall back via `resolveFlagValue`. `scrollRail` puts every
+  destination in the bar at full tap-target size (72px floor tiles, labels
+  kept, `railOrderFor` role ordering leads with the role's own
+  destinations), overflow behind a right-edge gradient fade panned by touch
+  swipe or snapped by `RailEdgeControl` chevrons (`c2-scroll-rail` +
+  `c2-rail-nudge` hint in globals.css); height fixed → offsets intact.
+  Schema column default flipped to `roleAware` (new migration).
 - 1.301 Rail tile-width round: users found the 72px rail tiles compressed and
-    wanted fixed widths so wide screens reveal more buttons. Footer is now
-    ALWAYS the scrolling rail — `roleAware`/More-popup footer removed entirely
-    (popup machinery deleted from the shell); the `bottomNavVariant` flag
-    repurposed to the fixed tile width: `wide` 96 / `medium` 84 (new default)
-    / `tight` 72 via `RAIL_TILE_WIDTHS`, tiles `flex: 0 0 Wpx` (no grow —
-    wider viewports simply show more tiles, remainder clips under the fade).
-    Schema default → `medium` (new migration).
+  wanted fixed widths so wide screens reveal more buttons. Footer is now
+  ALWAYS the scrolling rail — `roleAware`/More-popup footer removed entirely
+  (popup machinery deleted from the shell); the `bottomNavVariant` flag
+  repurposed to the fixed tile width: `wide` 96 / `medium` 84 (new default)
+  / `tight` 72 via `RAIL_TILE_WIDTHS`, tiles `flex: 0 0 Wpx` (no grow —
+  wider viewports simply show more tiles, remainder clips under the fade).
+  Schema default → `medium` (new migration).
 - 1.302 Fixed rail order: the role-aware ordering is dropped — the rail uses
-    the original nav order for every role (Calendar, Parade State, Contacts,
-    Double Booking, My Events, KAH Status, Settings) via the constant
-    `RAIL_ORDER` (`src/lib/bottomNav.ts`, unit-tested; invisible entries
-    simply aren't in the item list). Cost: admins' Settings/KAH Status now
-    trail the rail (clipped behind the fade on small phones, reachable by
-    swipe/chevron).
+  the original nav order for every role (Calendar, Parade State, Contacts,
+  Double Booking, My Events, KAH Status, Settings) via the constant
+  `RAIL_ORDER` (`src/lib/bottomNav.ts`, unit-tested; invisible entries
+  simply aren't in the item list). Cost: admins' Settings/KAH Status now
+  trail the rail (clipped behind the fade on small phones, reachable by
+  swipe/chevron).
 - 1.303 My Events one-line rows: the card list is replaced by the EventSearchModal
-    row recipe — bordered container, 1px-separated rows, 4px event-color bar +
-    truncated title + one dim `time · departments` meta line; `MyEventRow` gains
-    `color` (live = read-time `CalendarEvent.color`, deleted = `colorForId(type)`
-    else gray), deleted rows ride a red bar + small inline `Deleted` badge,
-    display times humanize via pure `humanizeMyEventTime` (year only off the
-    current year, same-month all-day spans collapse) while `sortKey` stays naive
-    and live all-day rows normalize to `00:00` so live/deleted all-day events
-    interleave consistently (`docs/event-history.md` §1.4).
+  row recipe — bordered container, 1px-separated rows, 4px event-color bar +
+  truncated title + one dim `time · departments` meta line; `MyEventRow` gains
+  `color` (live = read-time `CalendarEvent.color`, deleted = `colorForId(type)`
+  else gray), deleted rows ride a red bar + small inline `Deleted` badge,
+  display times humanize via pure `humanizeMyEventTime` (year only off the
+  current year, same-month all-day spans collapse) while `sortKey` stays naive
+  and live all-day rows normalize to `00:00` so live/deleted all-day events
+  interleave consistently (`docs/event-history.md` §1.4).
 - 1.304 Event history: all entries collapsed by default (the newest no longer
-    opens expanded) — `HistoryEntry` starts closed; headers still carry the
-    one-line change summary (`docs/event-history.md` §1.3).
+  opens expanded) — `HistoryEntry` starts closed; headers still carry the
+  one-line change summary (`docs/event-history.md` §1.3).
 - 1.305 Sticky-chrome `marginTop` pull: the Contacts / Double Booking / Parade
-    State / My Events sticky header boxes now reclaim the shell's top padding
-    (`marginTop: calc(-1 * var(--app-shell-padding))` alongside the existing
-    gutter bleed) so the frosted chrome sits flush under the app header;
-    token unified on `--app-shell-padding` across all four pages.
+  State / My Events sticky header boxes now reclaim the shell's top padding
+  (`marginTop: calc(-1 * var(--app-shell-padding))` alongside the existing
+  gutter bleed) so the frosted chrome sits flush under the app header;
+  token unified on `--app-shell-padding` across all four pages.
 - 1.306 Mobile period-step pill: the bottom-right cluster's two 44px circular
-    chevron FABs merge into one segmented frosted-glass capsule
-    (`[<|>][LINK][CREATE]`) — `.c2-period-pill` with two transparent 44px
-    segments + hairline divider, so period nav reads as one control instead of
-    two more FABs; only the tapped segment tints (`docs/dashboard-views.md`
-    §1.1).
+  chevron FABs merge into one segmented frosted-glass capsule
+  (`[<|>][LINK][CREATE]`) — `.c2-period-pill` with two transparent 44px
+  segments + hairline divider, so period nav reads as one control instead of
+  two more FABs; only the tapped segment tints (`docs/dashboard-views.md`
+  §1.1).
 - 1.307 Mobile chrome split (below `lg`): the date-nav row leaves the top
-    chrome (which shrinks to a thin pinned view-name strip); its controls move
-    to **floating bottom rows** — a frosted control pill (`.c2-control-pill`:
-    period label left + circular filter/date/view/quick-links buttons right,
-    inset 16px from the viewport edges) bottom-most, with the right-anchored
-    FAB row (New-event **pill button** — `c2-glass-btn` + `c2-glass-fab--brand`
-    brand-blue tint + `c2-glass-btn--bordered` grey ring — parked right of the
-    `[<|>]` step pill, `.c2-period-pill`, both matched to the pill's height)
-    floating above it. Bounded grids run flush to the bottom
-    nav again; page pads (`--c2-bottom-chrome-height`) clear the pill/FAB
-    row; the zoom/pan clusters clamp to it (`bottomBarrierRef`)
-    (`docs/dashboard-views.md` §1.1).
+  chrome (which shrinks to a thin pinned view-name strip); its controls move
+  to **floating bottom rows** — a frosted control pill (`.c2-control-pill`:
+  period label left + circular filter/date/view/quick-links buttons right,
+  inset 16px from the viewport edges) bottom-most, with the right-anchored
+  FAB row (New-event **pill button** — `c2-glass-btn` + `c2-glass-fab--brand`
+  brand-blue tint + `c2-glass-btn--bordered` grey ring — parked right of the
+  `[<|>]` step pill, `.c2-period-pill`, both matched to the pill's height)
+  floating above it. Bounded grids run flush to the bottom
+  nav again; page pads (`--c2-bottom-chrome-height`) clear the pill/FAB
+  row; the zoom/pan clusters clamp to it (`bottomBarrierRef`)
+  (`docs/dashboard-views.md` §1.1).
 - 1.308 Mobile bottom-controls reshuffle + zoom-cluster centering: the
-    single-axis `GridNavControls` cluster now centers the WHOLE cluster (zoom
-    pair above, right pan arrow below) on the grid's visible-slice center
-    instead of hanging from its bottom edge; below `lg` the control pill's
-    quick-links slot becomes the inline `FullscreenButton` (extracted from
-    `FullscreenToggle`, which is now `visibleFrom="lg"`) and Quick links moves
-    to the FAB row as an amber `c2-glass-fab--accent` pill beside the New-event
-    pill (`docs/dashboard-views.md` §1.1, `docs/grid-pan.md` §1.2,
-    `docs/immersive-mode.md` §1.1).
+  single-axis `GridNavControls` cluster now centers the WHOLE cluster (zoom
+  pair above, right pan arrow below) on the grid's visible-slice center
+  instead of hanging from its bottom edge; below `lg` the control pill's
+  quick-links slot becomes the inline `FullscreenButton` (extracted from
+  `FullscreenToggle`, which is now `visibleFrom="lg"`) and Quick links moves
+  to the FAB row as an amber `c2-glass-fab--accent` pill beside the New-event
+  pill (`docs/dashboard-views.md` §1.1, `docs/grid-pan.md` §1.2,
+  `docs/immersive-mode.md` §1.1).
 - 1.309 Bottom-nav rail edge chevrons now decorative: `RailEdgeControl` drops
-    the snap button (`pointer-events: none`, taps pass through to the clipped
-    tile) and each side hides when the rail reaches that extreme, measured
-    from `scrollLeft` re-checked on `scrollend`/`pointerup` (`docs/desktop-responsive.md`
-    §1.2).
+  the snap button (`pointer-events: none`, taps pass through to the clipped
+  tile) and each side hides when the rail reaches that extreme, measured
+  from `scrollLeft` re-checked on `scrollend`/`pointerup` (`docs/desktop-responsive.md`
+  §1.2).
 - 1.310 Solid standalone FABs: the `c2-glass-fab--accent` / `--brand` / `--teal`
-    modifiers now paint fully opaque (amber `accent-6`, brand `brand-7`, teal
-    `#0ca678`) with lighter/darker shade shifts for hover/active instead of alpha
-    bumps, scoped with `:not(.c2-glass-btn)` so only the standalone round FABs
-    (the Parade attendance toggle, the Contacts download, the settings-table FABs)
-    are affected — the dashboard's tinted glass buttons (the `lg` nav-row New
-    event / Quick links and the mobile pill row) keep their frosted tint and the
-    `--c2g-accent-*` / `--c2g-brand-*` alphas. Docs: `dashboard-views.md` §1.1,
-    `feature-flags.md`, `desktop-responsive.md`, `AGENTS.md`.
+  modifiers now paint fully opaque (amber `accent-6`, brand `brand-7`, teal
+  `#0ca678`) with lighter/darker shade shifts for hover/active instead of alpha
+  bumps, scoped with `:not(.c2-glass-btn)` so only the standalone round FABs
+  (the Parade attendance toggle, the Contacts download, the settings-table FABs)
+  are affected — the dashboard's tinted glass buttons (the `lg` nav-row New
+  event / Quick links and the mobile pill row) keep their frosted tint and the
+  `--c2g-accent-*` / `--c2g-brand-*` alphas. Docs: `dashboard-views.md` §1.1,
+  `feature-flags.md`, `desktop-responsive.md`, `AGENTS.md`.
 - 1.311 Parade State attendance UI to the bottom (mobile): the attendance-toggle
-    FAB is gone — below `lg` the toggle is now a `c2-glass-btn` circle inside the
-    bottom control pill (teal/check while active, `c2-glass-btn` frosted instead
-    of the old solid standalone FAB), and the attendance **mode bar** (present
-    count + Copy + Reset overflow) now floats full-width above the pill in the
-    same frosted-pill language, rendered only in attendance mode. The mode bar
-    left the top sticky chrome, so that chrome is now `lg`-only (desktop keeps
-    its nav-row "Attendance"/"Done" button + top mode bar unchanged). The shared
-    count/Copy/Reset cluster is extracted to one `attendanceControls` fragment
-    used by both bars; `.fab-page-pad`'s 65px FAB reserve now clears the floating
-    mode bar. Docs: `dashboard-views.md` §1.1, `desktop-responsive.md` §1.6,
-    `user-guide.md` §1.7.
+  FAB is gone — below `lg` the toggle is now a `c2-glass-btn` circle inside the
+  bottom control pill (teal/check while active, `c2-glass-btn` frosted instead
+  of the old solid standalone FAB), and the attendance **mode bar** (present
+  count + Copy + Reset overflow) now floats full-width above the pill in the
+  same frosted-pill language, rendered only in attendance mode. The mode bar
+  left the top sticky chrome, so that chrome is now `lg`-only (desktop keeps
+  its nav-row "Attendance"/"Done" button + top mode bar unchanged). The shared
+  count/Copy/Reset cluster is extracted to one `attendanceControls` fragment
+  used by both bars; `.fab-page-pad`'s 65px FAB reserve now clears the floating
+  mode bar. Docs: `dashboard-views.md` §1.1, `desktop-responsive.md` §1.6,
+  `user-guide.md` §1.7.
 - 1.312 Motion pass over the recent chrome changes: the mobile floating
-    `.c2-control-pill` (Calendar / Parade / Contacts) fades + rises in on first
-    paint (`c2-glass-enter`, applied on the glass element itself so the frost
-    survives); the Parade attendance mode bar fades/slides both ways
-    (`c2-attendance-bar` / `c2-attendance-bar-closing` — `exitAttendance` holds
-    it mounted for the exit, the `action-pill` closing pattern) with the toggle
-    icon swapping via `c2-icon-swap`; `.c2-glass-fab` / `.c2-glass-btn` gained a
-    `background-color` transition so hover/active and the frosted↔accent/brand/
-    teal swaps cross-fade; the per-tab status fade (`.c2-tab-not-loaded` +
-    `.c2-fade-in` spinner) and the bottom-nav rail-edge dissolve
-    (`.c2-rail-edge`, opacity instead of `display: none`) round it out. All ride
-    `--c2-dur-*`, sit under `prefers-reduced-motion` guards with matches resets.
-    Docs: `loading-transitions.md` §1.17, `dashboard-views.md` §1.1,
-    `desktop-responsive.md` §1.2/§1.6.
+  `.c2-control-pill` (Calendar / Parade / Contacts) fades + rises in on first
+  paint (`c2-glass-enter`, applied on the glass element itself so the frost
+  survives); the Parade attendance mode bar fades/slides both ways
+  (`c2-attendance-bar` / `c2-attendance-bar-closing` — `exitAttendance` holds
+  it mounted for the exit, the `action-pill` closing pattern) with the toggle
+  icon swapping via `c2-icon-swap`; `.c2-glass-fab` / `.c2-glass-btn` gained a
+  `background-color` transition so hover/active and the frosted↔accent/brand/
+  teal swaps cross-fade; the per-tab status fade (`.c2-tab-not-loaded` +
+  `.c2-fade-in` spinner) and the bottom-nav rail-edge dissolve
+  (`.c2-rail-edge`, opacity instead of `display: none`) round it out. All ride
+  `--c2-dur-*`, sit under `prefers-reduced-motion` guards with matches resets.
+  Docs: `loading-transitions.md` §1.17, `dashboard-views.md` §1.1,
+  `desktop-responsive.md` §1.2/§1.6.
 - 1.313 Dashboard tab preview is transition-aware: `DashboardView` reports pending
-    router transitions to `DashboardScreen`, so an optimistic `previewView` no
-    longer reverts after a fixed 6 s window while the tab URL is still catching
-    up. Soft dashboard navigations also strip one-shot `refresh`, `event`,
-    and `_eventCal` params, allowing tab URLs to prefetch cleanly. Docs:
-    `dashboard-views.md` §1.7, `loading-transitions.md` §1.13.2.
+  router transitions to `DashboardScreen`, so an optimistic `previewView` no
+  longer reverts after a fixed 6 s window while the tab URL is still catching
+  up. Soft dashboard navigations also strip one-shot `refresh`, `event`,
+  and `_eventCal` params, allowing tab URLs to prefetch cleanly. Docs:
+  `dashboard-views.md` §1.7, `loading-transitions.md` §1.13.2.
 - 1.314 Search modal restructured to kill the jarring first open: the Modal chrome
-    (responsive size + zoom-from-trigger transition) is static and always mounted
-    (the `PinnedEventsPanel` pattern), and only the body (`EventSearchBody.tsx`) is
-    lazy-loaded with a skeleton fallback painted *inside* the already-animating
-    dialog — the zoom plays exactly once and content swaps in place. The shell's
-    `searchLoaded` gate and the placeholder-Modal skeleton are gone; the header
-    trigger's near signals now call the exported `preloadEventSearchBody()`. Recent
-    searches skeleton-load (label + placeholder pills while fetching) instead of
-    appearing out of nowhere; history moved to the chrome (prefetched at mount,
-    refreshed on open). Docs: `event-search.md` §1.9/§1.10/§1.12.
+  (responsive size + zoom-from-trigger transition) is static and always mounted
+  (the `PinnedEventsPanel` pattern), and only the body (`EventSearchBody.tsx`) is
+  lazy-loaded with a skeleton fallback painted _inside_ the already-animating
+  dialog — the zoom plays exactly once and content swaps in place. The shell's
+  `searchLoaded` gate and the placeholder-Modal skeleton are gone; the header
+  trigger's near signals now call the exported `preloadEventSearchBody()`. Recent
+  searches skeleton-load (label + placeholder pills while fetching) instead of
+  appearing out of nowhere; history moved to the chrome (prefetched at mount,
+  refreshed on open). Docs: `event-search.md` §1.9/§1.10/§1.12.
 - 1.315 My Events ordering is by last edit: rows sort by the newest recorded
-    audit row (`latestEventEditTimes` for live rows; `latestDeleteTimes` —
-    newest `event.delete` `created_at` per group id, replacing `deletedEventIds`
-    — for deleted rows), falling back to the event's start date when no audit
-    history remains. Pure sort key is the new `editKey` field (naive UTC+8) on
-    `MyEventRow`; `mergeMyEvents` breaks ties on start (newest first), then key.
-    Docs: `event-history.md` §1.4/§1.7.
+  audit row (`latestEventEditTimes` for live rows; `latestDeleteTimes` —
+  newest `event.delete` `created_at` per group id, replacing `deletedEventIds`
+  — for deleted rows), falling back to the event's start date when no audit
+  history remains. Pure sort key is the new `editKey` field (naive UTC+8) on
+  `MyEventRow`; `mergeMyEvents` breaks ties on start (newest first), then key.
+  Docs: `event-history.md` §1.4/§1.7.
 - 1.316 The mobile FAB row (below `lg`) is now one uniform height of **56px
-    circles**: the Quick-links and New-event buttons were 56px wide × pill-height
-    (~50px) capsules — read as "not fully circular" — and are now true 56×56
-    circles (`radius="50%"`, fixed `h={56}`); the `[< | >]` step pill's chevron
-    circles grew 36 → 56px (icons 18 → 24px) and its inline
-    `minHeight={bottomChromeHeight}` was dropped so the pill hugs its circles.
-    All dependent geometry (`fabStackHeight` → `--c2-bottom-chrome-height` page
-    pads, zoom/pan bottom barrier) is `ResizeObserver`-measured, so the taller
-    row auto-adapts. Docs: `dashboard-views.md` §1.1, `desktop-responsive.md` §1.2.
+  circles**: the Quick-links and New-event buttons were 56px wide × pill-height
+  (~50px) capsules — read as "not fully circular" — and are now true 56×56
+  circles (`radius="50%"`, fixed `h={56}`); the `[< | >]` step pill's chevron
+  circles grew 36 → 56px (icons 18 → 24px) and its inline
+  `minHeight={bottomChromeHeight}` was dropped so the pill hugs its circles.
+  All dependent geometry (`fabStackHeight` → `--c2-bottom-chrome-height` page
+  pads, zoom/pan bottom barrier) is `ResizeObserver`-measured, so the taller
+  row auto-adapts. Docs: `dashboard-views.md` §1.1, `desktop-responsive.md` §1.2.
 - 1.316 Contacts search pill lift is keyboard-measured, not guessed: the mobile
-    pill's focus lift used `bottom: 40vh`, which floats far above the keys on
-    devices whose viewport doesn't shrink with the keyboard (and stayed lifted
-    after a swipe-down dismiss). It now rides `useKeyboardInset`
-    (`src/lib/ui/keyboardInset.ts`, already unit-tested) — the settled
-    `visualViewport` keyboard band + a 16px gap — so the pill lands just above
-    the keyboard and drops back as soon as it closes, focus or not
-    (`docs/dashboard-views.md` §1.1).
+  pill's focus lift used `bottom: 40vh`, which floats far above the keys on
+  devices whose viewport doesn't shrink with the keyboard (and stayed lifted
+  after a swipe-down dismiss). It now rides `useKeyboardInset`
+  (`src/lib/ui/keyboardInset.ts`, already unit-tested) — the settled
+  `visualViewport` keyboard band + a 16px gap — so the pill lands just above
+  the keyboard and drops back as soon as it closes, focus or not
+  (`docs/dashboard-views.md` §1.1).
 - 1.317 App-wide **motion system**: app-level animations, the primary
-    overlays, and every plain dialog (via the shared `MotionModal`) now read
-    one shared token set (`src/lib/motion/tokens.ts` + `profile.ts`) instead of
-    scattered `ms` literals. An org-wide `motionProfile` feature flag
-    (`calm`/`standard`/`snappy`/`playful`) scales duration, distance and
-    stagger and sets the easing family + bounce; the shell publishes
-    `:root:root` `--c2-*` vars and wraps in `MotionProvider` (`useMotion()`),
-    with a live preview on Settings → Feature Flags. Smoothness fixes (activity
-    bar `height`→`scaleY`, shortened `content-enter`, `pop` entrances, tokenized
-    badge/rail/clash/pill literals). `src/lib/motion/timing.ts` removed. Docs:
-    `docs/motion.md`.
+  overlays, and every plain dialog (via the shared `MotionModal`) now read
+  one shared token set (`src/lib/motion/tokens.ts` + `profile.ts`) instead of
+  scattered `ms` literals. An org-wide `motionProfile` feature flag
+  (`calm`/`standard`/`snappy`/`playful`) scales duration, distance and
+  stagger and sets the easing family + bounce; the shell publishes
+  `:root:root` `--c2-*` vars and wraps in `MotionProvider` (`useMotion()`),
+  with a live preview on Settings → Feature Flags. Smoothness fixes (activity
+  bar `height`→`scaleY`, shortened `content-enter`, `pop` entrances, tokenized
+  badge/rail/clash/pill literals). `src/lib/motion/timing.ts` removed. Docs:
+  `docs/motion.md`.
 - 1.318 `playful` now actually overshoots on overlays: modal/dialog/popover
-    transitions carry per-state timing — `in` uses the profile's `pop` curve,
-    `out` stays on the non-bouncy `out` curve. Zoom/form modals and every plain
-    `MotionModal` now visibly grow past 1× then settle under `playful`; the
-    Settings preview adds a mock dialog that replays the bounce. Docs:
-    `docs/motion.md` §1.3/§1.4/§1.6.
+  transitions carry per-state timing — `in` uses the profile's `pop` curve,
+  `out` stays on the non-bouncy `out` curve. Zoom/form modals and every plain
+  `MotionModal` now visibly grow past 1× then settle under `playful`; the
+  Settings preview adds a mock dialog that replays the bounce. Docs:
+  `docs/motion.md` §1.3/§1.4/§1.6.
 - 1.319 Event-wizard minimize is accessible and restyled: the header
-    minimize/discard controls are 44px labelled targets (minimize advertises Esc),
-    minimizing moves focus to a new docked `EventDraftBar` in the frosted-pill
-    language (Resume action + per-kind detail + 44px discard), minimize/restore/
-    discard are announced, discard always confirms, and starting another wizard
-    while a draft exists prompts instead of silently replacing it. Docs:
-    `docs/event-lifecycle.md` §1.4.3, `docs/accessibility.md` §1.6,
-    `docs/desktop-responsive.md` §1.7, `docs/user-guide.md` §1.4.1.
+  minimize/discard controls are 44px labelled targets (minimize advertises Esc),
+  minimizing moves focus to a new docked `EventDraftBar` in the frosted-pill
+  language (Resume action + per-kind detail + 44px discard), minimize/restore/
+  discard are announced, discard always confirms, and starting another wizard
+  while a draft exists prompts instead of silently replacing it. Docs:
+  `docs/event-lifecycle.md` §1.4.3, `docs/accessibility.md` §1.6,
+  `docs/desktop-responsive.md` §1.7, `docs/user-guide.md` §1.4.1.
 - 1.320 Minimized draft bar now stays in the calendar floating-control layer: the
-    mounted wizard modal root drops to z-index `1` while minimized, and the discard
-    confirmation uses the house `size="sm"` confirmation pattern with default button
-    sizes. Docs: `docs/event-lifecycle.md` §1.4.3, `docs/desktop-responsive.md` §1.7,
-    `docs/accessibility.md` §1.6.
+  mounted wizard modal root drops to z-index `1` while minimized, and the discard
+  confirmation uses the house `size="sm"` confirmation pattern with default button
+  sizes. Docs: `docs/event-lifecycle.md` §1.4.3, `docs/desktop-responsive.md` §1.7,
+  `docs/accessibility.md` §1.6.
 - 1.321 **Zoom/pan cluster no longer jumps when zooming in**: the single-axis
-    `GridNavControls` cluster sized itself from `canScrollRight`, so the instant a
-    zoom-in overflowed the grid and the right pan arrow appeared, the cluster grew
-    88px → 145px and the re-centered zoom pair slid up ~28px out from under the
-    finger. Both cluster shapes now **reserve** the arrow slot + divider (inert
-    spacer, hidden divider) exactly like the two-axis Week (Grid) cluster, so the
-    zoom pair's position is fixed regardless of the arrow; on a visible slice
-    shorter than the cluster the zoom pair is centered in the slice instead of the
-    whole cluster. Geometry extracted into pure, unit-tested
-    `src/lib/ui/gridNavGeometry.ts`. Docs: `docs/grid-pan.md` §1.2, §1.4.
+  `GridNavControls` cluster sized itself from `canScrollRight`, so the instant a
+  zoom-in overflowed the grid and the right pan arrow appeared, the cluster grew
+  88px → 145px and the re-centered zoom pair slid up ~28px out from under the
+  finger. Both cluster shapes now **reserve** the arrow slot + divider (inert
+  spacer, hidden divider) exactly like the two-axis Week (Grid) cluster, so the
+  zoom pair's position is fixed regardless of the arrow; on a visible slice
+  shorter than the cluster the zoom pair is centered in the slice instead of the
+  whole cluster. Geometry extracted into pure, unit-tested
+  `src/lib/ui/gridNavGeometry.ts`. Docs: `docs/grid-pan.md` §1.2, §1.4.
 - 1.322 **Mobile floating calendar chrome auto-hides on interaction** (below `lg`):
-    the bottom control pill + FAB row fade/sink away while the user touches the
-    calendar pane (even without scrolling) or scrolls it either axis, and slide back
-    when the interaction stops (last pointer up AND scroll settled via `scrollend` +
-    150ms debounce fallback); a tab switch forces them back. Pure unit-tested
-    `advanceChromeHide` state machine + `useCalendarChromeHide`
-    (    `src/lib/ui/calendarChromeHide.ts`); the pane-scoped `pointerdown` capture can't
-    self-trigger (pill/FAB are portaled, clusters are siblings); hidden rows drop
-    `pointer-events` incl. buttons; no reflow (Affix-fixed), always on (no flag).
-    Docs: `docs/dashboard-views.md` §1.1 (floating-chrome auto-hide bullet).
+  the bottom control pill + FAB row fade/sink away while the user touches the
+  calendar pane (even without scrolling) or scrolls it either axis, and slide back
+  when the interaction stops (last pointer up AND scroll settled via `scrollend` +
+  150ms debounce fallback); a tab switch forces them back. Pure unit-tested
+  `advanceChromeHide` state machine + `useCalendarChromeHide`
+  ( `src/lib/ui/calendarChromeHide.ts`); the pane-scoped `pointerdown` capture can't
+  self-trigger (pill/FAB are portaled, clusters are siblings); hidden rows drop
+  `pointer-events` incl. buttons; no reflow (Affix-fixed), always on (no flag).
+  Docs: `docs/dashboard-views.md` §1.1 (floating-chrome auto-hide bullet).
 - 1.323 **Fix: mobile floating chrome stayed hidden until the touch really
-    lifts** — the 1.322 handler treated `pointercancel` as a pointer release, but on
-    touch that event fires when the browser takes over a scroll *while the finger is
-    still down* (and no `pointerup` follows), so the chrome reappeared the instant
-    scrolling settled mid-touch. Contact is now tracked per input type: **touch** via
-    `touchend` / `TouchEvent.touches.length` (`pointercancel` and `touchcancel` no
-    longer clear it — only `touchend` dropping the count to 0 reveals), **mouse/pen**
-    via the `pointerdown`/`pointerup` pair (a non-touch `pointercancel` is a genuine
-    release). Reveal = last finger/pointer lifted AND scroll settled, so the rows stay
-    hidden through the scroll, momentum and any hold-still. Pure `advanceChromeHide`
-    reworked + re-tested (`src/lib/ui/calendarChromeHide.test.ts`). Docs:
-    `docs/dashboard-views.md` §1.1 (auto-hide bullet), `AGENTS.md`.
+  lifts** — the 1.322 handler treated `pointercancel` as a pointer release, but on
+  touch that event fires when the browser takes over a scroll _while the finger is
+  still down_ (and no `pointerup` follows), so the chrome reappeared the instant
+  scrolling settled mid-touch. Contact is now tracked per input type: **touch** via
+  `touchend` / `TouchEvent.touches.length` (`pointercancel` and `touchcancel` no
+  longer clear it — only `touchend` dropping the count to 0 reveals), **mouse/pen**
+  via the `pointerdown`/`pointerup` pair (a non-touch `pointercancel` is a genuine
+  release). Reveal = last finger/pointer lifted AND scroll settled, so the rows stay
+  hidden through the scroll, momentum and any hold-still. Pure `advanceChromeHide`
+  reworked + re-tested (`src/lib/ui/calendarChromeHide.test.ts`). Docs:
+  `docs/dashboard-views.md` §1.1 (auto-hide bullet), `AGENTS.md`.
 - 1.324 **Floating-chrome auto-hide extends beyond the calendar** (below `lg`):
-    the Contacts control pill and the Parade State control pill + attendance
-    mode bar now hide while the user touches/scrolls the page content and return
-    on settle, on the same `advanceChromeHide` machine; the module generalizes
-    to `src/lib/ui/chromeHide.ts` / `useChromeHide` (file + test renamed,
-    dashboard import updated, `resetKey` widened to accept booleans). Docs:
-    `docs/dashboard-views.md` §1.1 (auto-hide + pill-reuse bullets), `AGENTS.md`.
+  the Contacts control pill and the Parade State control pill + attendance
+  mode bar now hide while the user touches/scrolls the page content and return
+  on settle, on the same `advanceChromeHide` machine; the module generalizes
+  to `src/lib/ui/chromeHide.ts` / `useChromeHide` (file + test renamed,
+  dashboard import updated, `resetKey` widened to accept booleans). Docs:
+  `docs/dashboard-views.md` §1.1 (auto-hide + pill-reuse bullets), `AGENTS.md`.
 - 1.325 **My Events inline change timeline**: every row now paints a Mantine
-    `Timeline` of the event's changes (Created → Edited → Deleted, newest
-    first) — colored bullet per kind, relative age with the absolute UTC+8
-    stamp on hover, actor, and changed-field labels for edits — so the list
-    shows *when* each change was made without opening the history page. One
-    indexed read per page (`listEventAuditTrail`, create/update/delete only);
-    pure `buildChangeTrail` collapses the per-copy same-minute fan-out
-    (unit-tested `events/changeTrail.ts`); `changeSummary` moved to
-    `audit/format.ts` and shared with the per-event history page; skeleton
-    gained trail lines. Docs: `docs/event-history.md` §1.4.1.
+  `Timeline` of the event's changes (Created → Edited → Deleted, newest
+  first) — colored bullet per kind, relative age with the absolute UTC+8
+  stamp on hover, actor, and changed-field labels for edits — so the list
+  shows _when_ each change was made without opening the history page. One
+  indexed read per page (`listEventAuditTrail`, create/update/delete only);
+  pure `buildChangeTrail` collapses the per-copy same-minute fan-out
+  (unit-tested `events/changeTrail.ts`); `changeSummary` moved to
+  `audit/format.ts` and shared with the per-event history page; skeleton
+  gained trail lines. Docs: `docs/event-history.md` §1.4.1.
 - 1.326 **Per-event history is now a modal, not a route**: the
-    `/event-history/[eventId]` page is deleted (it squashed its Back button on
-    narrow screens and its hardcoded `backHref="/dashboard"` never returned to
-    My Events). The shared **`EventHistoryModal`** (`src/components/`,
-    zoom-from-trigger, entries in `EventHistoryEntries.tsx`) opens from a My
-    Events row tap or the event modal's History button (stacked `zIndex={300}`),
-    fetching fresh per open via the `getEventHistory` server action with the
-    shaped skeleton inside. `ALWAYS_FRESH_PREFIXES` drops `/event-history`.
-    Docs: `docs/event-history.md` §1.3/§1.8, `AGENTS.md`.
+  `/event-history/[eventId]` page is deleted (it squashed its Back button on
+  narrow screens and its hardcoded `backHref="/dashboard"` never returned to
+  My Events). The shared **`EventHistoryModal`** (`src/components/`,
+  zoom-from-trigger, entries in `EventHistoryEntries.tsx`) opens from a My
+  Events row tap or the event modal's History button (stacked `zIndex={300}`),
+  fetching fresh per open via the `getEventHistory` server action with the
+  shaped skeleton inside. `ALWAYS_FRESH_PREFIXES` drops `/event-history`.
+  Docs: `docs/event-history.md` §1.3/§1.8, `AGENTS.md`.
 - 1.327 **History modal feels instant** (perceived latency): rows prefetch
-    their audit rows on hover/press into a session `Map`
-    (`src/lib/events/historyCache.ts`), and a My Events row passes its inline
-    trail as a `preview` so the modal paints the real title, Deleted badge,
-    retention line, and collapsed entry headers before any fetch resolves —
-    the fetched entries (identical headers, now expandable) swap in silently.
-    The modal list is built by `buildHistoryEntries` with the *same* collapse
-    as the trail (fan-out merged, notify rows dropped) so the swap never
-    reflows; the skeleton remains only on the cold no-preview path (the
-    dashboard History button, which now passes the event title). Docs:
-    `docs/event-history.md` §1.3.
+  their audit rows on hover/press into a session `Map`
+  (`src/lib/events/historyCache.ts`), and a My Events row passes its inline
+  trail as a `preview` so the modal paints the real title, Deleted badge,
+  retention line, and collapsed entry headers before any fetch resolves —
+  the fetched entries (identical headers, now expandable) swap in silently.
+  The modal list is built by `buildHistoryEntries` with the _same_ collapse
+  as the trail (fan-out merged, notify rows dropped) so the swap never
+  reflows; the skeleton remains only on the cold no-preview path (the
+  dashboard History button, which now passes the event title). Docs:
+  `docs/event-history.md` §1.3.
 - 1.328 **Documented the perceived-latency pattern** (docs-only): generalized the
-    history modal's loading trick as **preview-first paint + intent prefetch** —
-    new `docs/loading-transitions.md` §1.18 (four ingredients, when to use/not,
-    siblings table: dashboard snapshot paint, optimistic tab, event-search
-    body preload) + the `AGENTS.md` loading-bullet pointer + an
-    `event-history.md` §1.3 cross-ref.
+  history modal's loading trick as **preview-first paint + intent prefetch** —
+  new `docs/loading-transitions.md` §1.18 (four ingredients, when to use/not,
+  siblings table: dashboard snapshot paint, optimistic tab, event-search
+  body preload) + the `AGENTS.md` loading-bullet pointer + an
+  `event-history.md` §1.3 cross-ref.
 - 1.329 **Fix: history modal sticky error + history cache survives sign-out** —
-    a successful (re)load now clears `failedFor` in `EventHistoryModal`, so
-    reopening an event after a failed-then-succeeded fetch shows the entries
-    instead of "Could not load the history". The hover-prefetch cache
-    (`src/lib/events/historyCache.ts`) is cleared on sign-out via the new
-    `clearEventHistoryCache()` (called beside `clearUiState()` in `UserMenu`),
-    so the next account on the same tab never paints the previous user's
-    history. Docs: `docs/event-history.md` §1.3, `docs/loading-transitions.md`
-    §1.18, `docs/ui-state.md` §1.9.
+  a successful (re)load now clears `failedFor` in `EventHistoryModal`, so
+  reopening an event after a failed-then-succeeded fetch shows the entries
+  instead of "Could not load the history". The hover-prefetch cache
+  (`src/lib/events/historyCache.ts`) is cleared on sign-out via the new
+  `clearEventHistoryCache()` (called beside `clearUiState()` in `UserMenu`),
+  so the next account on the same tab never paints the previous user's
+  history. Docs: `docs/event-history.md` §1.3, `docs/loading-transitions.md`
+  §1.18, `docs/ui-state.md` §1.9.
 - 1.330 **Branded cold-start overlay on the full-page calendar skeleton**: the
-    dashboard's full-area placeholder (`DashboardShellSkeleton`, shared by route
-    `loading.tsx` and `DashboardScreen`'s snapshot-read phase) now rides a
-    centered decorative overlay — app icon breathing on the ambient cadence +
-    "Waking from Deep Sleep…" — mirrored in the PWA launch shell
-    (`public/loading.html`, icon precached) so every cold-start phase reads as
-    one surface. Decorative (`aria-hidden`, pointer-transparent); the sr-only
-    `LoadingStatus` stays the only announcement; `launchShell.test.ts` pins both
-    sides. Docs: `docs/loading-transitions.md` §1.4, `docs/pwa-offline.md`
-    §1.5.1 table, `docs/dashboard-views.md`.
+  dashboard's full-area placeholder (`DashboardShellSkeleton`, shared by route
+  `loading.tsx` and `DashboardScreen`'s snapshot-read phase) now rides a
+  centered decorative overlay — app icon breathing on the ambient cadence +
+  "Waking from Deep Sleep…" — mirrored in the PWA launch shell
+  (`public/loading.html`, icon precached) so every cold-start phase reads as
+  one surface. Decorative (`aria-hidden`, pointer-transparent); the sr-only
+  `LoadingStatus` stays the only announcement; `launchShell.test.ts` pins both
+  sides. Docs: `docs/loading-transitions.md` §1.4, `docs/pwa-offline.md`
+  §1.5.1 table, `docs/dashboard-views.md`.
 - 1.331 **Fix: the brand overlay only paints on cold launches** — soft
-    navigations into Calendar (Contacts → dashboard, tab/date navs) no longer
-    show "Waking from Deep Sleep…". Two gates: `loading.tsx` reads the
-    `rsc: 1` header (present on RSC/soft-nav requests, absent on document
-    loads — the same signal the SW uses) and passes `brand={false}` to the
-    skeleton; `ColdStartBrandOverlay` self-gates on a per-document
-    `coldLaunch` flag (`src/lib/loading/coldLaunch.ts`, unit-tested) that
-    `ColdStartReadyProvider` clears when the cold-start machine reaches
-    `ready`/`done`. Hard reload / Force refresh / PWA launch still show it
-    (fresh JS context = cold boot). Docs: `docs/loading-transitions.md`
-    §1.4/§1.13.1.
+  navigations into Calendar (Contacts → dashboard, tab/date navs) no longer
+  show "Waking from Deep Sleep…". Two gates: `loading.tsx` reads the
+  `rsc: 1` header (present on RSC/soft-nav requests, absent on document
+  loads — the same signal the SW uses) and passes `brand={false}` to the
+  skeleton; `ColdStartBrandOverlay` self-gates on a per-document
+  `coldLaunch` flag (`src/lib/loading/coldLaunch.ts`, unit-tested) that
+  `ColdStartReadyProvider` clears when the cold-start machine reaches
+  `ready`/`done`. Hard reload / Force refresh / PWA launch still show it
+  (fresh JS context = cold boot). Docs: `docs/loading-transitions.md`
+  §1.4/§1.13.1.
 - 1.331 **Fix: silent event pop-ins after an in-place calendar re-read**: a month
-    tap used to paint the tapped grid from the held record whenever the two grids
-    merely *shared* a month, so the uncovered trailing days rendered empty and
-    filled in seconds later (most visible right after Settings → Purge Calendar
-    Cache, when every read is cold) with the grid skeleton deliberately
-    suppressed. `monthOptimistic` now requires the held record to have read
-    **every** month the destination grid renders — pure
-    `gridMonthsCovered` (`src/lib/dashboard/navigation.ts`, unit-tested) — and
-    the mobile pinned view-name line renders the active view's amber load
-    spinner (`tabStatus`, `.c2-tab-line-spinner`), since below `lg` there is no
-    tab strip and an in-place swap had no visible signal at all. Docs:
-    `docs/loading-transitions.md` §1.8/§1.13.2, `docs/events-cache.md` §1.5.
+  tap used to paint the tapped grid from the held record whenever the two grids
+  merely _shared_ a month, so the uncovered trailing days rendered empty and
+  filled in seconds later (most visible right after Settings → Purge Calendar
+  Cache, when every read is cold) with the grid skeleton deliberately
+  suppressed. `monthOptimistic` now requires the held record to have read
+  **every** month the destination grid renders — pure
+  `gridMonthsCovered` (`src/lib/dashboard/navigation.ts`, unit-tested) — and
+  the mobile pinned view-name line renders the active view's amber load
+  spinner (`tabStatus`, `.c2-tab-line-spinner`), since below `lg` there is no
+  tab strip and an in-place swap had no visible signal at all. Docs:
+  `docs/loading-transitions.md` §1.8/§1.13.2, `docs/events-cache.md` §1.5.
 - 1.332 **Event search ranks literal hits above typo-tolerant ones**:
   `filterRangeForSearch` (`src/lib/events/searchRange.ts`) now buckets the Fuse
   matches into two tiers — the query appearing **verbatim** in
@@ -2024,98 +2024,112 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
   offset it). Pill body/hover go
   through Mantine's `--button-bg` / `--button-hover` vars (replacing the inline
   background that suppressed hover). Docs: `docs/event-search.md` §1.9,
-   `docs/pinned-events.md` §1.4.
+  `docs/pinned-events.md` §1.4.
 - 1.334 **Desktop search disc shrunk to 29px**: the magnifier circle no longer
-    *is* the pill's left cap — it is a 29px disc concentric with the 17px cap
-    (inset 2.5px), leaving a uniform thin `brand-8` ring so the icon reads smaller
-    without shrinking the 34px pill or its tap target (`--c2-search-disc-size` /
-    `--c2-search-disc-inset`, label offset recomputed to keep the 8px gap). Docs:
-    `docs/event-search.md` §1.9.
+  _is_ the pill's left cap — it is a 29px disc concentric with the 17px cap
+  (inset 2.5px), leaving a uniform thin `brand-8` ring so the icon reads smaller
+  without shrinking the 34px pill or its tap target (`--c2-search-disc-size` /
+  `--c2-search-disc-inset`, label offset recomputed to keep the 8px gap). Docs:
+  `docs/event-search.md` §1.9.
 - 1.335 **Minimized draft docks in the mobile FAB row instead of replacing it**: the
-    minimized wizard no longer unmounts the chevron pill / Quick-links / New-event
-    circles — the draft becomes an `EventDraftChip` on the row's left that flexes into
-    the space those fixed controls leave (labelled chip ≥220px of room, heading-only
-    160–219px, icon + discard 92–159px, icon-only below that). Docking is guaranteed:
-    when the leftover is narrower than the chip's 56px floor the New-event circle
-    yields its slot to the chip (`createYielded`, latched with a 68px hysteresis band),
-    and there is no standalone mobile draft bar at all — the control pill always owns
-    the bottom-most slot. The row is pinned edge-to-edge (`FloatingToolbar`'s
-    new `leftOffset`) and tap-through, and the chip rides the shared
-    `c2-chrome-hide-able` state; `useChromeHide`'s dashboard `resetKey` now includes
-    `formMinimized` so a minimize always reveals the chrome. Desktop keeps the full
-    centred 560px bar. Docs: `docs/event-lifecycle.md` §1.4.3,
-    `docs/dashboard-views.md` §1.1, `docs/desktop-responsive.md` §1.7,
-    `docs/accessibility.md` §1.6.
+  minimized wizard no longer unmounts the chevron pill / Quick-links / New-event
+  circles — the draft becomes an `EventDraftChip` on the row's left that flexes into
+  the space those fixed controls leave (labelled chip ≥220px of room, heading-only
+  160–219px, icon + discard 92–159px, icon-only below that). Docking is guaranteed:
+  when the leftover is narrower than the chip's 56px floor the New-event circle
+  yields its slot to the chip (`createYielded`, latched with a 68px hysteresis band),
+  and there is no standalone mobile draft bar at all — the control pill always owns
+  the bottom-most slot. The row is pinned edge-to-edge (`FloatingToolbar`'s
+  new `leftOffset`) and tap-through, and the chip rides the shared
+  `c2-chrome-hide-able` state; `useChromeHide`'s dashboard `resetKey` now includes
+  `formMinimized` so a minimize always reveals the chrome. Desktop keeps the full
+  centred 560px bar. Docs: `docs/event-lifecycle.md` §1.4.3,
+  `docs/dashboard-views.md` §1.1, `docs/desktop-responsive.md` §1.7,
+  `docs/accessibility.md` §1.6.
 - 1.336 **Fix: the calendar opened two months ahead**: the cold-open paint took the
-    *newest* cached snapshot, but the tab preload writes the active tab's current + next
-    two months in one batch stamped with a later `savedAt` than the viewed month — so a
-    silent-URL load painted the anchor + 2 months, and `usePersistDashboardNav` then wrote
-    that future month into the `cloudy2.ui` cookie, which the server's `resolvePeriod`
-    reads back on the next open (drifting forward every session). `pickColdPaintRecord`
-    (`src/lib/dashboard/navigation.ts`, unit-tested) now resolves the anchor — URL
-    `?month`/`?date`, then the remembered cookie month — and paints only the cached context
-    for that anchor on the resolved tab (first tab when the URL is silent), painting
-    nothing when no context answers it so the fetch reads it. `page.tsx` passes the
-    remembered month to `DashboardScreen`. Docs: `docs/pwa-offline.md` §1.18.
+  _newest_ cached snapshot, but the tab preload writes the active tab's current + next
+  two months in one batch stamped with a later `savedAt` than the viewed month — so a
+  silent-URL load painted the anchor + 2 months, and `usePersistDashboardNav` then wrote
+  that future month into the `cloudy2.ui` cookie, which the server's `resolvePeriod`
+  reads back on the next open (drifting forward every session). `pickColdPaintRecord`
+  (`src/lib/dashboard/navigation.ts`, unit-tested) now resolves the anchor — URL
+  `?month`/`?date`, then the remembered cookie month — and paints only the cached context
+  for that anchor on the resolved tab (first tab when the URL is silent), painting
+  nothing when no context answers it so the fetch reads it. `page.tsx` passes the
+  remembered month to `DashboardScreen`. Docs: `docs/pwa-offline.md` §1.18.
 - 1.337 **Month view fits the whole screen at `lg` (no scrolling)**: the month column
-    becomes a bounded flex column (fixed weekday strip + the grid filling the remaining
-    viewport height, flush to the bottom nav via `month-page-pad`), and the pure
-    `monthFillEvents` helper (`src/lib/ui/monthZoom.ts`, unit-tested) hands Mantine a
-    fractional `--month-view-max-events` so the natural 4–6 week rows land exactly inside
-    the box — no vertical scroll on any desktop viewport; chips scale with the row, the
-    cap stays 4 (floor = one 24px chip slot). `DualPaneView`'s month-pane fill now uses the
-    same helper (keeping its 148px pane floor). Below `lg` the month stays the
-    document-scrolling grid. Docs: `docs/dashboard-views.md` §1.8.1.
+  becomes a bounded flex column (fixed weekday strip + the grid filling the remaining
+  viewport height, flush to the bottom nav via `month-page-pad`), and the pure
+  `monthFillEvents` helper (`src/lib/ui/monthZoom.ts`, unit-tested) hands Mantine a
+  fractional `--month-view-max-events` so the natural 4–6 week rows land exactly inside
+  the box — no vertical scroll on any desktop viewport; chips scale with the row, the
+  cap stays 4 (floor = one 24px chip slot). `DualPaneView`'s month-pane fill now uses the
+  same helper (keeping its 148px pane floor). Below `lg` the month stays the
+  document-scrolling grid. Docs: `docs/dashboard-views.md` §1.8.1.
 - 1.338 **Fit-height month chips keep their legibility floor**: the per-day chip
-    count is now solved from the fitted row height — pure `monthFitChipCount`
-    (`src/lib/ui/monthZoom.ts`, unit-tested) keeps each chip slot ≥ 21px, so the
-    count stays 4 on typical fitted rows and drops to 3/2/1 as they get shorter;
-    21px is the floor that keeps the chip box above Mantine's `autoSize`
-    `@container (max-height: 18px)` tier, so the standard 12px chip text always
-    renders instead of collapsing to 9px. The overflow goes to the existing
-    `+N more` popover (its trigger rides the day's fixed bottom inset, so it
-    never collides with the chips). The Month & Agenda pane keeps its 148px-row
-    floor (slots never fall below 24px there).
-    Docs: `docs/dashboard-views.md` §1.8.1.
+  count is now solved from the fitted row height — pure `monthFitChipCount`
+  (`src/lib/ui/monthZoom.ts`, unit-tested) keeps each chip slot ≥ 21px, so the
+  count stays 4 on typical fitted rows and drops to 3/2/1 as they get shorter;
+  21px is the floor that keeps the chip box above Mantine's `autoSize`
+  `@container (max-height: 18px)` tier, so the standard 12px chip text always
+  renders instead of collapsing to 9px. The overflow goes to the existing
+  `+N more` popover (its trigger rides the day's fixed bottom inset, so it
+  never collides with the chips). The Month & Agenda pane keeps its 148px-row
+  floor (slots never fall below 24px there).
+  Docs: `docs/dashboard-views.md` §1.8.1.
 - 1.339 **Compact desktop band saves a full chrome row**: in the 640–799px desktop band
-    (`isNarrowDesktop` = `isDesktop && !isDesktopWide` in `DashboardView`) the sticky
-    chrome box is a single row instead of tab strip + date-nav — the strip folds into a
-    **view trigger** at the nav row's left end (active view's kind icon + name + chevron)
-    opening the same `viewMenuItems` dropdown, which also carries the active tab's
-    load-state spinner and not-loaded fade; New event and Quick links run icon-only so the
-    row fits the ~544px content width the icon rail leaves, and the row gap/`mt` plus the
-    box's `paddingBottom` tighten. ~55–60px of chrome back per screen; `lg`+ wide desktop
-    and phones are untouched, and `topChromeHeight`'s `ResizeObserver` re-docks every
-    pinned grid strip and the fit-to-height month column automatically.
-    Docs: `docs/dashboard-views.md` §1.1, `docs/desktop-responsive.md` §1.4, `AGENTS.md`.
+  (`isNarrowDesktop` = `isDesktop && !isDesktopWide` in `DashboardView`) the sticky
+  chrome box is a single row instead of tab strip + date-nav — the strip folds into a
+  **view trigger** at the nav row's left end (active view's kind icon + name + chevron)
+  opening the same `viewMenuItems` dropdown, which also carries the active tab's
+  load-state spinner and not-loaded fade; New event and Quick links run icon-only so the
+  row fits the ~544px content width the icon rail leaves, and the row gap/`mt` plus the
+  box's `paddingBottom` tighten. ~55–60px of chrome back per screen; `lg`+ wide desktop
+  and phones are untouched, and `topChromeHeight`'s `ResizeObserver` re-docks every
+  pinned grid strip and the fit-to-height month column automatically.
+  Docs: `docs/dashboard-views.md` §1.1, `docs/desktop-responsive.md` §1.4, `AGENTS.md`.
 - 1.340 **Compact desktop chrome now triggers on short viewports + centered cell text**:
-    the single-row chrome (`isCompactDesktop`) no longer stops at 800px width — it also
-    applies on any desktop where the **wide** layout's month day cell would fit at most
-    two event chips, projected with the tested `monthFitChipCount` over a fixed
-    wide-chrome budget (`WIDE_DESKTOP_CHROME_RESERVE_PX` = 160px) and the current month's
-    rows, so the decision cannot oscillate with its own height. `isNarrowDesktop`
-    (640–799px) still owns the icon-only New event / Quick links; a wide-but-short
-    viewport keeps their labels. Event-chip titles are now **vertically centered in every
-    grid cell at all widths** (previously mobile-only; only the tighter mobile chip
-    padding stays mobile-scoped). Docs: `docs/dashboard-views.md` §1.1/§1.4,
-    `docs/desktop-responsive.md` §1.4, `AGENTS.md`.
+  the single-row chrome (`isCompactDesktop`) no longer stops at 800px width — it also
+  applies on any desktop where the **wide** layout's month day cell would fit at most
+  two event chips, projected with the tested `monthFitChipCount` over a fixed
+  wide-chrome budget (`WIDE_DESKTOP_CHROME_RESERVE_PX` = 160px) and the current month's
+  rows, so the decision cannot oscillate with its own height. `isNarrowDesktop`
+  (640–799px) still owns the icon-only New event / Quick links; a wide-but-short
+  viewport keeps their labels. Event-chip titles are now **vertically centered in every
+  grid cell at all widths** (previously mobile-only; only the tighter mobile chip
+  padding stays mobile-scoped). Docs: `docs/dashboard-views.md` §1.1/§1.4,
+  `docs/desktop-responsive.md` §1.4, `AGENTS.md`.
 - 1.341 **Resize-safe bounded Month/Dual + compact chrome polish + solid CTAs**:
-    the Month and Month & Agenda views no longer derive their height from the
-    measured `topChromeHeight`; the dashboard page becomes a CSS flex chain
-    (`100dvh − header − footer`, chrome as the fixed first item, view wrapper as
-    the flex remainder), so a resize/chrome-tier flip can never leave a blank
-    strip below the grid until reload. The chrome measurement re-reads on
-    `window`/`visualViewport` resize + orientation change, and the Month/Dual
-    fill effects re-derive when the chrome height changes. The compact desktop
-    row is restyled into a two-group toolbar: a frosted navigator **squircle**
-    (40px tall, 12px radius — view trigger · period label + grouped `[‹][›]` pair
-    · filter/date, 36px ghost controls with a nested 10px radius + dividers) plus
-    a right-aligned action group at the same 40px/12px squircle. New event /
-    Quick links are now **fully saturated** at every layout
-    (`c2-glass-fab--brand-solid` / `--accent-solid`; no frosted tint, no backdrop
-    blur) — including the mobile floating circles. Docs:
-    `docs/dashboard-views.md` §1.1/§1.8.1/§1.9, `docs/desktop-responsive.md`
-    §1.4, `AGENTS.md`.
+  the Month and Month & Agenda views no longer derive their height from the
+  measured `topChromeHeight`; the dashboard page becomes a CSS flex chain
+  (`100dvh − header − footer`, chrome as the fixed first item, view wrapper as
+  the flex remainder), so a resize/chrome-tier flip can never leave a blank
+  strip below the grid until reload. The chrome measurement re-reads on
+  `window`/`visualViewport` resize + orientation change, and the Month/Dual
+  fill effects re-derive when the chrome height changes. The compact desktop
+  row is restyled into a two-group toolbar: a frosted navigator **squircle**
+  (40px tall, 12px radius — view trigger · period label + grouped `[‹][›]` pair
+  · filter/date, 36px ghost controls with a nested 10px radius + dividers) plus
+  a right-aligned action group at the same 40px/12px squircle. New event /
+  Quick links are now **fully saturated** at every layout
+  (`c2-glass-fab--brand-solid` / `--accent-solid`; no frosted tint, no backdrop
+  blur) — including the mobile floating circles. Docs:
+  `docs/dashboard-views.md` §1.1/§1.8.1/§1.9, `docs/desktop-responsive.md`
+  §1.4, `AGENTS.md`.
+- 1.342 **Foldable PWA viewport re-sync**: standalone `--app-shell-vh` now uses
+  `max(layout, visual)` on Android (iOS keeps the visual viewport), re-reads at
+  250/600/1200 ms after viewport changes, observes `documentElement`, and
+  listens to `screen.orientation`. Month/Dual/chrome measurements do the same
+  post-fold settle pass, so an outer→inner fold no longer leaves a blank strip
+  above the bottom nav until reload. Docs: `docs/pwa-offline.md` §1.19,
+  `docs/desktop-responsive.md` §1.1/§1.4.
+- 1.343 **Balanced dashboard chunk warming**: removed the all-view/all-route idle
+  preloads; idle warms only event details + the renderer kinds the account has
+  tabs for, the wizard waits 5 s on capable devices, search warms only when
+  recent searches exist, and the date picker/manage views/nav routes warm on
+  intent. The always-mounted modals are now lazy-mounted through their first
+  open. Docs: `docs/loading-transitions.md` §1.15/§1.18,
+  `docs/event-search.md` §1.9, `AGENTS.md`.
 
 ## 1.4 Open items & next steps
 

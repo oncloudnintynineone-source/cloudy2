@@ -1,9 +1,10 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Modal, useMantineTheme } from "@mantine/core";
 import { useMediaQuery, useViewportSize } from "@mantine/hooks";
+import { canPreloadTabs } from "@/lib/pwa/warmup";
 import { NARROW_MEDIA_QUERY } from "@/lib/theme";
 
 import { addSearchHistoryEntry, removeSearchHistoryEntry } from "@/lib/events/searchHistory";
@@ -41,11 +42,7 @@ interface EventSearchModalProps {
   originRect: Rect | null;
 }
 
-export default function EventSearchModal({
-  opened,
-  onClose,
-  originRect,
-}: EventSearchModalProps) {
+export default function EventSearchModal({ opened, onClose, originRect }: EventSearchModalProps) {
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
   const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY);
@@ -55,20 +52,24 @@ export default function EventSearchModal({
   // survives open/close cycles; the body only renders pills from this prop.
   const [history, setHistory] = useState<string[] | null>(null);
 
-  // Preload the body chunk shortly after mount (idle, so it never competes
-  // with launch-critical work) so the first open paints real content instead
-  // of the body skeleton.
+  // A recent-search list is the only proactive signal that this account uses
+  // search. Without it, the chunk waits for the trigger's near-signal/open.
+  const warmedRef = useRef(false);
   useEffect(() => {
-    if (typeof window === "undefined") {
+    if (warmedRef.current || !history || history.length === 0) {
+      return;
+    }
+    if (typeof window === "undefined" || !canPreloadTabs()) {
       return;
     }
     const preload = () => {
-      (EventSearchBody as unknown as { preload?: () => Promise<unknown> }).preload?.();
+      warmedRef.current = true;
+      preloadEventSearchBody();
     };
     const hasIdle = typeof window.requestIdleCallback === "function";
     let id: number;
     if (hasIdle) {
-      id = window.requestIdleCallback(preload, { timeout: 2000 });
+      id = window.requestIdleCallback(preload, { timeout: 4000 });
     } else {
       id = window.setTimeout(preload, 0);
     }
@@ -79,7 +80,7 @@ export default function EventSearchModal({
         window.clearTimeout(id);
       }
     };
-  }, []);
+  }, [history]);
 
   // Fetch recent searches once on mount so the badges are already present on
   // the first open. Best-effort; a failure keeps the last list (or resolves to

@@ -71,6 +71,7 @@ import type {
 import type { Rect } from "@/lib/motion/origin";
 import { LIVE_REFRESH_EVENT } from "@/lib/loading/liveRefreshRules";
 import { useInactivityRefresh, useOneShotRefreshStrip } from "@/lib/pwa/client";
+import { resolveShellViewportHeight } from "@/lib/pwa/viewport";
 import { useParadeEmailTick } from "@/lib/parade-email/client";
 import { usePushSubscriptionRepair } from "@/lib/events/participantNotify/client";
 import { isAlwaysFreshPath } from "@/lib/pwa/swRules";
@@ -265,7 +266,13 @@ const COLD_LEG_TIMEOUT_MS = 12_000;
  * the glyph static (the strip still appears) — the CSS animation is guarded in
  * `globals.css`.
  */
-function HeaderRefreshButton({ onRefresh, disabled }: { onRefresh: () => void; disabled: boolean }) {
+function HeaderRefreshButton({
+  onRefresh,
+  disabled,
+}: {
+  onRefresh: () => void;
+  disabled: boolean;
+}) {
   const { stripVisible } = useActivityState();
   const { phase } = useColdStartReady();
   const [pressed, setPressed] = useState(false);
@@ -645,9 +652,7 @@ export function AppShellShell({
     // settle when it resolves *either way* (a failure still ends the load). A
     // timeout bounds the never-settling case so the bar can't hang.
     beginLeg("pinned");
-    void withTimeout(refreshPinnedEvents(), COLD_LEG_TIMEOUT_MS).finally(() =>
-      settleLeg("pinned"),
-    );
+    void withTimeout(refreshPinnedEvents(), COLD_LEG_TIMEOUT_MS).finally(() => settleLeg("pinned"));
   }, [refreshPinnedEvents, beginLeg, settleLeg]);
   const didOpenPanelRef = useRef(false);
   useEffect(() => {
@@ -963,9 +968,9 @@ export function AppShellShell({
   // item list). The tile width is the `bottomNavVariant` flag's entry of
   // `RAIL_TILE_WIDTHS` — fixed (no grow), so wider viewports simply reveal
   // more tiles. The desktop sidebar always renders every entry.
-  const railItems = navItems.slice().sort(
-    (a, b) => RAIL_ORDER.indexOf(a.href) - RAIL_ORDER.indexOf(b.href),
-  );
+  const railItems = navItems
+    .slice()
+    .sort((a, b) => RAIL_ORDER.indexOf(a.href) - RAIL_ORDER.indexOf(b.href));
   const railWidth = RAIL_TILE_WIDTHS[bottomNavVariant];
   // Overflow is decided from the fixed tile widths vs. the viewport (the
   // footer runs edge-to-edge on mobile); when everything fits, no fade or
@@ -1001,16 +1006,29 @@ export function AppShellShell({
     // changes, so an unrelated re-render won't drop it.
     el.classList.add("app-shell-standalone");
 
+    // iPadOS reports itself as MacIntel with touch points.
+    const isIOS =
+      /iP(hone|ad|od)/.test(navigator.userAgent) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
+    let frame = 0;
+    let settleTimers: number[] = [];
+
     const sync = () => {
       // `documentElement.clientHeight` is the *layout* viewport (what
       // `position: fixed` resolves against); `visualViewport.height` is the
       // area actually on screen. iOS standalone can report them differently
       // (rotation, resume, keyboard teardown), so size the shell from the
-      // visual viewport and expose the difference for the fixed footer.
+      // visual viewport there. Everywhere else — especially Android foldables
+      // — a transient smaller visual viewport mid-fold must not shorten the
+      // shell; use the larger of the two (see `resolveShellViewportHeight`).
       const layoutHeight = document.documentElement.clientHeight;
       const vv = window.visualViewport;
-      const vh = vv?.height ?? layoutHeight;
-      el.style.setProperty("--app-shell-vh", `${vh}px`);
+      const visualHeight = vv?.height;
+      const shellHeight = resolveShellViewportHeight({ isIOS, layoutHeight, visualHeight });
+      if (shellHeight > 0) {
+        el.style.setProperty("--app-shell-vh", `${shellHeight}px`);
+      }
       const bottomGap = vv ? Math.max(0, layoutHeight - vv.height - vv.offsetTop) : 0;
       el.style.setProperty("--app-shell-visual-bottom-gap", `${bottomGap}px`);
 
@@ -1041,31 +1059,54 @@ export function AppShellShell({
       }
     };
 
+    // Fold/posture changes can fire `resize` before the viewport has settled,
+    // and some transitions emit no usable final event. Re-read immediately and
+    // again after the fold animation has had time to finish.
+    const schedule = () => {
+      if (frame !== 0) {
+        cancelAnimationFrame(frame);
+      }
+      frame = requestAnimationFrame(sync);
+      for (const timer of settleTimers) {
+        window.clearTimeout(timer);
+      }
+      settleTimers = [250, 600, 1200].map((delay) => window.setTimeout(sync, delay));
+    };
+
     sync();
-    // React to footer box changes (safe-area insets, iOS chrome shifting) via a
-    // ResizeObserver instead of a perpetual poll. Observing the element's box
-    // covers everything the old 500ms interval caught without forcing layout
-    // reads twice a second on an idle shell.
+    // React to box changes (safe-area insets, iOS chrome shifting) and to the
+    // root viewport changing size (the reliable signal on foldables) via a
+    // ResizeObserver instead of a perpetual poll.
     const footer = el.querySelector<HTMLElement>(":scope > footer");
-    const ro =
-      typeof ResizeObserver === "function" ? new ResizeObserver(() => sync()) : null;
-    if (ro && footer) {
-      ro.observe(footer);
+    const ro = typeof ResizeObserver === "function" ? new ResizeObserver(schedule) : null;
+    if (ro) {
+      if (footer) {
+        ro.observe(footer);
+      }
+      ro.observe(document.documentElement);
     }
-    window.addEventListener("resize", sync);
-    const onOrientation = () => setTimeout(sync, 400);
-    window.addEventListener("orientationchange", onOrientation);
+    window.addEventListener("resize", schedule);
+    window.addEventListener("orientationchange", schedule);
+    const screenOrientation = window.screen?.orientation;
+    screenOrientation?.addEventListener("change", schedule);
     const vv = window.visualViewport;
-    vv?.addEventListener("resize", sync);
+    vv?.addEventListener("resize", schedule);
     // iOS also fires `scroll` on the visual viewport as the dynamic toolbars /
     // keyboard shift it; without this the fixed footer can hold a stale gap.
-    vv?.addEventListener("scroll", sync);
+    vv?.addEventListener("scroll", schedule);
     return () => {
       ro?.disconnect();
-      window.removeEventListener("resize", sync);
-      window.removeEventListener("orientationchange", onOrientation);
-      vv?.removeEventListener("resize", sync);
-      vv?.removeEventListener("scroll", sync);
+      if (frame !== 0) {
+        cancelAnimationFrame(frame);
+      }
+      for (const timer of settleTimers) {
+        window.clearTimeout(timer);
+      }
+      window.removeEventListener("resize", schedule);
+      window.removeEventListener("orientationchange", schedule);
+      screenOrientation?.removeEventListener("change", schedule);
+      vv?.removeEventListener("resize", schedule);
+      vv?.removeEventListener("scroll", schedule);
       el.classList.remove("app-shell-standalone");
       el.style.removeProperty("--app-shell-vh");
       el.style.removeProperty("--app-shell-visual-bottom-gap");
@@ -1206,11 +1247,7 @@ export function AppShellShell({
             </ShellChromeContext.Provider>
           </AppShell.Header>
 
-          <AppShell.Navbar
-            p="md"
-            className="c2-glass-surface"
-            style={NAVBAR_STYLE}
-          >
+          <AppShell.Navbar p="md" className="c2-glass-surface" style={NAVBAR_STYLE}>
             <Stack gap="xs">
               {navItems.map((item) =>
                 collapsed ? (
@@ -1260,18 +1297,18 @@ export function AppShellShell({
 
           <AppShell.Main id="main-content" tabIndex={-1}>
             <ImmersiveModeContext.Provider value={immersiveMode}>
-                <PinnedPanelContext.Provider value={pinnedPanelValue}>
-                  <SearchPanelContext.Provider value={searchPanelValue}>
-                    <StatusAnnouncer />
-                    {children}
-                    <PinnedEventsPanel seedEvents={pinnedEvents} />
-                    <EventSearchModal
-                      opened={searchOpen}
-                      onClose={() => setSearchOpen(false)}
-                      originRect={searchOriginRect}
-                    />
-                  </SearchPanelContext.Provider>
-                </PinnedPanelContext.Provider>
+              <PinnedPanelContext.Provider value={pinnedPanelValue}>
+                <SearchPanelContext.Provider value={searchPanelValue}>
+                  <StatusAnnouncer />
+                  {children}
+                  <PinnedEventsPanel seedEvents={pinnedEvents} />
+                  <EventSearchModal
+                    opened={searchOpen}
+                    onClose={() => setSearchOpen(false)}
+                    originRect={searchOriginRect}
+                  />
+                </SearchPanelContext.Provider>
+              </PinnedPanelContext.Provider>
             </ImmersiveModeContext.Provider>
           </AppShell.Main>
 

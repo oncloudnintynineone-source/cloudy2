@@ -271,24 +271,36 @@ export function DualPaneView({
     observer.observe(el);
     // Same belt-and-braces as the standalone Month fill: a viewport resize can
     // coalesce the observer notification past the paint, and the bounded flex
-    // column changes size without a chrome re-measure.
+    // column changes size without a chrome re-measure. Post-fold settle passes
+    // catch the late `--app-shell-vh` update.
     let frame = 0;
+    let settleTimers: number[] = [];
     const schedule = () => {
-      if (frame !== 0) return;
+      if (frame !== 0) cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
         frame = 0;
         update();
       });
+      for (const timer of settleTimers) {
+        window.clearTimeout(timer);
+      }
+      settleTimers = [250, 600, 1200].map((delay) => window.setTimeout(update, delay));
     };
     window.addEventListener("resize", schedule);
     window.addEventListener("orientationchange", schedule);
+    const screenOrientation = window.screen?.orientation;
+    screenOrientation?.addEventListener("change", schedule);
     const visualViewport = window.visualViewport;
     visualViewport?.addEventListener("resize", schedule);
     return () => {
       observer.disconnect();
       if (frame !== 0) cancelAnimationFrame(frame);
+      for (const timer of settleTimers) {
+        window.clearTimeout(timer);
+      }
       window.removeEventListener("resize", schedule);
       window.removeEventListener("orientationchange", schedule);
+      screenOrientation?.removeEventListener("change", schedule);
       visualViewport?.removeEventListener("resize", schedule);
     };
   }, [isDesktop, chromeOffset]);
@@ -431,7 +443,7 @@ export function DualPaneView({
           // document scrolls).
           alignItems: isDesktop ? "stretch" : "flex-start",
           gap: isDesktop ? 0 : "var(--mantine-spacing-md)",
-              ...(isDesktop
+          ...(isDesktop
             ? {
                 // The dashboard's bounded flex column at `lg` is exactly the
                 // remaining viewport (header/footer and chrome already

@@ -60,7 +60,7 @@ import {
   LazyResourcesDayView as ResourcesDayView,
   LazyResourcesWeekView as ResourcesWeekView,
   LazyWeekView as WeekView,
-  preloadScheduleViews,
+  preloadScheduleViewKinds,
 } from "./scheduleViews";
 import {
   IconBuilding,
@@ -121,7 +121,7 @@ import {
 import { eventMatchesUserFilter } from "@/lib/events/userFilter";
 import { CONTENT_ENTER_CLASS, useContentEnter } from "@/lib/loading/contentEnter";
 import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
-import { canWarmRoutes } from "@/lib/pwa/warmup";
+import { canPreloadTabs, canWarmRoutes } from "@/lib/pwa/warmup";
 import { departmentPathLabels, departmentTreeRows } from "@/lib/roster/hierarchy";
 import { useColdStartContent } from "@/components/ColdStartReady";
 import { modalContentWidth, type Rect } from "@/lib/motion/origin";
@@ -181,6 +181,7 @@ import {
   type DashboardViewTab,
 } from "@/lib/dashboardViews/views";
 import { gridMonthsCovered, planDashboardSwitch } from "@/lib/dashboard/navigation";
+import { WIZARD_WARM_DELAY_MS, tabWarmKinds } from "@/lib/dashboard/warmup";
 import { EventFormSkeleton } from "./EventFormSkeleton";
 import { ViewTypePicker } from "./ViewTypePicker";
 import { VIEW_TAB_META } from "./viewMeta";
@@ -191,20 +192,17 @@ import { useDashboardData, useDashboardTabStatus } from "./DashboardDataContext"
 // The event wizard is the heaviest client component in the app (its own form,
 // the @mantine/dates pickers, @mantine/form and the invitee picker). It is
 // only needed once the user opens the form, so it is code-split out of the
-// dashboard's initial chunk and preloaded at idle (see the preload effect
-// below) so the first open stays instant. `preload()` is a runtime static on
-// the Loadable that `next/dynamic` returns.
+// dashboard's initial chunk. It warms on intent and after a longer idle delay
+// (not as part of the first idle pass). `preload()` is a runtime static on the
+// Loadable that `next/dynamic` returns.
 const EventForm = dynamic(() => import("./EventForm").then((mod) => mod.EventForm), {
   ssr: false,
   loading: () => <EventFormSkeleton />,
 });
 
-const preloadEventFormChunk = () =>
-  (EventForm as unknown as { preload?: () => Promise<unknown> }).preload?.();
-
 // The custom Dual Pane (Month + Agenda) and Week (D) matrix views are each used
-// by exactly one view kind, so their code is split out of the dashboard's
-// initial chunk and preloaded at idle — a tab that uses them is warm by then.
+// by exactly one view kind. They warm only when the account actually has a tab
+// of that kind, or on tab intent.
 const DualPaneView = dynamic(() => import("./DualPaneView").then((mod) => mod.DualPaneView), {
   ssr: false,
   loading: () => <ScheduleGridSkeleton rows={6} />,
@@ -215,32 +213,103 @@ const WeekMatrixView = dynamic(() => import("./WeekMatrixView").then((mod) => mo
   loading: () => <WeekMatrixSkeleton rows={6} />,
 });
 
-// The event-details modal and the manage-views modal are opened on demand;
-// splitting them keeps their code out of the initial chunk (both preload at
-// idle below). No loading fallback: they are modals, so a bare `null` while the
-// chunk lands is invisible.
+// The event-details modal is the one modal worth warming after the active view
+// paints (opening an event is a core action). It stays mounted only after its
+// first open so its close animation is preserved.
 const EventDetail = dynamic(() => import("./EventDetail").then((mod) => mod.EventDetail), {
   ssr: false,
 });
 
+// Manage views and the date picker are intent/open only. They are no longer
+// mounted while closed, so their chunks do not download on every dashboard.
 const EditViewsModal = dynamic(() => import("./EditViewsModal").then((mod) => mod.EditViewsModal), {
   ssr: false,
 });
 
-// The date picker is opened on demand and drags `@mantine/dates` +
-// `@mantine/schedule`'s `MobileMonthView`; splitting it keeps both out of the
-// dashboard's initial chunk. No loading fallback — it is a modal, so a bare
-// `null` while the chunk lands is invisible.
 const DateSelectorModal = dynamic(
   () => import("@/components/DateSelectorModal").then((mod) => mod.DateSelectorModal),
   { ssr: false },
 );
 
-const preloadDashboardViewChunks = () => {
-  for (const component of [DualPaneView, WeekMatrixView, EventDetail, EditViewsModal]) {
-    void (component as unknown as { preload?: () => Promise<unknown> }).preload?.();
+type Preloadable = { preload?: () => Promise<unknown> };
+
+/** Best-effort chunk fetch; a failed preload is invisible. */
+const preloadQuietly = (component: unknown) => {
+  void (component as Preloadable).preload?.().catch(() => {});
+};
+
+const preloadEventFormChunk = () => preloadQuietly(EventForm);
+const preloadEventDetailChunk = () => preloadQuietly(EventDetail);
+
+const warmWizardChunk = () => {
+  if (canWarmRoutes()) {
+    preloadEventFormChunk();
   }
 };
+const warmEventDetailChunk = () => {
+  if (canWarmRoutes()) {
+    preloadEventDetailChunk();
+  }
+};
+const warmDatePickerChunk = () => {
+  if (canWarmRoutes()) {
+    preloadQuietly(DateSelectorModal);
+  }
+};
+const warmEditViewsChunk = () => {
+  if (canWarmRoutes()) {
+    preloadQuietly(EditViewsModal);
+  }
+};
+
+/** Warm the renderer chunk(s) for one view kind (custom grids or schedule). */
+const warmViewChunk = (kind: DashboardViewKind) => {
+  if (!canWarmRoutes()) {
+    return;
+  }
+  if (kind === "dual") {
+    preloadQuietly(DualPaneView);
+    return;
+  }
+  if (kind === "weekv2") {
+    preloadQuietly(WeekMatrixView);
+    return;
+  }
+  preloadScheduleViewKinds([kind]);
+};
+
+/** Near-signal handlers: hover, focus, pointer-down and touch-start. */
+const warmOnIntent = (warm: () => void) => ({
+  onPointerEnter: warm,
+  onFocus: warm,
+  onPointerDown: warm,
+  onTouchStart: warm,
+});
+
+const viewWarmProps = (kind: DashboardViewKind) => warmOnIntent(() => warmViewChunk(kind));
+
+type ChipProps = ComponentPropsWithoutRef<"button">;
+
+/** Merge the detail warm-up into a chip's existing button props. */
+const withDetailWarm = (props: ChipProps): ChipProps => ({
+  ...props,
+  onPointerEnter: (event) => {
+    props.onPointerEnter?.(event);
+    warmEventDetailChunk();
+  },
+  onFocus: (event) => {
+    props.onFocus?.(event);
+    warmEventDetailChunk();
+  },
+  onPointerDown: (event) => {
+    props.onPointerDown?.(event);
+    warmEventDetailChunk();
+  },
+  onTouchStart: (event) => {
+    props.onTouchStart?.(event);
+    warmEventDetailChunk();
+  },
+});
 
 type ViewMode = DashboardViewKind;
 
@@ -769,6 +838,7 @@ const DashboardTab = memo(function DashboardTab({
       title={tab.name}
       aria-busy={status === "loading" || undefined}
       style={{ position: "relative", overflow: "hidden" }}
+      {...viewWarmProps(tab.kind)}
     >
       <Group
         gap="xs"
@@ -838,6 +908,7 @@ function DashboardViewMenuItem({
       aria-checked={active}
       aria-busy={status === "loading" || undefined}
       onClick={() => onSwitch(tab)}
+      {...viewWarmProps(tab.kind)}
     >
       <Text
         size="sm"
@@ -999,12 +1070,19 @@ function DashboardViewImpl({
       setFabControlsWidth(fabControlsRef.current?.offsetWidth ?? 0);
     };
     let frame = 0;
+    let settleTimers: number[] = [];
     const schedule = () => {
-      if (frame !== 0) return;
+      if (frame !== 0) cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
         frame = 0;
         update();
       });
+      // A fold/posture change can settle after the viewport event; re-read once
+      // the transition has had time to finish.
+      for (const timer of settleTimers) {
+        window.clearTimeout(timer);
+      }
+      settleTimers = [250, 600, 1200].map((delay) => window.setTimeout(update, delay));
     };
     update();
     const observer = new ResizeObserver(update);
@@ -1028,13 +1106,19 @@ function DashboardViewImpl({
     // until a full reload.
     window.addEventListener("resize", schedule);
     window.addEventListener("orientationchange", schedule);
+    const screenOrientation = window.screen?.orientation;
+    screenOrientation?.addEventListener("change", schedule);
     const visualViewport = window.visualViewport;
     visualViewport?.addEventListener("resize", schedule);
     return () => {
       observer.disconnect();
       if (frame !== 0) cancelAnimationFrame(frame);
+      for (const timer of settleTimers) {
+        window.clearTimeout(timer);
+      }
       window.removeEventListener("resize", schedule);
       window.removeEventListener("orientationchange", schedule);
+      screenOrientation?.removeEventListener("change", schedule);
       visualViewport?.removeEventListener("resize", schedule);
     };
   }, [isDesktop]);
@@ -1185,6 +1269,14 @@ function DashboardViewImpl({
   const [detailLinkPending, setDetailLinkPending] = useState(
     initialDetailEventId !== null && initialDetailEvent === null,
   );
+  // Mount the lazy details modal on first open, then keep it mounted so its
+  // close animation is preserved. A deep link mounts it immediately.
+  const [detailEverOpened, setDetailEverOpened] = useState(
+    initialDetailEvent !== null || initialDetailEventId !== null,
+  );
+  if ((detailEvent !== null || detailLinkPending) && !detailEverOpened) {
+    setDetailEverOpened(true);
+  }
   // Where the tapped element sat on screen; the modal grows out of / shrinks
   // back into it (see src/lib/motion/origin.ts).
   const [detailOriginRect, setDetailOriginRect] = useState<Rect | null>(null);
@@ -1372,6 +1464,11 @@ function DashboardViewImpl({
   // Where the date trigger sat on screen; the picker grows out of / shrinks
   // back into it (see src/lib/motion/origin.ts).
   const [pickerOriginRect, setPickerOriginRect] = useState<Rect | null>(null);
+  // Lazy-mount the picker: no chunk download until the target screen needs it.
+  const [pickerEverOpened, setPickerEverOpened] = useState(false);
+  if (pickerOpened && !pickerEverOpened) {
+    setPickerEverOpened(true);
+  }
 
   // "Add view" dialog draft (kind picker + name).
   const [createOpened, { open: openCreateView, close: closeCreateView }] = useDisclosure(false);
@@ -1381,8 +1478,13 @@ function DashboardViewImpl({
   const [creating, setCreating] = useState(false);
 
   // "Manage views" dialog (reorder / rename / delete). The list mutations run
-  // inside `EditViewsModal`; this disclosure just hosts it.
+  // inside `EditViewsModal`; this disclosure just hosts it. It mounts lazily
+  // on first open, then stays mounted so its close animation survives.
   const [editOpened, { open: openEdit, close: closeEdit }] = useDisclosure(false);
+  const [editEverOpened, setEditEverOpened] = useState(false);
+  if (editOpened && !editEverOpened) {
+    setEditEverOpened(true);
+  }
 
   // Optimistic active-tab highlight (`shownTabId`): leads the server-resolved
   // `activeView` so a tab tap highlights instantly (even between two tabs of
@@ -1796,24 +1898,36 @@ function DashboardViewImpl({
     const observer = new ResizeObserver(update);
     observer.observe(el);
     // A chrome tier flip changes the box height *and* can coalesce the observer
-    // notification past the paint; re-read on viewport changes too.
+    // notification past the paint; re-read on viewport changes too, with a
+    // post-fold settle pass so a late `--app-shell-vh` update still re-fills.
     let frame = 0;
+    let settleTimers: number[] = [];
     const schedule = () => {
-      if (frame !== 0) return;
+      if (frame !== 0) cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
         frame = 0;
         update();
       });
+      for (const timer of settleTimers) {
+        window.clearTimeout(timer);
+      }
+      settleTimers = [250, 600, 1200].map((delay) => window.setTimeout(update, delay));
     };
     window.addEventListener("resize", schedule);
     window.addEventListener("orientationchange", schedule);
+    const screenOrientation = window.screen?.orientation;
+    screenOrientation?.addEventListener("change", schedule);
     const visualViewport = window.visualViewport;
     visualViewport?.addEventListener("resize", schedule);
     return () => {
       observer.disconnect();
       if (frame !== 0) cancelAnimationFrame(frame);
+      for (const timer of settleTimers) {
+        window.clearTimeout(timer);
+      }
       window.removeEventListener("resize", schedule);
       window.removeEventListener("orientationchange", schedule);
+      screenOrientation?.removeEventListener("change", schedule);
       visualViewport?.removeEventListener("resize", schedule);
     };
   }, [monthFitActive, topChromeHeight]);
@@ -2361,10 +2475,13 @@ function DashboardViewImpl({
       ]
         .filter(Boolean)
         .join(" ");
+      const rootProps = withDetailWarm(props);
       if (!extra) {
-        return <UnstyledButton {...props} />;
+        return <UnstyledButton {...rootProps} />;
       }
-      return <UnstyledButton {...props} className={`${props.className ?? ""} ${extra}`.trim()} />;
+      return (
+        <UnstyledButton {...rootProps} className={`${props.className ?? ""} ${extra}`.trim()} />
+      );
     },
     [myEventIds, justSettledIds],
   );
@@ -2377,10 +2494,13 @@ function DashboardViewImpl({
       ]
         .filter(Boolean)
         .join(" ");
+      const rootProps = withDetailWarm(props);
       if (!extra) {
-        return <UnstyledButton {...props} />;
+        return <UnstyledButton {...rootProps} />;
       }
-      return <UnstyledButton {...props} className={`${props.className ?? ""} ${extra}`.trim()} />;
+      return (
+        <UnstyledButton {...rootProps} className={`${props.className ?? ""} ${extra}`.trim()} />
+      );
     },
     [myEventIds, justSettledIds],
   );
@@ -2391,13 +2511,14 @@ function DashboardViewImpl({
   // Week (H) all-day bars; the all-day sticky-title Box in the Day view), so
   // no structural re-render is needed here.
   const renderScheduleEvent: MyEventRender = useCallback(
-    (event, rootProps) => {
+    (event, props) => {
       const extra = [
         isExternalRenderEvent(event) && "c2-ext-slot-event",
         isJustSettledRenderEvent(justSettledIds, event) && "c2-chip-settle",
       ]
         .filter(Boolean)
         .join(" ");
+      const rootProps = withDetailWarm(props);
       if (!extra) {
         return <UnstyledButton {...rootProps} />;
       }
@@ -2450,10 +2571,13 @@ function DashboardViewImpl({
       ]
         .filter(Boolean)
         .join(" ");
+      const rootProps = withDetailWarm(props);
       if (!extra) {
-        return <UnstyledButton {...props} />;
+        return <UnstyledButton {...rootProps} />;
       }
-      return <UnstyledButton {...props} className={`${props.className ?? ""} ${extra}`.trim()} />;
+      return (
+        <UnstyledButton {...rootProps} className={`${props.className ?? ""} ${extra}`.trim()} />
+      );
     },
     [myEventIds, gridWeekAllDay.hiddenIds, justSettledIds],
   );
@@ -2569,29 +2693,36 @@ function DashboardViewImpl({
     }
   }, [router, tabs, buildHref, view, shownDate, today, activeView, searchParams]);
 
-  // Preload the lazy dashboard chunks (event form, custom view kinds, detail /
-  // manage-views modals) at idle so their first use pays no chunk-download
-  // round trip. The deadline keeps it from being starved on a busy phone; a
-  // resolved promise re-run is harmless.
+  // Warm only what the target screen is likely to need: the event-details
+  // chunk, plus the renderer kinds that this account actually has tabs for
+  // (never every schedule view). Runs after the active view paints, gated on
+  // the connection, and never repeats a kind across re-renders.
+  const warmKinds = useMemo(() => tabWarmKinds(tabs), [tabs]);
+  const warmedKindsRef = useRef<Set<DashboardViewKind>>(new Set());
+  const eventDetailWarmedRef = useRef(false);
   useEffect(() => {
-    if (typeof window === "undefined") {
+    if (typeof window === "undefined" || !canWarmRoutes()) {
       return;
     }
-    const preload = () => {
-      void preloadEventFormChunk();
-      preloadDashboardViewChunks();
-      // Warm the other schedule view kinds so a tab switch paints from cache.
-      // Gated on the connection (skipped on metered / very slow / offline).
-      if (canWarmRoutes()) {
-        preloadScheduleViews();
+    const warm = () => {
+      if (!eventDetailWarmedRef.current) {
+        eventDetailWarmedRef.current = true;
+        warmEventDetailChunk();
+      }
+      for (const kind of warmKinds) {
+        if (warmedKindsRef.current.has(kind)) {
+          continue;
+        }
+        warmedKindsRef.current.add(kind);
+        warmViewChunk(kind);
       }
     };
     const hasIdle = typeof window.requestIdleCallback === "function";
     let id: number;
     if (hasIdle) {
-      id = window.requestIdleCallback(preload, { timeout: 2000 });
+      id = window.requestIdleCallback(warm, { timeout: 2000 });
     } else {
-      id = window.setTimeout(preload, 0);
+      id = window.setTimeout(warm, 0);
     }
     return () => {
       if (hasIdle) {
@@ -2600,18 +2731,33 @@ function DashboardViewImpl({
         window.clearTimeout(id);
       }
     };
-  }, []);
+  }, [warmKinds]);
 
-  // A `?event=`/`?edit=` deep link opens its modal right away (the details as a
-  // skeleton). Pull the modal chunk in immediately rather than waiting for idle,
-  // so the skeleton's first paint isn't gated on a cold chunk download — the
-  // idle preload above covers the no-deep-link case.
+  // The wizard is the heaviest chunk; warm it only on capable devices, well
+  // after the active view has painted. Intent (hover/focus) warms it earlier.
   useEffect(() => {
-    if (initialDetailEventId === null && initialEditEventId === null) {
+    if (!googleConfigured || typeof window === "undefined" || !canPreloadTabs()) {
       return;
     }
-    void preloadEventFormChunk();
-    void (EventDetail as unknown as { preload?: () => Promise<unknown> }).preload?.();
+    const id = window.setTimeout(() => {
+      if (document.visibilityState !== "visible") {
+        return;
+      }
+      warmWizardChunk();
+    }, WIZARD_WARM_DELAY_MS);
+    return () => window.clearTimeout(id);
+  }, [googleConfigured]);
+
+  // A `?event=`/`?edit=` deep link opens its target right away, so pull only
+  // that target's chunk in immediately (not both). The idle warm above covers
+  // the no-deep-link case.
+  useEffect(() => {
+    if (initialDetailEventId !== null) {
+      preloadEventDetailChunk();
+    }
+    if (initialEditEventId !== null) {
+      preloadEventFormChunk();
+    }
   }, [initialDetailEventId, initialEditEventId]);
 
   // Strip the one-shot `edit` param from the URL so a refresh doesn't reopen
@@ -3075,6 +3221,8 @@ function DashboardViewImpl({
 
   /** Apply a form start now (the draft, if any, has already been cleared). */
   function startForm(start: PendingFormStart) {
+    // Click-time fallback when no hover/focus warm-up ran (e.g. a day-cell tap).
+    warmWizardChunk();
     captureModalViewport();
     setFormMinimized(false);
     setFormOriginRect(start.originRect);
@@ -3634,7 +3782,14 @@ function DashboardViewImpl({
           <Menu.Item leftSection={<IconPlus size={16} />} onClick={openAddView}>
             Add view
           </Menu.Item>
-          <Menu.Item leftSection={<IconSettings size={16} />} onClick={openEdit}>
+          <Menu.Item
+            leftSection={<IconSettings size={16} />}
+            onClick={() => {
+              warmEditViewsChunk();
+              openEdit();
+            }}
+            {...warmOnIntent(warmEditViewsChunk)}
+          >
             Manage views
           </Menu.Item>
         </>
@@ -3704,9 +3859,11 @@ function DashboardViewImpl({
       aria-label="Select date"
       title="Select date"
       onClick={(e) => {
+        warmDatePickerChunk();
         setPickerOriginRect(e.currentTarget.getBoundingClientRect());
         openPicker();
       }}
+      {...warmOnIntent(warmDatePickerChunk)}
     >
       <IconCalendarDot size={18} />
     </ActionIcon>
@@ -3720,6 +3877,7 @@ function DashboardViewImpl({
       aria-label="New event"
       title="New event"
       disabled={!googleConfigured}
+      {...warmOnIntent(warmWizardChunk)}
       onClick={(e) =>
         openCreate(
           isAgenda ? headerDate : isDual ? shownDate : today,
@@ -3737,6 +3895,7 @@ function DashboardViewImpl({
       __vars={{ "--button-height": isCompactDesktop ? "40px" : "36px" }}
       leftSection={<IconPlus size={16} />}
       disabled={!googleConfigured}
+      {...warmOnIntent(warmWizardChunk)}
       onClick={(e) =>
         openCreate(
           isAgenda ? headerDate : isDual ? shownDate : today,
@@ -3953,9 +4112,11 @@ function DashboardViewImpl({
             aria-label="Select date"
             title="Select date"
             onClick={(e) => {
+              warmDatePickerChunk();
               setPickerOriginRect(e.currentTarget.getBoundingClientRect());
               openPicker();
             }}
+            {...warmOnIntent(warmDatePickerChunk)}
           >
             <IconCalendarDot size={18} />
           </ActionIcon>
@@ -4235,6 +4396,7 @@ function DashboardViewImpl({
                         role="menuitemradio"
                         aria-checked={isActive}
                         onClick={() => switchTab(tab)}
+                        {...viewWarmProps(tab.kind)}
                       >
                         <Text
                           size="sm"
@@ -4265,7 +4427,11 @@ function DashboardViewImpl({
                   mr={4}
                   aria-label="Manage views"
                   title="Manage views"
-                  onClick={openEdit}
+                  onClick={() => {
+                    warmEditViewsChunk();
+                    openEdit();
+                  }}
+                  {...warmOnIntent(warmEditViewsChunk)}
                   style={{ flex: "0 0 auto" }}
                 >
                   <IconSettings size={18} />
@@ -4964,16 +5130,17 @@ function DashboardViewImpl({
                     extra.length > 0
                       ? `${rootProps.className ?? ""} ${extra}`.trim()
                       : rootProps.className;
+                  const warmedRootProps = withDetailWarm(rootProps);
                   const isAllDay = Boolean(payload.allDay);
                   if (!isAllDay) {
-                    return <UnstyledButton {...rootProps} className={extClass} />;
+                    return <UnstyledButton {...warmedRootProps} className={extClass} />;
                   }
                   const stickyLeft =
                     scheduleResources.groups !== undefined
                       ? "calc(var(--resources-day-view-group-label-width) + var(--resources-day-view-resource-label-width) + 4px)"
                       : "calc(var(--resources-day-view-resource-label-width) + 4px)";
                   return (
-                    <UnstyledButton {...rootProps} className={extClass}>
+                    <UnstyledButton {...warmedRootProps} className={extClass}>
                       <Box
                         style={{
                           display: "flex",
@@ -5288,52 +5455,54 @@ function DashboardViewImpl({
         )}
       </Modal>
 
-      <EventDetail
-        event={detailEvent}
-        // A deep link opens the modal before its target resolves, so the skeleton
-        // (EventDetail's `loading` body) is the first paint — the app's standard
-        // "open now, fetch underneath" pattern.
-        loading={detailLinkPending && detailEvent === null}
-        onClose={() => {
-          setDetailEvent(null);
-          setDetailLinkPending(false);
-          setPendingDetailLinkId(null);
-        }}
-        onEdit={(event, originRect) => {
-          setDetailEvent(null);
-          requestFormStart({
-            state: { event, templateEvent: null, defaultDate: today },
-            originRect,
-          });
-        }}
-        onDuplicate={(event, originRect) => {
-          setDetailEvent(null);
-          requestFormStart({
-            state: {
-              event: null,
-              templateEvent: event,
-              defaultDate: event.start.slice(0, 10),
-            },
-            originRect,
-          });
-        }}
-        onDeleted={() => {
-          setDetailEvent(null);
-          setAgendaDate(null);
-          window.dispatchEvent(new CustomEvent(PINNED_EVENTS_CHANGED_EVENT));
-          notifyEventsChanged();
-          refreshAfterSave();
-        }}
-        onOptimistic={applyOptimistic}
-        onOptimisticSettled={settleOptimistic}
-        onOptimisticRollback={rollbackOptimistic}
-        peopleNames={peopleNames}
-        calendarNames={calendarNames}
-        originRect={detailOriginRect}
-        currentUserId={currentUser}
-        isAdmin={isAdmin}
-        myActiveDepartmentIds={myActiveDepartmentIds}
-      />
+      {(detailEvent !== null || detailLinkPending || detailEverOpened) && (
+        <EventDetail
+          event={detailEvent}
+          // A deep link opens the modal before its target resolves, so the skeleton
+          // (EventDetail's `loading` body) is the first paint — the app's standard
+          // "open now, fetch underneath" pattern.
+          loading={detailLinkPending && detailEvent === null}
+          onClose={() => {
+            setDetailEvent(null);
+            setDetailLinkPending(false);
+            setPendingDetailLinkId(null);
+          }}
+          onEdit={(event, originRect) => {
+            setDetailEvent(null);
+            requestFormStart({
+              state: { event, templateEvent: null, defaultDate: today },
+              originRect,
+            });
+          }}
+          onDuplicate={(event, originRect) => {
+            setDetailEvent(null);
+            requestFormStart({
+              state: {
+                event: null,
+                templateEvent: event,
+                defaultDate: event.start.slice(0, 10),
+              },
+              originRect,
+            });
+          }}
+          onDeleted={() => {
+            setDetailEvent(null);
+            setAgendaDate(null);
+            window.dispatchEvent(new CustomEvent(PINNED_EVENTS_CHANGED_EVENT));
+            notifyEventsChanged();
+            refreshAfterSave();
+          }}
+          onOptimistic={applyOptimistic}
+          onOptimisticSettled={settleOptimistic}
+          onOptimisticRollback={rollbackOptimistic}
+          peopleNames={peopleNames}
+          calendarNames={calendarNames}
+          originRect={detailOriginRect}
+          currentUserId={currentUser}
+          isAdmin={isAdmin}
+          myActiveDepartmentIds={myActiveDepartmentIds}
+        />
+      )}
 
       <Modal.Root
         opened={formIsOpen && !formMinimized}
@@ -5504,16 +5673,18 @@ function DashboardViewImpl({
         </Group>
       </MotionModal>
 
-      <DateSelectorModal
-        opened={pickerOpened}
-        kind={view === "month" ? "month" : isWeek ? "week" : "day"}
-        date={view === "month" ? month : isAgenda ? headerDate : isDual ? shownDate : date}
-        onPick={view === "month" ? pickMonth : isAgenda ? applyAgendaDay : pickDate}
-        onToday={goToday}
-        onClose={closePicker}
-        originRect={pickerOriginRect}
-        weekStartsOn={weekStartsOn}
-      />
+      {(pickerOpened || pickerEverOpened) && (
+        <DateSelectorModal
+          opened={pickerOpened}
+          kind={view === "month" ? "month" : isWeek ? "week" : "day"}
+          date={view === "month" ? month : isAgenda ? headerDate : isDual ? shownDate : date}
+          onPick={view === "month" ? pickMonth : isAgenda ? applyAgendaDay : pickDate}
+          onToday={goToday}
+          onClose={closePicker}
+          originRect={pickerOriginRect}
+          weekStartsOn={weekStartsOn}
+        />
+      )}
 
       <FilterModal
         opened={filterOpened}
@@ -5533,7 +5704,7 @@ function DashboardViewImpl({
           and opens its filter dialog) and delete behind a nested confirm; its
           Add-view button reuses the quick dialog above. Only shown when the
           account owns stored views (canManageViews). */}
-      {canManageViews && (
+      {canManageViews && (editOpened || editEverOpened) && (
         <EditViewsModal
           opened={editOpened}
           onClose={closeEdit}
@@ -5725,6 +5896,7 @@ function DashboardViewImpl({
                 radius="50%"
                 w={56}
                 h={56}
+                {...warmOnIntent(warmWizardChunk)}
                 onClick={(e) =>
                   openCreate(
                     isAgenda ? headerDate : isDual ? shownDate : today,

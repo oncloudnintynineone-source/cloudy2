@@ -342,20 +342,20 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.2 Decisions locked in (Phase 0)
 
-| Topic              | Decision                                                                                       |
-| ------------------ | ---------------------------------------------------------------------------------------------- |
+| Topic              | Decision                                                                                         |
+| ------------------ | ------------------------------------------------------------------------------------------------ |
 | Architecture       | Single Next.js 16 (App Router) app â€” no monorepo                                               |
-| UI                 | Mantine v9                                                                                     |
-| Database           | Neon Postgres + Drizzle ORM                                                                    |
-| Auth               | NextAuth v4, Credentials provider, **JWT sessions**                                            |
-| Login UX           | Single input field, auto-detect: admin password vs `[phone][keyword]`                          |
-| Google integration | GCP service account (Calendar v3 + Gmail v1); domain-wide delegation                           |
-| GCal notes         | JSON block stored on events                                                                    |
-| Calendars          | Department-level calendars; `calendars` table is the department registry (kind = `department`) |
-| Parade states      | `parade_states` lookup table (code/label/description)                                          |
-| Settings           | Single-row `settings` table (admin password hash, keyword, KAH %)                              |
-| Userâ†’dept          | One department per user: `users.department_id` â†’ `calendars.id` (nullable, ON DELETE SET NULL) |
-| PWA / monorepo     | Deferred / not used                                                                            |
+| UI                 | Mantine v9                                                                                       |
+| Database           | Neon Postgres + Drizzle ORM                                                                      |
+| Auth               | NextAuth v4, Credentials provider, **JWT sessions**                                              |
+| Login UX           | Single input field, auto-detect: admin password vs `[phone][keyword]`                            |
+| Google integration | GCP service account (Calendar v3 + Gmail v1); domain-wide delegation                             |
+| GCal notes         | JSON block stored on events                                                                      |
+| Calendars          | Department-level calendars; `calendars` table is the department registry (kind = `department`)   |
+| Parade states      | `parade_states` lookup table (code/label/description)                                            |
+| Settings           | Single-row `settings` table (admin password hash, keyword, KAH %)                                |
+| Userâ†’dept        | One department per user: `users.department_id` â†’ `calendars.id` (nullable, ON DELETE SET NULL) |
+| PWA / monorepo     | Deferred / not used                                                                              |
 
 ## 1.3 Implemented (Phase 1)
 
@@ -1698,13 +1698,13 @@ flowchart TB
 
 New heights (Mantine default â†’ after 1.2Ã—):
 
-| size                                     | before | after  |
-| ---------------------------------------- | ------ | ------ |
-| `xs`                                     | 30px   | 36px   |
+| size                                       | before | after  |
+| ------------------------------------------ | ------ | ------ |
+| `xs`                                       | 30px   | 36px   |
 | `sm` (app default â€” every input uses it) | 36px   | 43.2px |
-| `md`                                     | 42px   | 50.4px |
-| `lg`                                     | 50px   | 60px   |
-| `xl`                                     | 60px   | 72px   |
+| `md`                                       | 42px   | 50.4px |
+| `lg`                                       | 50px   | 60px   |
+| `xl`                                       | 60px   | 72px   |
 
 - **Theme** (`src/lib/theme.ts`) â€” new `components.Input.vars` sets the wrapper's
   `--input-height-{xs,sm,md,lg,xl}` to `calc(<base> Ã— 1.2 Ã— var(--mantine-scale))`
@@ -3931,15 +3931,15 @@ self-contained design reference.
 TOC, hierarchically numbered headers, Mermaid where it clarifies, pure
 helpers & testing table, file index & related docs):
 
-| Document                      | Covers                                                                                                                                                                                                                   |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Document                      | Covers                                                                                                                                                                                                                     |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `docs/event-lifecycle.md`     | Event form â†’ Google Calendar data model: the 5-step wizard, guards, notes block codec (v1/v2/v3 brotli+base64url), `INTERNAL_EVENT_MARKER` / external detection, title templates & tokens, location policy, time options |
-| `docs/event-mutations.md`     | Create/update/delete: copy reconciliation, group-id identity, `findCopies`, legacy fallback, idempotent reconcile plans, rollback-of-only-new-copies, audit snapshots, cache invalidation                                |
-| `docs/ui-state.md`            | The `cloudy2.ui` cookie: codec + degrade, per-key server reads, `resolveLaunchTarget`, client write path, pinned tabs, the `?_fresh=` one-shot marker, sign-out clear                                                    |
-| `docs/audit-log.md`           | The audit subsystem: schema + indexes, retention, `logAction`, action taxonomy, `diffFields`, filters + keyset pagination, rotation-on-read, the three `formatAuditDetails` shapes, CSV export                           |
-| `docs/google-integration.md`  | The integration layer: service-account config resolution, real client vs stub, error mapping, every calendar/event/ACL method, `sendEmail`                                                                               |
-| `docs/roster-sharing.md`      | Roster & sharing: flat org model (department = calendar, `users.department_id`), Google-only ACLs, the two reconcile paths (on read, on write), access-level actions                                                     |
-| `docs/loading-transitions.md` | Loading appearance: skeleton-only rule, route skeletons, `useMinSkeletonHold`, `useContentEnter` reveal fade, one-shot URL params, in-page exceptions                                                                    |
+| `docs/event-mutations.md`     | Create/update/delete: copy reconciliation, group-id identity, `findCopies`, legacy fallback, idempotent reconcile plans, rollback-of-only-new-copies, audit snapshots, cache invalidation                                  |
+| `docs/ui-state.md`            | The `cloudy2.ui` cookie: codec + degrade, per-key server reads, `resolveLaunchTarget`, client write path, pinned tabs, the `?_fresh=` one-shot marker, sign-out clear                                                      |
+| `docs/audit-log.md`           | The audit subsystem: schema + indexes, retention, `logAction`, action taxonomy, `diffFields`, filters + keyset pagination, rotation-on-read, the three `formatAuditDetails` shapes, CSV export                             |
+| `docs/google-integration.md`  | The integration layer: service-account config resolution, real client vs stub, error mapping, every calendar/event/ACL method, `sendEmail`                                                                                 |
+| `docs/roster-sharing.md`      | Roster & sharing: flat org model (department = calendar, `users.department_id`), Google-only ACLs, the two reconcile paths (on read, on write), access-level actions                                                       |
+| `docs/loading-transitions.md` | Loading appearance: skeleton-only rule, route skeletons, `useMinSkeletonHold`, `useContentEnter` reveal fade, one-shot URL params, in-page exceptions                                                                      |
 
 **Wiring:**
 
@@ -5165,8 +5165,8 @@ Exit paths, in priority of surprise:
 
 | Trigger                                   | Path                                                                 |
 | ----------------------------------------- | -------------------------------------------------------------------- |
-| Tap the toggle while active               | `exit()` â†’ state off + `exitFullscreen()`                            |
-| `Esc` (desktop) / Android status-bar edge | browser fires `fullscreenchange` â†’ shell sync â†’ state off            |
+| Tap the toggle while active               | `exit()` â†’ state off + `exitFullscreen()`                          |
+| `Esc` (desktop) / Android status-bar edge | browser fires `fullscreenchange` â†’ shell sync â†’ state off        |
 | Navigate away from `/dashboard`           | `DashboardView` unmount cleanup calls `exit()` (shell stays mounted) |
 
 Deliberately **not** remembered: the mode is transient (no `cloudy2.ui`
@@ -5344,9 +5344,9 @@ flowchart TB
 
 Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` pass (592 tests,
 incl. the new 16). Manual QA: create/edit event â€” invitees step shows the
-  selected badges, the dialog lists all users grouped by department with a
-  live search, the organizer is only present when self-selected (and is
-  removable — §1.194); dashboard + parade-state Filters
+selected badges, the dialog lists all users grouped by department with a
+live search, the organizer is only present when self-selected (and is
+removable — §1.194); dashboard + parade-state Filters
 â†’ Users opens the grouped dialog, My Events parity, empty confirm clears the
 filter.
 
@@ -7644,15 +7644,15 @@ sequenceDiagram
     C-->>U: amber pulse â†’ green bar (READY_DWELL_MS) â†’ done (never again)
 ```
 
-**Legs & the content gate.** The machine waits for every *registered* leg to
+**Legs & the content gate.** The machine waits for every _registered_ leg to
 settle (success or failure) plus the landing route's content when that route
 streams independently of the chrome:
 
-| Gate | Registers / settles at | Source |
-| ---- | ---------------------- | ------ |
-| `pinned` | the shell's *initial* `fetchPinnedEvents()`; later refreshes (panel close, tab refocus, event CRUD) run untracked | `AppShellShell.tsx` |
-| `clashes` | the shell's *initial* `checkUserClashes({})` scan (same rule) | `AppShellShell.tsx` |
-| content | the landing data view reports content-shown on mount (`useColdStartContent`) â€” a view only mounts after its RSC data has streamed | `DashboardView`, `ParadeStateView`, `DoubleBookingView`, `KahStatusView`, `AuditLogView` |
+| Gate      | Registers / settles at                                                                                                              | Source                                                                                   |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `pinned`  | the shell's _initial_ `fetchPinnedEvents()`; later refreshes (panel close, tab refocus, event CRUD) run untracked                   | `AppShellShell.tsx`                                                                      |
+| `clashes` | the shell's _initial_ `checkUserClashes({})` scan (same rule)                                                                       | `AppShellShell.tsx`                                                                      |
+| content   | the landing data view reports content-shown on mount (`useColdStartContent`) â€” a view only mounts after its RSC data has streamed | `DashboardView`, `ParadeStateView`, `DoubleBookingView`, `KahStatusView`, `AuditLogView` |
 
 Routes that stream heavy content **require** the content report before the bar
 confirms (`COLD_CONTENT_ROUTES`, pure `coldStartRouteRequiresContent`) â€” a slow
@@ -7676,8 +7676,8 @@ header slots all live under it); `useColdStartReady` gives the shell `beginLeg`/
 `settleLeg` and the views `reportContentLanded`; `ColdStartReadyBar` renders
 beside `ActivityBar` in the header and the generic `ActivityBar` suppresses
 itself while the machine is `loading`/`ready` so two strips never share the 2px
-slot. On entering `ready` the shell's live region announces *"Calendar up to
-date"*. `.c2-ready-bar` CSS (green draw-in `c2-ready-grow`, reduced-motion:
+slot. On entering `ready` the shell's live region announces _"Calendar up to
+date"_. `.c2-ready-bar` CSS (green draw-in `c2-ready-grow`, reduced-motion:
 instant) lives in `globals.css`.
 
 **Pinned pill a11y nuance.** The pill keeps its static look in all three
@@ -7717,7 +7717,7 @@ event form" plus the three categories). A locked type:
 Resolution runs on the cleared input, so re-saving a legacy event of a type that was
 locked after the event was created converts it to the locked category and drops its
 stored specific location â€” the same re-save semantics as hidden invitees/remarks
-(Â§1.9.1). The allowed-locations matrix still constrains *unlocked* types; a locked type
+(Â§1.9.1). The allowed-locations matrix still constrains _unlocked_ types; a locked type
 ignores the matrix entirely (its category always comes from the lock).
 
 ```mermaid
@@ -7760,7 +7760,7 @@ it (no Location step, step count shrinks), edit a legacy event of a type locked 
 ## 1.191-2 Per-type hidden Location step â€” redesign (supersedes 1.191)
 
 **Correction.** The 1.191 design above over-built the requirement: it added a
-`locked_location` column that made the admin *pick a category* to pin the type to. The
+`locked_location` column that made the admin _pick a category_ to pin the type to. The
 actual ask was narrower â€” an admin can already restrict a type to one location via the
 Allowed locations matrix; the request was simply to go one step further and let the admin
 **hide the wizard's Location step entirely** for such a type. The redesigned feature:
@@ -7803,14 +7803,15 @@ matrix and confirm normal behavior.
 Changes who owns/edits an event and who counts as "on" it. The organizer (creator) is now a **fixed, separate** concept from the invitees; creation "on behalf of" is gone.
 
 **Model**
+
 - **Organizer (createdBy)**: always the acting session user on create (the admin "On behalf of" wizard step is removed); immutable on edit ï¿½ update re-resolves the organizer from the event itself (
-ef.creatorId, adopting the acting user on a creator-less legacy/external first edit) and ignores any submitted creatorId. Admins can no longer create or reassign events to another user.
+  ef.creatorId, adopting the acting user on a creator-less legacy/external first edit) and ignores any submitted creatorId. Admins can no longer create or reassign events to another user.
 - **Attendees (inviteeUsers + inviteeDepartments)**: exactly what was picked ï¿½ the organizer is **no longer auto-merged** in (server withCreatorInvited removed; wizard no longer seeds/locks the self chip; mergeInviteeSelection drops the creator-lock). To attend, the organizer selects their own name. Existing events keep their stored organizer-in-attendees, and editing prefills it (deselectable).
 - **Owner-only lock (new notes flag ownerOnlyEdits, written only when true)**: when set, only the organizer (and admins) may edit/delete/duplicate. Toggle shown on the wizard's review step, editable only by the organizer or an admin; other editors keep the stored value (server clamps via canChangeLock). Read back via parseEventOwnerOnlyEdits ? CalendarEventPayload.ownerOnlyEdits ? EventRef.
 - **Modify rights (edit/delete/duplicate)** = modifyGuard (guards.ts, replaces creatorGuard/ownershipGuard): admins always; otherwise blocked when ownerOnlyEdits; then organizer, individually tagged attendees, and **active members of tagged departments** may act. Creator-less people-less (legacy/external) events stay admin-only. Memberships resolve per action from the active roster (ctiveMembershipsByDepartment in roster queries).
-- **Occupancy decoupled**: an event occupies only attendees + active members of tagged departments. The organizer is no longer always-busy. Updated: 
-owsForEvent (no unconditional creator row), clashes usyUsersOfEvent/candidateUsers, KAH usyKahsIn/usyDaysInRange, eventMatchesUserFilter (Myself filter + amber "mine" = occupancy only), display-title {people} (stored attendees), Parade State involvedUserIds. Hidden-invitee event types keep the organizer as sole attendee (server 
-esolveEventFields collapse unchanged). External/people-less events still occupy their own calendar's members.
+- **Occupancy decoupled**: an event occupies only attendees + active members of tagged departments. The organizer is no longer always-busy. Updated:
+  owsForEvent (no unconditional creator row), clashes usyUsersOfEvent/candidateUsers, KAH usyKahsIn/usyDaysInRange, eventMatchesUserFilter (Myself filter + amber "mine" = occupancy only), display-title {people} (stored attendees), Parade State involvedUserIds. Hidden-invitee event types keep the organizer as sole attendee (server
+  esolveEventFields collapse unchanged). External/people-less events still occupy their own calendar's members.
 - Client permission gate: EventDetail buttons now use an isAdmin/owner/lock/attendee/department-membership predicate fed by myActiveDepartmentIds; wizard review shows an Organizer row + lock switch; organizer is kept in the Invited Attendees display only when self-invited.
 
 **Verified**: pnpm typecheck, pnpm lint, pnpm test (992 pass) ï¿½ guards/validate/userSelect/schedule/clashes/weekMatrix/userFilter/targets tests rewritten for the new semantics.
@@ -7844,7 +7845,7 @@ Pure wizard copy/UX change ï¿½ no behavior, logic, notes format, or permissio
 
 - **Participants step "Add myself / Remove myself"**: below the participant badges the
   wizard now renders a compact subtle brand button that self-invites the acting user
-  without opening the badge dialog. Pure helper 	oggleInviteeUser(invitees, userId)
+  without opening the badge dialog. Pure helper oggleInviteeUser(invitees, userId)
   (userSelect.ts, unit-tested) drops the user:<id> entry when present, appends it
   otherwise, and never touches departments or other users. Shown only while the acting
   user is representable in the picker (peopleById[currentUser]); the section
@@ -7859,7 +7860,7 @@ Pure wizard copy/UX change ï¿½ no behavior, logic, notes format, or permissio
   "Organizer-only editing" badge keep the organizer wording (viewer-accurate, and the
   modal already shows the person under Owner).
 
-**Verified**: pnpm typecheck, pnpm lint, pnpm test (new 	oggleInviteeUser
+**Verified**: pnpm typecheck, pnpm lint, pnpm test (new oggleInviteeUser
 tests; 992+ pass).
 
 ## 1.195 "(You)" participant highlight
@@ -7924,7 +7925,7 @@ flowchart LR
   `AppShellShell`, once per document load): clears the pathname's **RSC** cache entries
   (`invalidateRscPathCaches`) then `router.replace`s to the clean URL (no history entry) â€”
   so no later navigation keeps re-forcing and the clean-URL replace can't be answered by a
-  stale SWR RSC payload. The cached *document* is deliberately left alone (it powers
+  stale SWR RSC payload. The cached _document_ is deliberately left alone (it powers
   instant/offline launch). `DashboardView` no longer owns a `?refresh` strip.
 - **"Saved Â· HH:MM" removed**: the kebab chip, `DashboardView`'s freshness state
   (`savedAtRef`/`isDataFresh`/60s timer), `initialSavedAt()`, the reconcile-event listener,
@@ -8173,8 +8174,8 @@ so adding the values to GitHub secrets changed nothing. Two independent gaps:
   key (Vercel inlines at its own build; the Docker build does not). ci.yml now
   passes `NEXT_PUBLIC_VAPID_PUBLIC_KEY` as a **build arg** to the image build,
   and the Dockerfile `builder` stage declares `ARG NEXT_PUBLIC_VAPID_PUBLIC_KEY`
-  + `ENV NEXT_PUBLIC_VAPID_PUBLIC_KEY=${NEXT_PUBLIC_VAPID_PUBLIC_KEY}` before
-  `pnpm build` (runner stage is unaffected â€” it copies only `.next`/`public`).
+  - `ENV NEXT_PUBLIC_VAPID_PUBLIC_KEY=${NEXT_PUBLIC_VAPID_PUBLIC_KEY}` before
+    `pnpm build` (runner stage is unaffected â€” it copies only `.next`/`public`).
 
 Also hardened `pushSwState` (client.ts): it now polls
 `navigator.serviceWorker.getRegistration()` five times (~1 s) before falling
@@ -8242,6 +8243,7 @@ Until this phase the participant-invite push text was fixed: title = the rendere
 **Docs**: `docs/event-notifications.md` Â§1.11 (content customization) + Â§1.12 file table (renumbered), `docs/event-lifecycle.md` Â§1.8.1 (engine location), AGENTS.md participant-notifications bullet, progress changelog.
 
 **Verified**: pnpm typecheck, pnpm lint, pnpm test (1005 pass incl. new message/validate cases), pnpm db:generate (clean drift). Manual to run after deploy: Settings â†’ Templates â†’ edit a notification template â†’ send an event tagging a second user â†’ confirm the device shows the new copy; blank-title event shows the type/headline fallback.
+
 ## 1.209 Dashboard-views ergonomics: All-views popover + changeable view type
 
 Two gaps reported against the on-demand dashboard Views (tabs) shipped in Â§1.202:
@@ -8302,10 +8304,11 @@ Until this phase the master event-title template and every library view template
 Product feedback on the structured-recipe feature (1.210): the Settings â†’ Templates page and its recipe editor did not match the app's UI conventions â€” oversized/stacked `Select` dropdown ladders, always-expanded editors, and a cluttered page. This phase aligns Templates with the app's established manage-row/dialog language (Edit views, Event types groups, Departments, Webhooks, KAH) and its badge/card preference over dropdowns.
 
 **Page**: `/settings/templates` is now three compact manage-row group cards (`TemplatesManager.tsx`):
+
 - **Event title templates** â€” a Master row (rendered preview) plus one row per saved template, each opening a centered dialog; header actions **Add template** and **Assign to views** (assignments dialog restyled with per-target previews).
 - **Display names** â€” one row with live `formatFullName` preview opening a small name-template dialog.
 - **Event notification copy** â€” one row previewing the created/added push copy opening the copy dialog.
-Editors (recipe builder, name form, assignments, notification copy) are centered modals sized xs/sm/md; delete uses an inline confirm dialog. Old `TemplatesForm`, `RecipeTemplateForm`, `NotificationTemplatesEditor` deleted.
+  Editors (recipe builder, name form, assignments, notification copy) are centered modals sized xs/sm/md; delete uses an inline confirm dialog. Old `TemplatesForm`, `RecipeTemplateForm`, `NotificationTemplatesEditor` deleted.
 
 **Recipe builder** (`TitleRecipeBuilder.tsx`): segments render as chip rows (field badge + style summary), reordered with chevrons, options via a pencil (chip/Segmented toggles for style/wrapper/connector â€” no dropdowns), removal via âœ•; **Add field** opens a six-field card picker (icon + label, like `ViewTypePicker`). Reorder uses a new reduced-motion-safe **CSS FLIP** helper (`src/lib/ui/flipReorder.ts`: snapshot rects before the move, invert to the old spot, animate to rest over ~220ms with the app's ease-out curve) â€” no animation library added.
 
@@ -8330,7 +8333,6 @@ Follow-up to 1.210/1.211: the separate notification-copy editor is gone â€”
 **Docs**: event-notifications Â§1.11 rewritten (targets/defaults/rendering), event-lifecycle Â§1.8 (text field + timeFull) and Â§1.8.5 (notification targets, duplicate), AGENTS.md, progress changelog 1.212.
 
 **Verified**: pnpm typecheck, pnpm lint, pnpm test (990 pass incl. new text/timeFull/sanitizer cases), pnpm build. Manual after deploy: Settings â†’ Templates â†’ add a Text field to a template, assign it to "Notification â€” new event", then create an event tagging a user and confirm the push shows the intro + fields; duplicate a template and delete-lock Master.
-
 
 ## 1.213 Department hierarchy mirrored in the user & department pickers/filters
 
@@ -8396,6 +8398,7 @@ progress changelog 1.215.
 
 **Verified**: pnpm typecheck, pnpm lint, pnpm vitest run (full, 1029 pass). No
 schema or migration change.
+
 ## 1.217 Parade State attendance-mode clarity
 
 The Parade State attendance UX confused users on five fronts, all fixed in a
@@ -8414,7 +8417,7 @@ UI-only pass (binary present/absent model kept, no schema change):
   menu with **Clear this day** (immediate) vs **Clear all dates…** (existing
   confirm, retitled). The old standalone day total next to the legend is
   folded into the bar (removes a third duplicate count surface).
-- **Two competing tap targets per card.** The whole `Paper` toggled *and* an
+- **Two competing tap targets per card.** The whole `Paper` toggled _and_ an
   inner `Checkbox` toggled (`stopPropagation`-gated). The checkbox is now a
   **non-interactive status glyph** (`aria-hidden`, `pointer-events` none, teal
   check when checked / grey outline when not) so the card is the single toggle,
@@ -8686,8 +8689,6 @@ right edge; scroll the Month grid and confirm the Agenda pane stays put (and vic
 versa); drag the handle while zoomed; check the skeleton matches on a slow load; below
 `lg` confirm the stacked document scroll is unchanged.
 
-
-
 ## 1.240 Dashboard no longer remembers the last-active view
 
 The dashboard used to resume the last-viewed tab across sessions: `switchTab` fired
@@ -8756,7 +8757,7 @@ shared `EmptyState`. `renderEvent` applies the dashboard's `c2-my-agenda-event` 
 plumbing.
 
 **Verified**: `pnpm lint`, `pnpm typecheck`, `pnpm test` (1282 passing). Manual to run
-before ship: cold first open from a non-dashboard route (skeleton  modal), instant repeat
+before ship: cold first open from a non-dashboard route (skeleton modal), instant repeat
 opens, one-row toolbar, recents hidden with results, mobile keyboard no jump, ?K, highlight
 colors, deep link still opens the event detail.
 
@@ -8989,7 +8990,7 @@ flowchart LR
   `navigatePeriod(dir)` plus a `periodStepLabel(prefix)` that reads the optimistic
   `shown*` chrome, so the top row and the bottom cluster can never drift.
 - The two top-row chevrons gained `visibleFrom="lg"` (desktop-only) — the first
-  iteration mistakenly used `hiddenFrom="lg"`, which is the *opposite* (it hides
+  iteration mistakenly used `hiddenFrom="lg"`, which is the _opposite_ (it hides
   at/above the breakpoint, so the desktop row lost its period controls and the
   mobile row kept them); `visibleFrom` matches the row's other desktop-only
   controls. On mobile the nav row keeps the period label, filter, date selector
@@ -9110,12 +9111,12 @@ flowchart TD
   resolves it into `DashboardSharedConfig` so the mobile cluster's first paint
   carries an explicit `c2-glass--<level>` (no default flash).
 - **CSS** (`globals.css`): composite tokens `--c2-glass-bg` / `--c2-glass-header-bg`
-  + `--c2g-blur`; classes `.c2-glass-surface` (body tint), `.c2-glass-header`
-  (navy tint), `.c2-glass-fab` (button, keeps accent/brand/+teal modifiers),
-  `.c2-glass-btn` (inline chrome button, no shadow). Level overrides under
-  `[data-c2-glass="…"]` / `.c2-glass--…`. Low-end (`c2-low-end`) sets
-  `--c2g-blur: none` + near-opaque tints; `@supports` and
-  `prefers-reduced-transparency` fall back to opaque.
+  - `--c2g-blur`; classes `.c2-glass-surface` (body tint), `.c2-glass-header`
+    (navy tint), `.c2-glass-fab` (button, keeps accent/brand/+teal modifiers),
+    `.c2-glass-btn` (inline chrome button, no shadow). Level overrides under
+    `[data-c2-glass="…"]` / `.c2-glass--…`. Low-end (`c2-low-end`) sets
+    `--c2g-blur: none` + near-opaque tints; `@supports` and
+    `prefers-reduced-transparency` fall back to opaque.
 - **Surfaces**: header, pinned ticker, dashboard sticky chrome + its buttons,
   `MonthWeekdayStrip`, `WeekDayLabelStrip`, `TimeRulerStrip`, Week (D) day header,
   Week (Grid) `.c2-weekgrid-head` / `.c2-weekgrid-allday`, Month & Agenda pane
@@ -9174,8 +9175,9 @@ manifest `theme_color` is `#111111` (matches the splash). The PWA launch shell
 (`public/loading.html`) and the offline pages (`public/offline.html` + the
 `sw.ts` inline fallback, kept in sync) drop their navy header/border/button/h2/
 icon accents for the neutral header tone (scheme-aware via `prefers-color-scheme`
-+ `data-c2-scheme`) and neutral greys; the launch shell's status-bar meta is set
-from the resolved scheme in its pre-paint script.
+
+- `data-c2-scheme`) and neutral greys; the launch shell's status-bar meta is set
+  from the resolved scheme in its pre-paint script.
 
 **Follow-up tweak (1.285)**: brand blue was restored, softened. The header is
 brand blue again at the **app-wide** alpha (`rgba(13,71,161, var(--c2g-base-*))`),
@@ -9239,8 +9241,8 @@ margin-top of -(sm + chromeHeight) for isDesktop && shownIsGridWeek, lifting
 the whole grid so its top sits at the header offset, behind the chrome. The
 grid's own maxHeight branch at lg drops the - sm - chrome terms, and the
 library day header (weekViewHeader) and the app all-day row
-(weekViewAllDaySlots) gain 	op: <chromeHeight> /
-	op: calc(<chromeHeight> + var(--week-view-week-day-height) - 1px) so they
+(weekViewAllDaySlots) gain op: <chromeHeight> /
+op: calc(<chromeHeight> + var(--week-view-week-day-height) - 1px) so they
 re-pin just below the chrome. The row-zoom re-anchor's fixed leading overlay
 (headerPx) now includes the chrome so the focal hour does not drift, and a
 one-shot mount effect subtracts chromeHeight from the vertical scroll after
@@ -9376,7 +9378,7 @@ corner**, so the popup grew from its own top-right corner (downwards, away from
 the button). Switched to `pop-bottom-right`: it now unfurls upward from the
 More tile's corner, matching `QuickLinksMenu`'s `position === "top-end" ?
 "pop-bottom-right"` pattern. Other `pop-top-right` sites (UserMenu, EventSearch
-popover, AuditLog popover) open *below* their triggers and stay correct.
+popover, AuditLog popover) open _below_ their triggers and stay correct.
 
 ## 1.319 Accessible event-wizard minimize + docked draft bar
 
@@ -9399,7 +9401,7 @@ with a labelled, focus-managed flow in the house glass language.
   discards.
 - **Focus + announcements.** `minimizeForm` moves focus to the Resume action
   (effect on `formMinimized`) and announces `"Event form minimized. Your draft
-  is kept."`; restore announces `"Event form restored."`; a confirmed discard
+is kept."`; restore announces `"Event form restored."`; a confirmed discard
   announces `"Event draft discarded."` and — because the bar trigger unmounts —
   focuses `#main-content`. Escape still minimizes.
 - **Discard safety.** Header X and the bar's discard both open a `MotionModal`
@@ -9434,3 +9436,66 @@ Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` pass.
 
 Docs: `event-lifecycle.md` §1.4.3, `desktop-responsive.md` §1.7,
 `accessibility.md` §1.6.
+
+## 1.342 Foldable PWA viewport re-sync
+
+A Galaxy-style foldable in the **installed PWA** kept a blank strip between the
+Month/Month & Agenda grid and the fixed bottom nav after unfolding from the outer
+to the inner screen. Desktop browser resizing was fine; only a reload fixed it.
+
+**Cause.** The standalone viewport sync set `--app-shell-vh` from
+`visualViewport.height` once per viewport event. During a fold transition the
+visual viewport can be transiently smaller (or the event can fire before the
+fold settles), and nothing re-read it afterwards. The bounded Month/Dual column
+is `calc(var(--app-shell-vh) − header − footer)`, so the stale short value left
+the grid short. The footer `ResizeObserver` saw no change, so no second sync ran.
+
+**Fix.**
+
+- `resolveShellViewportHeight` (`src/lib/pwa/viewport.ts`, unit-tested) chooses
+  the shell height: iOS keeps `visualViewport.height`; Android (including
+  foldables) uses `max(documentElement.clientHeight, visualViewport.height)` so a
+  transient smaller visual viewport cannot shorten the shell and the Android
+  keyboard cannot shrink it either.
+- The sync re-reads at 250/600/1200 ms after `resize`, `orientationchange`,
+  `screen.orientation.change`, and `visualViewport` `resize`/`scroll`, and
+  observes `document.documentElement` for viewport-size changes.
+- The Month fill, Dual pane fill and top-chrome measurement effects take the same
+  post-fold settle passes, so the fill math re-runs after the shell height
+  settles.
+
+Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` pass;
+manual foldable check: outer→inner and inner→outer with Month and Month & Agenda
+now reach the footer without a reload.
+
+Docs: `pwa-offline.md` §1.19, `desktop-responsive.md` §1.1/§1.4.
+
+## 1.343 Balanced dashboard chunk warming
+
+The dashboard previously warmed every schedule view, both custom grids, the
+wizard, the details/manage-views/date-picker modals and every nav route at idle;
+the three always-mounted dynamic modals also downloaded as soon as the dashboard
+rendered.
+
+**Warm policy now.**
+
+- Idle after the active view paints: the event-details chunk plus only the
+  renderer kinds the account has tabs for (`tabWarmKinds`, `scheduleViews`
+  `preloadScheduleViewKinds`). Custom grids warm only when a tab of that kind
+  exists.
+- The wizard warms after a 5 s idle delay on capable devices
+  (`canPreloadTabs()`), or immediately on New-event intent/deep link.
+- The search body warms at idle only when the recent-search list is non-empty;
+  otherwise the trigger's near-signal/open loads it.
+- The date picker, manage-views modal and non-target nav routes warm on
+  hover/focus/pointer-down/touch-start.
+- Event chips warm the details chunk on pointer/focus intent as a fallback.
+- `EventDetail`, `DateSelectorModal` and `EditViewsModal` now mount on first
+  open, then stay mounted so close animations are preserved. Deep-linked
+  `?event=`/`?edit=` targets still warm immediately (and only their own chunk).
+- The all-tab data preload, active tab's next two months and per-tab
+  `router.prefetch` are unchanged.
+
+Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` pass.
+
+Docs: `loading-transitions.md` §1.15/§1.18, `event-search.md` §1.9, `AGENTS.md`.

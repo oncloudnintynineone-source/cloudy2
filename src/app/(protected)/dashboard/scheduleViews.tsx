@@ -9,7 +9,8 @@
  * therefore put all of it in the dashboard's initial chunk. These wrappers are
  * `next/dynamic` (client-only) so the package is only fetched when a view that
  * actually needs it renders — the schedule CSS ships with it too, instead of
- * globally on every route.
+ * globally on every route. `preloadScheduleViewKinds` warms only the kinds the
+ * account has tabs for, never the whole set.
  *
  * No refs are forwarded: the dashboard consumes each view as plain JSX and
  * measures surrounding wrapper elements, never the view instances themselves.
@@ -20,6 +21,7 @@ import type { ComponentProps } from "react";
 
 import "@mantine/schedule/styles.css";
 
+import type { DashboardViewKind } from "@/lib/dashboardViews/views";
 import { AgendaListSkeleton, MonthGridSkeleton, ScheduleGridSkeleton } from "./calendarSkeleton";
 
 type ScheduleModule = typeof import("@mantine/schedule");
@@ -61,21 +63,31 @@ export const LazyMoreEvents = dynamic<MoreEventsProps>(
   { ssr: false },
 );
 
+/** The renderer chunks each schedule-backed view kind needs. */
+const SCHEDULE_PRELOADERS: Partial<Record<DashboardViewKind, readonly unknown[]>> = {
+  month: [LazyMonthView],
+  week: [LazyResourcesWeekView],
+  schedule: [LazyResourcesDayView],
+  agenda: [LazyAgendaView],
+  weekgrid: [LazyWeekView, LazyMoreEvents],
+  // `dual` and `weekv2` are custom grids, warmed from DashboardView.
+};
+
 /**
- * Fetch every schedule view's chunk ahead of use. The active view is already
- * loaded by first render; this warms the other view kinds so a tab switch
- * paints from cache instead of downloading first. Called at idle by the
- * dashboard, gated on the connection (`canWarmRoutes`).
+ * Fetch the schedule chunks for the given view kinds only. The active view is
+ * already loaded by first render; this lets the dashboard warm the kinds the
+ * account actually has tabs for instead of every schedule view. Best-effort
+ * and idempotent; the caller applies the connection gate.
  */
-export function preloadScheduleViews(): void {
-  for (const component of [
-    LazyMonthView,
-    LazyWeekView,
-    LazyAgendaView,
-    LazyResourcesWeekView,
-    LazyResourcesDayView,
-    LazyMoreEvents,
-  ]) {
-    void (component as unknown as { preload?: () => Promise<unknown> }).preload?.();
+export function preloadScheduleViewKinds(kinds: readonly DashboardViewKind[]): void {
+  const seen = new Set<unknown>();
+  for (const kind of kinds) {
+    for (const component of SCHEDULE_PRELOADERS[kind] ?? []) {
+      if (seen.has(component)) {
+        continue;
+      }
+      seen.add(component);
+      void (component as { preload?: () => Promise<unknown> }).preload?.().catch(() => {});
+    }
   }
 }
