@@ -1,23 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  Alert,
-  Button,
-  CopyButton,
-  Group,
-  Skeleton,
-  Stack,
-  Text,
-  TextInput,
-} from "@mantine/core";
-import { IconAlertTriangle, IconCheck, IconCopy, IconShare } from "@tabler/icons-react";
+import { Alert, Button, CopyButton, Skeleton, Stack, Text, TextInput } from "@mantine/core";
+import { IconAlertTriangle, IconCheck, IconCopy } from "@tabler/icons-react";
 
 import { LoadingStatus } from "@/components/LoadingStatus";
 import { MotionModal } from "@/components/MotionModal";
 import { createDashboardViewShareLink } from "@/lib/dashboardViews/shareActions";
 import type { DashboardViewTab } from "@/lib/dashboardViews/views";
-import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 
 interface ShareViewDialogProps {
   /** The saved tab to share; null keeps the dialog closed. */
@@ -77,7 +67,7 @@ export function ShareViewDialog({ tab, onClose }: ShareViewDialogProps) {
           <LoadingStatus label="Creating share link" />
           <Skeleton height={16} width="80%" />
           <Skeleton height={36} />
-          <Skeleton height={36} width="50%" ml="auto" />
+          <Skeleton height={14} width="60%" />
         </Stack>
       )}
 
@@ -86,11 +76,6 @@ export function ShareViewDialog({ tab, onClose }: ShareViewDialogProps) {
           <Alert color="red" icon={<IconAlertTriangle size={18} />}>
             {error}
           </Alert>
-          <Group justify="flex-end">
-            <Button variant="default" onClick={onClose}>
-              Close
-            </Button>
-          </Group>
         </Stack>
       )}
 
@@ -128,23 +113,6 @@ export function ShareViewDialog({ tab, onClose }: ShareViewDialogProps) {
           <Text size="xs" c="dimmed">
             The link carries the view definition only; it does not grant access to any events.
           </Text>
-          <Group justify="flex-end">
-            <Button variant="default" onClick={onClose}>
-              Close
-            </Button>
-            <CopyButton value={link} timeout={2000}>
-              {({ copied, copy }) => (
-                <Button
-                  leftSection={copied ? <IconCheck size={16} /> : <IconShare size={16} />}
-                  variant="light"
-                  onClick={copy}
-                  loaderProps={BUTTON_LOADER_PROPS}
-                >
-                  {copied ? "Link copied" : "Copy link"}
-                </Button>
-              )}
-            </CopyButton>
-          </Group>
         </Stack>
       )}
     </MotionModal>
