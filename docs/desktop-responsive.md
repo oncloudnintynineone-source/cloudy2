@@ -215,9 +215,16 @@ reachable while any view's grid scrolls — on phones too, where losing them
  (`top: var(--app-shell-header-offset)`, bottom divider) holding the view-tab
  strip row and the date-nav row together — except in the **compact desktop tier
  (`isCompactDesktop`)**, where vertical space is the scarce dimension: there the
- box is a **single row**, the tab strip folding into a **view trigger** at the
- row's left end (the active view's kind icon + name + chevron, opening the same
- dropdown the mobile view menu uses). The tier has two triggers:
+ box is a **single row**, laid out as two groups. A frosted **navigator slab**
+ (`.c2-compact-cluster`, a **squircle**: 40px tall, 12px radius) holds the active
+ view's kind icon + name + chevron (opening the same dropdown the mobile view menu
+ uses), the period label with the **grouped `[‹][›]` pair immediately after it**,
+ and the filter/date controls, with hairline dividers between sections; its 36px
+ controls are ghost (`.c2-compact-control`) with a nested 10px radius, so only the
+ slab carries the surface. The **New event / Quick links** actions sit outside it,
+ right-aligned, at the same 40px height and 12px squircle, fully saturated (solid
+ brand blue / amber); they run icon-only squircles in the 640–799px band. The tier
+ has two triggers:
  `isNarrowDesktop` (`isDesktop && !isDesktopWide`, the 640-799px band) — where
  New event / Quick links also run icon-only to fit the ~544px content width the
  64px icon rail leaves — and a **short wide viewport**, where the wide-layout
@@ -227,7 +234,7 @@ reachable while any view's grid scrolls — on phones too, where losing them
  wide two-row chrome) and the current month's row count; the fixed wide budget
  (never the live compact height) keeps the decision stable. On a wide-but-short
  screen the labels stay (there is horizontal room). Either way a full row of
- chrome (~55-60px) is saved. With enough height at 800px+ the two-row chrome
+ chrome (~45px) is saved. With enough height at 800px+ the two-row chrome
  returns unchanged, and below `lg` the mobile recipe is untouched. **Below `lg`
  the chrome splits**: a
 thin **view-name strip stays pinned at the top** under the header, and the
@@ -237,10 +244,9 @@ viewport edges**) bottom-most with the period label left + circular
 filter/date/view-menu/fullscreen buttons right, and above it the
 **right-anchored FAB row** — the `[< | >]` **step pill** (`.c2-period-pill`,
 sized by its 56px chevron circles), the **Quick-links circle button**
-(`c2-glass-fab--accent`, amber), and the **New-event circle button**
-(`c2-glass-btn` + `c2-glass-fab--brand`, brand-blue like the lg nav-row button),
-both 56px circles with the `c2-glass-btn--bordered` grey ring — the whole row
-is one height (`dashboard-views.md` §1.1).
+(solid amber `c2-glass-fab--accent-solid`), and the **New-event circle button**
+(solid brand-blue `c2-glass-fab--brand-solid`, like the lg nav-row button), both
+56px circles — the whole row is one height (`dashboard-views.md` §1.1).
 Below `lg` the tab strip row is **dropped** (a full row of chrome) and the pill
 instead **carries the compact four-squares view-menu button** (the mobile view
 menu, [`dashboard-views.md`](dashboard-views.md) §1.1).
@@ -248,7 +254,8 @@ The top box renders at `zIndex: 50`, above every
 layer `@mantine/schedule` stacks internally (sticky-left columns reach
 z-index 12-13, scrollbars 20), so grid content sliding beneath never paints
 over it. The top strip's and the pill's heights are measured with a
-`ResizeObserver` (pre-first-paint + on resize): `topChromeHeight` (the full
+`ResizeObserver` (pre-first-paint + on resize, plus a rAF re-read on
+`window`/`visualViewport` resize and orientation change): `topChromeHeight` (the full
 chrome at `lg`+, the name strip below `lg`) docks every view header via
 `top: calc(var(--app-shell-header-offset) + <topChromeHeight>px)`, while
 `bottomChromeHeight` (0 at `lg`+) feeds the page pads so the last row clears

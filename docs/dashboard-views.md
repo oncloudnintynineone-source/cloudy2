@@ -172,13 +172,23 @@ string maps to the first tab of that kind.
  - **Compact desktop view trigger (640–799px band, and short wide viewports).**
    Vertical space is the scarce dimension at foldable/small-laptop widths and on
    short laptop screens, so the sticky chrome box runs as a **single row** there
-   (`isCompactDesktop`): the tab strip is dropped and the **date-nav row itself
-   carries the view menu at its left end** — the active view's kind icon + name + a
-   chevron — opening the same `DashboardViewMenuItem` dropdown (tab list, then
-   Add-view / Manage-views). The trigger also carries the active tab's load state
-   (the amber spinner and the shared `c2-tab-not-loaded` fade), so §1.13.2 stays
-   visible without the strip. It is a passive `Text` name instead when the account
-   has one tab and cannot manage views.
+   (`isCompactDesktop`): the tab strip is dropped and the row is laid out as **two
+   groups**, not a flat run of pills.
+   - **Navigator slab** (`.c2-compact-cluster`, a **squircle** hairline surface —
+     40px tall, 12px radius, not a pill): the active view's kind icon + name +
+     chevron at the left (opening the same `DashboardViewMenuItem` dropdown — tab
+     list, then Add-view / Manage-views; it carries the active tab's load state,
+     the amber spinner and the shared `c2-tab-not-loaded` fade, so §1.13.2 stays
+     visible without the strip; a passive `Text` name instead when the account has
+     one tab and cannot manage views), then a divider, the period label with the
+     **grouped `[‹][›]` pair immediately after it** (never split around the label),
+     another divider, and the filter/date controls. Those 36px controls are ghost
+     (`.c2-compact-control`) with a nested 10px radius inside the slab, so only the
+     slab carries the surface.
+   - **Action group** (outside the slab, right-aligned, same 40px height/12px
+     squircle): **New event** and **Quick links**, fully saturated
+     (`c2-glass-fab--brand-solid` / `--accent-solid`) on every layout — never the
+     frosted tint; icon-only squircles in the 640–799px band.
 
    The tier has **two triggers**:
    - `isNarrowDesktop` (`isDesktop && !isDesktopWide`, 640–799px): the sidebar is
@@ -193,12 +203,11 @@ string maps to the first tab of that kind.
      would otherwise gain a chip slot and immediately un-compact). At this width there
      is horizontal room, so the labelled New-event / Quick-links buttons stay.
 
-   In both cases the row gap / `mt` plus the box's `paddingBottom` tighten —
-   ~55–60px of chrome saved per screen. At 800px+ with enough height the two-row
-   strip returns unchanged, and `topChromeHeight` (measured on the box by a
-   `ResizeObserver`, feeding every pinned grid strip and the fit-to-height month
-   column) simply reflects the shorter box, so nothing else needs to know about the
-   tier.
+   In both cases the box's block padding tightens (4px top/bottom plus the 40px
+   slab) — ~45px of chrome saved per screen. At 800px+ with enough height the
+   two-row strip returns unchanged, and `topChromeHeight` (measured on the box by a
+   `ResizeObserver` plus a viewport-resize re-read, feeding every pinned grid strip)
+   simply reflects the shorter box, so nothing else needs to know about the tier.
 - **Mobile view indicator (below `lg`).** Because the strip row is dropped under
   `lg`, the active view would otherwise be *announced* (the view-menu trigger's
   accessible name, plus the live region's `"<view> view, <period>"`) but never
@@ -1020,11 +1029,14 @@ flowchart LR
 
 At `lg` the standalone Month tab also fits **height**: the whole grid lands
 inside the screen with no vertical scroll (below `lg` the month stays the
-document-scrolling grid, unchanged). The month column becomes a **bounded flex
-column** — the `MonthWeekdayStrip` is its fixed header (`sticky={false}` there)
-and the grid box below fills the remaining viewport height
-(`--app-shell-vh`/`100dvh` minus the header, footer and the measured
-`topChromeHeight`), running flush to the bottom nav through `month-page-pad`
+document-scrolling grid, unchanged). The dashboard page itself becomes a
+**bounded flex chain**: the root `Stack` is exactly
+`calc(100dvh − header − footer)` at `lg`, the sticky chrome is its fixed first
+item and the view wrapper is the flex remainder (no measured-chrome term in the
+height, so a chrome-tier flip or a missed observer tick can never leave a stale
+blank strip after a resize). Inside the Month column the `MonthWeekdayStrip` is
+its fixed header (`sticky={false}` there) and the grid box below fills the
+remaining height, running flush to the bottom nav through `month-page-pad`
 (zeroed page bottom padding + a negative margin reclaiming Main's, exactly like
 `.weekgrid-page-pad`). The row heights come from the shared pure helper
 `monthFillEvents` (`src/lib/ui/monthZoom.ts`, unit-tested): Mantine sizes each
@@ -1073,8 +1085,10 @@ cover it (Month → Month & Agenda starts today, anchored → Month & Agenda kee
 the anchor day, Month & Agenda → Month keeps the anchor month).
 
 - **Layout & independent scroll.** At `lg` and up the whole view is **bounded to
-  the viewport's remaining height** (`--app-shell-vh`/header/footer minus the
-  measured chrome and the Stack gap) and each pane is a fixed-header column with
+  the viewport's remaining height** (the dashboard's CSS flex chain:
+  `100dvh − header − footer` with the chrome as a fixed first item — no
+  measured-chrome term in the height, so a resize can't leave a blank strip) and
+  each pane is a fixed-header column with
   its **own vertical scroll** (`overflow-y: auto` + `overscroll-behavior: contain`),
   so scrolling one never moves the other. The page's own bottom padding is
   reclaimed (`dual-page-pad`: zero bottom padding + a negative bottom margin that

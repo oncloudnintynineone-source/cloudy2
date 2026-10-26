@@ -269,8 +269,29 @@ export function DualPaneView({
     update();
     const observer = new ResizeObserver(update);
     observer.observe(el);
-    return () => observer.disconnect();
-  }, [isDesktop]);
+    // Same belt-and-braces as the standalone Month fill: a viewport resize can
+    // coalesce the observer notification past the paint, and the bounded flex
+    // column changes size without a chrome re-measure.
+    let frame = 0;
+    const schedule = () => {
+      if (frame !== 0) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        update();
+      });
+    };
+    window.addEventListener("resize", schedule);
+    window.addEventListener("orientationchange", schedule);
+    const visualViewport = window.visualViewport;
+    visualViewport?.addEventListener("resize", schedule);
+    return () => {
+      observer.disconnect();
+      if (frame !== 0) cancelAnimationFrame(frame);
+      window.removeEventListener("resize", schedule);
+      window.removeEventListener("orientationchange", schedule);
+      visualViewport?.removeEventListener("resize", schedule);
+    };
+  }, [isDesktop, chromeOffset]);
   const monthFillStyle = useMemo<CSSProperties | undefined>(() => {
     if (!isDesktop || monthScrollHeight <= 0) {
       return undefined;
@@ -410,16 +431,14 @@ export function DualPaneView({
           // document scrolls).
           alignItems: isDesktop ? "stretch" : "flex-start",
           gap: isDesktop ? 0 : "var(--mantine-spacing-md)",
-          ...(isDesktop
+              ...(isDesktop
             ? {
-                // Bounded to the remaining viewport height, running flush to
-                // the bottom: the page's own bottom padding (Main's + the
-                // `dual-page-pad`) is reclaimed by the Stack's negative bottom
-                // margin, so only the header/footer offsets, the Stack gap and
-                // the measured chrome are subtracted here. The month grid and
-                // agenda card therefore reach the viewport bottom instead of
-                // leaving a blank strip below the panes.
-                height: `calc(var(--app-shell-vh, 100dvh) - var(--app-shell-header-offset) - var(--app-shell-footer-offset) - var(--mantine-spacing-sm) - ${chromeOffset}px)`,
+                // The dashboard's bounded flex column at `lg` is exactly the
+                // remaining viewport (header/footer and chrome already
+                // removed by that chain), so the panes just fill it. Height is
+                // deliberately NOT re-derived from the measured chrome here:
+                // a resize can never leave a stale blank strip below the panes.
+                height: "100%",
                 overflow: "hidden",
               }
             : null),

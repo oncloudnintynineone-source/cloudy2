@@ -1235,7 +1235,9 @@ html {
   amber Quick links (`--accent`), brand-blue New event (`--brand`); the
   **standalone** round FABs (`--accent` / `--brand` / `--teal` without
   `.c2-glass-btn`) are **solid**, so their colour reads at full strength over any
-  content, while the dashboard's glass buttons keep the frosted tint.
+  content. The Calendar's create / Quick-links CTAs opt into the same full
+  saturation through `--brand-solid` / `--accent-solid` at every width; the
+  other dashboard glass controls keep the frosted tint.
   The backdrop blur lets the content read through, while the blur + shadow keep
   the controls legible over any content. No border: the frosted edge is carried
   by   the shadow alone (a hard ring read as an off outline, especially in dark
@@ -1380,6 +1382,48 @@ html {
 }
 
 /*
+  Compact desktop chrome (the single-row tier): one navigator "slab" groups the
+  view trigger, period stepper and filter/date controls, with hairline dividers
+  between the logical sections. Its controls are ghost (transparent, no shadow)
+  inside the slab so only the slab carries the surface; the primary New-event /
+  Quick-links actions sit outside it, fully saturated (`--brand-solid` /
+  `--accent-solid` above).
+*/
+.c2-compact-cluster {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 2px;
+  /* Squircle, not a pill: the 36px controls inside a 40px slab share one
+     rounded-square language with the 40px New-event / Quick-links actions. */
+  border-radius: calc(0.75rem * var(--mantine-scale));
+  border: 1px solid var(--mantine-color-default-border);
+  background: light-dark(rgba(13, 71, 161, 0.035), rgba(255, 255, 255, 0.05));
+}
+
+.c2-compact-divider {
+  flex: 0 0 1px;
+  align-self: stretch;
+  margin: 7px 4px;
+  background: var(--mantine-color-default-border);
+}
+
+.c2-compact-control {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  color: var(--mantine-color-text) !important;
+  transition: background-color var(--c2-dur-micro) var(--c2-ease-out);
+}
+
+.c2-compact-control:hover,
+.c2-compact-control:active {
+  background: var(--mantine-color-default-hover) !important;
+}
+
+/*
   Button label centering. Mantine 9 puts `text-box-trim: trim-both` +
   `text-box-edge: cap alphabetic` on the label span, but Chromium only trims a
   *content-sized* box — Mantine's label is `display: flex; height: 100%`, so the
@@ -1481,6 +1525,43 @@ html {
     rgba(12, 166, 120, calc(var(--c2g-accent-l) + 0.24)),
     rgba(12, 166, 120, calc(var(--c2g-accent-d) + 0.18))
   ) !important;
+}
+
+/*
+  Fully saturated action variants — the Calendar's create (brand blue) and
+  Quick-links (amber) CTAs at every width. The frosted `--accent` / `--brand`
+  tints above stay for secondary surfaces; these read at full strength over any
+  content and drop the backdrop blur (opaque already). Declared after the tints
+  so they win the `!important` tie.
+*/
+.c2-glass-fab--accent-solid {
+  background: var(--mantine-color-accent-6) !important;
+  color: var(--mantine-color-accent-9) !important;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.c2-glass-fab--accent-solid:hover {
+  background: var(--mantine-color-accent-5) !important;
+}
+
+.c2-glass-fab--accent-solid:active {
+  background: var(--mantine-color-accent-7) !important;
+}
+
+.c2-glass-fab--brand-solid {
+  background: var(--mantine-color-brand-7) !important;
+  color: var(--mantine-color-white) !important;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.c2-glass-fab--brand-solid:hover {
+  background: var(--mantine-color-brand-6) !important;
+}
+
+.c2-glass-fab--brand-solid:active {
+  background: var(--mantine-color-brand-8) !important;
 }
 
 /* Solid overrides for the STANDALONE round FABs only (Parade attendance toggle,

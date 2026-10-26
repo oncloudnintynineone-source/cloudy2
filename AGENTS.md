@@ -150,19 +150,23 @@ doc content here.
   control pill (period label left + circular **search**/filter/date/view/**fullscreen**
   buttons right, inset 16px from the viewport edges) bottom-most, with the
    right-anchored FAB row (`[<|>]` step pill whose 56px chevron circles size it
-   + Quick-links **circle button** — amber `c2-glass-fab--accent` — + New-event
-   **circle button** — brand-blue `c2-glass-fab--brand` tint; the tinted circles
-   are 56px with the `c2-glass-btn--bordered` grey ring, so the whole row is one
-   height) floating above it — for thumb reach; pinned
+   + Quick-links **circle button** — solid amber `c2-glass-fab--accent-solid` — +
+   New-event **circle button** — solid brand-blue `c2-glass-fab--brand-solid`;
+   both 56px, so the whole row is one height) floating above it — for thumb
+   reach; pinned
    strips dock under the name strip (`chromeOffset` = `topChromeHeight`),
    bounded grids run flush to the bottom nav, and page pads clear the pill/FAB
    row; at `lg`+ one box (tabs + nav row) pins top, and in the compact desktop
    tier that box is a **single row** (`isCompactDesktop`): the narrow 640–799px
    band, or any viewport whose wide-layout month day cell would fit only two event
    chips (projected with `monthFitChipCount` over a fixed wide-chrome budget). The
-   tab strip folds into a view-menu trigger at the nav row's left end; New event /
-   Quick links go icon-only only in the narrow band (a wide-but-short viewport keeps
-   the labels). Saves a full row of chrome. The mobile floating rows
+   tab strip folds into a **navigator squircle** (`.c2-compact-cluster`, 40px tall,
+   12px radius — not a pill) on the left — view trigger · period label + grouped
+   `[‹][›]` pair · filter/date, divided into sections — and the primary
+   New-event / Quick-links actions sit outside it at the same 40px/12px squircle,
+   **fully saturated** (`c2-glass-fab--brand-solid` / `--accent-solid`, no frosted
+   tint) at every width. They go icon-only only in the narrow band (a wide-but-short
+   viewport keeps the labels). Saves a full row of chrome. The mobile floating rows
    **auto-hide while the user touches the calendar pane** (touch alone, or any
    scroll, either axis) and slide back only when the last finger/pointer is
    lifted AND the scroll has settled — they stay hidden through the scroll,

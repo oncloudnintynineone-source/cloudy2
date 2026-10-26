@@ -290,16 +290,7 @@ export function WeekGridSkeleton({ rows = 6 }: { rows?: number }) {
  * seamless; the sr-only LoadingStatus is rendered by the caller, as with the
  * other view skeletons.
  */
-export function DualPaneSkeleton({
-  rows,
-  splitPct,
-  chromeOffset,
-}: {
-  rows: number;
-  splitPct: number;
-  /** Measured chrome height — mirrors the real view's viewport-bounded height. */
-  chromeOffset: number;
-}) {
+export function DualPaneSkeleton({ rows, splitPct }: { rows: number; splitPct: number }) {
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
   const scrollBody = {
@@ -319,10 +310,10 @@ export function DualPaneSkeleton({
         gap: isDesktop ? 0 : "var(--mantine-spacing-md)",
         ...(isDesktop
           ? {
-              // Mirrors DualPaneView: flush to the viewport bottom (the page's
-              // bottom padding is reclaimed by the `dual-page-pad` negative
-              // margin), so the skeleton and the real panes swap seamlessly.
-              height: `calc(var(--app-shell-vh, 100dvh) - var(--app-shell-header-offset) - var(--app-shell-footer-offset) - var(--mantine-spacing-sm) - ${chromeOffset}px)`,
+              // Mirrors DualPaneView: the dashboard's bounded flex column is
+              // already exactly the remaining viewport, so the skeleton fills
+              // it (no measured-chrome term → a resize can't leave a stale gap).
+              height: "100%",
               overflow: "hidden",
             }
           : null),

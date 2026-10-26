@@ -2099,6 +2099,23 @@ via `?attendance=1` and `attendanceStorage` became a `useSyncExternalStore` exte
     grid cell at all widths** (previously mobile-only; only the tighter mobile chip
     padding stays mobile-scoped). Docs: `docs/dashboard-views.md` §1.1/§1.4,
     `docs/desktop-responsive.md` §1.4, `AGENTS.md`.
+- 1.341 **Resize-safe bounded Month/Dual + compact chrome polish + solid CTAs**:
+    the Month and Month & Agenda views no longer derive their height from the
+    measured `topChromeHeight`; the dashboard page becomes a CSS flex chain
+    (`100dvh − header − footer`, chrome as the fixed first item, view wrapper as
+    the flex remainder), so a resize/chrome-tier flip can never leave a blank
+    strip below the grid until reload. The chrome measurement re-reads on
+    `window`/`visualViewport` resize + orientation change, and the Month/Dual
+    fill effects re-derive when the chrome height changes. The compact desktop
+    row is restyled into a two-group toolbar: a frosted navigator **squircle**
+    (40px tall, 12px radius — view trigger · period label + grouped `[‹][›]` pair
+    · filter/date, 36px ghost controls with a nested 10px radius + dividers) plus
+    a right-aligned action group at the same 40px/12px squircle. New event /
+    Quick links are now **fully saturated** at every layout
+    (`c2-glass-fab--brand-solid` / `--accent-solid`; no frosted tint, no backdrop
+    blur) — including the mobile floating circles. Docs:
+    `docs/dashboard-views.md` §1.1/§1.8.1/§1.9, `docs/desktop-responsive.md`
+    §1.4, `AGENTS.md`.
 
 ## 1.4 Open items & next steps
 

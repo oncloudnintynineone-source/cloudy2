@@ -998,6 +998,14 @@ function DashboardViewImpl({
       setFabStackWidth(fabStackRef.current?.offsetWidth ?? 0);
       setFabControlsWidth(fabControlsRef.current?.offsetWidth ?? 0);
     };
+    let frame = 0;
+    const schedule = () => {
+      if (frame !== 0) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        update();
+      });
+    };
     update();
     const observer = new ResizeObserver(update);
     if (tabsListRef.current) {
@@ -1012,7 +1020,23 @@ function DashboardViewImpl({
     if (fabControlsRef.current) {
       observer.observe(fabControlsRef.current);
     }
-    return () => observer.disconnect();
+    // Belt-and-braces for a chrome **tier flip** (compact ↔ wide) and the
+    // standalone visual-viewport sync: the banner/box height is a fresh layout
+    // after a viewport change, and some engines coalesce the observer
+    // notification past the paint. Re-read on the viewport events too, so
+    // `topChromeHeight` (pinned strips, Week (Grid) offsets) can never go stale
+    // until a full reload.
+    window.addEventListener("resize", schedule);
+    window.addEventListener("orientationchange", schedule);
+    const visualViewport = window.visualViewport;
+    visualViewport?.addEventListener("resize", schedule);
+    return () => {
+      observer.disconnect();
+      if (frame !== 0) cancelAnimationFrame(frame);
+      window.removeEventListener("resize", schedule);
+      window.removeEventListener("orientationchange", schedule);
+      visualViewport?.removeEventListener("resize", schedule);
+    };
   }, [isDesktop]);
 
   // The event wizard modal scales with the viewport: it keeps phone widths
@@ -1755,6 +1779,11 @@ function DashboardViewImpl({
   const monthFitBoxRef = useRef<HTMLDivElement | null>(null);
   const monthFitRef = useMergedRef(gridSlideRef, monthFitBoxRef);
   const monthFitActive = isDesktop && shownView === "month";
+  // The two viewport-bounded views at `lg` (Month fit-to-height and Month &
+  // Agenda). Their height is a pure CSS flex chain (see the Stack + wrapper
+  // below), never `100dvh − measured chrome`, so a resize can't leave a blank
+  // strip under the grid when a chrome-tier flip coalesces its observer.
+  const boundedPage = monthFitActive || (isDesktop && shownIsDual);
   const [monthFitHeight, setMonthFitHeight] = useState(0);
   useLayoutEffect(() => {
     const el = monthFitBoxRef.current;
@@ -1766,8 +1795,28 @@ function DashboardViewImpl({
     update();
     const observer = new ResizeObserver(update);
     observer.observe(el);
-    return () => observer.disconnect();
-  }, [monthFitActive]);
+    // A chrome tier flip changes the box height *and* can coalesce the observer
+    // notification past the paint; re-read on viewport changes too.
+    let frame = 0;
+    const schedule = () => {
+      if (frame !== 0) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        update();
+      });
+    };
+    window.addEventListener("resize", schedule);
+    window.addEventListener("orientationchange", schedule);
+    const visualViewport = window.visualViewport;
+    visualViewport?.addEventListener("resize", schedule);
+    return () => {
+      observer.disconnect();
+      if (frame !== 0) cancelAnimationFrame(frame);
+      window.removeEventListener("resize", schedule);
+      window.removeEventListener("orientationchange", schedule);
+      visualViewport?.removeEventListener("resize", schedule);
+    };
+  }, [monthFitActive, topChromeHeight]);
   // Rows must match what the grid actually renders — the optimistic month
   // while an adjacent month is still being read.
   const monthFitRows = monthGridRows(monthOptimistic ? shownMonth : month, weekStartsOn);
@@ -3599,84 +3648,227 @@ function DashboardViewImpl({
   // (with Quick links). Kept compact (36px controls) — it is permanently visible
   // at `lg`+. In the compact desktop tier (`isCompactDesktop`: the 640-799px band
   // or any viewport whose wide-layout month day cell fits only two chips) it is
-  // the chrome's ONLY row: the tab strip is replaced by a view trigger at its left
-  // end. In the narrow 640-799px band the New-event / Quick-links buttons also
-  // drop to icon-only so the row fits the ~544px content width the 64px icon rail
-  // leaves; a wide-but-short viewport has room for their labels
+  // the chrome's ONLY row, and it is laid out as **two groups** instead of a flat
+  // run of pills: a frosted navigator slab on the left (view trigger · period
+  // stepper · filter · date, divided into logical sections) and the saturated
+  // New-event / Quick-links actions on the right. In the narrow 640-799px band
+  // the actions drop to icon-only so the row fits the ~544px content width the
+  // 64px icon rail leaves; a wide-but-short viewport has room for their labels
   // (docs/dashboard-views.md §1.1).
-  const navRow = (
-    <Group
-      align="center"
-      gap={isCompactDesktop ? 4 : "xs"}
-      wrap="nowrap"
-      mt={isCompactDesktop ? 2 : "xs"}
+  const navPrev = (
+    <ActionIcon
+      size={36}
+      radius={isCompactDesktop ? 10 : undefined}
+      variant={isCompactDesktop ? "subtle" : "default"}
+      color={isCompactDesktop ? "gray" : undefined}
+      className={isCompactDesktop ? "c2-compact-control" : "c2-glass-btn"}
+      aria-label={periodStepLabel("Previous")}
+      onClick={() => navigatePeriod(-1)}
     >
-      {/* Compact tier: the single row's left end carries the active view (the
-          strip being folded away would otherwise leave the view announced but
-          never shown). Label + kind icon + chevron; the dropdown is the same
-          `viewMenuItems` the mobile pill uses, so Add-/Manage-views stay
-          reachable. Passive when the account has one tab and cannot manage
-          views — then it is just the name. */}
-      {isCompactDesktop &&
-        (tabs.length > 1 || canManageViews ? (
-          <Menu
-            shadow="md"
-            width={240}
-            position="bottom-start"
-            withinPortal
-            transitionProps={{
-              transition: "pop-top-left",
-              duration: motion.duration.popover,
-              timingFunction: motion.easing.out,
-            }}
-            styles={{
-              dropdown: { maxHeight: "min(60vh, 380px)", overflowY: "auto" },
-            }}
+      <IconChevronLeft size={18} />
+    </ActionIcon>
+  );
+  const navNext = (
+    <ActionIcon
+      size={36}
+      radius={isCompactDesktop ? 10 : undefined}
+      variant={isCompactDesktop ? "subtle" : "default"}
+      color={isCompactDesktop ? "gray" : undefined}
+      className={isCompactDesktop ? "c2-compact-control" : "c2-glass-btn"}
+      aria-label={periodStepLabel("Next")}
+      onClick={() => navigatePeriod(1)}
+    >
+      <IconChevronRight size={18} />
+    </ActionIcon>
+  );
+  const navFilter = (
+    <FilterButton
+      activeCount={activeFilterCount}
+      onClick={(e) => {
+        setFilterOriginRect(e.currentTarget.getBoundingClientRect());
+        openFilter();
+      }}
+      size={36}
+      iconSize={18}
+      radius={isCompactDesktop ? 10 : undefined}
+      className={isCompactDesktop ? "c2-compact-control" : "c2-glass-btn"}
+    />
+  );
+  const navDate = (
+    <ActionIcon
+      size={36}
+      radius={isCompactDesktop ? 10 : undefined}
+      variant={isCompactDesktop ? "subtle" : "default"}
+      color={isCompactDesktop ? "gray" : undefined}
+      className={isCompactDesktop ? "c2-compact-control" : "c2-glass-btn"}
+      aria-label="Select date"
+      title="Select date"
+      onClick={(e) => {
+        setPickerOriginRect(e.currentTarget.getBoundingClientRect());
+        openPicker();
+      }}
+    >
+      <IconCalendarDot size={18} />
+    </ActionIcon>
+  );
+  const navNewEvent = isNarrowDesktop ? (
+    <ActionIcon
+      size={40}
+      radius={12}
+      variant="default"
+      className="c2-glass-btn c2-glass-fab--brand-solid"
+      aria-label="New event"
+      title="New event"
+      disabled={!googleConfigured}
+      onClick={(e) =>
+        openCreate(
+          isAgenda ? headerDate : isDual ? shownDate : today,
+          e.currentTarget.getBoundingClientRect(),
+        )
+      }
+    >
+      <IconPlus size={20} />
+    </ActionIcon>
+  ) : (
+    <Button
+      visibleFrom="lg"
+      radius={isCompactDesktop ? 12 : undefined}
+      className="c2-glass-btn c2-glass-fab--brand-solid"
+      __vars={{ "--button-height": isCompactDesktop ? "40px" : "36px" }}
+      leftSection={<IconPlus size={16} />}
+      disabled={!googleConfigured}
+      onClick={(e) =>
+        openCreate(
+          isAgenda ? headerDate : isDual ? shownDate : today,
+          e.currentTarget.getBoundingClientRect(),
+        )
+      }
+    >
+      New event
+    </Button>
+  );
+  const navQuickLinks =
+    quickLinks.length > 0 ? (
+      <QuickLinksMenu
+        links={quickLinks}
+        position="bottom-end"
+        trigger={
+          isNarrowDesktop ? (
+            <ActionIcon
+              size={40}
+              radius={12}
+              variant="default"
+              className="c2-glass-btn c2-glass-fab--accent-solid"
+              aria-label="Quick links"
+              title="Quick links"
+            >
+              <IconLink size={20} />
+            </ActionIcon>
+          ) : (
+            <Button
+              visibleFrom="lg"
+              radius={isCompactDesktop ? 12 : undefined}
+              variant="default"
+              className="c2-glass-btn c2-glass-fab--accent-solid"
+              __vars={{ "--button-height": isCompactDesktop ? "40px" : "36px" }}
+              leftSection={<IconLink size={16} />}
+              aria-label="Quick links"
+            >
+              Quick links
+            </Button>
+          )
+        }
+      />
+    ) : null;
+  // Compact tier's navigator slab: the folded-away strip's active view (the
+  // view trigger), then the period stepper and the filter/date controls as
+  // divided sections of one surface. Passive name when there is only one tab and
+  // the account cannot manage views.
+  const compactViewTrigger =
+    tabs.length > 1 || canManageViews ? (
+      <Menu
+        shadow="md"
+        width={240}
+        position="bottom-start"
+        withinPortal
+        transitionProps={{
+          transition: "pop-top-left",
+          duration: motion.duration.popover,
+          timingFunction: motion.easing.out,
+        }}
+        styles={{
+          dropdown: { maxHeight: "min(60vh, 380px)", overflowY: "auto" },
+        }}
+      >
+        <Menu.Target>
+          <Button
+            variant="subtle"
+            color="gray"
+            size="compact-md"
+            radius={10}
+            className="c2-compact-control"
+            __vars={{ "--button-height": "36px" }}
+            leftSection={<span className={shownTabFaded}>{viewIcon}</span>}
+            rightSection={
+              <Group gap={4} wrap="nowrap">
+                {shownTabStatus === "loading" && (
+                  <Loader size={9} color="accent" className="c2-fade-in" aria-hidden />
+                )}
+                <IconChevronDown size={16} aria-hidden />
+              </Group>
+            }
+            aria-label={`Calendar view: ${shownTabName}`}
+            title={`Calendar view: ${shownTabName}`}
+            aria-busy={shownTabStatus === "loading" || undefined}
+            style={{ flex: "0 1 auto", minWidth: 0, maxWidth: 168 }}
           >
-            <Menu.Target>
-              <Button
-                variant="default"
-                className="c2-glass-btn"
-                __vars={{ "--button-height": "36px" }}
-                size="compact-md"
-                leftSection={<span className={shownTabFaded}>{viewIcon}</span>}
-                rightSection={
-                  <Group gap={4} wrap="nowrap">
-                    {shownTabStatus === "loading" && (
-                      <Loader size={9} color="accent" className="c2-fade-in" aria-hidden />
-                    )}
-                    <IconChevronDown size={16} aria-hidden />
-                  </Group>
-                }
-                aria-label={`Calendar view: ${shownTabName}`}
-                title={`Calendar view: ${shownTabName}`}
-                aria-busy={shownTabStatus === "loading" || undefined}
-                style={{ flex: "0 0 auto", maxWidth: 168 }}
-              >
-                <Text
-                  size="sm"
-                  fw={600}
-                  className={shownTabFaded}
-                  truncate
-                  style={{ maxWidth: 110 }}
-                >
-                  {shownTabName}
-                </Text>
-              </Button>
-            </Menu.Target>
-            <Menu.Dropdown>{viewMenuItems}</Menu.Dropdown>
-          </Menu>
-        ) : (
-          <Text
-            size="sm"
-            fw={600}
-            lineClamp={1}
-            title={shownTabName}
-            style={{ flex: "0 0 auto", maxWidth: 168 }}
-          >
-            {shownTabName}
-          </Text>
-        ))}
+            <Text size="sm" fw={600} className={shownTabFaded} truncate style={{ maxWidth: 110 }}>
+              {shownTabName}
+            </Text>
+          </Button>
+        </Menu.Target>
+        <Menu.Dropdown>{viewMenuItems}</Menu.Dropdown>
+      </Menu>
+    ) : (
+      <Text
+        size="sm"
+        fw={600}
+        lineClamp={1}
+        title={shownTabName}
+        style={{ flex: "0 1 auto", minWidth: 0, maxWidth: 168, paddingInline: 10 }}
+      >
+        {shownTabName}
+      </Text>
+    );
+  const navRow = isCompactDesktop ? (
+    <Group align="center" gap={8} wrap="nowrap" style={{ width: "100%" }}>
+      <Box className="c2-compact-cluster">
+        {compactViewTrigger}
+        <Box className="c2-compact-divider" aria-hidden />
+        <Text
+          fw={600}
+          size="sm"
+          lineClamp={1}
+          title={periodLabel}
+          style={{ flex: 1, minWidth: 0, textAlign: "center" }}
+        >
+          {periodLabel}
+        </Text>
+        {/* The date steppers are one grouped pair (not split around the
+            label): the period reads first, the adjacent ‹ › advances it. */}
+        {navPrev}
+        {navNext}
+        <Box className="c2-compact-divider" aria-hidden />
+        {navFilter}
+        {navDate}
+      </Box>
+      <Group align="center" gap={8} wrap="nowrap" style={{ flex: "0 0 auto" }}>
+        {navNewEvent}
+        {navQuickLinks}
+      </Group>
+    </Group>
+  ) : (
+    <Group align="center" gap="xs" wrap="nowrap" mt="xs">
       <Text fw={600} size="md" lineClamp={1} style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
         {/* Label flavor follows the optimistic chrome (same contract as the
             skeleton below): the period you asked for is what reads, even while
@@ -3687,132 +3879,12 @@ function DashboardViewImpl({
       </Text>
       {/* Period chevrons: in the nav row at lg; below `lg` they ride the FAB
           cluster as the `[< | >]` pill (see the mobile FloatingToolbar). */}
-      <ActionIcon
-        size={36}
-        variant="default"
-        className="c2-glass-btn"
-        aria-label={periodStepLabel("Previous")}
-        onClick={() => navigatePeriod(-1)}
-      >
-        <IconChevronLeft size={18} />
-      </ActionIcon>
-      <ActionIcon
-        size={36}
-        variant="default"
-        className="c2-glass-btn"
-        aria-label={periodStepLabel("Next")}
-        onClick={() => navigatePeriod(1)}
-      >
-        <IconChevronRight size={18} />
-      </ActionIcon>
-      {/* Desktop: the "New event" FAB lives in the nav row instead of the
-          bottom corner (the FAB is hidden at lg, below). In the narrow
-          640-799px band the label is dropped — that row has no room for it, so
-          the brand circle carries only the plus (the accessible name + title
-          stay full). A wide-but-short viewport keeps the label: the compact tier
-          only removes the tab-strip row there, not horizontal room. */}
-      {isNarrowDesktop ? (
-        <ActionIcon
-          size={36}
-          variant="default"
-          className="c2-glass-btn c2-glass-fab--brand"
-          aria-label="New event"
-          title="New event"
-          disabled={!googleConfigured}
-          onClick={(e) =>
-            openCreate(
-              isAgenda ? headerDate : isDual ? shownDate : today,
-              e.currentTarget.getBoundingClientRect(),
-            )
-          }
-        >
-          <IconPlus size={16} />
-        </ActionIcon>
-      ) : (
-        <Button
-          visibleFrom="lg"
-          className="c2-glass-btn c2-glass-fab--brand"
-          __vars={{ "--button-height": "36px" }}
-          leftSection={<IconPlus size={16} />}
-          disabled={!googleConfigured}
-          onClick={(e) =>
-            openCreate(
-              isAgenda ? headerDate : isDual ? shownDate : today,
-              e.currentTarget.getBoundingClientRect(),
-            )
-          }
-        >
-          New event
-        </Button>
-      )}
-      {/* The same quick-links menu, launched from the nav row at lg (the
-          mobile FAB is hidden there). Amber + labelled on purpose: it must
-          never be confused with the grey "More options" kebab next door; in the
-          narrow 640-799px band it is the icon-only amber circle (a wide-but-short
-          viewport keeps the label). */}
-      {quickLinks.length > 0 && (
-        <QuickLinksMenu
-          links={quickLinks}
-          position="bottom-end"
-          trigger={
-            isNarrowDesktop ? (
-              <ActionIcon
-                size={36}
-                variant="light"
-                color="accent"
-                className="c2-glass-btn c2-glass-fab--accent"
-                aria-label="Quick links"
-                title="Quick links"
-              >
-                <IconLink size={16} />
-              </ActionIcon>
-            ) : (
-              <Button
-                visibleFrom="lg"
-                variant="light"
-                color="accent"
-                className="c2-glass-btn c2-glass-fab--accent"
-                __vars={{ "--button-height": "36px" }}
-                leftSection={<IconLink size={16} />}
-                aria-label="Quick links"
-              >
-                Quick links
-              </Button>
-            )
-          }
-        />
-      )}
-      {/* Filters live in their own primary affordance (icon + count badge).
-          Date/Today navigation sits in the combined calendar button next door;
-          the fullscreen toggle is a floating button on the calendar (Force
-          refresh lives in the profile menu). */}
-      <FilterButton
-        activeCount={activeFilterCount}
-        onClick={(e) => {
-          setFilterOriginRect(e.currentTarget.getBoundingClientRect());
-          openFilter();
-        }}
-        size={36}
-        iconSize={18}
-        className="c2-glass-btn"
-      />
-      {/* Date + Today combined: a single calendar button (the old kebab's slot)
-          opens the view-aware date selector, which also carries the "Today"
-          action. The fullscreen toggle moved to a floating button on the
-          calendar (FullscreenToggle, below). */}
-      <ActionIcon
-        size={36}
-        variant="default"
-        className="c2-glass-btn"
-        aria-label="Select date"
-        title="Select date"
-        onClick={(e) => {
-          setPickerOriginRect(e.currentTarget.getBoundingClientRect());
-          openPicker();
-        }}
-      >
-        <IconCalendarDot size={18} />
-      </ActionIcon>
+      {navPrev}
+      {navNext}
+      {navNewEvent}
+      {navQuickLinks}
+      {navFilter}
+      {navDate}
     </Group>
   );
 
@@ -3974,6 +4046,20 @@ function DashboardViewImpl({
           "--c2-bottom-chrome-height": isDesktop
             ? "0px"
             : `${bottomChromeHeight + 12 + fabStackHeight - FAB_SIZE}px`,
+          // Viewport-bounded views at `lg`: the page *is* the remaining
+          // viewport, so the bounded column below can simply flex into it.
+          // No measured chrome term in the height — a tier flip or a missed
+          // ResizeObserver tick can no longer leave the grid short of the
+          // bottom until a reload.
+          ...(boundedPage
+            ? {
+                height:
+                  "calc(var(--app-shell-vh, 100dvh) - var(--app-shell-header-offset) - var(--app-shell-footer-offset))",
+                display: "flex",
+                flexDirection: "column",
+                minHeight: 0,
+              }
+            : null),
         } as CSSProperties
       }
     >
@@ -4013,9 +4099,11 @@ function DashboardViewImpl({
           // the grid edge.
           paddingTop: immersiveMode.active
             ? "env(safe-area-inset-top)"
-            : isDesktop
-              ? undefined
-              : "calc(0.125rem * var(--mantine-scale))",
+            : isCompactDesktop
+              ? "calc(0.25rem * var(--mantine-scale))"
+              : isDesktop
+                ? undefined
+                : "calc(0.125rem * var(--mantine-scale))",
           paddingBottom: isCompactDesktop
             ? "calc(0.25rem * var(--mantine-scale))"
             : isDesktop
@@ -4024,6 +4112,10 @@ function DashboardViewImpl({
           // Marks the chrome's bottom edge while content scrolls beneath it
           // (the tabs list's own border now sits mid-block, above the nav).
           borderBottom: "1px solid var(--mantine-color-default-border)",
+          // The Stack is a flex column; never let the chrome be squashed when
+          // a bounded view's remainder gets tight (and keep the page pad math
+          // honest). The grid wrapper is the only item that shrinks.
+          flexShrink: 0,
         }}
       >
         {/* View tabs stay visible in fullscreen — they (plus the trailing
@@ -4192,7 +4284,7 @@ function DashboardViewImpl({
       </Box>
 
       {currentUserName.trim().length <= 2 && (
-        <Alert color="yellow" title="Your display name is incomplete">
+        <Alert color="yellow" title="Your display name is incomplete" style={{ flexShrink: 0 }}>
           Your current display name &ldquo;{currentUserName}&rdquo; is too short — you&apos;ll be
           difficult to identify in the calendar, schedule view, and event titles.
           <Text component="p" mt="xs" size="sm">
@@ -4217,7 +4309,7 @@ function DashboardViewImpl({
       )}
 
       {!googleConfigured && (
-        <Alert color="yellow" title="Google Calendar is not configured">
+        <Alert color="yellow" title="Google Calendar is not configured" style={{ flexShrink: 0 }}>
           Events cannot be created or edited until Google service-account credentials are set.
         </Alert>
       )}
@@ -4228,6 +4320,7 @@ function DashboardViewImpl({
           title="Could not open that event"
           withCloseButton
           onClose={() => setEditLinkFailed(false)}
+          style={{ flexShrink: 0 }}
         >
           It is not in your current view — adjust the calendar filters or check the date of the
           event.
@@ -4253,6 +4346,12 @@ function DashboardViewImpl({
             "--c2-row-zoom": gridWeekRowZoom,
             "--c2-slot-base": scheduleSlotBase,
             "--ruler-slot": `calc(var(--c2-slot-base) * ${ZOOM_VAR})`,
+            // The Stack's flexible item for the bounded views: it takes the
+            // remaining height and hands it to the inner gutter/slide wrapper,
+            // so the grid below can flex-fill with no measured-chrome term.
+            ...(boundedPage
+              ? { flex: "1 1 0", minHeight: 0, display: "flex", flexDirection: "column" }
+              : null),
           } as CSSProperties
         }
       >
@@ -4260,18 +4359,17 @@ function DashboardViewImpl({
           className="c2-gutter-anim"
           style={{
             overflow: "clip",
-            // Fit-to-height month (`lg`): the wrapper becomes the bounded flex
-            // column — the weekday strip is its fixed header, the grid box below
-            // fills the rest to the viewport bottom (`month-page-pad` zeroes the
-            // page padding and reclaims Main's, so the column totals exactly
-            // `100dvh` with no document scroll). The Stack gap is already
-            // cancelled by the negative `marginTop` below, so the budget
-            // subtracts only header + footer + measured chrome.
-            display: monthFitActive ? "flex" : undefined,
-            flexDirection: monthFitActive ? "column" : undefined,
-            height: monthFitActive
-              ? `calc(var(--app-shell-vh, 100dvh) - var(--app-shell-header-offset) - var(--app-shell-footer-offset) - ${topChromeHeight}px)`
-              : undefined,
+            // Viewport-bounded views at `lg`: the wrapper is the Stack's flex
+            // remainder (the Stack is exactly `100dvh − header − footer`), so
+            // its height tracks resizes natively — the weekday strip is the
+            // Month column's fixed header and the grid box below fills the rest
+            // to the viewport bottom (`month-page-pad` zeroes the page padding
+            // and reclaims Main's, so the column totals exactly `100dvh` with no
+            // document scroll). No measured-chrome term in the height: a chrome
+            // tier flip can't leave a stale blank strip.
+            display: boundedPage ? "flex" : undefined,
+            flexDirection: boundedPage ? "column" : undefined,
+            ...(boundedPage ? { flex: "1 1 0", minHeight: 0 } : null),
             // Month view: the pinned weekday strip is the grid's header, so it
             // must dock flush under the sticky top chrome (its sticky `top`),
             // not 12px below it (the Stack's page gap). Cancelling the gap
@@ -4370,7 +4468,6 @@ function DashboardViewImpl({
                   <DualPaneSkeleton
                     rows={monthGridRows(shownMonth, weekStartsOn)}
                     splitPct={dualSplit}
-                    chromeOffset={topChromeHeight}
                   />
                 ) : shownIsWeekV2 ? (
                   <WeekMatrixSkeleton />
@@ -5512,14 +5609,12 @@ function DashboardViewImpl({
           Affix carries `hiddenFrom="lg"`) so its measured width never goes stale
           while the wizard modal is open — it just sits behind the modal overlay.
           The row floats right-anchored above the control pill: the period-step
-          chevrons `[< | >]` pill left, then the amber Quick-links **circle**
-          button (`c2-glass-fab--accent`) when the org has links, and the
-          New-event **circle** button (`c2-glass-fab--brand` — the same
-          brand-blue tint as the lg nav-row button) parked on the right. Every
-          control is a 56px circle (the chevron pill hugs its 56px circles,
-          so the whole row is one height) and the tinted circles carry
-          `c2-glass-btn--bordered` (the grey hairline ring that matches the
-          pill containers).
+          chevrons `[< | >]` pill left, then the fully saturated amber
+          Quick-links **circle** (`c2-glass-fab--accent-solid`) when the org has
+          links, and the fully saturated New-event **circle**
+          (`c2-glass-fab--brand-solid` — the same solid brand blue as the lg
+          nav-row button) parked on the right. Every control is a 56px circle
+          (the chevron pill hugs its 56px circles, so the whole row is one height).
           When the wizard is minimized the draft docks as a chip on the row's left,
           flexing into whatever space the fixed controls leave — the chevrons,
           Quick links and New-event circle stay reachable, and on phones too narrow
@@ -5607,7 +5702,7 @@ function DashboardViewImpl({
                   position="top-end"
                   trigger={
                     <Button
-                      className="c2-glass-btn c2-glass-fab--accent c2-glass-btn--bordered"
+                      className="c2-glass-btn c2-glass-fab--accent-solid"
                       aria-label="Quick links"
                       radius="50%"
                       w={56}
@@ -5625,7 +5720,7 @@ function DashboardViewImpl({
                 create/resume affordance. */}
             {!createYielded && (
               <Button
-                className="c2-glass-btn c2-glass-fab--brand c2-glass-btn--bordered"
+                className="c2-glass-btn c2-glass-fab--brand-solid"
                 aria-label="New event"
                 radius="50%"
                 w={56}
