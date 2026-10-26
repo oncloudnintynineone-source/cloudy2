@@ -45,6 +45,7 @@ import {
   type ReorderDrag,
 } from "@/lib/settings/featureFlags";
 import { moveToIndex, swapAdjacent, useReorderRows } from "@/lib/ui/reorderRows";
+import { AUTOSIZE_VERTICAL_SCROLL_PROPS } from "@/lib/ui/scrollArea";
 import {
   ROW_ACTION_ICON_SIZE,
   ROW_ACTION_SIZE,
@@ -277,7 +278,12 @@ export function EditViewsModal({
             No views yet. Add one above.
           </Text>
         ) : (
-          <ScrollArea.Autosize mah="min(60vh, 420px)" mx="-sm" px="sm">
+          <ScrollArea.Autosize
+            {...AUTOSIZE_VERTICAL_SCROLL_PROPS}
+            mah="min(60vh, 420px)"
+            mx="-sm"
+            px="sm"
+          >
             <SortableList
               keys={displayTabs.map((tab) => tab.id)}
               onMove={(id, toIndex) => void moveTo(id, toIndex)}

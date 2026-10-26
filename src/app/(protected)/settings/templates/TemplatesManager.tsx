@@ -49,6 +49,7 @@ import {
   validateNameTemplate,
 } from "@/lib/settings/validate";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
+import { AUTOSIZE_VERTICAL_SCROLL_PROPS } from "@/lib/ui/scrollArea";
 import dynamic from "next/dynamic";
 import { FormModalSkeleton } from "@/components/FormModalSkeleton";
 
@@ -335,7 +336,12 @@ export function TemplatesManager({
             </Group>
           </Group>
 
-          <ScrollArea.Autosize mah="min(50vh, 340px)" mx="-sm" px="sm">
+          <ScrollArea.Autosize
+            {...AUTOSIZE_VERTICAL_SCROLL_PROPS}
+            mah="min(50vh, 340px)"
+            mx="-sm"
+            px="sm"
+          >
             <Stack gap="sm">
               <Row
                 leading={
@@ -580,7 +586,12 @@ function AssignmentsDialog({
           Each calendar view, the pinned ticker, and the Double Booking report use the assigned
           template, or Master when empty. Notifications fall back to their built-in copy when empty.
         </Text>
-        <ScrollArea.Autosize mah="min(60vh, 420px)" mx="-sm" px="sm">
+        <ScrollArea.Autosize
+          {...AUTOSIZE_VERTICAL_SCROLL_PROPS}
+          mah="min(60vh, 420px)"
+          mx="-sm"
+          px="sm"
+        >
           <Stack gap="sm">
             {EVENT_TITLE_ASSIGNMENT_TARGETS.map((target) => {
               const id = values[target] ?? "";

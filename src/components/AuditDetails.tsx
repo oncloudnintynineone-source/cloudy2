@@ -8,6 +8,7 @@ import {
   type AuditDisplayDetails,
   type DetailValue,
 } from "@/lib/audit/format";
+import { AUTOSIZE_VERTICAL_SCROLL_PROPS } from "@/lib/ui/scrollArea";
 
 /**
  * Renders one audit row's `details` payload (see `formatAuditDetails`): the
@@ -23,7 +24,7 @@ export function AuditDetails({ details }: { details: unknown }) {
 function AuditDetailsBody({ details }: { details: AuditDisplayDetails }) {
   if (details.kind === "json") {
     return (
-      <ScrollArea.Autosize mah={320} type="auto">
+      <ScrollArea.Autosize {...AUTOSIZE_VERTICAL_SCROLL_PROPS} mah={320} type="auto">
         <Text
           component="pre"
           size="xs"
@@ -35,7 +36,7 @@ function AuditDetailsBody({ details }: { details: AuditDisplayDetails }) {
     );
   }
   return (
-    <ScrollArea.Autosize mah={420} type="auto">
+    <ScrollArea.Autosize {...AUTOSIZE_VERTICAL_SCROLL_PROPS} mah={420} type="auto">
       <Stack gap="sm">
         {details.values.length > 0 ? <DetailValueList items={details.values} /> : null}
         {details.kind === "changes" && details.lines.length > 0 ? (

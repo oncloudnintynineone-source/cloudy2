@@ -195,7 +195,12 @@ search (`EventSearchBody`): one bordered container (1px default border, `radius-
 `borderTop` — no per-row cards). Each row is an `UnstyledButton` with a 4×30px rounded
 accent bar in the event's read-time color (`--mantine-color-<color>-filled`), a
 truncated semibold `sm` title, and one dim `xs` meta line
-(`"Wed, Sep 10 · 8:00 AM · Fire Dept"`, departments omitted when empty). A dim `xs`
+(`"Wed, Sep 10 · 8:00 AM · Fire Dept"`, departments omitted when empty). The list
+scroll area spreads the shared `AUTOSIZE_VERTICAL_SCROLL_PROPS`
+(`src/lib/ui/scrollArea.ts`: vertical-only scrollbars + `content.minWidth: 0`) because
+Mantine v9's `ScrollArea.Autosize` otherwise sets `min-width: min-content` on its
+content — a long title would widen the content past the viewport and force a horizontal
+scrollbar instead of truncating. A dim `xs`
 orientation line under the modal title ("Shown to everyone on the header ticker · next
 3 months") mirrors the fixed window from §1.2. Loading holds the skeleton for at least
 150ms (`useMinSkeletonHold`) while mirroring the row geometry (accent bar + title +

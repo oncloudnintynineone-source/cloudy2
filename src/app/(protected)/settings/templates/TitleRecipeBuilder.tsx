@@ -55,6 +55,7 @@ import {
 } from "@/lib/settings/titleRecipe";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { moveToIndex, swapAdjacent, useReorderRows } from "@/lib/ui/reorderRows";
+import { AUTOSIZE_VERTICAL_SCROLL_PROPS } from "@/lib/ui/scrollArea";
 import {
   isReorderArrowsEnabled,
   isReorderDragEnabled,
@@ -566,7 +567,12 @@ export function TitleRecipeBuilder({
         centered
         size={isDesktop ? "sm" : "xs"}
       >
-        <ScrollArea.Autosize mah="min(60vh, 420px)" mx="-sm" px="sm">
+        <ScrollArea.Autosize
+          {...AUTOSIZE_VERTICAL_SCROLL_PROPS}
+          mah="min(60vh, 420px)"
+          mx="-sm"
+          px="sm"
+        >
           <Stack gap={6}>
             <Text size="sm" c="dimmed">
               Pick what this template shows. A field only appears when the event has content for it.
@@ -625,7 +631,7 @@ function SegmentOptions({ row, onSave }: { row: Row; onSave: (patch: Partial<Row
       <Text fz="xs" fw={700} c="dimmed" tt="uppercase">
         Field
       </Text>
-      <ScrollArea.Autosize mah={240} mx="-sm" px="sm">
+      <ScrollArea.Autosize {...AUTOSIZE_VERTICAL_SCROLL_PROPS} mah={240} mx="-sm" px="sm">
         <FieldPicker onPick={applyField} />
       </ScrollArea.Autosize>
 

@@ -28,6 +28,7 @@ import { modalZoomTransitionProps } from "@/lib/motion/transitions";
 import { useMotion } from "@/components/MotionProvider";
 import { NARROW_MEDIA_QUERY } from "@/lib/theme";
 import { usePinnedPanel } from "@/lib/ui/pinnedPanel";
+import { AUTOSIZE_VERTICAL_SCROLL_PROPS } from "@/lib/ui/scrollArea";
 
 import { EmptyState } from "./EmptyState";
 import { LoadingStatus } from "./LoadingStatus";
@@ -196,7 +197,12 @@ export function PinnedEventsPanel({ seedEvents = null }: PinnedEventsPanelProps)
       <Text size="xs" c="dimmed" mb="sm">
         Shown to everyone on the header ticker · next 3 months
       </Text>
-      <ScrollArea.Autosize mah="min(70dvh, 560px)" mx="-md" px="md">
+      <ScrollArea.Autosize
+        {...AUTOSIZE_VERTICAL_SCROLL_PROPS}
+        mah="min(70dvh, 560px)"
+        mx="-md"
+        px="md"
+      >
         <Box ref={listRef} pos="relative" className={CONTENT_ENTER_CLASS}>
           {loading ? (
             <Box
