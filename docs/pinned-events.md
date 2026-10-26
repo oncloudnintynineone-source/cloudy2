@@ -188,6 +188,23 @@ their final height — the loading skeleton (only shown in the cold-start race w
 shell's mount fetch hasn't resolved yet) is sized to a short list so it can never
 overshoot the content and collapse the modal.
 
+**Visual recipe — the shared one-list-per-surface convention.** The panel body follows
+the same list recipe as My Events ([event-history.md](event-history.md) §1.4) and event
+search (`EventSearchBody`): one bordered container (1px default border, `radius-md`,
+`overflow: hidden`) holds hairline-separated rows (`padding: spacing-sm` + per-row
+`borderTop` — no per-row cards). Each row is an `UnstyledButton` with a 4×30px rounded
+accent bar in the event's read-time color (`--mantine-color-<color>-filled`), a
+truncated semibold `sm` title, and one dim `xs` meta line
+(`"Wed, Sep 10 · 8:00 AM · Fire Dept"`, departments omitted when empty). A dim `xs`
+orientation line under the modal title ("Shown to everyone on the header ticker · next
+3 months") mirrors the fixed window from §1.2. Loading holds the skeleton for at least
+150ms (`useMinSkeletonHold`) while mirroring the row geometry (accent bar + title +
+meta) inside the same bordered box, and the rows fade in on reveal
+(`useContentEnter` / `.content-enter`). The empty state is the shared `EmptyState`
+with a **Go to calendar** action that closes the panel and navigates to `/dashboard`.
+Tapping a row deep-links to the event (§1.3), its spinner overlay covering just that
+row until the navigation commits.
+
 ## 1.6 File index & related docs
 
 | File | Role |
@@ -200,10 +217,12 @@ overshoot the content and collapse the modal.
 | `src/lib/settings/featureFlags.ts` | The `pinnedTickerIndicator` flag registry entry |
 | `src/lib/ui/pinnedPanel.ts` | `PinnedPanelContext` + change event name |
 | `src/components/PinnedEventsTicker.tsx` | The header pill: indicator + countdown chips + rotating titles |
-| `src/components/PinnedEventsPanel.tsx` | The panel Modal |
+| `src/components/PinnedEventsPanel.tsx` | The panel Modal (shared list-row recipe, §1.5) |
 
 Related docs:
 
+- [`event-history.md`](event-history.md) — the shared list-row recipe (My Events)
+  the panel follows.
 - [`events-cache.md`](events-cache.md) — the month reads behind the panel.
 - [`event-lifecycle.md`](event-lifecycle.md) — the title templates (incl. the
   `pinned` / `pinnedHeader` view assignments).

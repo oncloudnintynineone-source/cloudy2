@@ -5,12 +5,12 @@ import {
   Group,
   Loader,
   Modal,
-  Paper,
   ScrollArea,
   Skeleton,
   Stack,
   Text,
   ThemeIcon,
+  UnstyledButton,
   useMantineTheme,
 } from "@mantine/core";
 import { useMediaQuery, useViewportSize } from "@mantine/hooks";
@@ -21,13 +21,18 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { buildEventDeepLink } from "@/lib/events/deepLink";
 import { fetchPinnedEvents, type PinnedEvent } from "@/lib/events/pinned";
+import { CONTENT_ENTER_CLASS, useContentEnter } from "@/lib/loading/contentEnter";
+import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
 import { modalContentWidth } from "@/lib/motion/origin";
 import { modalZoomTransitionProps } from "@/lib/motion/transitions";
 import { useMotion } from "@/components/MotionProvider";
 import { NARROW_MEDIA_QUERY } from "@/lib/theme";
 import { usePinnedPanel } from "@/lib/ui/pinnedPanel";
 
+import { EmptyState } from "./EmptyState";
 import { LoadingStatus } from "./LoadingStatus";
+
+const LIST_BORDER = "1px solid var(--mantine-color-default-border)";
 
 function formatDay(naive: string): string {
   return naive.slice(0, 10);
@@ -99,9 +104,12 @@ export function PinnedEventsPanel({ seedEvents = null }: PinnedEventsPanelProps)
   // the confirmed copy when present, else the seed — so the normal first open
   // already has content (same data the ticker pill shows) at its final size.
   // The skeleton only appears in the cold-start race where neither the shell's
-  // mount fetch nor this panel's own fetch has resolved yet.
+  // mount fetch nor this panel's own fetch has resolved yet. A minimum hold
+  // keeps the skeleton up for a deliberate 150ms even when warm data lands
+  // instantly, and `useContentEnter` fades the rows in on reveal.
   const visibleEvents = events ?? seedEvents;
-  const loading = open && visibleEvents === null;
+  const loading = useMinSkeletonHold(open && visibleEvents === null);
+  useContentEnter(listRef, !loading);
 
   // The modal zooms out of / shrinks back into the header pin button — the
   // app's standard grow/shrink animation. It is `centered` with a fixed size,
@@ -159,6 +167,15 @@ export function PinnedEventsPanel({ seedEvents = null }: PinnedEventsPanelProps)
     });
   };
 
+  // The empty state's one action: close the panel and land on the calendar,
+  // where the pin switch lives (the event form's settings step).
+  const goToCalendar = () => {
+    closePanel();
+    if (pathname !== "/dashboard") {
+      router.push("/dashboard");
+    }
+  };
+
   return (
     <Modal
       opened={open}
@@ -170,71 +187,85 @@ export function PinnedEventsPanel({ seedEvents = null }: PinnedEventsPanelProps)
           <ThemeIcon variant="light" size="sm">
             <IconPin size={14} />
           </ThemeIcon>
-          <Text fw={700}>Pinned Events</Text>
+          <Text fw={600}>Pinned Events</Text>
         </Group>
       }
       closeButtonProps={{ "aria-label": "Close pinned events" }}
       transitionProps={transitionProps}
     >
+      <Text size="xs" c="dimmed" mb="sm">
+        Shown to everyone on the header ticker · next 3 months
+      </Text>
       <ScrollArea.Autosize mah="min(70dvh, 560px)" mx="-md" px="md">
-        <Box ref={listRef} pos="relative">
-          <Stack gap="xs">
-            {loading ? (
-              <>
-                <LoadingStatus label="Loading pinned events" />
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <Skeleton key={i} height={64} radius="md" />
-                ))}
-              </>
-            ) : null}
-            {!loading && visibleEvents?.length === 0 ? (
-              <Paper p="md" radius="md" withBorder>
-                <Group gap="sm" wrap="nowrap" align="flex-start">
-                  <ThemeIcon variant="light" color="gray" size="lg" radius="md">
-                    <IconCalendarEvent size={18} />
-                  </ThemeIcon>
-                  <Text c="dimmed">No upcoming pinned events.</Text>
-                </Group>
-              </Paper>
-            ) : null}
-            {visibleEvents?.map((event) => (
-              <Paper
-                key={event.id}
-                p="md"
-                radius="md"
-                withBorder
-                component="button"
-                type="button"
-                onClick={(e) => openEventDay(event, e)}
-                style={{ textAlign: "left", cursor: "pointer" }}
-              >
-                <Group gap="sm" wrap="nowrap" align="flex-start">
-                  <Box
+        <Box ref={listRef} pos="relative" className={CONTENT_ENTER_CLASS}>
+          {loading ? (
+            <Box
+              style={{
+                border: LIST_BORDER,
+                borderRadius: "var(--mantine-radius-md)",
+                overflow: "hidden",
+              }}
+            >
+              <LoadingStatus label="Loading pinned events" />
+              <Stack gap={0}>
+                {Array.from({ length: 3 }).map((_, index) => (
+                  <Group
+                    key={index}
+                    gap="sm"
+                    wrap="nowrap"
+                    align="flex-start"
                     style={{
-                      width: 4,
-                      alignSelf: "stretch",
-                      borderRadius: 2,
-                      flexShrink: 0,
+                      padding: "var(--mantine-spacing-sm)",
+                      borderTop: index === 0 ? undefined : LIST_BORDER,
                     }}
-                    bg={event.color}
+                  >
+                    <Skeleton
+                      width={4}
+                      height={28}
+                      radius={2}
+                      style={{ flexShrink: 0, marginTop: 1 }}
+                    />
+                    <Box style={{ flex: 1, minWidth: 0 }}>
+                      <Stack gap={8}>
+                        <Skeleton
+                          height={12}
+                          radius={2}
+                          style={{ width: `${60 - (index % 3) * 12}%` }}
+                        />
+                        <Skeleton height={8} radius={2} w="40%" />
+                      </Stack>
+                    </Box>
+                  </Group>
+                ))}
+              </Stack>
+            </Box>
+          ) : visibleEvents?.length === 0 ? (
+            <EmptyState
+              icon={<IconCalendarEvent size={18} />}
+              description="No upcoming pinned events. Pin one from the event form's settings step — pinned events show here and on the header ticker."
+              actionLabel="Go to calendar"
+              onAction={goToCalendar}
+            />
+          ) : (
+            <Box
+              style={{
+                border: LIST_BORDER,
+                borderRadius: "var(--mantine-radius-md)",
+                overflow: "hidden",
+              }}
+            >
+              <Stack gap={0}>
+                {visibleEvents?.map((event, index) => (
+                  <PinnedEventRow
+                    key={event.id}
+                    event={event}
+                    first={index === 0}
+                    onOpen={(e) => openEventDay(event, e)}
                   />
-                  <Stack gap={2} style={{ minWidth: 0, flex: 1 }}>
-                    <Text fw={600} size="sm" style={{ overflowWrap: "break-word" }}>
-                      {event.title}
-                    </Text>
-                    <Text size="xs" c="dimmed">
-                      {formatDisplay(event.start)}
-                    </Text>
-                    {event.departments.length > 0 ? (
-                      <Text size="xs" c="dimmed" style={{ overflowWrap: "break-word" }}>
-                        {event.departments.join(", ")}
-                      </Text>
-                    ) : null}
-                  </Stack>
-                </Group>
-              </Paper>
-            ))}
-          </Stack>
+                ))}
+              </Stack>
+            </Box>
+          )}
           {opening && (
             <Box
               style={{
@@ -257,5 +288,58 @@ export function PinnedEventsPanel({ seedEvents = null }: PinnedEventsPanelProps)
         </Box>
       </ScrollArea.Autosize>
     </Modal>
+  );
+}
+
+/**
+ * One row of the pinned list — the app's shared list-row recipe (My Events,
+ * event search): hairline-separated inside one bordered container, a 4×30px
+ * rounded accent bar in the event's read-time color, a truncated semibold
+ * title, and one dimmed meta line (time · departments).
+ */
+function PinnedEventRow({
+  event,
+  first,
+  onOpen,
+}: {
+  event: PinnedEvent;
+  first: boolean;
+  onOpen: (e: React.MouseEvent<HTMLButtonElement>) => void;
+}) {
+  const meta = [formatDisplay(event.start), event.departments.join(", ")]
+    .filter(Boolean)
+    .join(" \u00b7 ");
+  return (
+    <UnstyledButton
+      onClick={onOpen}
+      style={{
+        display: "block",
+        width: "100%",
+        textAlign: "left",
+        padding: "var(--mantine-spacing-sm)",
+        borderTop: first ? undefined : LIST_BORDER,
+      }}
+    >
+      <Group gap="sm" wrap="nowrap" align="flex-start">
+        <Box
+          style={{
+            width: 4,
+            height: 30,
+            borderRadius: 2,
+            flexShrink: 0,
+            marginTop: 1,
+            background: `var(--mantine-color-${event.color}-filled)`,
+          }}
+        />
+        <Box style={{ minWidth: 0, flex: 1 }}>
+          <Text fw={600} size="sm" truncate>
+            {event.title}
+          </Text>
+          <Text size="xs" c="dimmed" truncate>
+            {meta}
+          </Text>
+        </Box>
+      </Group>
+    </UnstyledButton>
   );
 }
