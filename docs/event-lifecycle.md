@@ -929,6 +929,10 @@ locally. Placement is branch-dependent:
   row stays a single line of icon-only controls (Edit and Delete are icon-only too).
 - **Read-only / view-only branches** — a standalone calendar-plus icon menu, since there
   is no "More actions" menu to host the exports.
+- **Registration branch** (a non-organizer/admin viewing an open-for-registration event)
+  — the standalone calendar-plus icon shares the button's row, sitting to the right of the
+  full-width **Register / Deregister** button (the button stretches via `flex="1"` so the
+  icon never wraps to a second line).
 
 The two menu items are:
 

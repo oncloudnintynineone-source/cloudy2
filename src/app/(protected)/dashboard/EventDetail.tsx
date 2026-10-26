@@ -471,21 +471,21 @@ export function EventDetail({
                 <Text size="xs" c="dimmed">
                   This event is open for registration. Only the organizer and admins can edit it.
                 </Text>
-                <Button
-                  fullWidth
-                  size="md"
-                  color={isRegistered ? "gray" : "brand"}
-                  variant={isRegistered ? "light" : "filled"}
-                  loading={registrationBusy}
-                  loaderProps={BUTTON_LOADER_PROPS}
-                  leftSection={
-                    isRegistered ? <IconUserMinus size={18} /> : <IconUserPlus size={18} />
-                  }
-                  onClick={handleRegistration}
-                >
-                  {isRegistered ? "Deregister" : "Register"}
-                </Button>
-                <Group justify="flex-end" gap="xs">
+                <Group gap="xs">
+                  <Button
+                    flex="1"
+                    size="md"
+                    color={isRegistered ? "gray" : "brand"}
+                    variant={isRegistered ? "light" : "filled"}
+                    loading={registrationBusy}
+                    loaderProps={BUTTON_LOADER_PROPS}
+                    leftSection={
+                      isRegistered ? <IconUserMinus size={18} /> : <IconUserPlus size={18} />
+                    }
+                    onClick={handleRegistration}
+                  >
+                    {isRegistered ? "Deregister" : "Register"}
+                  </Button>
                   <AddToCalendarMenu event={showEvent} />
                 </Group>
               </Stack>
