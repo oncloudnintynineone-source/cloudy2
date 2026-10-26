@@ -199,8 +199,11 @@ export function EventDetail({
       (registrationEnabled
         ? isCreator
         : (payload.ownerOnlyEdits ? isCreator : true) && (isCreator || isOnEvent)));
-  const showRegistrationAction =
-    !readOnly && registrationEnabled && !canModify && Boolean(payload?.eventId);
+  // The self-service Register/Deregister toggle is available on every
+  // registration event (except read-only surfaces) — including to the organizer
+  // and admins, who get it above their edit actions instead of having to open
+  // the wizard to add/remove themselves.
+  const registrationAvailable = !readOnly && registrationEnabled && Boolean(payload?.eventId);
   const endDisplay =
     showEvent && payload
       ? payload.allDay
@@ -420,53 +423,70 @@ export function EventDetail({
                 )}
               </Group>
             ) : canModify ? (
-              <Group justify="flex-end" gap="xs" mt="md">
-                <EventActionsMenu event={showEvent} onDuplicate={onDuplicate} />
-                {payload.eventId && (
-                  <Tooltip label="History" position="top">
+              <Stack gap="xs" mt="md">
+                {registrationAvailable && (
+                  <Button
+                    size="md"
+                    color={isRegistered ? "gray" : "brand"}
+                    variant={isRegistered ? "light" : "filled"}
+                    loading={registrationBusy}
+                    loaderProps={BUTTON_LOADER_PROPS}
+                    leftSection={
+                      isRegistered ? <IconUserMinus size={18} /> : <IconUserPlus size={18} />
+                    }
+                    onClick={handleRegistration}
+                  >
+                    {isRegistered ? "Deregister" : "Register"}
+                  </Button>
+                )}
+                <Group justify="flex-end" gap="xs">
+                  <EventActionsMenu event={showEvent} onDuplicate={onDuplicate} />
+                  {payload.eventId && (
+                    <Tooltip label="History" position="top">
+                      <ActionIcon
+                        variant="light"
+                        color="gray"
+                        size="xl"
+                        aria-label="View event history"
+                        onMouseEnter={() => {
+                          if (payload.eventId) {
+                            prefetchEventHistory(payload.eventId);
+                          }
+                        }}
+                        onClick={(event) => {
+                          setHistoryOrigin(event.currentTarget.getBoundingClientRect());
+                          setHistoryEventId(payload.eventId);
+                        }}
+                      >
+                        <IconHistory size={22} />
+                      </ActionIcon>
+                    </Tooltip>
+                  )}
+                  <Tooltip label="Edit" position="top">
                     <ActionIcon
                       variant="light"
                       color="gray"
                       size="xl"
-                      aria-label="View event history"
-                      onMouseEnter={() => {
-                        if (payload.eventId) {
-                          prefetchEventHistory(payload.eventId);
-                        }
-                      }}
-                      onClick={(event) => {
-                        setHistoryOrigin(event.currentTarget.getBoundingClientRect());
-                        setHistoryEventId(payload.eventId);
-                      }}
+                      aria-label="Edit event"
+                      onClick={(e) => onEdit(showEvent, e.currentTarget.getBoundingClientRect())}
                     >
-                      <IconHistory size={22} />
+                      <IconPencil size={22} />
                     </ActionIcon>
                   </Tooltip>
-                )}
-                <Tooltip label="Edit" position="top">
-                  <ActionIcon
-                    variant="light"
-                    color="gray"
-                    size="xl"
-                    aria-label="Edit event"
-                    onClick={(e) => onEdit(showEvent, e.currentTarget.getBoundingClientRect())}
-                  >
-                    <IconPencil size={22} />
-                  </ActionIcon>
-                </Tooltip>
-                <Tooltip label="Delete" position="top">
-                  <ActionIcon
-                    variant="light"
-                    color="red"
-                    size="xl"
-                    aria-label="Delete event"
-                    onClick={open}
-                  >
-                    <IconTrash size={22} />
-                  </ActionIcon>
-                </Tooltip>
-              </Group>
-            ) : showRegistrationAction ? (
+                  <Tooltip label="Delete" position="top">
+                    <ActionIcon
+                      variant="light"
+                      color="red"
+                      size="xl"
+                      aria-label="Delete event"
+                      onClick={open}
+                    >
+                      <IconTrash size={22} />
+                    </ActionIcon>
+                  </Tooltip>
+                </Group>
+              </Stack>
+            ) : registrationAvailable ? (
               <Stack gap="xs" mt="md">
                 <Text size="xs" c="dimmed">
                   This event is open for registration. Only the organizer and admins can edit it.

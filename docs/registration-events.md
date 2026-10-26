@@ -54,8 +54,8 @@ affects existing events of that type on the next read.
 
 | Actor | Edit parameters | Manage participants | Register/deregister self | Delete/duplicate |
 | ----- | --------------- | ------------------- | ------------------------ | ---------------- |
-| Admin | Yes | Yes | Via edit | Yes |
-| Organizer | Yes | Yes | Via edit | Yes |
+| Admin | Yes | Yes | Yes (detail button) | Yes |
+| Organizer | Yes | Yes | Yes (detail button) | Yes |
 | Other user | No | No | Yes | No |
 
 The client mirrors this in `EventDetail` (`canModify`), and the server enforces
@@ -140,10 +140,12 @@ belong to one event, not to its duplicate.
   - review shows a “Registration event” badge;
   - zero participants is accepted on submit.
 - **Event detail**:
-  - “Registration event” badge;
-  - the roster is labelled “Registered (N)” and shows an empty state;
-  - non-organizer/non-admin users see a primary **Register** / **Deregister**
-    button instead of Edit/Delete/Duplicate;
+  - "Registration event" badge;
+  - the roster is labelled "Registered (N)" and shows an empty state;
+  - every eligible actor sees a primary **Register** / **Deregister** button:
+    non-organizer/non-admin users see it *instead of* Edit/Delete/Duplicate,
+    while the organizer and admins see it *above* their edit actions (so they
+    can add/remove themselves without opening the wizard);
   - the button patches the local roster immediately and asks the dashboard to
     revalidate after success.
 - **Read-only surfaces** (Double Booking, KAH status, wizard clash detail) never

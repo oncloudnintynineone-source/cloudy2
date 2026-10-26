@@ -134,7 +134,9 @@ doc content here.
   (`event_types.registration_enabled`). Events of that type are organizer/admin-only for
   parameters and roster management; everyone else may only register/deregister
   themselves as participants (a narrow `setEventRegistration` toggle around the shared
-  update pipeline, never a full edit). Registration types force participants on, may be
+  update pipeline, never a full edit). The detail modal shows that same self-toggle to the
+  organizer/admin above their edit actions, so they need not open the wizard to add/remove
+  themselves. Registration types force participants on, may be
   created with zero registrants, and do not auto-add the organizer. Design:
   [docs/registration-events.md](docs/registration-events.md).
 - **Optimistic mutations:** the dashboard renders a short-lived stand-in chip at confirm
