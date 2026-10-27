@@ -131,6 +131,11 @@ export interface ParadeStateViewProps {
   currentUser: string;
   selectedCalendarIds: string[];
   selectedUserIds: string[];
+  /**
+   * Active user ids per department id, so events tagged on a department mark
+   * every active member of it out of camp (not just explicitly tagged users).
+   */
+  departmentMemberships: Record<string, string[]>;
   filterUsers: {
     id: string;
     name: string;
@@ -156,6 +161,7 @@ export function ParadeStateView({
   currentUser,
   selectedCalendarIds: initSelectedCalendars,
   selectedUserIds: initSelectedUsers,
+  departmentMemberships,
   filterUsers,
   nameTemplate,
   isAdmin = false,
@@ -482,7 +488,15 @@ export function ParadeStateView({
     [events, date],
   );
 
-  const eventsByUser = useMemo(() => buildEventsByUser(dayEvents), [dayEvents]);
+  const memberships = useMemo(
+    () => new Map(Object.entries(departmentMemberships)),
+    [departmentMemberships],
+  );
+
+  const eventsByUser = useMemo(
+    () => buildEventsByUser(dayEvents, memberships),
+    [dayEvents, memberships],
+  );
 
   // The department hierarchy (parents before children, by the shared sortOrder)
   // with each user's direct department section; "Unassigned" stays a terminal

@@ -18,6 +18,7 @@ function calendarEvent(overrides: {
   allDay?: boolean;
   outOfCamp?: boolean;
   inviteeUserIds?: string[];
+  inviteeDepartmentIds?: string[];
 }): CalendarEvent {
   return {
     id: overrides.id ?? "cal:1",
@@ -34,7 +35,7 @@ function calendarEvent(overrides: {
       eventId: null,
       creatorId: null,
       inviteeUserIds: overrides.inviteeUserIds ?? [],
-      inviteeDepartmentIds: [],
+      inviteeDepartmentIds: overrides.inviteeDepartmentIds ?? [],
       ownerOnlyEdits: false,
       registrationEnabled: false,
       registrationCap: null,
@@ -64,6 +65,7 @@ function paradeEvent(overrides: Partial<ParadeEvent> = {}): ParadeEvent {
     calendarName: "HQ",
     creatorId: null,
     inviteeUserIds: [],
+    inviteeDepartmentIds: [],
     ...overrides,
   };
 }
@@ -106,8 +108,20 @@ describe("toParadeEvent", () => {
 });
 
 describe("involvedUserIds", () => {
-  it("returns unique attendees only", () => {
-    expect(involvedUserIds({ inviteeUserIds: ["u1", "u1", "u2"] })).toEqual(["u1", "u2"]);
+  it("returns unique attendees only when no memberships are supplied", () => {
+    expect(
+      involvedUserIds({ inviteeUserIds: ["u1", "u1", "u2"], inviteeDepartmentIds: ["d1"] }),
+    ).toEqual(["u1", "u2"]);
+  });
+
+  it("expands tagged departments to their active members", () => {
+    const memberships = new Map([["d1", ["u2", "u3"]]]);
+    expect(
+      involvedUserIds(
+        { inviteeUserIds: ["u1", "u2"], inviteeDepartmentIds: ["d1", "d2"] },
+        memberships,
+      ),
+    ).toEqual(["u1", "u2", "u3"]);
   });
 });
 
@@ -139,5 +153,31 @@ describe("buildEventsByUser", () => {
     const b = paradeEvent({ id: "b", start: "2026-09-13 08:00:00", inviteeUserIds: ["u1"] });
     const map = buildEventsByUser([a, b]);
     expect(map.get("u1")?.map((e) => e.id)).toEqual(["b", "a"]);
+  });
+
+  it("marks every active member of a tagged department out of camp", () => {
+    const out = paradeEvent({
+      id: "out",
+      outOfCamp: true,
+      inviteeUserIds: ["u1"],
+      inviteeDepartmentIds: ["d1"],
+    });
+    const memberships = new Map([["d1", ["u2", "u3"]]]);
+    const map = buildEventsByUser([out], memberships);
+    expect(map.get("u1")?.map((e) => e.id)).toEqual(["out"]);
+    expect(map.get("u2")?.map((e) => e.id)).toEqual(["out"]);
+    expect(map.get("u3")?.map((e) => e.id)).toEqual(["out"]);
+  });
+
+  it("ignores department tags when no memberships are supplied", () => {
+    const out = paradeEvent({
+      id: "out",
+      outOfCamp: true,
+      inviteeUserIds: ["u1"],
+      inviteeDepartmentIds: ["d1"],
+    });
+    const map = buildEventsByUser([out]);
+    expect(map.get("u1")?.map((e) => e.id)).toEqual(["out"]);
+    expect(map.has("u2")).toBe(false);
   });
 });

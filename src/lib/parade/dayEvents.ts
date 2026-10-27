@@ -21,7 +21,14 @@ export interface ParadeEvent {
   calendarName: string;
   creatorId: string | null;
   inviteeUserIds: string[];
+  inviteeDepartmentIds: string[];
 }
+
+/**
+ * Active roster user ids per tagged department id. Supplied by the caller
+ * (server-side read / the loaded roster) so the pure helpers stay I/O-free.
+ */
+export type DepartmentMemberships = ReadonlyMap<string, readonly string[]>;
 
 /**
  * True when an event takes place on `date` (`YYYY-MM-DD`). All-day events use
@@ -52,16 +59,29 @@ export function toParadeEvent(event: CalendarEvent): ParadeEvent {
     calendarName: event.payload.calendarName,
     creatorId: event.payload.creatorId,
     inviteeUserIds: event.payload.inviteeUserIds,
+    inviteeDepartmentIds: event.payload.inviteeDepartmentIds,
   };
 }
 
 /**
- * The people an event marks: attendees only. An organizer who is not attending
- * (not self-invited, outside any tagged department) is not counted on their own
- * out-of-camp listing — they merely own the event.
+ * The people an event marks: tagged attendees plus every active member of each
+ * tagged department (when a membership map is supplied). An organizer who is
+ * not attending (not self-invited, outside any tagged department) is not
+ * counted on their own out-of-camp listing — they merely own the event.
  */
-export function involvedUserIds(event: Pick<ParadeEvent, "inviteeUserIds">): string[] {
-  return [...new Set(event.inviteeUserIds)];
+export function involvedUserIds(
+  event: Pick<ParadeEvent, "inviteeUserIds" | "inviteeDepartmentIds">,
+  memberships?: DepartmentMemberships,
+): string[] {
+  const ids = new Set(event.inviteeUserIds);
+  if (memberships) {
+    for (const departmentId of event.inviteeDepartmentIds) {
+      for (const userId of memberships.get(departmentId) ?? []) {
+        ids.add(userId);
+      }
+    }
+  }
+  return [...ids];
 }
 
 /** Out-of-camp events first, then by start time. */
@@ -74,16 +94,18 @@ export function sortParadeEvents(events: readonly ParadeEvent[]): ParadeEvent[] 
 
 /**
  * Map each involved user id to their out-of-camp events for the day (sorted).
- * In-camp events are ignored — a user counts as in camp exactly when their list
- * is empty.
+ * Department tags are expanded to their active members when `memberships` is
+ * supplied. In-camp events are ignored — a user counts as in camp exactly when
+ * their list is empty.
  */
 export function buildEventsByUser(
   dayEvents: readonly ParadeEvent[],
+  memberships?: DepartmentMemberships,
 ): Map<string, ParadeEvent[]> {
   const map = new Map<string, ParadeEvent[]>();
   for (const event of dayEvents) {
     if (!event.outOfCamp) continue;
-    for (const userId of involvedUserIds(event)) {
+    for (const userId of involvedUserIds(event, memberships)) {
       let list = map.get(userId);
       if (!list) {
         list = [];

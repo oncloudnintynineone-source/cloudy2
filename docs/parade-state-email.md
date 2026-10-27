@@ -187,8 +187,11 @@ Settings → **Parade State Email** (`/settings/parade-email`, admin-only):
   view. Moving attendance to the database is a prerequisite for including it.
 - **Public holidays included.** There is no holiday calendar, so the email still goes out
   on public holidays (kept simple deliberately).
-- **Organizer-only events mark nobody.** Matching the page, only tagged attendees count;
-  an organizer who is not attending is not listed out of camp.
+- **Department tags expand to members.** An out-of-camp event tagged on a department marks
+  every active member of that department out of camp (plus any explicitly tagged
+  attendees), matching how department tags behave in the dashboard filters and the
+  modification guard. An organizer who is not attending and not in a tagged department is
+  not listed out of camp.
 - **Users without an email are skipped** (and noted in the audit row).
 - **No retry queue** beyond the failed-day reclaim: a persistently failing transport means
   no email that day, recorded as `failed`.

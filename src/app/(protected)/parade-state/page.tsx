@@ -56,14 +56,31 @@ export default async function ParadeStatePage({ searchParams }: ParadeStatePageP
   const allUserIds = allUsers.map((user) => user.id);
   const selectedUsers = (prefs?.paradeUsers ?? []).filter((id) => allUserIds.includes(id));
 
+  const activeUsers = allUsers.filter((user) => user.status === "active");
+
+  // Department-tagged events mark every active member of that department out
+  // of camp. Built from the roster already loaded (no extra query); also feeds
+  // the month read's user filter so department-only events survive it.
+  const memberships = new Map<string, string[]>();
+  for (const user of activeUsers) {
+    if (!user.department) continue;
+    const list = memberships.get(user.department.id);
+    if (list) {
+      list.push(user.id);
+    } else {
+      memberships.set(user.department.id, [user.id]);
+    }
+  }
+  const departmentMemberships: Record<string, string[]> = Object.fromEntries(memberships);
+
   const events = await fetchMonthEvents({
     month,
     calendarIds: selectedCalendars,
     typeFilter: [],
     userFilter: selectedUsers,
+    memberships,
   });
 
-  const activeUsers = allUsers.filter((user) => user.status === "active");
   const visibleUsers = scopeParadeUsers(activeUsers, calendarIds, selectedCalendars, selectedUsers);
 
   // Filter-dialog user options: the users in the current calendar scope (no
@@ -119,6 +136,7 @@ export default async function ParadeStatePage({ searchParams }: ParadeStatePageP
           currentUser={session.user.id}
           selectedCalendarIds={selectedCalendars}
           selectedUserIds={selectedUsers}
+          departmentMemberships={departmentMemberships}
           filterUsers={filterUsers}
           nameTemplate={settings.nameTemplate}
           isAdmin={session.user.role === "admin"}

@@ -65,7 +65,6 @@ export async function loadParadeSnapshot(date: string): Promise<ParadeSnapshot> 
   });
 
   const dayEvents = events.filter((event) => eventCoversDay(event, date)).map(toParadeEvent);
-  const eventsByUser = buildEventsByUser(dayEvents);
 
   const activeUsers: SnapshotUser[] = allUsers
     .filter((user) => user.status === "active")
@@ -75,6 +74,21 @@ export async function loadParadeSnapshot(date: string): Promise<ParadeSnapshot> 
       departmentName: user.department?.name ?? null,
       department: user.department ? { id: user.department.id } : null,
     }));
+
+  // Department-tagged events mark every active member of that department out
+  // of camp, matching the Parade State page.
+  const memberships = new Map<string, string[]>();
+  for (const user of activeUsers) {
+    if (!user.department) continue;
+    const list = memberships.get(user.department.id);
+    if (list) {
+      list.push(user.id);
+    } else {
+      memberships.set(user.department.id, [user.id]);
+    }
+  }
+
+  const eventsByUser = buildEventsByUser(dayEvents, memberships);
 
   const sections = buildParadeSections(activeUsers, calendars).map(toEmailSection);
 
