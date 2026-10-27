@@ -3,7 +3,6 @@
 import "@mantine/dates/styles.css";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import {
-  Accordion,
   Badge,
   Box,
   Button,
@@ -35,9 +34,8 @@ import {
 } from "@tabler/icons-react";
 
 import { PickerField, type PickerBadgeItem } from "@/components/PickerField";
-import { SelectableBadge } from "@/components/SelectableBadge";
+import { EventTypeGroupGrid } from "@/components/EventTypeGroupGrid";
 import { useActionPill } from "@/components/ActionPill";
-import { useMotion } from "@/components/MotionProvider";
 import { TimeChipSelector } from "@/components/TimeChipSelector";
 import { UserSelectModal } from "@/components/UserSelectModal";
 import {
@@ -70,11 +68,7 @@ import {
   type LocationCategory,
 } from "@/lib/events/locationPolicy";
 import { eventRefFromCalendarEvent } from "@/lib/events/targets";
-import {
-  buildEventTypePickerSections,
-  initialExpandedSectionIds,
-  type EventTypePickerSection,
-} from "@/lib/eventTypes/groups";
+import { buildEventTypePickerSections } from "@/lib/eventTypes/groups";
 import {
   joinDateTimeParts,
   naiveDatePart,
@@ -268,7 +262,6 @@ export function EventForm({
   onOptimisticRollback,
   optimisticHome,
 }: EventFormProps) {
-  const motion = useMotion();
   const isEdit = event !== null;
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
@@ -526,10 +519,15 @@ export function EventForm({
     [eventTypes, eventTypeGroups],
   );
 
-  // Which folders are open in the type step. A single folder stays open; a
-  // pre-selected type opens its folder; otherwise all start collapsed.
-  const [openSectionIds, setOpenSectionIds] = useState<string[]>(() =>
-    initialExpandedSectionIds(pickerSections, form.values.eventType),
+  // The grid picker's normalized sections (group tile -> popup of types).
+  const typeGridSections = useMemo(
+    () =>
+      pickerSections.map((section) => ({
+        id: section.id,
+        label: section.name,
+        options: section.types.map((type) => ({ value: type.name, label: type.name })),
+      })),
+    [pickerSections],
   );
 
   const allowedOptions: TimeOption[] = selectedType ? selectedType.timeOptions : ["range"];
@@ -1518,24 +1516,6 @@ export function EventForm({
       : []),
   ];
 
-  function renderTypeBadges(section: EventTypePickerSection) {
-    return (
-      <Group gap={6} wrap="wrap">
-        {section.types.map((type) => {
-          const selected = type.name === form.values.eventType;
-          return (
-            <SelectableBadge
-              key={type.name}
-              label={type.name}
-              selected={selected}
-              onToggle={() => handleEventTypeChange(selected ? null : type.name)}
-            />
-          );
-        })}
-      </Group>
-    );
-  }
-
   return (
     <form
       onSubmit={onSubmit}
@@ -1565,60 +1545,16 @@ export function EventForm({
                   No event types
                 </Text>
               ) : (
-                <Stack gap="sm">
-                  {pickerSections.map((section) =>
-                    section.collapsible ? (
-                      // Collapsible folder: types stay tucked away until the
-                      // user opens the folder that holds them.
-                      <Accordion
-                        key={section.id}
-                        variant="separated"
-                        chevronPosition="left"
-                        transitionDuration={motion.duration.popover}
-                        value={openSectionIds.includes(section.id) ? section.id : null}
-                        onChange={(value) =>
-                          // Each folder is its own single-item Accordion sharing
-                          // one open-id list, so toggle just this section's id
-                          // and leave the others as they were.
-                          setOpenSectionIds((prev) =>
-                            value
-                              ? prev.includes(section.id)
-                                ? prev
-                                : [...prev, section.id]
-                              : prev.filter((id) => id !== section.id),
-                          )
-                        }
-                      >
-                        <Accordion.Item value={section.id}>
-                          <Accordion.Control
-                            aria-label={`${section.name}, ${section.types.length} type${
-                              section.types.length === 1 ? "" : "s"
-                            }`}
-                          >
-                            <Group gap="xs" wrap="nowrap">
-                              <Text size="sm" fw={600}>
-                                {section.name}
-                              </Text>
-                              <Badge size="sm" variant="light" color="gray" aria-hidden>
-                                {section.types.length}
-                              </Badge>
-                            </Group>
-                          </Accordion.Control>
-                          <Accordion.Panel>{renderTypeBadges(section)}</Accordion.Panel>
-                        </Accordion.Item>
-                      </Accordion>
-                    ) : (
-                      // Non-collapsible group (and the "Ungrouped" catch-all):
-                      // the previous always-expanded labeled section.
-                      <Box key={section.id}>
-                        <Text size="xs" fw={600} c="dimmed" mb={4}>
-                          {section.name}
-                        </Text>
-                        {renderTypeBadges(section)}
-                      </Box>
-                    ),
-                  )}
-                </Stack>
+                // Group tiles -> popup of that group's types (shared with the
+                // filter dialog). A lone section renders its badges directly.
+                <EventTypeGroupGrid
+                  sections={typeGridSections}
+                  mode="single"
+                  isSelected={(value) => value === form.values.eventType}
+                  onToggle={(value) =>
+                    handleEventTypeChange(form.values.eventType === value ? null : value)
+                  }
+                />
               )}
               {form.errors.eventType && (
                 <Text size="xs" c="red">

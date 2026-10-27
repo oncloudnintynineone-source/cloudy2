@@ -170,7 +170,9 @@ doc content here.
   Per-tab Cal/Users/Types filters are stored server-side (no `cal/users/types` URL params);
   the shared `FilterModal` renders every group with the same `SelectableBadge`s and an
   All/None pair (search groups label it All/Clear); Event Types reuse the wizard's
-  `buildEventTypePickerSections` (inline groups, collapsible folders, counts, Ungrouped)
+  `buildEventTypePickerSections` rendered through the shared `EventTypeGroupGrid`
+  (group tile → popup of badges, counts, Ungrouped; single section renders badges
+  directly)
   with one group-level All/None across every category (no per-category pair), and the
   Users badge picker gains department-section counts, per-section All/Clear, a global
   Select all/Clear and an amber "(You)" badge.

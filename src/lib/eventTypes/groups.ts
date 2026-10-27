@@ -7,7 +7,11 @@ export interface EventTypeGroupRef {
   id: string;
   name: string;
   sortOrder: number;
-  /** Whether the group renders as a collapsible folder (true) or inline (false). */
+  /**
+   * The admin's folder flag (Settings → Event Types). The grid-based picker
+   * renders every group as a tile + popup, so this no longer changes the
+   * picker layout — it is kept for the admin group list.
+   */
   collapsible: boolean;
 }
 
@@ -22,11 +26,6 @@ export interface EventTypePickerSection {
   name: string;
   /** true for the trailing catch-all of types that belong to no group. */
   ungrouped: boolean;
-  /**
-   * Whether the section renders as a collapsible folder. The ungrouped
-   * section is never collapsible (there is no group row to flag).
-   */
-  collapsible: boolean;
   types: EventTypeRef[];
 }
 
@@ -46,12 +45,10 @@ export function sortEventTypeGroups(
 }
 
 /**
- * The sections the event form's type step renders. Non-folder content comes
- * first so the collapsed folders sit at the bottom: non-collapsible groups in
- * display order, then the trailing "Ungrouped" catch-all, then the collapsible
- * folders in display order. Types within a section stay alphabetical, empty
- * groups are skipped, and a type whose group id is missing from the list
- * degrades to ungrouped (stale-prop defense).
+ * The sections the event-type grid picker renders: every non-empty group in
+ * display order, then the trailing "Ungrouped" catch-all. Types within a
+ * section stay alphabetical, empty groups are skipped, and a type whose group
+ * id is missing from the list degrades to ungrouped (stale-prop defense).
  */
 export function buildEventTypePickerSections(
   types: readonly EventTypeRef[],
@@ -59,56 +56,30 @@ export function buildEventTypePickerSections(
 ): EventTypePickerSection[] {
   const knownGroupIds = new Set(groups.map((group) => group.id));
   const sortedTypes = [...types].sort((a, b) => a.name.localeCompare(b.name));
-  const inline: EventTypePickerSection[] = [];
-  const folders: EventTypePickerSection[] = [];
+  const sections: EventTypePickerSection[] = [];
   for (const group of sortEventTypeGroups(groups)) {
     const members = sortedTypes.filter((type) => type.groupId === group.id);
     if (members.length > 0) {
-      const section: EventTypePickerSection = {
+      sections.push({
         id: group.id,
         name: group.name,
         ungrouped: false,
-        collapsible: group.collapsible,
         types: members,
-      };
-      (group.collapsible ? folders : inline).push(section);
+      });
     }
   }
   const ungrouped = sortedTypes.filter(
     (type) => type.groupId === null || !knownGroupIds.has(type.groupId),
   );
   if (ungrouped.length > 0) {
-    inline.push({
+    sections.push({
       id: UNGROUPED_ID,
       name: UNGROUPED_LABEL,
       ungrouped: true,
-      collapsible: false,
       types: ungrouped,
     });
   }
-  return [...inline, ...folders];
-}
-
-/**
- * The section ids the wizard's type step opens with. Only collapsible folders
- * participate (non-collapsible sections are always visible inline): the folder
- * that holds an already-selected type opens (edit/duplicate prefill), and every
- * other folder starts collapsed — the point of tucking types away. A lone
- * collapsible folder therefore still starts collapsed. `selectedTypeName` may
- * be null/absent.
- */
-export function initialExpandedSectionIds(
-  sections: readonly EventTypePickerSection[],
-  selectedTypeName: string | null | undefined,
-): string[] {
-  if (!selectedTypeName) {
-    return [];
-  }
-  const match = sections.find(
-    (section) =>
-      section.collapsible && section.types.some((type) => type.name === selectedTypeName),
-  );
-  return match ? [match.id] : [];
+  return sections;
 }
 
 /**

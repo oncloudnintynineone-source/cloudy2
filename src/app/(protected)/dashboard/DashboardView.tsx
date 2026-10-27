@@ -2529,15 +2529,15 @@ function DashboardViewImpl({
       });
     }
     if (eventTypes.length > 0) {
-      // Same sections as the wizard's type step: inline groups first, collapsible
-      // folders last, empty groups skipped, "Ungrouped" as the catch-all.
+      // Same sections as the wizard's type step: groups in display order,
+      // empty groups skipped, "Ungrouped" as the catch-all. The filter dialog
+      // renders them as a tile grid with per-group popups.
       const sections = buildEventTypePickerSections(
         eventTypes.map((type) => ({ name: type.name, groupId: type.groupId })),
         eventTypeGroups,
       ).map((section) => ({
         id: section.id,
         label: section.name,
-        collapsible: section.collapsible,
         options: section.types.map((type) => ({ value: type.name, label: type.name })),
       }));
       groups.push({

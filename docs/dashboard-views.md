@@ -457,16 +457,18 @@ badge grid) and **Users** (badge-dialog picker, `variant: "search"`) — and tuc
 **Event Types** behind a "Show"/"Hide" disclosure (`collapsedGroupLabels`;
 audit-log/user-table callers keep all groups expanded). Every group has a
 consistent **All / None** pair (search groups label the second action **Clear**,
-because empty means "no filter"). Grouped lists keep their section headers, but
+because empty means "no filter"). Grouped lists keep their per-group counts, but
 the All/None action spans the whole group — there is no separate All/None per
 event-type category.
 
 **Event Types mirror the wizard's type step exactly**: the dashboard builds
 `FilterGroupSection`s with `buildEventTypePickerSections(eventTypes,
-eventTypeGroups)` (`src/lib/eventTypes/groups.ts`) — inline groups first,
-collapsible folders last, empty groups skipped, "Ungrouped" as the catch-all.
-Folder sections start collapsed unless they hold an already-applied type; each
-section header carries its option count, while the single group-level All/None
+eventTypeGroups)` (`src/lib/eventTypes/groups.ts`) — groups in display order,
+empty groups skipped, "Ungrouped" as the catch-all. They render through the shared
+`EventTypeGroupGrid` (`src/components/EventTypeGroupGrid.tsx`): a tile per group
+whose popup holds that group's badges (multi-select — the popup stays open while
+toggling), each tile carrying its option count and an amber selected-count, while
+the single group-level All/None
 selects or clears every type across all categories. The group's flat `options`
 remain the canonical value list for apply/count logic; sections are presentation
 only.
@@ -522,7 +524,7 @@ flowchart LR
  FB["FilterButton (nav row)<br/>icon + active-group badge"] --> FM["FilterModal"]
  FM --> CAL["Calendars<br/>(badge grid + All/None)"]
  FM --> US["Users<br/>(grouped badge picker + Myself)"]
- FM --> ET["Event Types<br/>(grouped sections, behind Show/Hide)"]
+ FM --> ET["Event Types<br/>(group tile grid + popups, behind Show/Hide)"]
  FM --> HINT["Scope hint<br/>(these filters apply to {tab} only)"]
  HINT --> APPLY["saveDashboardViewFilters<br/>(server action)"]
  APPLY --> ROW["active tab row<br/>(cal/users/types, NULL = role default)"]
@@ -1280,7 +1282,7 @@ flowchart LR
 | `src/lib/ui/monthZoom.ts` | Pure Month fit-width zoom levels + stepping (`clampMonthZoom`, `stepMonthZoom`) + the fit-height fill + chip-count math (`monthFillEvents`, `monthFitChipCount`, §1.8.1) |
 | `src/components/GridNavControls.tsx` | Day/Week (H) + Month right-edge cluster: zoom +/− + right pan, plus left-edge pan |
 | `src/components/FilterButton.tsx` | Dedicated filter button (icon + active-group badge) replacing the kebab's filter menu |
-| `src/components/FilterModal.tsx` | Filters dialog (badge grids, grouped sections, All/None, collapsible groups, per-tab scope hint) |
+| `src/components/FilterModal.tsx` | Filters dialog (badge grids, group tile grid + popups, All/None, collapsible groups, per-tab scope hint) |
 
 Related docs:
 

@@ -4,18 +4,17 @@ import { useMemo, useState, type ReactNode } from "react";
 import {
   Badge,
   Button,
-  Collapse,
   Group,
   Modal,
   Stack,
   Text,
-  UnstyledButton,
   useMantineTheme,
 } from "@mantine/core";
 import { useMediaQuery, useViewportSize } from "@mantine/hooks";
 import { IconChevronDown, IconPlus } from "@tabler/icons-react";
 
 import { AllNoneControls } from "@/components/AllNoneControls";
+import { EventTypeGroupGrid } from "@/components/EventTypeGroupGrid";
 import { PickerBadges, type PickerBadgeItem } from "@/components/PickerField";
 import { SelectableBadge } from "@/components/SelectableBadge";
 import { UserSelectModal } from "@/components/UserSelectModal";
@@ -73,8 +72,6 @@ export interface FilterGroupSection {
   /** Stable identity across re-renders (event-type group id, department id, …). */
   id: string;
   label: string;
-  /** Folder-style section: collapsed by default, chevron header. */
-  collapsible?: boolean;
   options: FilterOption[];
 }
 
@@ -95,15 +92,17 @@ export interface FilterGroup {
   /** Every selectable value in the group (also the union of `sections`). */
   options: FilterOption[];
   /**
-   * Optional grouped presentation. Inline sections render first, folders last
-   * (the event-type builder already orders them); flat groups omit this.
+   * Optional grouped presentation: the options render as a grid of group
+   * tiles, each opening a popup of that group's badges (flat groups omit
+   * this).
    */
   sections?: FilterGroupSection[];
   /** Optional quick action rendered beside the group label (e.g. "My Events"). */
   action?: FilterGroupAction;
   /**
    * "grid" (default) renders the options as toggleable `SelectableBadge`s,
-   * optionally split into `sections` (event-type groups). "search" renders a
+   * optionally chunked into `sections` (event-type groups) as a tile grid
+   * whose tiles open badge popups (see `EventTypeGroupGrid`). "search" renders a
    * badge picker dialog (UserSelectModal) for large option lists:
    * the currently selected options appear as badges beside a Select trigger,
    * and the dialog filters them by a search box. Search groups use "empty =
@@ -207,44 +206,14 @@ function initialDraft(
   );
 }
 
-function sectionKey(group: FilterGroup, section: FilterGroupSection): string {
-  return `${group.label}\u0000${section.id}`;
-}
-
-/**
- * Folders holding an already-applied option start open, so a filtered type is
- * visible the moment the Event Types group is expanded; every other folder
- * starts collapsed (the wizard's behavior).
- */
-function initialOpenSections(
-  groups: FilterGroup[],
-  values: Record<string, string[]>,
-): ReadonlySet<string> {
-  const open = new Set<string>();
-  for (const group of groups) {
-    // Only an explicitly applied selection opens its folders. An empty grid
-    // selection means "no filter" (every type selected in the draft), which
-    // must not auto-expand every folder.
-    const selected = new Set(values[group.label] ?? []);
-    for (const section of group.sections ?? []) {
-      if (
-        section.collapsible &&
-        section.options.some((option) => selected.has(option.value))
-      ) {
-        open.add(sectionKey(group, section));
-      }
-    }
-  }
-  return open;
-}
-
 /**
  * Reusable filter dialog: opens from a trigger button and presents each filter
- * group as selectable badges — flat or split into inline/folder sections — or as
+ * group as selectable badges — flat, or as a grid of group tiles whose popups
+ * hold the badges — or as
  * a selected-badge summary + Select trigger that opens the UserSelectModal badge
  * picker (variant "search", for large option lists). Every group gets an All/None
- * pair (search groups say "Clear"); grouped lists keep section counts and folders,
- * but the All/None action spans the whole group.
+ * pair (search groups say "Clear"); grouped lists keep section counts, but the
+ * All/None action spans the whole group.
  * Selections are staged in a draft and only applied when "Apply" is pressed. The
  * draft lives in a child that mounts with the modal, so it re-initializes from the
  * current applied values every time the dialog opens. "No filter applied" is "all
@@ -324,11 +293,6 @@ function FilterModalBody({
   // Collapsed groups start hidden and expand per-group; the toggle is local
   // to the dialog session (re-opening resets to the collapsed start).
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
-  // Folder-style sections (event-type groups) start collapsed unless they hold
-  // an already-applied option.
-  const [expandedSections, setExpandedSections] = useState<ReadonlySet<string>>(() =>
-    initialOpenSections(groups, values),
-  );
   // Grid groups the user edited (apply their draft explicitly — including a
   // full selection) and whether "Clear" was pressed (apply nothing, restoring
   // the consumer's default). Untouched grid groups re-apply their current
@@ -380,19 +344,6 @@ function FilterModalBody({
     commitGroupValue(key, value);
   }
 
-  function toggleSection(group: FilterGroup, section: FilterGroupSection) {
-    const key = sectionKey(group, section);
-    setExpandedSections((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) {
-        next.delete(key);
-      } else {
-        next.add(key);
-      }
-      return next;
-    });
-  }
-
   async function handleApply() {
     if (applying) return;
     setApplying(true);
@@ -438,67 +389,6 @@ function FilterModalBody({
     handleGroupChange(
       group.label,
       current.includes(value) ? current.filter((entry) => entry !== value) : [...current, value],
-    );
-  }
-
-  function renderSection(group: FilterGroup, section: FilterGroupSection) {
-    const selected = draft[group.label] ?? [];
-    const open =
-      !section.collapsible || expandedSections.has(sectionKey(group, section));
-    return (
-      <div key={section.id}>
-        <Group justify="space-between" align="center" gap="xs" wrap="nowrap">
-          {section.collapsible ? (
-            <UnstyledButton
-              onClick={() => toggleSection(group, section)}
-              aria-expanded={open}
-              aria-label={`${section.label}, ${section.options.length} option${
-                section.options.length === 1 ? "" : "s"
-              }`}
-              style={{ flex: 1, minWidth: 0, cursor: "pointer" }}
-            >
-              <Group gap={6} wrap="nowrap">
-                <IconChevronDown
-                  size={14}
-                  style={{
-                    flexShrink: 0,
-                    transform: open ? "rotate(180deg)" : undefined,
-                    transition: `transform ${motion.duration.micro}ms ${motion.easing.out}`,
-                  }}
-                />
-                <Text size="sm" fw={600} truncate>
-                  {section.label}
-                </Text>
-                <Badge size="sm" variant="light" color="gray" aria-hidden>
-                  {section.options.length}
-                </Badge>
-              </Group>
-            </UnstyledButton>
-          ) : (
-            <Group gap={6} wrap="nowrap" style={{ flex: 1, minWidth: 0 }}>
-              <Text size="xs" fw={600} c="dimmed" truncate>
-                {section.label}
-              </Text>
-              <Badge size="sm" variant="light" color="gray" aria-hidden>
-                {section.options.length}
-              </Badge>
-            </Group>
-          )}
-        </Group>
-        <Collapse expanded={open} transitionDuration={motion.duration.micro}>
-          <Group gap="xs" mt="xs">
-            {section.options.map((option) => (
-              <SelectableBadge
-                key={option.value}
-                label={option.label}
-                self={option.self}
-                selected={selected.includes(option.value)}
-                onToggle={() => toggleOption(group, option.value)}
-              />
-            ))}
-          </Group>
-        </Collapse>
-      </div>
     );
   }
 
@@ -614,8 +504,13 @@ function FilterModalBody({
                     </Button>
                   </Group>
                 ) : group.sections ? (
-                  <Stack gap="sm" mt="xs">
-                    {group.sections.map((section) => renderSection(group, section))}
+                  <Stack gap={0} mt="xs">
+                    <EventTypeGroupGrid
+                      sections={group.sections}
+                      mode="multi"
+                      isSelected={(value) => (draft[group.label] ?? []).includes(value)}
+                      onToggle={(value) => toggleOption(group, value)}
+                    />
                   </Stack>
                 ) : (
                   <Group gap="xs" mt="xs">

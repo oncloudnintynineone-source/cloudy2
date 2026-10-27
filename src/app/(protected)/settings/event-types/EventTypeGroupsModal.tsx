@@ -370,8 +370,8 @@ export function EventTypeGroupsModal({
                                 <Tooltip
                                   label={
                                     isCollapsible(group)
-                                      ? "Shown as a collapsible folder in the event form"
-                                      : "Shown as an always-expanded list in the event form"
+                                      ? "Folder marker in the admin list — the event form shows every group as a tile with a popup"
+                                      : "No folder marker in the admin list"
                                   }
                                   position="top"
                                   multiline
