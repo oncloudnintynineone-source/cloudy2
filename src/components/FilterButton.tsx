@@ -19,6 +19,8 @@ interface FilterButtonProps {
   /** Trigger corner radius (the dashboard's floating pill passes "50%" for a
    *  circular button; table toolbars keep the default). */
   radius?: string | number;
+  /** Warm the filter dialog chunk on hover/focus/press. */
+  onIntent?: () => void;
 }
 
 /**
@@ -32,6 +34,7 @@ export function FilterButton({
   iconSize = 16,
   className,
   radius,
+  onIntent,
 }: FilterButtonProps) {
   return (
     <Box pos="relative">
@@ -42,6 +45,10 @@ export function FilterButton({
         className={className}
         aria-label={activeCount > 0 ? `Filters (${activeCount} active)` : "Filters"}
         onClick={onClick}
+        onPointerEnter={onIntent}
+        onFocus={onIntent}
+        onPointerDown={onIntent}
+        onTouchStart={onIntent}
       >
         <IconFilter size={iconSize} />
       </ActionIcon>

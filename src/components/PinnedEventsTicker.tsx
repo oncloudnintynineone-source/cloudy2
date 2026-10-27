@@ -64,6 +64,7 @@ export function PinnedEventsTicker({
   events,
   paused,
   onOpen,
+  onIntent,
   indicator,
   status = "pending",
 }: {
@@ -72,6 +73,8 @@ export function PinnedEventsTicker({
   /** True while the Pinned Events panel modal is open — rotation stops. */
   paused: boolean;
   onOpen: (originRect: Rect) => void;
+  /** Warm the panel chunk before the tap lands. */
+  onIntent?: () => void;
   /** Indicator style from the Feature Flags settings; defensively normalized
    *  so a stale cached flag can never reach the renderer. */
   indicator?: PinnedTickerIndicator;
@@ -136,8 +139,14 @@ export function PinnedEventsTicker({
       onClick={(e) => onOpen(e.currentTarget.getBoundingClientRect())}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      onFocus={() => setFocused(true)}
+      onPointerEnter={onIntent}
+      onFocus={() => {
+        setFocused(true);
+        onIntent?.();
+      }}
       onBlur={() => setFocused(false)}
+      onPointerDown={onIntent}
+      onTouchStart={onIntent}
       aria-label={accessibleLabel}
     >
       {current === null ? (

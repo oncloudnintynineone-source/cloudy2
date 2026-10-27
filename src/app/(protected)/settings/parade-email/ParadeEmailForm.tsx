@@ -1,5 +1,6 @@
 "use client";
 
+import "@mantine/dates/styles.css";
 import { useMemo, useState } from "react";
 import {
   Box,

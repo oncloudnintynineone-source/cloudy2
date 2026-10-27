@@ -210,9 +210,7 @@ export async function unsubscribeFromPush(): Promise<boolean> {
 }
 
 /** Pull a subscription's `{ endpoint, keys }` for the server action. */
-export function subscriptionPayload(
-  subscription: PushSubscription,
-): ClientPushSubscription | null {
+export function subscriptionPayload(subscription: PushSubscription): ClientPushSubscription | null {
   const p256dh = subscription.getKey("p256dh");
   const auth = subscription.getKey("auth");
   if (!p256dh || !auth) {
@@ -297,7 +295,10 @@ export function usePushSubscriptionRepair(): void {
       void repairPushSubscription().catch(() => {});
     };
 
-    repair();
+    const handle =
+      typeof requestIdleCallback === "function"
+        ? requestIdleCallback(repair, { timeout: 2000 })
+        : window.setTimeout(repair, 0);
     const onVisible = () => {
       if (document.visibilityState === "visible") {
         repair();
@@ -306,6 +307,11 @@ export function usePushSubscriptionRepair(): void {
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("focus", onVisible);
     return () => {
+      if (typeof cancelIdleCallback === "function") {
+        cancelIdleCallback(handle);
+      } else {
+        window.clearTimeout(handle);
+      }
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", onVisible);
     };

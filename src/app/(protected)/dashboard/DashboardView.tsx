@@ -93,7 +93,8 @@ import { formatWeekLabel } from "./clientDateTime";
 import { EventDraftBar, EventDraftChip } from "./EventDraftBar";
 import { EmptyState } from "@/components/EmptyState";
 import { FilterButton } from "@/components/FilterButton";
-import { FilterModal, type FilterGroup } from "@/components/FilterModal";
+import type { FilterGroup } from "@/components/FilterModal";
+import { FormModalSkeleton } from "@/components/FormModalSkeleton";
 import { GridNavControls } from "@/components/GridNavControls";
 import { FullscreenButton, FullscreenToggle } from "@/components/FullscreenToggle";
 import {
@@ -190,6 +191,8 @@ import { VIEW_TAB_META } from "./viewMeta";
 import { AgendaSwipeHint } from "@/components/AgendaSwipeHint";
 import { MonthWeekdayStrip } from "./MonthWeekdayStrip";
 import { useDashboardData, useDashboardTabStatus } from "./DashboardDataContext";
+import { prefetchTargetForPeriod, prefetchTargetForTab } from "@/lib/dashboard/prefetch";
+import { mark } from "@/lib/perf/marks";
 
 // The event wizard is the heaviest client component in the app (its own form,
 // the @mantine/dates pickers, @mantine/form and the invitee picker). It is
@@ -327,6 +330,7 @@ function useRendererReady(kind: DashboardViewKind): boolean {
   );
   useEffect(() => {
     if (ready) {
+      mark("c2:dashboard:renderer-ready");
       return;
     }
     void ensureRendererKind(kind);
@@ -374,6 +378,22 @@ const withDetailWarm = (props: ChipProps): ChipProps => ({
     warmEventDetailChunk();
   },
 });
+
+const FilterModal = dynamic(
+  () => import("@/components/FilterModal").then((mod) => ({ default: mod.FilterModal })),
+  {
+    ssr: false,
+    loading: () => (
+      <Modal opened onClose={() => {}} title="Filters" centered>
+        <FormModalSkeleton rows={6} />
+      </Modal>
+    ),
+  },
+);
+
+const preloadFilterModal = () => {
+  void (FilterModal as { preload?: () => Promise<unknown> }).preload?.();
+};
 
 type ViewMode = DashboardViewKind;
 
@@ -891,7 +911,7 @@ const DashboardTab = memo(function DashboardTab({
   tab: DashboardViewTab;
   icon: ReactNode;
   /** Warm the tab's renderer chunk and its target URL on hover/focus/press. */
-  onIntent: () => void;
+  onIntent: (immediate?: boolean) => void;
 }) {
   const tabStatus = useDashboardTabStatus();
   // fresh = solid; loading = a small amber spinner in the tab's top-right corner
@@ -905,10 +925,22 @@ const DashboardTab = memo(function DashboardTab({
       title={tab.name}
       aria-busy={status === "loading" || undefined}
       style={{ position: "relative", overflow: "hidden" }}
-      {...warmOnIntent(() => {
+      onPointerEnter={() => {
         warmViewChunk(tab.kind);
-        onIntent();
-      })}
+        onIntent(false);
+      }}
+      onFocus={() => {
+        warmViewChunk(tab.kind);
+        onIntent(true);
+      }}
+      onPointerDown={() => {
+        warmViewChunk(tab.kind);
+        onIntent(true);
+      }}
+      onTouchStart={() => {
+        warmViewChunk(tab.kind);
+        onIntent(true);
+      }}
     >
       <Group
         gap="xs"
@@ -958,7 +990,7 @@ function DashboardViewMenuItem({
   active: boolean;
   onSwitch: (tab: Pick<DashboardViewTab, "id" | "kind">) => void;
   /** Warm the tab's renderer chunk and its target URL on hover/focus/press. */
-  onIntent: () => void;
+  onIntent: (immediate?: boolean) => void;
 }) {
   const tabStatus = useDashboardTabStatus();
   const status = tabStatus[tab.id] ?? "fresh";
@@ -981,10 +1013,22 @@ function DashboardViewMenuItem({
       aria-checked={active}
       aria-busy={status === "loading" || undefined}
       onClick={() => onSwitch(tab)}
-      {...warmOnIntent(() => {
+      onPointerEnter={() => {
         warmViewChunk(tab.kind);
-        onIntent();
-      })}
+        onIntent(false);
+      }}
+      onFocus={() => {
+        warmViewChunk(tab.kind);
+        onIntent(true);
+      }}
+      onPointerDown={() => {
+        warmViewChunk(tab.kind);
+        onIntent(true);
+      }}
+      onTouchStart={() => {
+        warmViewChunk(tab.kind);
+        onIntent(true);
+      }}
     >
       <Text
         size="sm"
@@ -1075,8 +1119,14 @@ function DashboardViewImpl({
   // DashboardScreen, which revalidates in place. Mutations call `revalidate()`
   // instead of `router.refresh()` (which no longer carries data), and a
   // context-change fetch drives the grid skeleton via `isNavigating`.
-  const { revalidate, isNavigating, setPreviewView, reportNavigationPending, applyViewTab } =
-    useDashboardData();
+  const {
+    revalidate,
+    isNavigating,
+    setPreviewView,
+    reportNavigationPending,
+    applyViewTab,
+    prefetchContext,
+  } = useDashboardData();
   const navigationTransitionSeenRef = useRef(false);
   useEffect(() => {
     if (isPending) {
@@ -1552,7 +1602,13 @@ function DashboardViewImpl({
       setEditLinkFailed(true);
     }
   }
-  const [filterOpened, { open: openFilter, close: closeFilter }] = useDisclosure(false);
+  const [filterEverOpened, setFilterEverOpened] = useState(false);
+  const [filterOpened, { open: openFilterBase, close: closeFilter }] = useDisclosure(false);
+  const openFilter = useCallback(() => {
+    setFilterEverOpened(true);
+    preloadFilterModal();
+    openFilterBase();
+  }, [openFilterBase]);
   // Where the filter trigger sat on screen; the dialog grows out of / shrinks
   // back into it (see src/lib/motion/origin.ts).
   const [filterOriginRect, setFilterOriginRect] = useState<Rect | null>(null);
@@ -2816,6 +2872,32 @@ function DashboardViewImpl({
     [buildHref, router, pathname, searchParams],
   );
 
+  const prefetchTimerRef = useRef<number | null>(null);
+  useEffect(
+    () => () => {
+      if (prefetchTimerRef.current !== null) window.clearTimeout(prefetchTimerRef.current);
+    },
+    [],
+  );
+  const prefetchContextOnIntent = useCallback(
+    (target: { view: string; month: string; date: string | null }, immediate: boolean) => {
+      if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+      if (prefetchTimerRef.current !== null) {
+        window.clearTimeout(prefetchTimerRef.current);
+        prefetchTimerRef.current = null;
+      }
+      if (immediate) {
+        prefetchContext(target);
+        return;
+      }
+      prefetchTimerRef.current = window.setTimeout(() => {
+        prefetchTimerRef.current = null;
+        prefetchContext(target);
+      }, 120);
+    },
+    [prefetchContext],
+  );
+
   // Warm a tab's target URL on intent (hover/focus/press), not on every date
   // change. The old effect prefetched every tab on every month/day step, so a
   // month scroll issued a burst of RSC renders; the data itself is already warm
@@ -2823,7 +2905,7 @@ function DashboardViewImpl({
   // `buildParams` strips one-shot params, so a deep-link URL still produces
   // clean prefetch targets. Best-effort.
   const prefetchTab = useCallback(
-    (tab: Pick<DashboardViewTab, "id" | "kind">) => {
+    (tab: Pick<DashboardViewTab, "id" | "kind">, immediate = false) => {
       if (typeof navigator !== "undefined" && navigator.onLine === false) return;
       const { updates } = planDashboardSwitch(
         tab,
@@ -2831,8 +2913,33 @@ function DashboardViewImpl({
         { activeView, tabs },
       );
       router.prefetch(buildHref(updates));
+      prefetchContextOnIntent(
+        prefetchTargetForTab(tab, updates, { month: shownMonth, date: shownDate }),
+        immediate,
+      );
     },
-    [router, buildHref, view, shownDate, today, activeView, tabs],
+    [
+      router,
+      buildHref,
+      view,
+      shownDate,
+      today,
+      activeView,
+      tabs,
+      shownMonth,
+      prefetchContextOnIntent,
+    ],
+  );
+
+  const prefetchPeriod = useCallback(
+    (dir: -1 | 1, immediate: boolean) => {
+      const target = prefetchTargetForPeriod(
+        { kind: shownView, month: shownMonth, date: shownDate },
+        dir,
+      );
+      prefetchContextOnIntent({ view: shownTabId, ...target }, immediate);
+    },
+    [shownView, shownMonth, shownDate, shownTabId, prefetchContextOnIntent],
   );
 
   // Warm only what the target screen is likely to need: the event-details
@@ -3937,7 +4044,7 @@ function DashboardViewImpl({
           tab={tab}
           active={tab.id === shownTabId}
           onSwitch={switchTab}
-          onIntent={() => prefetchTab(tab)}
+          onIntent={(immediate) => prefetchTab(tab, immediate)}
         />
       ))}
       {canManageViews && (
@@ -3983,6 +4090,10 @@ function DashboardViewImpl({
       className={isCompactDesktop ? "c2-compact-control" : "c2-glass-btn"}
       aria-label={periodStepLabel("Previous")}
       onClick={() => navigatePeriod(-1)}
+      onPointerEnter={() => prefetchPeriod(-1, false)}
+      onFocus={() => prefetchPeriod(-1, true)}
+      onPointerDown={() => prefetchPeriod(-1, true)}
+      onTouchStart={() => prefetchPeriod(-1, true)}
     >
       <IconChevronLeft size={18} />
     </ActionIcon>
@@ -3996,6 +4107,10 @@ function DashboardViewImpl({
       className={isCompactDesktop ? "c2-compact-control" : "c2-glass-btn"}
       aria-label={periodStepLabel("Next")}
       onClick={() => navigatePeriod(1)}
+      onPointerEnter={() => prefetchPeriod(1, false)}
+      onFocus={() => prefetchPeriod(1, true)}
+      onPointerDown={() => prefetchPeriod(1, true)}
+      onTouchStart={() => prefetchPeriod(1, true)}
     >
       <IconChevronRight size={18} />
     </ActionIcon>
@@ -4003,6 +4118,7 @@ function DashboardViewImpl({
   const navFilter = (
     <FilterButton
       activeCount={activeFilterCount}
+      onIntent={preloadFilterModal}
       onClick={(e) => {
         setFilterOriginRect(e.currentTarget.getBoundingClientRect());
         openFilter();
@@ -4259,6 +4375,7 @@ function DashboardViewImpl({
           </ActionIcon>
           <FilterButton
             activeCount={activeFilterCount}
+            onIntent={preloadFilterModal}
             onClick={(e) => {
               setFilterOriginRect(e.currentTarget.getBoundingClientRect());
               openFilter();
@@ -4485,7 +4602,7 @@ function DashboardViewImpl({
                         key={tab.id}
                         tab={tab}
                         icon={meta.icon}
-                        onIntent={() => prefetchTab(tab)}
+                        onIntent={(immediate) => prefetchTab(tab, immediate)}
                       />
                     );
                   })}
@@ -4567,10 +4684,22 @@ function DashboardViewImpl({
                         role="menuitemradio"
                         aria-checked={isActive}
                         onClick={() => switchTab(tab)}
-                        {...warmOnIntent(() => {
+                        onPointerEnter={() => {
                           warmViewChunk(tab.kind);
-                          prefetchTab(tab);
-                        })}
+                          prefetchTab(tab, false);
+                        }}
+                        onFocus={() => {
+                          warmViewChunk(tab.kind);
+                          prefetchTab(tab, true);
+                        }}
+                        onPointerDown={() => {
+                          warmViewChunk(tab.kind);
+                          prefetchTab(tab, true);
+                        }}
+                        onTouchStart={() => {
+                          warmViewChunk(tab.kind);
+                          prefetchTab(tab, true);
+                        }}
                       >
                         <Text
                           size="sm"
@@ -5877,17 +6006,19 @@ function DashboardViewImpl({
         />
       )}
 
-      <FilterModal
-        opened={filterOpened}
-        onClose={closeFilter}
-        title="Filters"
-        groups={filterGroups}
-        values={filterValues}
-        onApply={handleApplyFilters}
-        collapsedGroupLabels={["Event Types"]}
-        hint={`These filters apply to ${activeView.name} only.`}
-        originRect={filterOriginRect}
-      />
+      {filterEverOpened && (
+        <FilterModal
+          opened={filterOpened}
+          onClose={closeFilter}
+          title="Filters"
+          groups={filterGroups}
+          values={filterValues}
+          onApply={handleApplyFilters}
+          collapsedGroupLabels={["Event Types"]}
+          hint={`These filters apply to ${activeView.name} only.`}
+          originRect={filterOriginRect}
+        />
+      )}
 
       {/* Manage-views dialog: house-style management modal (src/components
           conventions — see EventTypeGroupsModal). ↑/↓ reorder, a per-row Edit
@@ -6051,6 +6182,10 @@ function DashboardViewImpl({
                     variant="transparent"
                     aria-label={periodStepLabel("Previous")}
                     onClick={() => navigatePeriod(-1)}
+                    onPointerEnter={() => prefetchPeriod(-1, false)}
+                    onFocus={() => prefetchPeriod(-1, true)}
+                    onPointerDown={() => prefetchPeriod(-1, true)}
+                    onTouchStart={() => prefetchPeriod(-1, true)}
                   >
                     <IconChevronLeft size={24} />
                   </ActionIcon>
@@ -6068,6 +6203,10 @@ function DashboardViewImpl({
                     variant="transparent"
                     aria-label={periodStepLabel("Next")}
                     onClick={() => navigatePeriod(1)}
+                    onPointerEnter={() => prefetchPeriod(1, false)}
+                    onFocus={() => prefetchPeriod(1, true)}
+                    onPointerDown={() => prefetchPeriod(1, true)}
+                    onTouchStart={() => prefetchPeriod(1, true)}
                   >
                     <IconChevronRight size={24} />
                   </ActionIcon>

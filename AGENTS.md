@@ -101,11 +101,16 @@ doc content here.
   dashboard reads run in **route handlers** (`/api/dashboard/load`, `/api/dashboard/preload`,
   `/api/dashboard/deep-link`) via `buildDashboardData` (`src/lib/dashboard/data.ts`), and
   the client `DashboardScreen` paints the device-local snapshot for the **anchor the
-  URL/cookie names** (IndexedDB, `src/lib/dashboard/localStore.ts`; the pick is
-  `pickColdPaintRecord` in `src/lib/dashboard/navigation.ts` — never "the newest record",
-  which would be a preload's future-month anchor) instantly, then always revalidates and
-  swaps in place — mutations call the provider's `revalidate()`, never
-  `router.refresh()`. These reads are route handlers, **not server actions**, on purpose:
+  URL/cookie names** (IndexedDB, `src/lib/dashboard/localStore.ts`; the cold pick comes
+  from the lightweight per-account `@@index` via `pickColdPaintKey`, with the full-scan
+  `pickColdPaintRecord` in `src/lib/dashboard/navigation.ts` as fallback — never "the
+  newest record", which would be a preload's future-month anchor) instantly, then always
+  revalidates and swaps in place — mutations call the provider's `revalidate()`, never
+  `router.refresh()`. An inline boot script in `page.tsx` starts the first
+  `/api/dashboard/load` before hydration (adopted only on a matching user/URL signature
+  within 15 s), and tab/period **intent prefetch** warms the target context on
+  hover/focus/press (one deduped speculative request, adopted by the tap). These reads
+  are route handlers, **not server actions**, on purpose:
   Next serializes server actions client-side, so a background warm-up would otherwise
   delay the user's next save/read; the load is also abortable and debounced. After the
   active context is fresh, the client **preloads every tab** for the current anchor **and

@@ -7,16 +7,15 @@ import { IconCloudOff } from "@tabler/icons-react";
 import { EmptyState } from "@/components/EmptyState";
 import { useReportActivity } from "@/components/ActivityBar";
 import { withTimeout } from "@/lib/async";
-import { isAbortError, isUnauthorized, postJson } from "@/lib/api/client";
+import { ApiError, isAbortError, isUnauthorized, postJson } from "@/lib/api/client";
 import { isColdLaunchActive } from "@/lib/loading/coldLaunch";
 import { useLoadingIndicator } from "@/lib/loading/loadingIndicator";
-import type {
-  LoadDashboardDataResult,
-  PreloadDashboardTabsResult,
-} from "@/lib/dashboard/actions";
+import type { LoadDashboardDataResult, PreloadDashboardTabsResult } from "@/lib/dashboard/actions";
 import type { CalendarEvent } from "@/lib/events/queries";
 import {
   clearDashboardSnapshots,
+  readDashboardSnapshot,
+  readDashboardSnapshotIndex,
   readDashboardSnapshots,
   writeDashboardSnapshot,
   writeDashboardSnapshots,
@@ -28,6 +27,7 @@ import {
   dashboardRequestKey,
   isRefreshNonceFresh,
   patchSnapshotTab,
+  pickColdPaintKey,
   requiredMonths,
   tabLoadStates,
   type DashboardSnapshotRecord,
@@ -40,7 +40,10 @@ import {
   resolveDashboardNavigation,
 } from "@/lib/dashboard/navigation";
 import { isUuid } from "@/lib/uuid";
-import { canPreloadTabs } from "@/lib/pwa/warmup";
+import { dashboardBootSignature } from "@/lib/dashboard/prefetch";
+import { takeDashboardBoot } from "@/lib/dashboard/boot";
+import { mark } from "@/lib/perf/marks";
+import { canPreloadTabs, canWarmRoutes } from "@/lib/pwa/warmup";
 import type { DashboardViewTab } from "@/lib/dashboardViews/views";
 import type { MonthZoom } from "@/lib/ui/monthZoom";
 import type { SlotZoom } from "@/lib/ui/slotZoom";
@@ -48,6 +51,7 @@ import type { SlotZoom } from "@/lib/ui/slotZoom";
 import { DashboardDataProvider, DashboardTabStatusProvider } from "./DashboardDataContext";
 import { DashboardView } from "./DashboardView";
 import { DashboardShellSkeleton } from "./DashboardShellSkeleton";
+import { preloadRendererKind, readLastRendererKind, rememberRendererKind } from "./rendererPreload";
 
 interface DashboardScreenProps {
   userId: string;
@@ -81,9 +85,7 @@ const DASHBOARD_LOAD_TIMEOUT_MS = 20_000;
 const CONTEXT_FETCH_DEBOUNCE_MS = 120;
 
 /** The lean deep-link target read's response. */
-type DeepLinkResult =
-  | { ok: true; event: CalendarEvent | null }
-  | { ok: false; error: string };
+type DeepLinkResult = { ok: true; event: CalendarEvent | null } | { ok: false; error: string };
 
 function inputFromParams(params: URLSearchParams) {
   return {
@@ -132,6 +134,7 @@ export function DashboardScreen({
   const recordRef = useRef(record);
   useEffect(() => {
     recordRef.current = record;
+    if (record) mark("c2:dashboard:snapshot-paint");
   }, [record]);
 
   // Device-local warm contexts, keyed by request key. Hydrated from IndexedDB on
@@ -193,17 +196,39 @@ export function DashboardScreen({
   const preloadAbortRef = useRef<AbortController | null>(null);
   const deepLinkAbortRef = useRef<AbortController | null>(null);
   const contextFetchTimerRef = useRef<number | null>(null);
-  useEffect(
-    () => () => {
+  const speculativeRef = useRef<{
+    key: string;
+    controller: AbortController;
+    promise: Promise<LoadDashboardDataResult>;
+  } | null>(null);
+  const prefetchGenerationRef = useRef(0);
+  const activeLoadKeyRef = useRef<string | null>(null);
+  const bootAdoptedRef = useRef(false);
+  useEffect(() => {
+    mark("c2:dashboard:screen-mount");
+    const kind = readLastRendererKind() ?? "month";
+    if (canWarmRoutes()) {
+      void preloadRendererKind(kind);
+    }
+    return () => {
       loadAbortRef.current?.abort();
       preloadAbortRef.current?.abort();
       deepLinkAbortRef.current?.abort();
+      prefetchGenerationRef.current += 1;
+      speculativeRef.current?.controller.abort();
       if (contextFetchTimerRef.current !== null) {
         window.clearTimeout(contextFetchTimerRef.current);
       }
-    },
-    [],
-  );
+    };
+  }, []);
+  useEffect(() => {
+    const kind = record?.data.activeView.kind;
+    if (!kind) return;
+    rememberRendererKind(kind);
+    if (canWarmRoutes()) {
+      void preloadRendererKind(kind);
+    }
+  }, [record?.data.activeView.kind]);
   // Tab preload bookkeeping: the anchor signature + generation last scheduled,
   // and a generation counter bumped by any mutation/force refresh so an
   // in-flight preload can't repopulate the warm cache after it was cleared.
@@ -307,22 +332,83 @@ export function DashboardScreen({
         month: params.get("month"),
         date: params.get("date"),
       });
+      activeLoadKeyRef.current = attemptedKey;
+      const bootSignature = dashboardBootSignature({
+        view: params.get("view"),
+        month: params.get("month"),
+        date: params.get("date"),
+        refresh: params.get("refresh"),
+      });
+      const boot =
+        !bootAdoptedRef.current && !hasFreshRef.current
+          ? takeDashboardBoot(userId, bootSignature, Date.now())
+          : null;
+      if (boot) {
+        bootAdoptedRef.current = true;
+      }
+
       // Supersede any in-flight read: the previous month/tab context is no
       // longer what the URL asks for, and leaving it to finish would make the
       // newer read wait on the old one.
-      loadAbortRef.current?.abort();
-      const controller = new AbortController();
+      const speculative = speculativeRef.current;
+      const previousController = loadAbortRef.current;
+      previousController?.abort();
+      if (speculative && speculative.controller === previousController) {
+        speculativeRef.current = null;
+      }
+      const adoptSpeculative =
+        speculative !== null &&
+        speculative.controller !== previousController &&
+        speculative.key === attemptedKey;
+      if (speculative && !adoptSpeculative) {
+        speculative.controller.abort();
+        speculativeRef.current = null;
+      }
+      if (adoptSpeculative) {
+        speculativeRef.current = null;
+      }
+      const controller =
+        adoptSpeculative && speculative ? speculative.controller : new AbortController();
       loadAbortRef.current = controller;
+      if (boot) {
+        controller.signal.addEventListener("abort", boot.abort, { once: true });
+      }
+      mark("c2:dashboard:fetch-start");
       try {
-        const result = await withTimeout(
-          postJson<LoadDashboardDataResult>(
-            "/api/dashboard/load",
-            inputFromParams(params),
-            { signal: controller.signal },
-          ),
-          DASHBOARD_LOAD_TIMEOUT_MS,
-        );
-        if (requestId !== requestIdRef.current) return;
+        let result: LoadDashboardDataResult | null = null;
+        if (boot) {
+          const response = await withTimeout(boot.promise, DASHBOARD_LOAD_TIMEOUT_MS);
+          if (response) {
+            if (response.status === 401) {
+              throw new ApiError(401, "Unauthorized");
+            }
+            if (typeof response.data !== "object" || response.data === null) {
+              throw new ApiError(response.status, "Request failed");
+            }
+            result = response.data as LoadDashboardDataResult;
+          }
+        }
+
+        if (result === null && adoptSpeculative && speculative) {
+          try {
+            result = await withTimeout(speculative.promise, DASHBOARD_LOAD_TIMEOUT_MS);
+          } catch (error) {
+            if (requestId !== requestIdRef.current || isAbortError(error)) throw error;
+            result = null;
+          }
+        }
+
+        if (result === null && requestId === requestIdRef.current) {
+          result = await withTimeout(
+            postJson<LoadDashboardDataResult>("/api/dashboard/load", inputFromParams(params), {
+              signal: controller.signal,
+              priority: "high",
+            }),
+            DASHBOARD_LOAD_TIMEOUT_MS,
+          );
+        }
+        if (result === null || requestId !== requestIdRef.current) return;
+        mark("c2:dashboard:fetch-end");
         if (result.ok) {
           hasFreshRef.current = true;
           setSource("fresh");
@@ -360,6 +446,7 @@ export function DashboardScreen({
           loadAbortRef.current = null;
         }
         if (requestId === requestIdRef.current) {
+          activeLoadKeyRef.current = null;
           setBusy(false);
         }
       }
@@ -373,6 +460,53 @@ export function DashboardScreen({
     setLoadFailed(false);
     void fetchFresh();
   }, [fetchFresh]);
+
+  const prefetchContext = useCallback(
+    (target: { view: string; month: string; date: string | null }) => {
+      const current = recordRef.current;
+      if (!current) return;
+      if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+      if (!canWarmRoutes()) return;
+      const tab = current.data.tabs.find((candidate) => candidate.id === target.view);
+      if (!tab) return;
+      const date = target.date ?? current.context.date;
+      const month = target.date ? target.date.slice(0, 7) : (target.month ?? current.context.month);
+      const key = dashboardRequestKey({
+        viewId: tab.id,
+        months: requiredMonths(tab.kind, month, date, current.data.weekStartsOn),
+      });
+      if (warmRecordsRef.current.has(key)) return;
+      if (speculativeRef.current?.key === key) return;
+      if (activeLoadKeyRef.current === key) return;
+      speculativeRef.current?.controller.abort();
+      const controller = new AbortController();
+      const generation = prefetchGenerationRef.current;
+      const promise = postJson<LoadDashboardDataResult>(
+        "/api/dashboard/load",
+        { view: tab.id, month, date: target.date, refresh: null },
+        { signal: controller.signal, priority: "low" },
+      );
+      speculativeRef.current = { key, controller, promise };
+      promise
+        .then((result) => {
+          if (speculativeRef.current?.controller === controller) speculativeRef.current = null;
+          if (generation !== prefetchGenerationRef.current) return;
+          if (!result.ok) return;
+          const recordKey = result.record.context.requestKey;
+          setWarmRecords((entries) => {
+            if (entries.has(recordKey)) return entries;
+            const next = new Map(entries);
+            next.set(recordKey, result.record);
+            return next;
+          });
+          void writeDashboardSnapshot(userId, result.record.data, result.record.context);
+        })
+        .catch(() => {
+          if (speculativeRef.current?.controller === controller) speculativeRef.current = null;
+        });
+    },
+    [setWarmRecords, userId],
+  );
 
   // Background-preload every tab for the current anchor (docs/pwa-offline.md
   // §1.18), so a tab switch paints from the warm cache with no round-trip. The
@@ -460,42 +594,82 @@ export function DashboardScreen({
   // first. A force-refresh reload clears the cache instead of painting it.
   useEffect(() => {
     let alive = true;
-    void readDashboardSnapshots(userId).then((cached) => {
-      if (!alive) return;
+    let idleHandle: number | null = null;
+    const paintOptions = () => ({
+      urlView: paramsRef.current.get("view"),
+      urlMonth: paramsRef.current.get("month"),
+      urlDate: paramsRef.current.get("date"),
+      rememberedMonth: initialMonth,
+    });
+    const overlay = (cached: readonly DashboardSnapshotRecord[]) => {
+      if (cached.length === 0) return;
+      setWarmRecords((current) => {
+        const next = new Map(cached.map((entry) => [entry.context.requestKey, entry]));
+        for (const [key, value] of current) {
+          next.set(key, value);
+        }
+        return next;
+      });
+    };
+    const paint = (record: DashboardSnapshotRecord) => {
+      if (hasFreshRef.current) return;
+      setSource("cache");
+      setRecord(record);
+    };
+    const hydrateRemaining = () => {
+      void readDashboardSnapshots(userId).then((cached) => {
+        if (!alive) return;
+        overlay(cached);
+      });
+    };
+    const scheduleHydrate = () => {
+      if (typeof requestIdleCallback === "function") {
+        idleHandle = requestIdleCallback(hydrateRemaining, { timeout: 2000 });
+      } else {
+        idleHandle = window.setTimeout(hydrateRemaining, 0);
+      }
+    };
+
+    void (async () => {
       if (isRefreshNonceFresh(paramsRef.current.get("refresh"), Date.now())) {
         void clearDashboardSnapshots(userId);
         return;
       }
-      if (cached.length > 0) {
-        // Overlay the hydrated records under any already-fetched ones, so a read
-        // that landed before hydration isn't clobbered by an older stored copy.
-        setWarmRecords((current) => {
-          const next = new Map(cached.map((entry) => [entry.context.requestKey, entry]));
-          for (const [key, value] of current) {
-            next.set(key, value);
+
+      const index = await readDashboardSnapshotIndex(userId);
+      if (!alive) return;
+      if (index) {
+        const key = pickColdPaintKey(index, paintOptions());
+        if (key) {
+          const record = await readDashboardSnapshot(userId, key);
+          if (!alive) return;
+          if (record && record.context.requestKey === key) {
+            overlay([record]);
+            paint(record);
+            scheduleHydrate();
+            return;
           }
-          return next;
-        });
+        }
       }
+
+      const cached = await readDashboardSnapshots(userId);
+      if (!alive) return;
+      overlay(cached);
       if (hasFreshRef.current || cached.length === 0) return;
-      // The anchor the load names (URL params, then the device cookie) decides
-      // which cached context holds the paint — the preload's future-month
-      // anchors are stored *newer* than the viewed month, so a plain "newest
-      // record" pick would open the calendar two months ahead. No cached context
-      // for the anchor: leave `record` empty so the fetch reads it from the
-      // server, which resolves the same anchor.
-      const paint = pickColdPaintRecord(cached, {
-        urlView: paramsRef.current.get("view"),
-        urlMonth: paramsRef.current.get("month"),
-        urlDate: paramsRef.current.get("date"),
-        rememberedMonth: initialMonth,
-      });
-      if (!paint) return;
-      setSource("cache");
-      setRecord(paint);
-    });
+      const coldPaint = pickColdPaintRecord(cached, paintOptions());
+      if (!coldPaint) return;
+      paint(coldPaint);
+    })();
+
     return () => {
       alive = false;
+      if (idleHandle !== null) {
+        if (typeof cancelIdleCallback === "function") {
+          cancelIdleCallback(idleHandle);
+        } else {
+          window.clearTimeout(idleHandle);
+        }
+      }
     };
   }, [userId, setWarmRecords, initialMonth]);
 
@@ -572,6 +746,9 @@ export function DashboardScreen({
       // pattern as `fetchFresh`).
       void Promise.resolve().then(() => {
         preloadGenerationRef.current += 1;
+        prefetchGenerationRef.current += 1;
+        speculativeRef.current?.controller.abort();
+        speculativeRef.current = null;
         // Keep the signature: a force refresh must not trigger another full
         // background warm-up on top of the read it already forces.
         preloadAbortRef.current?.abort();
@@ -649,6 +826,9 @@ export function DashboardScreen({
   const revalidate = useCallback(
     (options?: { report?: boolean; params?: URLSearchParams }) => {
       preloadGenerationRef.current += 1;
+      prefetchGenerationRef.current += 1;
+      speculativeRef.current?.controller.abort();
+      speculativeRef.current = null;
       // Discard an in-flight warm-up's results without scheduling another pass
       // (see the preload effect): the user is waiting on this read.
       preloadAbortRef.current?.abort();
@@ -751,8 +931,16 @@ export function DashboardScreen({
       setPreviewView,
       reportNavigationPending,
       applyViewTab,
+      prefetchContext,
     }),
-    [revalidate, isNavigating, setPreviewView, reportNavigationPending, applyViewTab],
+    [
+      revalidate,
+      isNavigating,
+      setPreviewView,
+      reportNavigationPending,
+      applyViewTab,
+      prefetchContext,
+    ],
   );
 
   // A `?event=`/`?edit=` link resolves its target independently of the grid and

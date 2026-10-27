@@ -1,5 +1,6 @@
 "use client";
 
+import "@mantine/dates/styles.css";
 import dayjs from "dayjs";
 import { useState } from "react";
 import { ActionIcon, Box, Button, Modal, Text, useMantineTheme } from "@mantine/core";

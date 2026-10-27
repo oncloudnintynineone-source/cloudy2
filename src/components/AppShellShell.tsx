@@ -30,9 +30,9 @@ import {
 } from "@tabler/icons-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
 
-import { PinnedEventsPanel } from "@/components/PinnedEventsPanel";
 import { PinnedEventsTicker } from "@/components/PinnedEventsTicker";
 import { NavRouteWarmer } from "@/components/NavRouteWarmer";
 import { NavIdlePreloader } from "@/components/NavIdlePreloader";
@@ -76,6 +76,7 @@ import { resolveShellViewportHeight } from "@/lib/pwa/viewport";
 import { useParadeEmailTick } from "@/lib/parade-email/client";
 import { usePushSubscriptionRepair } from "@/lib/events/participantNotify/client";
 import { isAlwaysFreshPath } from "@/lib/pwa/swRules";
+import { mark } from "@/lib/perf/marks";
 import { DESKTOP_MEDIA_QUERY, DESKTOP_WIDE_MEDIA_QUERY, NARROW_MEDIA_QUERY } from "@/lib/theme";
 import { StatusAnnouncer } from "@/lib/ui/announcer";
 import { ImmersiveModeContext, type ImmersiveModeValue } from "@/lib/ui/immersiveMode";
@@ -92,10 +93,18 @@ import type { UserClashCheckResult } from "@/lib/events/clashActions";
 import type { KahBreachCountResult } from "@/lib/kah/statusActions";
 import { withTimeout } from "@/lib/async";
 
+const PinnedEventsPanel = dynamic(
+  () =>
+    import("@/components/PinnedEventsPanel").then((mod) => ({ default: mod.PinnedEventsPanel })),
+  { ssr: false, loading: () => null },
+);
+
+const preloadPinnedPanel = () => {
+  void (PinnedEventsPanel as { preload?: () => Promise<unknown> }).preload?.();
+};
+
 /** GET /api/pinned's response. */
-type PinnedEventsResult =
-  | { ok: true; events: PinnedEvent[] }
-  | { ok: false; error: string };
+type PinnedEventsResult = { ok: true; events: PinnedEvent[] } | { ok: false; error: string };
 
 const CALENDAR: NavItem = {
   href: "/dashboard",
@@ -499,6 +508,9 @@ export function AppShellShell({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  useEffect(() => {
+    mark("c2:shell:mount");
+  }, []);
   // Remember the last visited page (incl. the /settings sub-tab) so a PWA
   // relaunch from the start URL can land back here — read by / at launch.
   useRememberedPage(pathname);
@@ -548,6 +560,7 @@ export function AppShellShell({
   // tapping the pin from another page navigates to the dashboard first (the
   // shell stays mounted across the navigation, so the modal survives it).
   const [pinnedOpen, setPinnedOpen] = useState(false);
+  const [pinnedEverOpened, setPinnedEverOpened] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   // The search modal chrome is always mounted (like PinnedEventsPanel); only
   // its body chunk is lazy. The modal stays in the tree so the zoom-out and
@@ -590,6 +603,8 @@ export function AppShellShell({
   const [pinnedOriginRect, setPinnedOriginRect] = useState<Rect | null>(null);
   const openPinnedPanel = useCallback(
     (originRect: Rect | null) => {
+      setPinnedEverOpened(true);
+      preloadPinnedPanel();
       if (pathname !== "/dashboard") {
         router.push("/dashboard");
       }
@@ -863,7 +878,7 @@ export function AppShellShell({
   const [doubleBookingCount, setDoubleBookingCount] = useState<number | null>(null);
   const doubleBookingDebounceRef = useRef<number | null>(null);
   const refreshDoubleBooking = useCallback(() => {
-    return getJson<UserClashCheckResult>("/api/badges/clashes")
+    return getJson<UserClashCheckResult>("/api/badges/clashes", { priority: "low" })
       .then((result) => {
         if (!result.ok) {
           return;
@@ -875,11 +890,24 @@ export function AppShellShell({
       });
   }, []);
   useEffect(() => {
-    // The cold-start scan doubles as a readiness leg (see `pinned` above).
-    beginLeg("clashes");
-    void withTimeout(refreshDoubleBooking(), COLD_LEG_TIMEOUT_MS).finally(() =>
-      settleLeg("clashes"),
-    );
+    const run = () => {
+      // The cold-start scan doubles as a readiness leg (see `pinned` above).
+      beginLeg("clashes");
+      void withTimeout(refreshDoubleBooking(), COLD_LEG_TIMEOUT_MS).finally(() =>
+        settleLeg("clashes"),
+      );
+    };
+    const handle =
+      typeof requestIdleCallback === "function"
+        ? requestIdleCallback(run, { timeout: 1500 })
+        : window.setTimeout(run, 300);
+    return () => {
+      if (typeof cancelIdleCallback === "function") {
+        cancelIdleCallback(handle);
+      } else {
+        window.clearTimeout(handle);
+      }
+    };
   }, [refreshDoubleBooking, beginLeg, settleLeg]);
   useEffect(() => {
     const schedule = () => {
@@ -918,7 +946,7 @@ export function AppShellShell({
   const [kahCount, setKahCount] = useState<number | null>(null);
   const kahDebounceRef = useRef<number | null>(null);
   const refreshKah = useCallback(() => {
-    return getJson<KahBreachCountResult>("/api/badges/kah")
+    return getJson<KahBreachCountResult>("/api/badges/kah", { priority: "low" })
       .then((result) => {
         if (result.ok) {
           setKahCount(result.count);
@@ -932,8 +960,21 @@ export function AppShellShell({
     if (!showKah) {
       return;
     }
-    beginLeg("kah");
-    void withTimeout(refreshKah(), COLD_LEG_TIMEOUT_MS).finally(() => settleLeg("kah"));
+    const run = () => {
+      beginLeg("kah");
+      void withTimeout(refreshKah(), COLD_LEG_TIMEOUT_MS).finally(() => settleLeg("kah"));
+    };
+    const handle =
+      typeof requestIdleCallback === "function"
+        ? requestIdleCallback(run, { timeout: 1500 })
+        : window.setTimeout(run, 300);
+    return () => {
+      if (typeof cancelIdleCallback === "function") {
+        cancelIdleCallback(handle);
+      } else {
+        window.clearTimeout(handle);
+      }
+    };
   }, [showKah, refreshKah, beginLeg, settleLeg]);
   useEffect(() => {
     if (!showKah) {
@@ -1205,6 +1246,7 @@ export function AppShellShell({
                   events={pinnedEvents}
                   paused={pinnedOpen}
                   onOpen={openPinnedPanel}
+                  onIntent={preloadPinnedPanel}
                   status={pinnedEvents !== null ? "ready" : pinnedStatus}
                   indicator={pinnedTickerIndicator}
                 />
@@ -1317,7 +1359,7 @@ export function AppShellShell({
                 <SearchPanelContext.Provider value={searchPanelValue}>
                   <StatusAnnouncer />
                   {children}
-                  <PinnedEventsPanel seedEvents={pinnedEvents} />
+                  {pinnedEverOpened && <PinnedEventsPanel seedEvents={pinnedEvents} />}
                   <EventSearchModal
                     opened={searchOpen}
                     onClose={() => setSearchOpen(false)}

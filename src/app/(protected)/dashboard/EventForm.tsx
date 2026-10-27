@@ -1,5 +1,6 @@
 "use client";
 
+import "@mantine/dates/styles.css";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import {
   Accordion,

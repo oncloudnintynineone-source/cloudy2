@@ -1,5 +1,6 @@
 "use client";
 
+import "@mantine/dates/styles.css";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
@@ -393,7 +394,12 @@ export default function EventSearchBody({
           <Text
             size="xs"
             c="dimmed"
-            style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+            style={{
+              minWidth: 0,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
           >
             {results.length} result{results.length === 1 ? "" : "s"}
             {rangeLabel ? ` · ${rangeLabel}` : ""}
@@ -415,7 +421,13 @@ export default function EventSearchBody({
       )}
 
       {loading && (
-        <Box style={{ border: LIST_BORDER, borderRadius: "var(--mantine-radius-md)", overflow: "hidden" }}>
+        <Box
+          style={{
+            border: LIST_BORDER,
+            borderRadius: "var(--mantine-radius-md)",
+            overflow: "hidden",
+          }}
+        >
           <LoadingStatus label="Searching events" />
           <Stack gap={0}>
             {Array.from({ length: 4 }).map((_, i) => (

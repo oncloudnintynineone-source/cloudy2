@@ -848,6 +848,26 @@ prefetch and leaf chunk. The wizard's lazy
 fallback (`EventFormSkeleton`) reuses the same fixed body height as the real form
 (`eventFormLayout.ts`) so the modal never resizes while the chunk lands.
 
+**Cold-start parallelism.** The dashboard no longer waits for the data read
+before it starts downloading the active renderer chunk. `DashboardScreen`
+preloads the remembered renderer kind (`localStorage`) immediately on mount,
+falls back to `month`, and re-preloads the snapshot's actual
+`activeView.kind` as soon as the first record paints. The existing idle warm
+pass still covers the account's other view kinds. On hover/focus/press, a tab
+or a period chevron also speculatively warms its target context through the
+existing `/api/dashboard/load` (one in-flight speculative request, deduped by
+request key; the tap adopts it instead of issuing a duplicate). The filter
+dialog is now lazy and only mounted after its first open, so its picker chain
+is not part of the initial dashboard chunk.
+
+**Boot read.** `page.tsx` starts one `/api/dashboard/load` fetch in an inline
+script before React hydrates, and `DashboardScreen` adopts it only when the
+user, URL signature, and 15 s freshness window all match. This overlaps the
+server/DB round trip with the client bundle download and parse; a cached or
+failed boot read falls back to the normal fetch. The shell's Double Booking and
+KAH badge scans are deferred to idle so they do not compete with that first
+read.
+
 **View-gated computations.** The per-view-kind `useMemo`s that are expensive but
 only consumed by one grid — `scheduleResources` (O(events × users)),
 `scheduleEvents`, `departmentMemberships`, `monthEvents` — early-return a stable

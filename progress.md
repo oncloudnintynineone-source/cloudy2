@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.352 (registration caps)** is shipped.
+- All work through changelog **1.353 (frontend loading speed-ups)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -2222,6 +2222,15 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   `Registered (N / cap)` with a progress bar, a full notice, and a disabled Register
   button (Deregister stays available). Audit/webhook snapshots include the cap.
   Docs: `docs/registration-events.md` §1.5.
+
+- 1.353 **Frontend loading speed-ups**: cold dashboard opens preload the remembered
+  renderer chunk immediately and start one `/api/dashboard/load` before hydration
+  (adopted only on a matching user/URL signature), the IndexedDB cold paint reads a
+  lightweight per-account index and one snapshot before hydrating the rest at idle, tab
+  and period intent prefetch warms the target context (deduped, abortable, adopted by the
+  tap), the filter dialog and pinned panel are lazy, and shell badge scans defer to idle.
+  Docs: `docs/loading-transitions.md` §1.15, `docs/pwa-offline.md` §1.18,
+  `docs/events-cache.md` §1.12.
 
 ## 1.4 Open items & next steps
 

@@ -605,6 +605,14 @@ sequenceDiagram
   instead of after the TTL. The invalidation is per-instance (like the cache
   itself): the instance that served the write is fresh immediately; other
   instances converge when their TTL expires.
+- **Pre-hydration boot read.** `dashboard/page.tsx` renders one inline script
+  that starts `/api/dashboard/load` during HTML parse, before the client
+  bundle executes. It stores an abortable promise on `window.__C2_DASH_BOOT__`
+  (`src/lib/dashboard/boot.ts`); `DashboardScreen` adopts it once, only when
+  the account id, the URL's data signature (`view`/`month`/`date`/`refresh`),
+  and a 15 s age limit all match. A cached document with a stale user/signature
+  is rejected and aborted, and the normal fetch runs instead. This makes the
+  API/DB round trip overlap the JS download/parse on a cold browser load.
 - **Reads bypass the server-action queue.** These dashboard reads are plain
   `fetch` calls to route handlers, never server actions. Next runs server
   actions **one at a time** on the client (a single global action queue; a
@@ -612,18 +620,21 @@ sequenceDiagram
   request), so a background preload or badge scan used to delay the user's next
   save/read for its full duration. The load is abortable too, so a burst of
   month taps leaves only the last context's request alive.
-- **Cached first paint & warm revisits.** `DashboardScreen` hydrates a
-  per-account map of cached _contexts_ from IndexedDB
-  (`src/lib/dashboard/localStore.ts`) on mount. The paint is chosen by the
-  **anchor the load names**, not by recency: URL `?month`/`?date` win, then the
-  device cookie's remembered month (`pickColdPaintRecord`,
-  `src/lib/dashboard/navigation.ts`), and the tab is the URL `?view=` or — with a
-  silent URL — the **first tab** in strip order, so the last-viewed tab is never
-  resurrected. This matters because the preload batch (current + next two months)
-  is written _after_ the viewed month, so a plain "newest record" pick would land
-  the calendar two months ahead on every cold open. When no cached context answers
-  the anchor nothing is painted and the fetch reads it (the server applies the
-  same anchor rule).
+- **Cached first paint & warm revisits.** The store keeps a small per-account
+  `@@index` record (`snapshotIndexStorageKey`) with each context's request key,
+  `savedAt`, view id, first-tab id and month/date. A cold open reads that index
+  first, picks the key with the same anchor rule as the full-record path
+  (`pickColdPaintKey`, mirroring `pickColdPaintRecord`), and `get`s only that one
+  full snapshot before paint; the remaining contexts hydrate into the warm map at
+  idle, and a missing/corrupt index falls back to the full scoped read. The paint
+  is chosen by the **anchor the load names**, not by recency: URL
+  `?month`/`?date` win, then the device cookie's remembered month, and the tab is
+  the URL `?view=` or — with a silent URL — the **first tab** in strip order, so
+  the last-viewed tab is never resurrected. This matters because the preload
+  batch (current + next two months) is written _after_ the viewed month, so a
+  plain "newest record" pick would land the calendar two months ahead on every
+  cold open. When no cached context answers the anchor nothing is painted and the
+  fetch reads it (the server applies the same anchor rule).
   Every successful read writes its context (keyed by the account id
   - `requestKey`), capped at `MAX_SNAPSHOTS_PER_USER` (24) by LRU
     (`selectSnapshotsToEvict`), which bounds disk, the cold-start hydration parse
@@ -660,6 +671,15 @@ sequenceDiagram
   a generation ref, aborts an in-flight preload and clears the warm map, so it
   can't repopulate stale records — but it deliberately does **not** schedule
   another full pass (that would make the user wait on a warm-up).
+- **Intent prefetch.** Once a record is held, a tab hover/focus/press or a
+  period-chevron hover warms the target context through the existing
+  `/api/dashboard/load` (120 ms hover delay; immediate on press/focus). A
+  single speculative request runs at a time, is deduped by request key, never
+  replaces the displayed record, and writes only to the warm map + IndexedDB.
+  A tap adopts the in-flight promise instead of issuing a duplicate; revalidate
+  / force refresh bump the prefetch generation and abort it. This fills the gap
+  before the idle all-tab preload lands and covers backward month navigation
+  without adding speculative reads at every anchor.
 - **In-place, never interrupting.** A revalidation of the _current_ context
   never shows the grid skeleton (`isNavigating` is false). A context-changing
   fetch shows the skeleton only when the target isn't served from the warm cache;

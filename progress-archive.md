@@ -9671,3 +9671,50 @@ unlimited), configured by the organizer in the wizard's Participants step via a
 - Tests: new `notes`, `registration`, `validate`, `writeContext`, audit/webhook and
   optimistic coverage; all existing fixture payloads updated.
 - Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (126 files / 1654 tests).
+
+## 1.353 Frontend loading speed-ups
+
+**Goal.** Reduce cold dashboard first paint and month/tab navigation latency without
+changing the data layer, API contracts, or database schema.
+
+**Implementation.**
+
+- **Early renderer preload.** `DashboardScreen` preloads the remembered renderer kind
+  from `localStorage` on mount (falling back to `month`) and re-preloads the painted
+  snapshot's `activeView.kind` as soon as it is available. The existing idle pass still
+  warms the account's other kinds. The custom `dual`/`weekv2` chunks are warmed by the
+  same helper.
+- **Intent data prefetch.** A tab hover/focus/press or period-chevron hover/focus/press
+  schedules the target context through the existing `/api/dashboard/load`. A single
+  speculative request runs at a time (120 ms hover delay, immediate on press/focus),
+  deduped by request key, and writes only to the warm map + IndexedDB. `fetchFresh`
+  adopts an in-flight speculative promise for the same key instead of issuing a
+  duplicate. `revalidate`/force refresh bump the prefetch generation and abort it.
+- **Cold-paint index.** `localStore` keeps a small per-account `@@index` record. A cold
+  open reads it, selects the anchor's key with `pickColdPaintKey` (the same anchor rule
+  as the full-record path), and reads only that snapshot before paint; the rest hydrate
+  at idle. The full scoped read remains the fallback for a missing/corrupt index. All
+  snapshot reads are scoped with an `IDBKeyRange` and pruning now uses the index rather
+  than a full-store value scan.
+- **Pre-hydration boot read.** `dashboard/page.tsx` starts one `/api/dashboard/load` in
+  an inline script during HTML parse. `DashboardScreen` adopts it once only when the
+  account id, the URL data signature, and a 15 s age limit match; otherwise it aborts the
+  boot request and uses the normal path. The script stores an abortable promise and
+  cleans itself up after 60 s.
+- **Chunk trimming.** `FilterModal` mounts only after its first open (chunk preloaded on
+  filter-button intent), removing its picker chain from the initial dashboard chunk; the
+  pinned panel is lazy-loaded on first open and preloaded from the header ticker. The
+  dates stylesheet moved from the root layout into the five date-using client modules.
+- **Cold-start contention.** Double Booking and KAH badge scans + the push-subscription
+  repair defer to idle; the dashboard load is marked `priority: high`, badge reads
+  `priority: low`. Pinned ticker/readiness semantics are unchanged.
+- **Instrumentation.** `src/lib/perf/marks.ts` adds `c2:dashboard:*` / `c2:shell:mount`
+  performance marks for cold/warm measurement.
+
+**Verification.** `pnpm lint`, `pnpm typecheck`, `pnpm test` (129 files / 1667 tests),
+`pnpm build` (all routes compiled). Manual device/network timing is intentionally left to
+the next verification pass; each workstream is independently revertible.
+
+**Limitations.** The boot read is a single early call to the existing API (no API/DB
+change) and is rejected on signature/user/age mismatch. Intent prefetch spends one
+server read per user intent; it is gated by online/Save-Data/2G, deduped, and abortable.

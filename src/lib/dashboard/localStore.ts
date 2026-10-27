@@ -15,9 +15,15 @@
 
 import {
   DASHBOARD_SNAPSHOT_VERSION,
+  SNAPSHOT_INDEX_VERSION,
+  buildSnapshotIndexEntry,
+  isSnapshotIndexUsable,
   isSnapshotRecordUsable,
   selectSnapshotsToEvict,
+  snapshotIndexStorageKey,
   snapshotStorageKey,
+  type DashboardSnapshotIndex,
+  type DashboardSnapshotIndexEntry,
   type DashboardSnapshotRecord,
 } from "./snapshot";
 
@@ -47,6 +53,11 @@ function openDb(): Promise<IDBDatabase> {
   });
 }
 
+function userRange(userId: string): IDBKeyRange {
+  const prefix = `${userId}::`;
+  return IDBKeyRange.bound(prefix, `${prefix}\uffff`);
+}
+
 function runRequest<T>(
   mode: IDBTransactionMode,
   operation: (store: IDBObjectStore) => IDBRequest<T>,
@@ -70,18 +81,19 @@ function runRequest<T>(
   );
 }
 
-/** Every usable stored record with its storage key (best-effort, never throws). */
-function readAllRecords(): Promise<{ key: string; record: DashboardSnapshotRecord }[]> {
+/** Every usable stored record in the given account range (best-effort). */
+function readAllRecords(
+  userId?: string,
+): Promise<{ key: string; record: DashboardSnapshotRecord }[]> {
   return openDb().then(
     (db) =>
       new Promise((resolve) => {
         try {
           const tx = db.transaction(STORE_NAME, "readonly");
           const store = tx.objectStore(STORE_NAME);
-          // Both requests are issued synchronously so the transaction can't
-          // auto-commit between them.
-          const keysRequest = store.getAllKeys();
-          const valuesRequest = store.getAll();
+          const range = userId ? userRange(userId) : undefined;
+          const keysRequest = store.getAllKeys(range);
+          const valuesRequest = store.getAll(range);
           let keys: IDBValidKey[] = [];
           let values: unknown[] = [];
           let pending = 2;
@@ -119,7 +131,29 @@ function readAllRecords(): Promise<{ key: string; record: DashboardSnapshotRecor
   );
 }
 
-/** Run a write operation over one store, resolving when the transaction commits. */
+/** Every key in the account range (cheap: no value deserialization). */
+function readAllKeys(userId: string): Promise<string[]> {
+  return openDb().then(
+    (db) =>
+      new Promise((resolve) => {
+        try {
+          const tx = db.transaction(STORE_NAME, "readonly");
+          const request = tx.objectStore(STORE_NAME).getAllKeys(userRange(userId));
+          request.onsuccess = () => {
+            resolve(request.result.filter((key): key is string => typeof key === "string"));
+          };
+          request.onerror = () => resolve([]);
+          tx.oncomplete = () => db.close();
+          tx.onerror = () => resolve([]);
+          tx.onabort = () => resolve([]);
+        } catch {
+          db.close();
+          resolve([]);
+        }
+      }),
+  );
+}
+
 function runWrite(operation: (store: IDBObjectStore) => void): Promise<void> {
   return openDb().then(
     (db) =>
@@ -147,7 +181,6 @@ function runWrite(operation: (store: IDBObjectStore) => void): Promise<void> {
   );
 }
 
-/** Delete the given storage keys in one transaction (best-effort). */
 function deleteKeys(keys: readonly string[]): Promise<void> {
   if (keys.length === 0) return Promise.resolve();
   return openDb().then(
@@ -179,29 +212,68 @@ function deleteKeys(keys: readonly string[]): Promise<void> {
   );
 }
 
-/** Every cached context for this account (for the in-memory hydration). */
-export async function readDashboardSnapshots(userId: string): Promise<DashboardSnapshotRecord[]> {
-  if (!hasIndexedDb()) return [];
-  const prefix = `${userId}::`;
-  const all = await readAllRecords();
-  return all.filter((entry) => entry.key.startsWith(prefix)).map((entry) => entry.record);
+/** The lightweight per-account index used to pick a cold paint without reading every snapshot. */
+export async function readDashboardSnapshotIndex(
+  userId: string,
+): Promise<DashboardSnapshotIndex | null> {
+  if (!hasIndexedDb()) return null;
+  const raw = await runRequest<unknown>("readonly", (store) =>
+    store.get(snapshotIndexStorageKey(userId)),
+  );
+  return isSnapshotIndexUsable(raw) ? raw : null;
 }
 
-/** Drop this account's oldest contexts so at most the cap remain. */
-async function pruneSnapshots(userId: string): Promise<void> {
-  const all = await readAllRecords();
-  const evict = selectSnapshotsToEvict(
-    all.map((entry) => ({ key: entry.key, savedAt: entry.record.savedAt })),
-    userId,
+/** One stored context, or null when absent/invalid. */
+export async function readDashboardSnapshot(
+  userId: string,
+  requestKey: string,
+): Promise<DashboardSnapshotRecord | null> {
+  if (!hasIndexedDb()) return null;
+  const raw = await runRequest<unknown>("readonly", (store) =>
+    store.get(snapshotStorageKey(userId, requestKey)),
   );
-  await deleteKeys(evict);
+  return isSnapshotRecordUsable(raw) ? raw : null;
+}
+
+/** Every cached context for this account (for the full warm-map hydration). */
+export async function readDashboardSnapshots(userId: string): Promise<DashboardSnapshotRecord[]> {
+  if (!hasIndexedDb()) return [];
+  const all = await readAllRecords(userId);
+  return all.map((entry) => entry.record);
+}
+
+async function indexFromRecords(userId: string): Promise<DashboardSnapshotIndex> {
+  const all = await readAllRecords(userId);
+  return {
+    v: SNAPSHOT_INDEX_VERSION,
+    entries: all.map((entry) => buildSnapshotIndexEntry(entry.record)),
+  };
+}
+
+function mergeIndexEntries(
+  current: readonly DashboardSnapshotIndexEntry[],
+  next: readonly DashboardSnapshotIndexEntry[],
+): DashboardSnapshotIndexEntry[] {
+  const byKey = new Map(current.map((entry) => [entry.requestKey, entry]));
+  for (const entry of next) {
+    byKey.set(entry.requestKey, entry);
+  }
+  return [...byKey.values()];
+}
+
+async function writeIndex(userId: string, entries: DashboardSnapshotIndexEntry[]): Promise<void> {
+  await runWrite((store) => {
+    store.put(
+      { v: SNAPSHOT_INDEX_VERSION, entries } satisfies DashboardSnapshotIndex,
+      snapshotIndexStorageKey(userId),
+    );
+  });
 }
 
 /**
- * Persist several contexts in one transaction, then prune once. The tab preload
- * writes every warm context at once; doing this per record meant one `put` plus
- * a full-store `getAll`/`getAllKeys` prune per record — O(tabs²) reads. This is
- * best-effort like the single-record write.
+ * Persist several contexts in one transaction, then update the cold-paint index
+ * and prune once. The tab preload writes every warm context at once; this also
+ * avoids a full-store value scan for the old prune path.
  */
 export async function writeDashboardSnapshots(
   userId: string,
@@ -212,19 +284,33 @@ export async function writeDashboardSnapshots(
 ): Promise<void> {
   if (!hasIndexedDb() || entries.length === 0) return;
   const savedAt = Date.now();
+  const records = entries.map<DashboardSnapshotRecord>((entry) => ({
+    version: DASHBOARD_SNAPSHOT_VERSION,
+    savedAt,
+    context: entry.context,
+    data: entry.data,
+  }));
   try {
     await runWrite((store) => {
-      for (const entry of entries) {
-        const record: DashboardSnapshotRecord = {
-          version: DASHBOARD_SNAPSHOT_VERSION,
-          savedAt,
-          context: entry.context,
-          data: entry.data,
-        };
-        store.put(record, snapshotStorageKey(userId, entry.context.requestKey));
+      for (const record of records) {
+        store.put(record, snapshotStorageKey(userId, record.context.requestKey));
       }
     });
-    await pruneSnapshots(userId);
+    const current = (await readDashboardSnapshotIndex(userId)) ?? (await indexFromRecords(userId));
+    const merged = mergeIndexEntries(current.entries, records.map(buildSnapshotIndexEntry));
+    const evictKeys = selectSnapshotsToEvict(
+      merged.map((entry) => ({
+        key: snapshotStorageKey(userId, entry.requestKey),
+        savedAt: entry.savedAt,
+      })),
+      userId,
+    );
+    const evictSet = new Set(evictKeys);
+    const kept = merged.filter(
+      (entry) => !evictSet.has(snapshotStorageKey(userId, entry.requestKey)),
+    );
+    await writeIndex(userId, kept);
+    await deleteKeys(evictKeys);
   } catch {
     // Quota / private-mode / transient failures: the in-memory render stands.
   }
@@ -242,9 +328,8 @@ export async function writeDashboardSnapshot(
 /** Drop every cached context for this account (mutation / force-refresh invalidation). */
 export async function clearDashboardSnapshots(userId: string): Promise<void> {
   if (!hasIndexedDb()) return;
-  const prefix = `${userId}::`;
-  const all = await readAllRecords();
-  await deleteKeys(all.filter((entry) => entry.key.startsWith(prefix)).map((entry) => entry.key));
+  const keys = await readAllKeys(userId);
+  await deleteKeys([...keys, snapshotIndexStorageKey(userId)]);
 }
 
 /** Drop every stored snapshot for every account (sign-out, shared-device isolation). */

@@ -36,7 +36,9 @@ export function isAbortError(error: unknown): boolean {
   );
 }
 
-async function request<T>(url: string, init: RequestInit): Promise<T> {
+type ApiRequestInit = RequestInit & { priority?: "high" | "low" | "auto" };
+
+async function request<T>(url: string, init: ApiRequestInit): Promise<T> {
   const response = await fetch(url, {
     ...init,
     credentials: "same-origin",
@@ -67,18 +69,22 @@ async function request<T>(url: string, init: RequestInit): Promise<T> {
   return payload as T;
 }
 
-export function getJson<T>(url: string, options?: { signal?: AbortSignal }): Promise<T> {
-  return request<T>(url, { method: "GET", signal: options?.signal });
+export function getJson<T>(
+  url: string,
+  options?: { signal?: AbortSignal; priority?: "high" | "low" | "auto" },
+): Promise<T> {
+  return request<T>(url, { method: "GET", signal: options?.signal, priority: options?.priority });
 }
 
 export function postJson<T>(
   url: string,
   body: unknown,
-  options?: { signal?: AbortSignal },
+  options?: { signal?: AbortSignal; priority?: "high" | "low" | "auto" },
 ): Promise<T> {
   return request<T>(url, {
     method: "POST",
     body: JSON.stringify(body ?? {}),
     signal: options?.signal,
+    priority: options?.priority,
   });
 }

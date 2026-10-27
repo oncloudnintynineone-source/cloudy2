@@ -52,6 +52,7 @@ export interface DashboardDataValue {
    * lands. A no-op when the tab is unknown to the held record.
    */
   applyViewTab: (tab: DashboardViewTab) => void;
+  prefetchContext: (target: { view: string; month: string; date: string | null }) => void;
 }
 
 const DashboardDataContext = createContext<DashboardDataValue | null>(null);

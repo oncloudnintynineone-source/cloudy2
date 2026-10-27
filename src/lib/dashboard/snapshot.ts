@@ -416,6 +416,88 @@ export function snapshotStorageKey(userId: string, requestKey: string): string {
   return `${userId}::${requestKey}`;
 }
 
+/** Version of the per-account cold-start index record. */
+export const SNAPSHOT_INDEX_VERSION = 1;
+
+/** Metadata for one stored context, kept in the per-account index. */
+export interface DashboardSnapshotIndexEntry {
+  requestKey: string;
+  savedAt: number;
+  viewId: string;
+  firstTabId: string;
+  month: string;
+  date: string;
+}
+
+export interface DashboardSnapshotIndex {
+  v: number;
+  entries: DashboardSnapshotIndexEntry[];
+}
+
+/** The IndexedDB key for one account's snapshot index. */
+export function snapshotIndexStorageKey(userId: string): string {
+  return `${userId}::@@index`;
+}
+
+export function buildSnapshotIndexEntry(
+  record: DashboardSnapshotRecord,
+): DashboardSnapshotIndexEntry {
+  return {
+    requestKey: record.context.requestKey,
+    savedAt: record.savedAt,
+    viewId: record.context.viewId,
+    firstTabId: record.data.tabs[0]?.id ?? record.data.activeView.id,
+    month: record.context.month,
+    date: record.context.date,
+  };
+}
+
+export function isSnapshotIndexUsable(value: unknown): value is DashboardSnapshotIndex {
+  if (typeof value !== "object" || value === null) return false;
+  const index = value as DashboardSnapshotIndex;
+  if (index.v !== SNAPSHOT_INDEX_VERSION || !Array.isArray(index.entries)) return false;
+  return index.entries.every(
+    (entry) =>
+      typeof entry === "object" &&
+      entry !== null &&
+      typeof entry.requestKey === "string" &&
+      typeof entry.savedAt === "number" &&
+      typeof entry.viewId === "string" &&
+      typeof entry.firstTabId === "string" &&
+      typeof entry.month === "string" &&
+      typeof entry.date === "string",
+  );
+}
+
+/**
+ * The request key whose stored record should paint a cold open, chosen from the
+ * lightweight index exactly like `pickColdPaintRecord` chooses from full
+ * records. Returns null when no stored context answers the anchor.
+ */
+export function pickColdPaintKey(
+  index: DashboardSnapshotIndex,
+  opts: {
+    urlView: string | null;
+    urlMonth: string | null;
+    urlDate: string | null;
+    rememberedMonth: string | null;
+  },
+): string | null {
+  if (index.entries.length === 0) return null;
+  const newest = (entries: readonly DashboardSnapshotIndexEntry[]): DashboardSnapshotIndexEntry =>
+    entries.reduce((a, b) => (a.savedAt >= b.savedAt ? a : b));
+  const anchorMonth =
+    opts.urlMonth ?? (opts.urlDate ? opts.urlDate.slice(0, 7) : opts.rememberedMonth);
+  const firstTabId = newest(index.entries).firstTabId;
+  const pool = opts.urlView
+    ? index.entries.filter((entry) => entry.viewId === opts.urlView)
+    : index.entries.filter((entry) => entry.firstTabId === firstTabId);
+  const candidates = pool.length > 0 ? pool : index.entries;
+  if (anchorMonth === null) return newest(candidates).requestKey;
+  const anchored = candidates.filter((entry) => entry.month === anchorMonth);
+  return anchored.length > 0 ? newest(anchored).requestKey : null;
+}
+
 /** Whether a cached context is recent enough to serve without a re-read. */
 export function isWarmSnapshotFresh(savedAt: number, now: number): boolean {
   return now - savedAt < WARM_SNAPSHOT_FRESH_MS;
