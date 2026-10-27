@@ -78,16 +78,26 @@ const SCHEDULE_PRELOADERS: Partial<Record<DashboardViewKind, readonly unknown[]>
  * already loaded by first render; this lets the dashboard warm the kinds the
  * account actually has tabs for instead of every schedule view. Best-effort
  * and idempotent; the caller applies the connection gate.
+ *
+ * Resolves once every requested kind's chunks have settled, so
+ * `DashboardView` can hold its in-page skeleton until the real renderer (not
+ * `next/dynamic`'s fallback) can mount.
  */
-export function preloadScheduleViewKinds(kinds: readonly DashboardViewKind[]): void {
+export function preloadScheduleViewKinds(kinds: readonly DashboardViewKind[]): Promise<void> {
   const seen = new Set<unknown>();
+  const pending: Promise<unknown>[] = [];
   for (const kind of kinds) {
     for (const component of SCHEDULE_PRELOADERS[kind] ?? []) {
       if (seen.has(component)) {
         continue;
       }
       seen.add(component);
-      void (component as { preload?: () => Promise<unknown> }).preload?.().catch(() => {});
+      const preload = (component as { preload?: () => Promise<unknown> }).preload;
+      if (!preload) {
+        continue;
+      }
+      pending.push(preload.call(component).catch(() => {}));
     }
   }
+  return Promise.all(pending).then(() => undefined);
 }

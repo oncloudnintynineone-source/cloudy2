@@ -9596,7 +9596,7 @@ own tab strip.
   signs it with HMAC-SHA256 keyed by `NEXTAUTH_SECRET` (domain-separated). Decode checks
   the signature/version/kind/name/filter shapes and caps decompressed size; encode
   guards the final URL length.
-- `shareActions.ts` resolves the owner's *effective* filters before signing (so `null`
+- `shareActions.ts` resolves the owner's _effective_ filters before signing (so `null`
   role defaults become concrete values for the recipient), previews a token against live
   config, and appends a normal tab through the shared `appendDashboardView` helper
   (extracted from the Create-view action, so the seed/cap/dense-order rules stay one
@@ -9620,3 +9620,32 @@ own tab strip.
 **Limitations.** Self-contained links cannot be revoked individually and rotate with
 `NEXTAUTH_SECRET`; base64 is not encryption (calendar/user ids are visible in the link);
 the link opens in the browser/PWA via the normal URL (no native app-link intent filters).
+
+## 1.350 Calendar skeleton → content crossfade
+
+**Goal.** Replace the dashboard grid's skeleton→content hard cut with a true
+crossfade across every calendar view kind (Month, Week (H), Week (D),
+Week (Grid), Day, Agenda, Month & Agenda).
+
+**Implementation.**
+
+- New `CrossfadeSwap` (`src/components/CrossfadeSwap.tsx`): on a
+  `loading → false` edge the outgoing skeleton is retained for one
+  `--c2-dur-standard` beat while `c2-crossfade-out` dissolves it over the
+  already-painted content. Both layers share one grid cell, so the content owns
+  the final box size. The load edge is adjusted during render, so the retained
+  skeleton commits in the same pass as the content (no uncovered frame).
+- `DashboardView` wraps the view ternary in `CrossfadeSwap` and holds the
+  in-page skeleton until the active renderer chunk is ready
+  (`useRendererReady`, backed by a `useSyncExternalStore` readiness set), so
+  the crossfade never lands on `next/dynamic`'s fallback. The chunk readiness
+  gate does not start the minimum skeleton hold; data loading keeps that
+  cadence.
+- The dashboard's outer `content-enter` class is now cold-mount-only —
+  `useContentEnter` is no longer restarted on the reveal, because fading the
+  whole box (skeleton included) from opacity 0 would undo the crossfade.
+- Reduced-motion and low-end tiers remove the skeleton immediately; the
+  retention window is driven by the shared motion tokens.
+
+**Verification.** `pnpm lint`, `pnpm typecheck`, `pnpm test` (124 files /
+1635 tests).

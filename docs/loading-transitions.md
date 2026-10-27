@@ -19,7 +19,7 @@ where it is wired.
 - [1.3 The standard sequence](#13-the-standard-sequence)
 - [1.4 Route-level loading](#14-route-level-loading)
 - [1.5 Minimum skeleton hold](#15-minimum-skeleton-hold)
-- [1.6 Reveal fade](#16-reveal-fade)
+- [1.6 Reveal & crossfade](#16-reveal--crossfade)
 - [1.7 One-shot URL params](#17-one-shot-url-params)
 - [1.8 No-op navigations & in-page exceptions](#18-no-op-navigations--in-page-exceptions)
 - [1.9 Optimistic navigation chrome](#19-optimistic-navigation-chrome)
@@ -59,9 +59,9 @@ Three failure modes, all observed before this system existed:
   darkened while loading (the `opacity: isPending ? 0.6 : 1` pattern is banned).
 - Every skeleton→content reveal reads as a deliberate, perceptible sequence,
   even for sub-100 ms loads (minimum hold, §1.5).
-- Content fades in over ~200 ms on reveal, **and** on cold first paint — the
-  class ships in the SSR HTML, so no JS is needed for the first fade
-  (§1.6).
+- Content fades in on cold first paint — the class ships in the SSR HTML, so
+  no JS is needed for the first fade — and the dashboard's skeleton → content
+  swap is a crossfade/dissolve on every load (§1.6).
 - Containers that must not remount (scroll position) keep their identity; the
   animation is restarted on them, not the DOM (§1.6).
 - One-shot params force exactly one render and strip themselves out of the
@@ -91,7 +91,7 @@ stateDiagram-v2
  loading --> hold: pending false, but < 150ms since start
  hold --> revealed: hold expires
  loading --> revealed: pending false after >= 150ms
- revealed --> [*]: content-enter fade plays (~200ms)
+ revealed --> [*]: skeleton dissolves into content (crossfade)
  note right of hold
  holds never stack:
  a new pending supersedes
@@ -104,8 +104,9 @@ stateDiagram-v2
    (or the in-page skeleton swap) shows while `isPending`.
 2. `useMinSkeletonHold` extends the hold to a minimum of
    `MIN_SKELETON_HOLD_MS` (150 ms) from the load's start.
-3. On reveal, `useContentEnter` (or the SSR-shipped class) plays the
-   `content-enter` fade.
+3. On reveal, the dashboard's `CrossfadeSwap` dissolves the outgoing skeleton
+   while the content is already painted underneath; other pages play the
+   `content-enter` fade (`useContentEnter` or the SSR-shipped class).
 4. URL-only changes (one-shot param strips, in-month day sync) use **plain
    `router.push` outside `startTransition`** — no pending flag, no skeleton,
    no fade.
@@ -209,17 +210,31 @@ navigations only. Force refresh no longer participates: the header button
 reloads the whole document, so its wait is the route `loading.tsx` skeleton
 (§1.4), not this hold.
 
-## 1.6 Reveal fade
+## 1.6 Reveal & crossfade
 
 **Cold mount**: `CONTENT_ENTER_CLASS` on the content root (see §1.4). The
-animation is `content-enter` — `opacity: 0 → 1`, 200 ms ease-out
+animation is `content-enter` — `opacity: 0 → 1`, 160 ms ease-out
 (`src/app/globals.css`) — inside the
 `prefers-reduced-motion: no-preference` guard.
 
-**In-page reveal into a stable container**: the dashboard's week/schedule
-`ScrollArea` must **not** remount across navigations (it owns the horizontal
-scroll position), so the fade can't be restarted by unmounting.
-`useContentEnter(ref, shown)` (`src/lib/loading/contentEnter.ts`) instead:
+**Dashboard skeleton → content crossfade**: the in-page grid swap is owned by
+`CrossfadeSwap` (`src/components/CrossfadeSwap.tsx`). When `gridLoading` flips
+false, the skeleton stays mounted for one `--c2-dur-standard` beat while
+`c2-crossfade-out` dissolves it over the already-painted content; both layers
+share one grid cell, so the content owns the final size and the swap never
+hard-cuts. The dashboard's grid skeleton also waits for the active renderer
+chunk (`useRendererReady`) so the crossfade never dissolves into
+`next/dynamic`'s fallback and then hard-cuts to the real grid. Reduced-motion
+and low-end tiers remove the skeleton immediately. The outer
+`content-enter` class now only carries the cold-mount fade on the dashboard —
+`useContentEnter` is deliberately **not** restarted on the reveal, because that
+would fade the whole box (including the outgoing skeleton) from opacity 0
+before the crossfade.
+
+**In-page reveal into a stable container (other pages)**: a container that
+must **not** remount across navigations (e.g. the parade/audit list) keeps its
+identity, so `useContentEnter(ref, shown)` (`src/lib/loading/contentEnter.ts`)
+restarts the one-shot CSS fade instead:
 
 - watches `shown` (i.e. `!loading`) and, on a `false → true` flip,
 - removes the class, forces a style flush (`void el.offsetWidth`), and
@@ -247,11 +262,11 @@ before the special render: undone edits, resurrected filters, an old nonce
 still forcing). None of the three is ever written to the document/RSC caches
 ([`pwa-offline.md`](pwa-offline.md) — `ONE_SHOT_PARAMS`).
 
-| Param                 | Purpose                                                                                                                                                                                                                                                                                             | Validity                                                                                                                                                                                                                                                            | Stripped by                                                                                                                                                                                                                                                                                |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `?event=<uuid>`       | open the event's details modal (deep link from the Google Calendar `Edit:` note line, Pinned Events, event search; `_eventCal` names the target's calendar so the lean `resolveDeepLinkTargetAction` resolves that one event separately)                                                           | `isUuid` — anything else ignored (`dashboard/page.tsx`); the link's `date` pins the fetched period; the render keeps the active tab (search carries `?view=`) and its filters — the grid's filtered `events` are never widened, the target rides as the client-resolved `deepLinkEvent` | ref-guarded effect **after the link settles** (`deepLinkSettled`, `DashboardView.tsx`) — a refresh won't reopen the modal; re-arms once stripped so the same event can open again; the target action runs in parallel with the grid read (a warm grid does not re-fetch)                      |
-| `?edit=<uuid>`        | open the event's edit form directly (the event search modal's "Edit" action / legacy note links)                                                                                                                                                                                                   | `isUuid` — anything else ignored (`dashboard/page.tsx`); the link's `date` pins the fetched month; the render reads the remembered-UI-state cookie                                                                                                                  | ref-guarded effect **after the link settles** (`DashboardView.tsx`) — a refresh won't reopen the form; re-arms once stripped so the same event can be edited again                                                          |
-| `?refresh=<epoch-ms>` | Force refresh (header button, every page): a **full page reload** to the nonce URL — the SW never caches it, so every page gets a network render; on the dashboard the server additionally bypasses the events-cache freshness windows and blocks on fresh Google reads **inside the same request** | finite number younger than `REFRESH_NONCE_TTL_MS` (5 min, `snapshot.ts`) — a stale history entry can't silently re-force (`events-cache.md` §1.5.1)                                                                                                                 | `useOneShotRefreshStrip` after the reloaded document mounts (`src/lib/pwa/client.ts`, mounted in `AppShellShell`) — clears the pathname's RSC entries first, then `router.replace`s to the clean URL (once per document load)                                                              |
+| Param                 | Purpose                                                                                                                                                                                                                                                                                             | Validity                                                                                                                                                                                                                                                                                | Stripped by                                                                                                                                                                                                                                                              |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `?event=<uuid>`       | open the event's details modal (deep link from the Google Calendar `Edit:` note line, Pinned Events, event search; `_eventCal` names the target's calendar so the lean `resolveDeepLinkTargetAction` resolves that one event separately)                                                            | `isUuid` — anything else ignored (`dashboard/page.tsx`); the link's `date` pins the fetched period; the render keeps the active tab (search carries `?view=`) and its filters — the grid's filtered `events` are never widened, the target rides as the client-resolved `deepLinkEvent` | ref-guarded effect **after the link settles** (`deepLinkSettled`, `DashboardView.tsx`) — a refresh won't reopen the modal; re-arms once stripped so the same event can open again; the target action runs in parallel with the grid read (a warm grid does not re-fetch) |
+| `?edit=<uuid>`        | open the event's edit form directly (the event search modal's "Edit" action / legacy note links)                                                                                                                                                                                                    | `isUuid` — anything else ignored (`dashboard/page.tsx`); the link's `date` pins the fetched month; the render reads the remembered-UI-state cookie                                                                                                                                      | ref-guarded effect **after the link settles** (`DashboardView.tsx`) — a refresh won't reopen the form; re-arms once stripped so the same event can be edited again                                                                                                       |
+| `?refresh=<epoch-ms>` | Force refresh (header button, every page): a **full page reload** to the nonce URL — the SW never caches it, so every page gets a network render; on the dashboard the server additionally bypasses the events-cache freshness windows and blocks on fresh Google reads **inside the same request** | finite number younger than `REFRESH_NONCE_TTL_MS` (5 min, `snapshot.ts`) — a stale history entry can't silently re-force (`events-cache.md` §1.5.1)                                                                                                                                     | `useOneShotRefreshStrip` after the reloaded document mounts (`src/lib/pwa/client.ts`, mounted in `AppShellShell`) — clears the pathname's RSC entries first, then `router.replace`s to the clean URL (once per document load)                                            |
 
 ```mermaid
 sequenceDiagram
@@ -460,13 +475,13 @@ and the non-remounting container means `useContentEnter` never replays.
 
 ## 1.12 Usage inventory
 
-| Consumer                                                                                         | Minimum hold                                        | Reveal fade                                      | Notes                                                                                                                          |
-| ------------------------------------------------------------------------------------------------ | --------------------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
-| `DashboardView` (week/schedule grid)                                                             | `useMinSkeletonHold(isNavigating)`                  | `useContentEnter(weekBoxRef, …)`                 | stable `ScrollArea` keeps scroll position; force refresh is a full page reload (route `loading.tsx`), not an in-app transition |
-| `ParadeStateView`                                                                                | `useMinSkeletonHold(initialMonth !== month)`        | `useContentEnter`                                | in-month changes are optimistic — no skeleton                                                                                  |
-| `AuditLogView`                                                                                   | `useMinSkeletonHold(isPending \|\| liveRefreshing)` | `useContentEnter`                                | filter navigations (no-op guard skips the transition) + the always-fresh live re-read (`useLiveRouteRefresh`, §1.13)           |
-| `SettingsForm`, `DepartmentTable`, `ContactList`, `UserTable`, `EventTypeTable`, `TemplatesForm` | —                                                   | static `CONTENT_ENTER_CLASS` on the content root | server-rendered pages; the SSR fade plays on first paint                                                                       |
-| all sixteen route segments                                                                       | —                                                   | `loading.tsx` skeletons                          | §1.4 table                                                                                                                     |
+| Consumer                                                                                         | Minimum hold                                        | Reveal                                                 | Notes                                                                                                                                                                   |
+| ------------------------------------------------------------------------------------------------ | --------------------------------------------------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DashboardView` (week/schedule grid)                                                             | `useMinSkeletonHold(…) \|\| !rendererReady`         | `CrossfadeSwap` (static `content-enter` on cold mount) | stable `ScrollArea` keeps scroll position; holds until the renderer chunk is ready; force refresh is a full page reload (route `loading.tsx`), not an in-app transition |
+| `ParadeStateView`                                                                                | `useMinSkeletonHold(initialMonth !== month)`        | `useContentEnter`                                      | in-month changes are optimistic — no skeleton                                                                                                                           |
+| `AuditLogView`                                                                                   | `useMinSkeletonHold(isPending \|\| liveRefreshing)` | `useContentEnter`                                      | filter navigations (no-op guard skips the transition) + the always-fresh live re-read (`useLiveRouteRefresh`, §1.13)                                                    |
+| `SettingsForm`, `DepartmentTable`, `ContactList`, `UserTable`, `EventTypeTable`, `TemplatesForm` | —                                                   | static `CONTENT_ENTER_CLASS` on the content root       | server-rendered pages; the SSR fade plays on first paint                                                                                                                |
+| all sixteen route segments                                                                       | —                                                   | `loading.tsx` skeletons                                | §1.4 table                                                                                                                                                              |
 
 ## 1.13 Global activity bar
 
@@ -812,13 +827,13 @@ event-details modal (`EventDetail`), the manage-views modal (`EditViewsModal`)
 and the date picker. Only the target screen's active renderer loads on first
 paint; the warm policy is deliberately probability-based:
 
-| Trigger                              | Warms                                                                | Gate                                    |
-| ------------------------------------ | -------------------------------------------------------------------- | --------------------------------------- |
-| After the active view paints, idle   | `EventDetail` + the renderer kinds the account actually has tabs for | `canWarmRoutes()`                       |
-| 5 s after the active view            | The wizard                                                           | `googleConfigured` + `canPreloadTabs()` |
-| Hover/focus/pointer-down/touch-start | View kind, wizard, date picker, manage views, event detail           | `canWarmRoutes()`                       |
-| Search history is non-empty          | Search body, idle                                                    | `canPreloadTabs()`                       |
-| Cold start landed, idle              | Parade State / Contacts / Double Booking: `router.prefetch` of each bare href (runs the page's server render — warms the config cache + the cache-backed month read, lands the payload in the router + RSC caches) + their leaf chunks — once per signed-in user per document (pure plan in `src/lib/navPreload/navPreload.ts`, `NavIdlePreloader.tsx`) | `canPreloadTabs()` |
+| Trigger                              | Warms                                                                                                                                                                                                                                                                                                                                                   | Gate                                    |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| After the active view paints, idle   | `EventDetail` + the renderer kinds the account actually has tabs for                                                                                                                                                                                                                                                                                    | `canWarmRoutes()`                       |
+| 5 s after the active view            | The wizard                                                                                                                                                                                                                                                                                                                                              | `googleConfigured` + `canPreloadTabs()` |
+| Hover/focus/pointer-down/touch-start | View kind, wizard, date picker, manage views, event detail                                                                                                                                                                                                                                                                                              | `canWarmRoutes()`                       |
+| Search history is non-empty          | Search body, idle                                                                                                                                                                                                                                                                                                                                       | `canPreloadTabs()`                      |
+| Cold start landed, idle              | Parade State / Contacts / Double Booking: `router.prefetch` of each bare href (runs the page's server render — warms the config cache + the cache-backed month read, lands the payload in the router + RSC caches) + their leaf chunks — once per signed-in user per document (pure plan in `src/lib/navPreload/navPreload.ts`, `NavIdlePreloader.tsx`) | `canPreloadTabs()`                      |
 
 Every other schedule view kind, the date picker, manage-views and the remaining
 nav routes stay unloaded until the idle pass above or intent. The three
@@ -866,8 +881,9 @@ at hydration.
 | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `src/lib/loading/minHoldLoading.ts`                              | `useMinSkeletonHold` + `MIN_SKELETON_HOLD_MS`                                                                                                                                                                                                                                                                                 |
 | `src/lib/loading/contentEnter.ts`                                | `CONTENT_ENTER_CLASS` + `useContentEnter`                                                                                                                                                                                                                                                                                     |
+| `src/components/CrossfadeSwap.tsx`                               | Skeleton → content crossfade for the dashboard grids (retains the outgoing skeleton for one motion beat)                                                                                                                                                                                                                      |
 | `src/components/LoadingStatus.tsx`                               | Sr-only `role="status"` announcement included with every skeleton block (§1.4, [`accessibility.md`](accessibility.md) §1.3)                                                                                                                                                                                                   |
-| `src/app/globals.css`                                            | `content-enter` / `agenda-slide-*` / `c2-page-in`/`c2-page-out` keyframes, `::view-transition-*` page rules, reduced-motion guard                                                                                                                                                                                             |
+| `src/app/globals.css`                                            | `content-enter` / `c2-crossfade-*` / `agenda-slide-*` / `c2-page-in`/`c2-page-out` keyframes, `::view-transition-*` page rules, reduced-motion guard                                                                                                                                                                          |
 | `src/components/PageTransition.tsx`                              | Per-page `<ViewTransition>` wrapper (fade + rise on route change) — §1.14                                                                                                                                                                                                                                                     |
 | `src/app/(protected)/**/page.tsx`                                | Each protected page renders its content through `PageTransition` (§1.14)                                                                                                                                                                                                                                                      |
 | `src/app/(protected)/*/loading.tsx`                              | Route-level skeletons (16 segments)                                                                                                                                                                                                                                                                                           |
@@ -880,7 +896,7 @@ at hydration.
 | `src/lib/ui/uiState.ts`                                          | `resolveDashboardView` — shared view resolution for page + route fallback                                                                                                                                                                                                                                                     |
 | `src/app/(protected)/parade-state/paradeStateSkeleton.tsx`       | Parade row skeletons (shared)                                                                                                                                                                                                                                                                                                 |
 | `src/app/(protected)/settings/audit-log/AuditLogRowSkeleton.tsx` | Audit row skeleton (shared)                                                                                                                                                                                                                                                                                                   |
-| `src/app/(protected)/dashboard/DashboardView.tsx`                | Held loading, reveal fade, one-shot strips (`event`/`edit`/`refresh`/`share`), agenda slide, optimistic date-nav chrome (`shown*`, §1.9.2), per-tab load styling incl. the mobile name-line spinner (§1.13.2), optimistic tab switch + tab-URL prefetch (§1.10/§1.13.2), WAAPI grid swipe (no forced reflow)                          |
+| `src/app/(protected)/dashboard/DashboardView.tsx`                | Held loading, reveal fade, one-shot strips (`event`/`edit`/`refresh`/`share`), agenda slide, optimistic date-nav chrome (`shown*`, §1.9.2), per-tab load styling incl. the mobile name-line spinner (§1.13.2), optimistic tab switch + tab-URL prefetch (§1.10/§1.13.2), WAAPI grid swipe (no forced reflow)                  |
 | `src/app/(protected)/parade-state/ParadeStateView.tsx`           | Month-gated hold                                                                                                                                                                                                                                                                                                              |
 | `src/components/AppShellShell.tsx`                               | Optimistic nav highlight (`tappedHref`) + `PendingDim`/`useLinkStatus` (§1.9.1); own-handler `HeaderRefreshButton` whose glyph spins while the header strip is up (§1.13)                                                                                                                                                     |
 | `src/components/ActivityBar.tsx`                                 | `ActivityProvider` + split `useActivityControls` (stable `begin`/`end`) / `useActivityState` (`anyBusy`/`stripVisible`) contexts, `useReportActivity`, `useActivityRefresh`, `ActivityBar` (provider-owned 300 ms show delay + min hold, indeterminate strip, suppresses itself during the cold-start phases) — §1.13/§1.13.1 |
@@ -1039,9 +1055,9 @@ the fetch.
 
 Siblings of the same idea elsewhere in the app:
 
-| Surface               | Preview                                                                                                                                                                         | Prefetch                                                                                   |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| Dashboard first paint | last IndexedDB snapshot paints instantly, revalidation swaps in ([`pwa-offline.md`](pwa-offline.md) §1.11/§1.18)                                                                | —                                                                                          |
-| Dashboard tab switch  | `previewView` paints the warm tab during the RSC round-trip (§1.10, §1.13.2)                                                                                                    | the tab's URL is `router.prefetch`ed and its view kind warms, both on hover/focus/press      |
-| Event search          | dialog chrome always mounted while the body chunk idle-preloads only when recent searches exist + near-signal `preloadEventSearchBody()` ([`event-search.md`](event-search.md)) | body chunk                                                                                 |
-| History modal         | the tapped row's inline trail as `preview`                                                                                                                                      | hover/press `prefetchEventHistory`                                                         |
+| Surface               | Preview                                                                                                                                                                         | Prefetch                                                                                |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Dashboard first paint | last IndexedDB snapshot paints instantly, revalidation swaps in ([`pwa-offline.md`](pwa-offline.md) §1.11/§1.18)                                                                | —                                                                                       |
+| Dashboard tab switch  | `previewView` paints the warm tab during the RSC round-trip (§1.10, §1.13.2)                                                                                                    | the tab's URL is `router.prefetch`ed and its view kind warms, both on hover/focus/press |
+| Event search          | dialog chrome always mounted while the body chunk idle-preloads only when recent searches exist + near-signal `preloadEventSearchBody()` ([`event-search.md`](event-search.md)) | body chunk                                                                              |
+| History modal         | the tapped row's inline trail as `preview`                                                                                                                                      | hover/press `prefetchEventHistory`                                                      |

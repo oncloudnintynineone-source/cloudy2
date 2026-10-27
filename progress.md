@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.349 (calendar interaction performance)** is shipped.
+- All work through changelog **1.350 (calendar skeleton crossfade)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -1376,7 +1376,7 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   strip now hugs its labels (`height: auto` + 2px `paddingBlock`) and the
   month view's grid wrapper cancels the page gap
   (`marginTop: calc(-1 * var(--mantine-spacing-sm))` when `shownView ===
-  "month"`), so it docks flush under the chrome at rest and on scroll with no
+"month"`), so it docks flush under the chrome at rest and on scroll with no
   jump. Docs: `desktop-responsive.md`.
 - 1.269 KAH fixes: the KAH Status nav entry now carries the shared amber
   active-breach count badge (groups breaching today — all groups for admins,
@@ -2190,6 +2190,15 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   Postgres `statement_timeout`, and the webhook endpoint read moved inside
   `after()`. Docs: `docs/pwa-offline.md` §1.11/§1.18,
   `docs/loading-transitions.md` §1.13.2/§1.15, `docs/events-cache.md` §1.12.
+
+- 1.350 **Calendar skeleton → content crossfade**: the dashboard grid swap now uses a
+  shared `CrossfadeSwap` — the skeleton stays mounted for one `--c2-dur-standard` beat
+  and dissolves over the already-painted content (all view kinds, both in-page data
+  loads and cold renderer chunks). The grid also waits for the active renderer chunk
+  before revealing, so the crossfade never lands on `next/dynamic`'s fallback. The
+  dashboard's outer `content-enter` fade is now cold-mount-only (no opacity dip before
+  the dissolve); reduced-motion / low-end tiers remove the skeleton immediately.
+  Docs: `docs/loading-transitions.md` §1.6.
 
 ## 1.4 Open items & next steps
 

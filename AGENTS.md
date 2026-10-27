@@ -166,11 +166,11 @@ doc content here.
   transition-aware: it survives while `DashboardView` reports a pending router
   transition and reverts when that transition ends without the URL catching up. A **+** at the end of the
   tab strip opens the quick Add-view dialog, and the trailing **Manage views** gear (tooltip)
-   opens the manage modal — an Add-view button, single-line rows (subtle ↑/↓ reorder
-   left, name middle, a per-row **⋮ menu** right holding Share/Edit/Delete), a per-row
-   **Edit** dialog
+  opens the manage modal — an Add-view button, single-line rows (subtle ↑/↓ reorder
+  left, name middle, a per-row **⋮ menu** right holding Share/Edit/Delete), a per-row
+  **Edit** dialog
   (name + type + an **Edit filters…** button that switches to the view and opens its filter
-   dialog), and a quiet accent left bar on the active row, plus the shared manage-row
+  dialog), and a quiet accent left bar on the active row, plus the shared manage-row
   recipe (`reorderUpDown.tsx`, `variant="subtle"`) + optimistic `useReorderRows` FLIP. Below
   `lg` the chrome **splits**: a thin view-name strip stays pinned at the top,
   and the date controls move to **floating bottom rows** — a frosted
@@ -471,8 +471,10 @@ none` so taps pass through to the clipped tile, and it hides on a side once
   best-effort). UX lives in the profile menu's **Notifications** modal
   (`NotificationSettings.tsx`). Copy is template-driven (`notifyCreated`/`notifyAdded`).
   Design: [docs/event-notifications.md](docs/event-notifications.md).
-- **Standard loading appearance: skeleton only + fade-in on reveal.** The skeleton is the
+- **Standard loading appearance: skeleton only + reveal.** The skeleton is the
   ONLY loading indicator — never dim/darken content (`opacity: isPending ? …` is banned).
+  The dashboard grid uses `CrossfadeSwap`: the skeleton dissolves over the content for one
+  motion beat (`docs/loading-transitions.md` §1.6); other surfaces fade in on reveal.
   Every data-awaiting route segment gets a `loading.tsx`; every skeleton block includes a
   `LoadingStatus` (sr-only `role="status"`). A detail surface opened from a list that
   already carries the data uses **preview-first paint + intent prefetch** instead of a

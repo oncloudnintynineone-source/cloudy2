@@ -106,6 +106,55 @@ html {
 }
 
 /*
+  Skeleton → content crossfade (`CrossfadeSwap`, docs/loading-transitions.md
+  §1.6). Both layers share one grid cell, so the outgoing skeleton dissolves
+  over the already-painted content and never changes the grid's final size.
+  The content is fully opaque underneath; the dashboard does not restart the
+  outer `content-enter` fade on the reveal (that would dip the whole box,
+  skeleton included, to opacity 0 before the crossfade).
+*/
+.c2-crossfade-stack {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+  min-width: 0;
+}
+
+.c2-crossfade-stack--fill {
+  height: 100%;
+  min-height: 0;
+}
+
+.c2-crossfade-layer {
+  grid-area: 1 / 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* The skeleton sits above the content while it dissolves (the content layer is
+   later in the DOM, so an explicit stacking order is required). */
+.c2-crossfade-content {
+  z-index: 0;
+}
+
+.c2-crossfade-skeleton {
+  z-index: 1;
+}
+
+.c2-crossfade-skeleton[data-leaving] {
+  pointer-events: none;
+}
+
+@keyframes c2-crossfade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/*
   Route-change page transition (React <ViewTransition> via the per-page
   PageTransition wrapper, docs/loading-transitions.md §1.14). The outgoing page
   fades out quickly; the incoming page fades in while rising a few px. The class
@@ -739,6 +788,10 @@ html {
     animation: content-enter var(--c2-dur-quick) var(--c2-ease-out);
   }
 
+  .c2-crossfade-skeleton[data-leaving] {
+    animation: c2-crossfade-out var(--c2-dur-standard) var(--c2-ease-in) both;
+  }
+
   .agenda-slide-next {
     animation: agenda-slide-in-next var(--c2-dur-standard) var(--c2-ease-out);
   }
@@ -769,6 +822,14 @@ html {
   .c2-empty-state-icon {
     animation: c2-empty-enter var(--c2-dur-quick) var(--c2-ease-out) both;
     animation-delay: var(--c2-stagger);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The retained skeleton is invisible immediately; `CrossfadeSwap` also skips
+     the retention window so it unmounts without a layout beat. */
+  .c2-crossfade-skeleton[data-leaving] {
+    opacity: 0;
   }
 }
 
