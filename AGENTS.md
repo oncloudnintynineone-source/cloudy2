@@ -158,6 +158,11 @@ doc content here.
   (`src/lib/dashboardViews`), renderer kinds Month / Week (H) / Week (D) / Day / Agenda /
   Month & Agenda (Month + Agenda side by side, resizable; day-anchored, `src/lib/ui/dualSplit.ts`).
   Per-tab Cal/Users/Types filters are stored server-side (no `cal/users/types` URL params);
+  the shared `FilterModal` renders every group with the same `SelectableBadge`s and an
+  All/None pair (search groups label it All/Clear); Event Types reuse the wizard's
+  `buildEventTypePickerSections` (inline groups, collapsible folders, counts, Ungrouped)
+  with per-section All/None, and the Users badge picker gains department-section counts,
+  per-section All/Clear, a global Select all/Clear and an amber "(You)" badge.
   the active tab lives in `?view=<id>`; with no `?view=` a load defaults to the first
   tab in strip order (the last-viewed tab is not remembered). A tab
   tap is **optimistic**: it sets `previewView` in `DashboardDataContext`, so

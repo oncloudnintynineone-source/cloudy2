@@ -452,13 +452,28 @@ Filtering has **one primary affordance**: a dedicated filter button (funnel icon
   "Myself" quick action lives inside the filter modal
   beside the Users group; "Reset" clears (role defaults).
 
-The modal promotes the filters most people reach — **Calendars** (chip grid) and
-**Users** (badge-dialog picker, `variant: "search"`) — and tucks **Event Types**
-behind a "Show"/"Hide" disclosure (`collapsedGroupLabels`; audit-log/user-table
-callers keep all groups expanded). A footer scope hint notes _"These filters
-apply to {view name} only."_ — filter scoping is **per tab**: each tab stores
-its own Calendars/Users/Event Types selection, and clearing one tab's filters
-never touches the others.
+The modal promotes the filters most people reach — **Calendars** (selectable
+badge grid) and **Users** (badge-dialog picker, `variant: "search"`) — and tucks
+**Event Types** behind a "Show"/"Hide" disclosure (`collapsedGroupLabels`;
+audit-log/user-table callers keep all groups expanded). Every group has a
+consistent **All / None** pair (search groups label the second action **Clear**,
+because empty means "no filter"), and grouped lists also get per-section pairs.
+
+**Event Types mirror the wizard's type step exactly**: the dashboard builds
+`FilterGroupSection`s with `buildEventTypePickerSections(eventTypes,
+eventTypeGroups)` (`src/lib/eventTypes/groups.ts`) — inline groups first,
+collapsible folders last, empty groups skipped, "Ungrouped" as the catch-all.
+Folder sections start collapsed unless they hold an already-applied type; each
+section header carries its option count and its own All/None. The group's flat
+`options` remain the canonical value list for apply/count logic; sections are
+presentation only.
+
+The **Users** picker uses the same `SelectableBadge` as the wizard and filter
+grids, now with department section counts, hierarchy indentation, per-section
+All/Clear, a global Select all/Clear, and an amber "(You)" badge for the acting
+user. A footer scope hint notes _"These filters apply to {view name} only."_ —
+filter scoping is **per tab**: each tab stores its own Calendars/Users/Event
+Types selection, and clearing one tab's filters never touches the others.
 
 Filter storage & resolution:
 
@@ -478,9 +493,10 @@ Filter storage & resolution:
   calls `saveDashboardViewFilters` (empty/role-default selections are stored as
   `NULL`), then re-renders from the server so the events refetch under the new
   filter set. Filters never travel in `cal/users/types` URL params. The modal's
-  **Clear** button (then Apply) restores the role defaults (`NULL`); a per-group
-  **Deselect All** stores the explicit empty array (an empty grid), which is the
-  only path that resolves to "no events". Applying is covered end-to-end: the
+  **Clear** button (then Apply) restores the role defaults (`NULL`); a group or
+  section **None** stores the explicit empty array (an empty grid), which is the
+  only path that resolves to "no events" (search groups instead treat both empty
+  and fully selected as "no filter"). Applying is covered end-to-end: the
   dialog's **Apply** button spins through the server write, then the active tab's
   loading bar sweeps through the follow-up read
   ([`loading-transitions.md`](loading-transitions.md) §1.13.2).
@@ -501,9 +517,9 @@ Filter storage & resolution:
 ```mermaid
 flowchart LR
  FB["FilterButton (nav row)<br/>icon + active-group badge"] --> FM["FilterModal"]
- FM --> CAL["Calendars<br/>(chip grid)"]
- FM --> US["Users<br/>(badge picker + Myself)"]
- FM --> ET["Event Types<br/>(behind Show/Hide)"]
+ FM --> CAL["Calendars<br/>(badge grid + All/None)"]
+ FM --> US["Users<br/>(grouped badge picker + Myself)"]
+ FM --> ET["Event Types<br/>(grouped sections, behind Show/Hide)"]
  FM --> HINT["Scope hint<br/>(these filters apply to {tab} only)"]
  HINT --> APPLY["saveDashboardViewFilters<br/>(server action)"]
  APPLY --> ROW["active tab row<br/>(cal/users/types, NULL = role default)"]
@@ -1261,7 +1277,7 @@ flowchart LR
 | `src/lib/ui/monthZoom.ts` | Pure Month fit-width zoom levels + stepping (`clampMonthZoom`, `stepMonthZoom`) + the fit-height fill + chip-count math (`monthFillEvents`, `monthFitChipCount`, §1.8.1) |
 | `src/components/GridNavControls.tsx` | Day/Week (H) + Month right-edge cluster: zoom +/− + right pan, plus left-edge pan |
 | `src/components/FilterButton.tsx` | Dedicated filter button (icon + active-group badge) replacing the kebab's filter menu |
-| `src/components/FilterModal.tsx` | Filters dialog (collapsible groups, per-tab scope hint) |
+| `src/components/FilterModal.tsx` | Filters dialog (badge grids, grouped sections, All/None, collapsible groups, per-tab scope hint) |
 
 Related docs:
 

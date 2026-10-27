@@ -33,6 +33,7 @@ import {
 } from "@tabler/icons-react";
 
 import { PickerField, type PickerBadgeItem } from "@/components/PickerField";
+import { SelectableBadge } from "@/components/SelectableBadge";
 import { useActionPill } from "@/components/ActionPill";
 import { useMotion } from "@/components/MotionProvider";
 import { TimeChipSelector } from "@/components/TimeChipSelector";
@@ -1477,18 +1478,12 @@ export function EventForm({
         {section.types.map((type) => {
           const selected = type.name === form.values.eventType;
           return (
-            <Badge
+            <SelectableBadge
               key={type.name}
-              variant={selected ? "filled" : "light"}
-              size="lg"
-              style={{
-                height: "calc(var(--badge-height-lg) * 1.5)",
-                cursor: "pointer",
-              }}
-              onClick={() => handleEventTypeChange(selected ? null : type.name)}
-            >
-              {type.name}
-            </Badge>
+              label={type.name}
+              selected={selected}
+              onToggle={() => handleEventTypeChange(selected ? null : type.name)}
+            />
           );
         })}
       </Group>

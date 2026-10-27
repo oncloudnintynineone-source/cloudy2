@@ -92,6 +92,12 @@ accessible name exactly once:
 - The dashboard kebab's filter badge sits inside a `Menu.Target` whose
   `"More options"` name stays static — the filter state is announced via the
   live region instead (§1.2).
+- **Selectable badges** (`SelectableBadge`) are real buttons with
+  `aria-pressed`; the self badge includes "(You)" in its accessible name. Section
+  count badges are `aria-hidden`, while the section's own control/folder label
+  carries the count. The shared All/None pair names its context
+  (`"Select all <group>"` / `"Clear <group>"`), so the visible "All"/"None" text
+  never loses meaning out of context.
 
 Icon-only controls across the app already carry `aria-label`s (the
 `FloatingActionButton` contract requires one); active nav items carry

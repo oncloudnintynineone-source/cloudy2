@@ -47,6 +47,15 @@ of toggleable badges with a search box on top:
   marker — `sortOptionsInGroups` leaves them in tree preorder instead of
   re-alphabetizing. Depth is display-only — the draft/summary/merge helpers key by
   section label and option id, so nesting never changes a caller's id semantics.
+- Every option renders through the shared `SelectableBadge` (the same filled/light
+  keyboard-operable badge as the wizard and filter grid). Options may carry
+  `self: true`, which renders the amber "mine" treatment and a "(You)" suffix (the
+  dashboard/parade Users filters mark the acting user).
+- Multi-select section headers show the option count plus an **All / Clear** pair
+  scoped to that section; the footer carries a global **Select all / Clear**. The
+  controls are hidden in `single` mode (where one pick replaces the whole draft).
+- The `values` prop and every helper stay ids-in/ids-out; ownership of the id domain
+  never changes.
 - Pass `zIndex` when nested — the event wizard uses 300 over its z-250 dialog;
   FilterModal uses 200.
 - **`single` mode** (optional prop): for exactly-one-person picks (the Double Booking
@@ -77,11 +86,12 @@ of toggleable badges with a search box on top:
   its `user:`/`dept:` prefixed shape.
 - **FilterModal's `variant: "search"` groups** — Users on dashboard + parade state;
   options may carry `department` to get per-department sections, `search` for extra
-  matching. Department sections order by the caller-provided `departmentSort` (the
-  Settings → Departments sort order) and nest via `departmentId`/`departmentParentId`;
-  the audit log's actors with no roster match fall into an unranked trailing "Other"
-  section. Grid ("Calendars"/department) chip groups stay wrapped pills whose labels
-  carry the full ancestor chain.
+  matching, and `self` for the acting user's amber badge. Department sections order by
+  the caller-provided `departmentSort` (the Settings → Departments sort order) and nest
+  via `departmentId`/`departmentParentId`; the audit log's actors with no roster match
+  fall into an unranked trailing "Other" section. Grid groups (Calendars, departments,
+  Event Types) render the same `SelectableBadge`s; labels carry the full ancestor chain
+  for departments, and event-type groups use the wizard's section/folder split.
 - **Double Booking admin target** — a `single`-mode `UserSelectModal` (department
   sections nested by tree depth, shortname `search`) replacing the page's original
   `NoKeyboardSelect` dropdown, since the roster is a large option list.
@@ -100,8 +110,11 @@ of toggleable badges with a search box on top:
 | ------------------------------------- | ----------------------------------------- |
 | `src/components/NoKeyboardSelect.tsx` | Keyboard-safe Select/MultiSelect wrappers |
 | `src/components/UserSelectModal.tsx`  | The badge-dialog picker |
+| `src/components/SelectableBadge.tsx` | Shared filled/light selectable badge (wizard + picker + filters) |
+| `src/components/AllNoneControls.tsx` | Shared compact All/None (or All/Clear) pair |
 | `src/components/PickerField.tsx` | Presentational trigger + summary layer |
 | `src/lib/users/userSelect.ts` | Pure grouping/matching/merging helpers |
+| `src/lib/filters/filterSections.ts` | Pure section state + All/None math |
 
 Related docs:
 
@@ -115,9 +128,10 @@ in `PickerField` (`src/components/PickerField.tsx`), with the badge row itself r
 standalone as `PickerBadges`:
 
 - **`PickerBadges`** renders the picked options as `variant="light"` badges from
-  `items: PickerBadgeItem[]` (`{ key, label, color? }`). A `cap` shows a `+N` overflow
-  badge instead of the tail; an `empty` node replaces the row when nothing is picked.
-  Pure presentation — callers resolve their own id domains into items.
+  `items: PickerBadgeItem[]` (`{ key, label, color?, self? }`). A `cap` shows a `+N`
+  overflow badge instead of the tail; an `empty` node replaces the row when nothing is
+  picked, and `self` uses the amber "mine" treatment with "(You)". Pure presentation —
+  callers resolve their own id domains into items.
 - **`PickerField`** composes the full affordance: an optional header (`label`, `count`
   suffix `(N)`, `description`) with the `IconPlus` trigger button (`triggerLabel`,
   default "Select") pinned right, then `PickerBadges`.

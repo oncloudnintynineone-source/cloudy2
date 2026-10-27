@@ -851,6 +851,13 @@ flowchart LR
   groups in the same `Promise.all` as the types (`listEventTypeGroups()`, per-request
   React-cached like `listEventTypes`) and passes them through `DashboardView` to
   `EventForm`.
+- **Filters reuse the same sections.** The dashboard's Event Types filter builds its
+  `FilterGroupSection`s with the same `buildEventTypePickerSections` call, so the
+  filter dialog shows the identical inline groups, collapsible folders, counts and
+  "Ungrouped" catch-all. Folder sections start collapsed unless they hold an
+  already-applied type, and each section (plus the whole group) gets an All/None
+  control; the group's flat option list stays the canonical value set for apply and
+  active-filter counting (`src/components/FilterModal.tsx`).
 - **Folders are opt-in per group.** A group with `collapsible` on renders as a
   single-item Mantine `Accordion` (`variant="separated"`, chevron on the left): the
   folder name plus a count badge sits in the control, and the type badges live in the

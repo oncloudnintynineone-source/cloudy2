@@ -119,6 +119,7 @@ import {
   type OptimisticOp,
 } from "@/lib/events/optimistic";
 import { eventMatchesUserFilter } from "@/lib/events/userFilter";
+import { buildEventTypePickerSections } from "@/lib/eventTypes/groups";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
 import { canPreloadTabs, canWarmRoutes } from "@/lib/pwa/warmup";
@@ -2448,6 +2449,7 @@ function DashboardViewImpl({
       departmentSort: user.departmentSort,
       departmentId: user.departmentId,
       departmentParentId: user.departmentParentId,
+      self: user.id === currentUser,
     }));
     if (userOptions.length > 0) {
       groups.push({
@@ -2471,13 +2473,25 @@ function DashboardViewImpl({
       });
     }
     if (eventTypes.length > 0) {
+      // Same sections as the wizard's type step: inline groups first, collapsible
+      // folders last, empty groups skipped, "Ungrouped" as the catch-all.
+      const sections = buildEventTypePickerSections(
+        eventTypes.map((type) => ({ name: type.name, groupId: type.groupId })),
+        eventTypeGroups,
+      ).map((section) => ({
+        id: section.id,
+        label: section.name,
+        collapsible: section.collapsible,
+        options: section.types.map((type) => ({ value: type.name, label: type.name })),
+      }));
       groups.push({
         label: "Event Types",
-        options: eventTypes.map((type) => ({ value: type.name, label: type.name })),
+        options: sections.flatMap((section) => section.options),
+        sections,
       });
     }
     return groups;
-  }, [calendars, filterUsers, currentUser, eventTypes]);
+  }, [calendars, filterUsers, currentUser, eventTypes, eventTypeGroups]);
 
   const filterValues: Record<string, string[]> = useMemo(
     () => ({

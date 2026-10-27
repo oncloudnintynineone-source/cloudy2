@@ -2200,6 +2200,18 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   the dissolve); reduced-motion / low-end tiers remove the skeleton immediately.
   Docs: `docs/loading-transitions.md` §1.6.
 
+- 1.351 **Unified filter-modals design**: the shared `FilterModal` now renders every
+  option through the new `SelectableBadge` (the wizard's filled/light badge, extracted
+  for reuse), with a consistent group-level All/None pair (search groups label it
+  All/Clear). Dashboard Event Types reuse the wizard's
+  `buildEventTypePickerSections` — inline groups, collapsible folders, counts,
+  "Ungrouped", per-section All/None — after the group is revealed with Show/Hide.
+  `UserSelectModal` gains section counts, per-section All/Clear, a global
+  Select all/Clear footer, and an amber "(You)" badge for the acting user. The dialog
+  body scrolls with a pinned footer. Docs: `docs/dashboard-views.md` §1.2,
+  `docs/user-picker.md` §1.2/§1.4/§1.6, `docs/event-lifecycle.md` §1.10,
+  `docs/accessibility.md` §1.4.
+
 ## 1.4 Open items & next steps
 
 1. **`ADMIN_INITIAL_PASSWORD` + `ADMIN_PIN`** must be set on Vercel (Production +

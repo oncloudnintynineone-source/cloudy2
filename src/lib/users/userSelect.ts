@@ -14,6 +14,8 @@ export interface PickerOption {
    * wrapped, alphabetically-sorted badges.
    */
   depth?: number;
+  /** True when this option is the signed-in user (amber "mine" badge + "(You)"). */
+  self?: boolean;
 }
 
 /** A labeled section of options rendered as one block of badges. */
@@ -35,6 +37,8 @@ export interface UserGroupInput {
   label: string;
   department: string | null;
   search?: string;
+  /** True when this user is the signed-in account. */
+  self?: boolean;
   /**
    * The department's display order (calendars.sort_order). When present on any
    * member of a department, that department's section is ordered by it instead
@@ -120,7 +124,12 @@ export function buildUserGroups(users: UserGroupInput[]): PickerGroup[] {
     value !== undefined && value !== null && value !== "";
 
   for (const user of users) {
-    const option: PickerOption = { id: user.id, label: user.label, search: user.search };
+    const option: PickerOption = {
+      id: user.id,
+      label: user.label,
+      search: user.search,
+      self: user.self,
+    };
     if (user.department === null || user.department === "") {
       undepartmented.push(option);
       continue;

@@ -9,19 +9,23 @@ import {
   Stack,
   Text,
   TextInput,
-  UnstyledButton,
   useMantineTheme,
 } from "@mantine/core";
 import { MotionModal } from "@/components/MotionModal";
 import { useMediaQuery } from "@mantine/hooks";
 import { IconSearch, IconX } from "@tabler/icons-react";
 
+import { AllNoneControls } from "@/components/AllNoneControls";
+import { SelectableBadge } from "@/components/SelectableBadge";
+import {
+  applySectionSelection,
+  sectionSelectionState,
+} from "@/lib/filters/filterSections";
 import {
   filterPickerGroups,
   selectionByGroup,
   sortOptionsInGroups,
   type PickerGroup,
-  type PickerOption,
 } from "@/lib/users/userSelect";
 import { NARROW_MEDIA_QUERY } from "@/lib/theme";
 import { hierarchyIndent } from "@/lib/ui/pickerHierarchy";
@@ -59,10 +63,12 @@ interface UserSelectModalProps {
  * persist, emptied ones disappear). The dialog has a fixed height — search
  * pinned top, footer pinned bottom, only the badge sections scroll — so
  * narrowing the list never resizes it or pushes the search box out of view.
- * The selection is staged in a draft and
- * only committed when the confirm button is pressed. The draft lives in a
- * child that mounts with the modal, so it re-initializes from values every
- * time the dialog opens (the FilterModalBody pattern).
+ * Multi-select sections carry an option count and an All/Clear pair, the footer
+ * adds a global Select all/Clear, and `self` options wear the amber "(You)"
+ * badge. The selection is staged in a draft and only committed when the confirm
+ * button is pressed. The draft lives in a child that mounts with the modal, so
+ * it re-initializes from values every time the dialog opens (the FilterModalBody
+ * pattern).
  */
 export function UserSelectModal({
   opened,
@@ -133,6 +139,25 @@ function UserSelectModalBody({
   const sorted = useMemo(() => sortOptionsInGroups(groups), [groups]);
   const visible = useMemo(() => filterPickerGroups(sorted, query), [sorted, query]);
   const selectedCount = Object.values(draft).reduce((sum, ids) => sum + ids.length, 0);
+  const allIds = useMemo(
+    () => groups.flatMap((group) => group.options.map((option) => option.id)),
+    [groups],
+  );
+
+  function handleSelectAll() {
+    setDraft(selectionByGroup(groups, allIds));
+  }
+
+  function handleSectionSelect(section: PickerGroup, mode: "all" | "none") {
+    setDraft((prev) => ({
+      ...prev,
+      [section.label]: applySectionSelection(
+        section.options.map((option) => ({ value: option.id })),
+        prev[section.label] ?? [],
+        mode,
+      ),
+    }));
+  }
 
   function toggle(section: PickerGroup, optionId: string) {
     if (single) {
@@ -205,21 +230,43 @@ function UserSelectModalBody({
               section.depth !== undefined && section.depth > 0
                 ? hierarchyIndent(section.depth)
                 : 0;
+            const selectionState = sectionSelectionState(
+              section.options.map((option) => ({ value: option.id })),
+              draft[section.label] ?? [],
+            );
             return (
               <div
                 key={section.label}
                 style={sectionIndent > 0 ? { paddingLeft: sectionIndent } : undefined}
               >
-                <Text fw={600} size="sm" mb={6}>
-                  {section.label}
-                </Text>
+                <Group justify="space-between" align="center" gap="xs" wrap="nowrap" mb={6}>
+                  <Group gap={6} align="center" wrap="nowrap" style={{ minWidth: 0 }}>
+                    <Text fw={600} size="sm" truncate>
+                      {section.label}
+                    </Text>
+                    <Badge size="sm" variant="light" color="gray" aria-hidden>
+                      {section.options.length}
+                    </Badge>
+                  </Group>
+                  {!single && section.options.length > 1 && (
+                    <AllNoneControls
+                      label={section.label}
+                      allSelected={selectionState === "all"}
+                      noneSelected={selectionState === "none"}
+                      noneLabel="Clear"
+                      onAll={() => handleSectionSelect(section, "all")}
+                      onNone={() => handleSectionSelect(section, "none")}
+                    />
+                  )}
+                </Group>
                 <Group gap={6} wrap="wrap">
                   {section.options.map((option) => {
                     const selected = (draft[section.label] ?? []).includes(option.id);
                     return (
-                      <PickerOptionButton
+                      <SelectableBadge
                         key={option.id}
-                        option={option}
+                        label={option.label}
+                        self={option.self}
                         selected={selected}
                         onToggle={() => toggle(section, option.id)}
                       />
@@ -233,9 +280,20 @@ function UserSelectModalBody({
       </Stack>
 
       <Group justify="space-between" wrap="wrap">
-        <Button variant="subtle" color="gray" onClick={handleClear} disabled={selectedCount === 0}>
-          Clear
-        </Button>
+        {single ? (
+          <Button variant="subtle" color="gray" onClick={handleClear} disabled={selectedCount === 0}>
+            Clear
+          </Button>
+        ) : (
+          <AllNoneControls
+            label="all options"
+            allSelected={allIds.length > 0 && selectedCount === allIds.length}
+            noneSelected={selectedCount === 0}
+            noneLabel="Clear"
+            onAll={handleSelectAll}
+            onNone={handleClear}
+          />
+        )}
         <Group gap="xs">
           <Button variant="default" onClick={onClose}>
             Cancel
@@ -246,36 +304,5 @@ function UserSelectModalBody({
         </Group>
       </Group>
     </Stack>
-  );
-}
-
-/**
- * A toggleable picker badge. A real button (not an onClick Badge):
- * keyboard-operable and announces its pressed state. The Badge keeps the visual.
- */
-function PickerOptionButton({
-  option,
-  selected,
-  onToggle,
-}: {
-  option: PickerOption;
-  selected: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <UnstyledButton
-      aria-pressed={selected}
-      aria-label={`${option.label}${selected ? ", selected" : ""}`}
-      onClick={onToggle}
-      style={{ cursor: "pointer", borderRadius: "var(--mantine-radius-md)" }}
-    >
-      <Badge
-        variant={selected ? "filled" : "light"}
-        size="lg"
-        style={{ height: "calc(var(--badge-height-lg) * 1.5)" }}
-      >
-        {option.label}
-      </Badge>
-    </UnstyledButton>
   );
 }
