@@ -1,7 +1,7 @@
 "use client";
 
 import "@mantine/dates/styles.css";
-import { useCallback, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useMemo, useState, useTransition } from "react";
 import {
   ActionIcon,
   Badge,
@@ -28,6 +28,7 @@ import { IconDownload, IconFilter, IconFilterOff, IconTrash, IconX } from "@tabl
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { AuditDetails } from "@/components/AuditDetails";
+import { CrossfadeSwap } from "@/components/CrossfadeSwap";
 import { EmptyState } from "@/components/EmptyState";
 import { FilterButton } from "@/components/FilterButton";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
@@ -38,7 +39,6 @@ import { purgeAuditLogs } from "@/lib/audit/actions";
 import { listAuditActions } from "@/lib/audit/build";
 import { actionLabel, actorLabel, formatLogTimestamp } from "@/lib/audit/format";
 import type { AuditFilters } from "@/lib/audit/queries";
-import { CONTENT_ENTER_CLASS, useContentEnter } from "@/lib/loading/contentEnter";
 import { useLiveRouteRefresh } from "@/lib/loading/liveRefresh";
 import { type Rect } from "@/lib/motion/origin";
 import { useMotion } from "@/components/MotionProvider";
@@ -127,8 +127,6 @@ export function AuditLogView({
   // stale rows never paint.
   const liveRefreshing = useLiveRouteRefresh(renderedAt);
   const listLoading = useMinSkeletonHold(isPending || liveRefreshing);
-  const listRef = useRef<HTMLDivElement | null>(null);
-  useContentEnter(listRef, !listLoading);
   // Cold-start readiness: mounts with the route's first (server-rendered) page
   // of rows, so reporting on mount is exactly "content painted".
   useColdStartContent();
@@ -578,167 +576,173 @@ export function AuditLogView({
         </Group>
       ) : null}
 
-      <Stack gap="sm" ref={listRef} className={CONTENT_ENTER_CLASS}>
-        {listLoading ? (
-          <>
-            <LoadingStatus label="Loading audit log" />
-            {/* Mobile: card list */}
-            <Stack gap="sm" hiddenFrom="lg">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <AuditLogRowSkeleton key={i} />
-              ))}
-            </Stack>
+      <Stack gap="sm">
+        <CrossfadeSwap
+          loading={listLoading}
+          mode="overlay"
+          skeleton={
+            <>
+              <LoadingStatus label="Loading audit log" />
+              {/* Mobile: card list */}
+              <Stack gap="sm" hiddenFrom="lg">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <AuditLogRowSkeleton key={i} />
+                ))}
+              </Stack>
 
-            {/* Desktop: data table (Time / Actor / Action / Entity / Route / Details) */}
-            <SettingsTableSkeleton columns={[1, 1.6, 2.4, 2.4, 1.1]} rows={5} visibleFrom="lg" />
-          </>
-        ) : initialRows.length === 0 ? (
-          <EmptyState
-            icon={<IconFilterOff size={18} />}
-            description="No log entries match these filters."
-            actionLabel="Clear filters"
-            onAction={resetFilters}
-          />
-        ) : (
-          <>
-            {/* Mobile: card list */}
-            <Stack gap="sm" hiddenFrom="lg">
-              {initialRows.map((row) => (
-                <Paper key={row.id} withBorder p="sm">
-                  <Stack gap={4}>
-                    <Group justify="space-between" wrap="nowrap" align="flex-start">
-                      <Text fw={600} size="sm">
-                        {actionLabel(row.action)}
-                      </Text>
-                      <Text size="xs" c="dimmed" style={{ whiteSpace: "nowrap" }}>
-                        {formatLogTimestamp(row.createdAt)}
-                      </Text>
-                    </Group>
-                    <Group gap={6} wrap="wrap">
-                      <Text size="sm" c="dimmed">
-                        {actorLabel(row)}
-                      </Text>
-                      {row.entityType ? (
-                        <Badge size="xs" variant="light" color="brand">
-                          {row.entityType}
-                        </Badge>
+              {/* Desktop: data table (Time / Actor / Action / Entity / Route / Details) */}
+              <SettingsTableSkeleton columns={[1, 1.6, 2.4, 2.4, 1.1]} rows={5} visibleFrom="lg" />
+            </>
+          }
+        >
+          {listLoading ? null : initialRows.length === 0 ? (
+            <EmptyState
+              icon={<IconFilterOff size={18} />}
+              description="No log entries match these filters."
+              actionLabel="Clear filters"
+              onAction={resetFilters}
+            />
+          ) : (
+            <>
+              {/* Mobile: card list */}
+              <Stack gap="sm" hiddenFrom="lg">
+                {initialRows.map((row) => (
+                  <Paper key={row.id} withBorder p="sm">
+                    <Stack gap={4}>
+                      <Group justify="space-between" wrap="nowrap" align="flex-start">
+                        <Text fw={600} size="sm">
+                          {actionLabel(row.action)}
+                        </Text>
+                        <Text size="xs" c="dimmed" style={{ whiteSpace: "nowrap" }}>
+                          {formatLogTimestamp(row.createdAt)}
+                        </Text>
+                      </Group>
+                      <Group gap={6} wrap="wrap">
+                        <Text size="sm" c="dimmed">
+                          {actorLabel(row)}
+                        </Text>
+                        {row.entityType ? (
+                          <Badge size="xs" variant="light" color="brand">
+                            {row.entityType}
+                          </Badge>
+                        ) : null}
+                      </Group>
+                      {row.entityName ? (
+                        <Text size="sm" truncate>
+                          {row.entityName}
+                        </Text>
                       ) : null}
-                    </Group>
-                    {row.entityName ? (
-                      <Text size="sm" truncate>
-                        {row.entityName}
-                      </Text>
-                    ) : null}
-                    <Group gap={6} wrap="wrap">
-                      {row.route ? (
-                        <Badge size="xs" variant="outline" color="gray">
-                          {row.route}
-                        </Badge>
-                      ) : null}
-                      {row.method ? (
-                        <Badge size="xs" variant="outline" color="gray">
-                          {row.method}
-                        </Badge>
-                      ) : null}
-                      <Button
-                        variant="subtle"
-                        size="compact-xs"
-                        onClick={() => setDetail(row)}
-                        style={{ marginLeft: "auto" }}
-                      >
-                        Details
-                      </Button>
-                    </Group>
-                  </Stack>
-                </Paper>
-              ))}
-            </Stack>
+                      <Group gap={6} wrap="wrap">
+                        {row.route ? (
+                          <Badge size="xs" variant="outline" color="gray">
+                            {row.route}
+                          </Badge>
+                        ) : null}
+                        {row.method ? (
+                          <Badge size="xs" variant="outline" color="gray">
+                            {row.method}
+                          </Badge>
+                        ) : null}
+                        <Button
+                          variant="subtle"
+                          size="compact-xs"
+                          onClick={() => setDetail(row)}
+                          style={{ marginLeft: "auto" }}
+                        >
+                          Details
+                        </Button>
+                      </Group>
+                    </Stack>
+                  </Paper>
+                ))}
+              </Stack>
 
-            {/* Desktop: data table. A fixed layout pins Time/Actor/Details so
+              {/* Desktop: data table. A fixed layout pins Time/Actor/Details so
                 the table never outgrows its container, while Action and Entity
                 share the remaining width. Time and Actor stack their secondary
                 value on a second line (time under date, role under name) to
                 reclaim width, so no column is squeezed into an ellipsis at
                 narrow desktop widths. Route/method are omitted here — they live
                 in the detail modal and remain searchable/exportable. */}
-            <Paper withBorder visibleFrom="lg">
-              <Table withRowBorders={false} highlightOnHover tabularNums layout="fixed">
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th w={92}>Time</Table.Th>
-                    <Table.Th w={160}>Actor</Table.Th>
-                    <Table.Th>Action</Table.Th>
-                    <Table.Th>Entity</Table.Th>
-                    <Table.Th ta="right" w={100}>
-                      <VisuallyHidden>Details</VisuallyHidden>
-                    </Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                  {initialRows.map((row) => {
-                    const [datePart, timePart] = formatLogTimestamp(row.createdAt).split(" ");
-                    return (
-                      <Table.Tr key={row.id}>
-                        <Table.Td>
-                          <Stack gap={0}>
-                            <Text size="sm" c="dimmed" style={{ whiteSpace: "nowrap" }}>
-                              {datePart}
-                            </Text>
-                            <Text size="sm" c="dimmed" style={{ whiteSpace: "nowrap" }}>
-                              {timePart}
-                            </Text>
-                          </Stack>
-                        </Table.Td>
-                        <Table.Td>
-                          <Stack gap={0}>
-                            <Text size="sm" truncate title={actorLabel(row)}>
-                              {row.actorName ?? "Unknown"}
-                            </Text>
-                            {row.actorRole ? (
-                              <Text size="xs" c="dimmed">
-                                {row.actorRole}
+              <Paper withBorder visibleFrom="lg">
+                <Table withRowBorders={false} highlightOnHover tabularNums layout="fixed">
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th w={92}>Time</Table.Th>
+                      <Table.Th w={160}>Actor</Table.Th>
+                      <Table.Th>Action</Table.Th>
+                      <Table.Th>Entity</Table.Th>
+                      <Table.Th ta="right" w={100}>
+                        <VisuallyHidden>Details</VisuallyHidden>
+                      </Table.Th>
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {initialRows.map((row) => {
+                      const [datePart, timePart] = formatLogTimestamp(row.createdAt).split(" ");
+                      return (
+                        <Table.Tr key={row.id}>
+                          <Table.Td>
+                            <Stack gap={0}>
+                              <Text size="sm" c="dimmed" style={{ whiteSpace: "nowrap" }}>
+                                {datePart}
                               </Text>
-                            ) : null}
-                          </Stack>
-                        </Table.Td>
-                        <Table.Td>
-                          <Text size="sm" fw={600} truncate title={actionLabel(row.action)}>
-                            {actionLabel(row.action)}
-                          </Text>
-                        </Table.Td>
-                        <Table.Td>
-                          {row.entityType || row.entityName ? (
-                            <Group gap={6} wrap="nowrap">
-                              {row.entityType ? (
-                                <Badge size="xs" variant="light" color="brand">
-                                  {row.entityType}
-                                </Badge>
-                              ) : null}
-                              {row.entityName ? (
-                                <Text size="sm" c="dimmed" truncate title={row.entityName}>
-                                  {row.entityName}
+                              <Text size="sm" c="dimmed" style={{ whiteSpace: "nowrap" }}>
+                                {timePart}
+                              </Text>
+                            </Stack>
+                          </Table.Td>
+                          <Table.Td>
+                            <Stack gap={0}>
+                              <Text size="sm" truncate title={actorLabel(row)}>
+                                {row.actorName ?? "Unknown"}
+                              </Text>
+                              {row.actorRole ? (
+                                <Text size="xs" c="dimmed">
+                                  {row.actorRole}
                                 </Text>
                               ) : null}
-                            </Group>
-                          ) : (
-                            <Text size="sm" c="dimmed">
-                              —
+                            </Stack>
+                          </Table.Td>
+                          <Table.Td>
+                            <Text size="sm" fw={600} truncate title={actionLabel(row.action)}>
+                              {actionLabel(row.action)}
                             </Text>
-                          )}
-                        </Table.Td>
-                        <Table.Td ta="right">
-                          <Button variant="subtle" size="xs" onClick={() => setDetail(row)}>
-                            Details
-                          </Button>
-                        </Table.Td>
-                      </Table.Tr>
-                    );
-                  })}
-                </Table.Tbody>
-              </Table>
-            </Paper>
-          </>
-        )}
+                          </Table.Td>
+                          <Table.Td>
+                            {row.entityType || row.entityName ? (
+                              <Group gap={6} wrap="nowrap">
+                                {row.entityType ? (
+                                  <Badge size="xs" variant="light" color="brand">
+                                    {row.entityType}
+                                  </Badge>
+                                ) : null}
+                                {row.entityName ? (
+                                  <Text size="sm" c="dimmed" truncate title={row.entityName}>
+                                    {row.entityName}
+                                  </Text>
+                                ) : null}
+                              </Group>
+                            ) : (
+                              <Text size="sm" c="dimmed">
+                                —
+                              </Text>
+                            )}
+                          </Table.Td>
+                          <Table.Td ta="right">
+                            <Button variant="subtle" size="xs" onClick={() => setDetail(row)}>
+                              Details
+                            </Button>
+                          </Table.Td>
+                        </Table.Tr>
+                      );
+                    })}
+                  </Table.Tbody>
+                </Table>
+              </Paper>
+            </>
+          )}
+        </CrossfadeSwap>
 
         {!listLoading && initialRows.length > 0 ? (
           <Stack gap={4} align="center" mt="xs">

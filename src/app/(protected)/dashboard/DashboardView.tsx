@@ -122,7 +122,8 @@ import {
 import { eventMatchesUserFilter } from "@/lib/events/userFilter";
 import { buildEventTypePickerSections } from "@/lib/eventTypes/groups";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
-import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
+import { MIN_SKELETON_HOLD_MS, useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
+import { loadChunk, useChunkReady } from "@/lib/loading/chunkReady";
 import { canPreloadTabs, canWarmRoutes } from "@/lib/pwa/warmup";
 import { departmentPathLabels, departmentTreeRows } from "@/lib/roster/hierarchy";
 import { useColdStartContent } from "@/components/ColdStartReady";
@@ -198,12 +199,12 @@ import { mark } from "@/lib/perf/marks";
 // the @mantine/dates pickers, @mantine/form and the invitee picker). It is
 // only needed once the user opens the form, so it is code-split out of the
 // dashboard's initial chunk. It warms on intent and after a longer idle delay
-// (not as part of the first idle pass). `preload()` is a runtime static on the
-// Loadable that `next/dynamic` returns.
-const EventForm = dynamic(() => import("./EventForm").then((mod) => mod.EventForm), {
-  ssr: false,
-  loading: () => <EventFormSkeleton />,
-});
+// (not as part of the first idle pass). `useChunkReady` exposes the load as a
+// flag so the chunk skeleton dissolves through `CrossfadeSwap` instead of
+// `dynamic`'s hard-cut fallback; `loadChunk` (same loader) keeps the
+// idle/intent preloads.
+const loadEventForm = () => import("./EventForm").then((mod) => mod.EventForm);
+const EventForm = dynamic(loadEventForm, { ssr: false, loading: () => null });
 
 // The custom Dual Pane (Month + Agenda) and Week (D) matrix views are each used
 // by exactly one view kind. They warm only when the account actually has a tab
@@ -248,7 +249,9 @@ const preloadQuietly = (component: unknown) => {
   void (component as Preloadable).preload?.().catch(() => {});
 };
 
-const preloadEventFormChunk = () => preloadQuietly(EventForm);
+const preloadEventFormChunk = () => {
+  void loadChunk(loadEventForm).catch(() => {});
+};
 const preloadEventDetailChunk = () => preloadQuietly(EventDetail);
 
 const warmWizardChunk = () => {
@@ -1440,6 +1443,10 @@ function DashboardViewImpl({
   // and screen-reader users are not left on a hidden modal.
   const resumeDraftRef = useRef<HTMLButtonElement | null>(null);
   const formIsOpen = formState !== null;
+  // The wizard chunk starts downloading the moment the draft exists (not when
+  // the modal finishes its enter transition), so the skeleton beat is as short
+  // as the network allows.
+  const eventFormReady = useChunkReady(loadEventForm, formIsOpen);
   // A `?edit=` deep link opens the wizard on the dashboard's first mount; hold
   // that first open one frame so its enter transition runs (every later open
   // starts from the always-mounted closed modal and animates normally).
@@ -5884,42 +5891,49 @@ function DashboardViewImpl({
             </Group>
           </Modal.Header>
           <Modal.Body>
-            {formState && (
-              <EventForm
-                key={
-                  formState.event
-                    ? formState.event.id
-                    : formState.templateEvent
-                      ? `dup-${formState.templateEvent.id}`
-                      : `new-${formState.defaultDate}`
-                }
-                event={formState.event}
-                templateEvent={formState.templateEvent}
-                defaultDate={formState.defaultDate}
-                eventTypes={eventTypes}
-                eventTypeGroups={eventTypeGroups}
-                eventTitleRecipe={eventTitleRecipe}
-                viewEventTitleRecipe={viewEventTitleRecipe}
-                viewLabel={activeView.name}
-                savedEventToastVariant={savedEventToastVariant}
-                currentUser={currentUser}
-                isAdmin={isAdmin}
-                inviteeDepartments={inviteeDepartments}
-                inviteeUsers={inviteeUsers}
-                onOptimistic={applyOptimistic}
-                onOptimisticSettled={settleOptimistic}
-                onOptimisticRollback={rollbackOptimistic}
-                onViewSaved={openSavedEventDetail}
-                onOpenInCalendar={openClashEventInCalendar}
-                optimisticHome={optimisticHome}
-                onDone={() => {
-                  closeForm();
-                  window.dispatchEvent(new CustomEvent(PINNED_EVENTS_CHANGED_EVENT));
-                  notifyEventsChanged();
-                  refreshAfterSave();
-                }}
-              />
-            )}
+            <CrossfadeSwap
+              loading={formIsOpen && !eventFormReady}
+              minHoldMs={MIN_SKELETON_HOLD_MS}
+              mode="overlay"
+              skeleton={<EventFormSkeleton />}
+            >
+              {formState ? (
+                <EventForm
+                  key={
+                    formState.event
+                      ? formState.event.id
+                      : formState.templateEvent
+                        ? `dup-${formState.templateEvent.id}`
+                        : `new-${formState.defaultDate}`
+                  }
+                  event={formState.event}
+                  templateEvent={formState.templateEvent}
+                  defaultDate={formState.defaultDate}
+                  eventTypes={eventTypes}
+                  eventTypeGroups={eventTypeGroups}
+                  eventTitleRecipe={eventTitleRecipe}
+                  viewEventTitleRecipe={viewEventTitleRecipe}
+                  viewLabel={activeView.name}
+                  savedEventToastVariant={savedEventToastVariant}
+                  currentUser={currentUser}
+                  isAdmin={isAdmin}
+                  inviteeDepartments={inviteeDepartments}
+                  inviteeUsers={inviteeUsers}
+                  onOptimistic={applyOptimistic}
+                  onOptimisticSettled={settleOptimistic}
+                  onOptimisticRollback={rollbackOptimistic}
+                  onViewSaved={openSavedEventDetail}
+                  onOpenInCalendar={openClashEventInCalendar}
+                  optimisticHome={optimisticHome}
+                  onDone={() => {
+                    closeForm();
+                    window.dispatchEvent(new CustomEvent(PINNED_EVENTS_CHANGED_EVENT));
+                    notifyEventsChanged();
+                    refreshAfterSave();
+                  }}
+                />
+              ) : null}
+            </CrossfadeSwap>
           </Modal.Body>
         </Modal.Content>
       </Modal.Root>

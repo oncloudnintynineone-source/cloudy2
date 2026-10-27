@@ -18,7 +18,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.353 (frontend loading speed-ups)** is shipped.
+- All work through changelog **1.354 (app-wide skeleton crossfades + pinned ticker
+  reliability)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -2231,6 +2232,17 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   tap), the filter dialog and pinned panel are lazy, and shell badge scans defer to idle.
   Docs: `docs/loading-transitions.md` §1.15, `docs/pwa-offline.md` §1.18,
   `docs/events-cache.md` §1.12.
+- 1.354 **App-wide skeleton crossfades + pinned ticker reliability**: every in-place
+  skeleton→content swap now goes through the generalized `CrossfadeSwap`
+  (`minHoldMs`, `mode="overlay"` for modal/detail bodies) — dashboard grids, status
+  pages, search results, and ~15 modals — replacing bare loading ternaries and
+  `useContentEnter` reveals; lazy modal chunk skeletons (`EventForm`, settings forms,
+  `TitleRecipeBuilder`, `EventSearchBody`, `DepartmentDetailBody`) gate on
+  `useChunkReady` so chunk reveals crossfade too (`DepartmentDetail` split into static
+  chrome + lazy body); the shell's background reads (pinned/Double Booking/KAH) retry
+  with bounded backoff (`src/lib/api/retry.ts`) and re-run on `online`/bfcache
+  `pageshow`, and the pinned panel keeps its last good list on a failed refresh.
+  Docs: `docs/loading-transitions.md` §1.6.1/§1.15.1, `docs/pinned-events.md` §1.4.1.
 
 ## 1.4 Open items & next steps
 

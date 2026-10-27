@@ -1,6 +1,5 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Modal, useMantineTheme } from "@mantine/core";
 import { useMediaQuery, useViewportSize } from "@mantine/hooks";
@@ -13,27 +12,28 @@ import {
   recordSearchHistory,
   removeSearchHistory,
 } from "@/lib/events/searchHistoryActions";
+import dynamic from "next/dynamic";
+import { loadChunk, useChunkReady } from "@/lib/loading/chunkReady";
+import { MIN_SKELETON_HOLD_MS } from "@/lib/loading/minHoldLoading";
 import { modalContentWidth, type Rect } from "@/lib/motion/origin";
 import { modalZoomTransitionProps } from "@/lib/motion/transitions";
 import { useMotion } from "@/components/MotionProvider";
 
+import { CrossfadeSwap } from "./CrossfadeSwap";
 import EventSearchBodySkeleton from "./EventSearchBodySkeleton";
 
 // Only the search body (its `@mantine/dates` DatePickerInputs and the result
 // list) is lazy — the Modal chrome is static and always mounted, so the zoom
 // out of the trigger plays on every open, even when the body chunk is still
-// downloading (the skeleton paints inside the already-animating dialog).
-const EventSearchBody = dynamic(() => import("./EventSearchBody"), {
-  ssr: false,
-  loading: () => <EventSearchBodySkeleton />,
-});
+// downloading (the skeleton paints inside the already-animating dialog and
+// dissolves through `CrossfadeSwap` when the chunk lands).
+const loadEventSearchBody = () => import("./EventSearchBody").then((mod) => mod.default);
+const EventSearchBody = dynamic(loadEventSearchBody, { ssr: false, loading: () => null });
 
-// `next/dynamic` returns a `React.ComponentType`, but the runtime Loadable also
-// carries a `.preload()` static that fetches the chunk without mounting. The
-// shell calls this on near signals (hover/focus/pointer-down on the search
+// The shell calls this on near signals (hover/focus/pointer-down on the search
 // trigger) so the first open paints real content instead of the body skeleton.
 export function preloadEventSearchBody() {
-  (EventSearchBody as unknown as { preload?: () => Promise<unknown> }).preload?.();
+  void loadChunk(loadEventSearchBody).catch(() => {});
 }
 
 interface EventSearchModalProps {
@@ -46,6 +46,7 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
   const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY);
+  const searchBodyReady = useChunkReady(loadEventSearchBody, opened);
 
   // The user's recent queries (`null` = not yet fetched). Owned by the chrome
   // so it is prefetched at shell mount (long before the first open) and
@@ -152,12 +153,19 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
       transitionProps={transitionProps}
       closeButtonProps={{ "aria-label": "Close search" }}
     >
-      <EventSearchBody
-        history={history}
-        onRecordSearch={recordSearch}
-        onRemoveSearch={removeSearch}
-        onClose={onClose}
-      />
+      <CrossfadeSwap
+        loading={opened && !searchBodyReady}
+        minHoldMs={MIN_SKELETON_HOLD_MS}
+        mode="overlay"
+        skeleton={<EventSearchBodySkeleton />}
+      >
+        <EventSearchBody
+          history={history}
+          onRecordSearch={recordSearch}
+          onRemoveSearch={removeSearch}
+          onClose={onClose}
+        />
+      </CrossfadeSwap>
     </Modal>
   );
 }

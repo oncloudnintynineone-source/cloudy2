@@ -6,6 +6,7 @@ import { Box, Button, Group, Paper, Skeleton, Stack, Text } from "@mantine/core"
 import { notifications } from "@mantine/notifications";
 import { IconCalendarClock, IconCircleCheck, IconRefresh } from "@tabler/icons-react";
 
+import { CrossfadeSwap } from "@/components/CrossfadeSwap";
 import { PickerField, type PickerBadgeItem } from "@/components/PickerField";
 import { UserSelectModal } from "@/components/UserSelectModal";
 import { LoadingStatus } from "@/components/LoadingStatus";
@@ -21,7 +22,7 @@ import {
 } from "@/components/clashTimeline";
 import { EventDetail } from "../dashboard/EventDetail";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
-import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
+import { MIN_SKELETON_HOLD_MS, useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
 import type { Rect } from "@/lib/motion/origin";
 import {
   checkUserClashes,
@@ -285,7 +286,23 @@ export function DoubleBookingView({
         </div>
       </Box>
 
-      {renderContent(view)}
+      <CrossfadeSwap
+        loading={view.kind === "loading"}
+        minHoldMs={MIN_SKELETON_HOLD_MS}
+        mode="overlay"
+        skeleton={
+          <Paper withBorder p="sm">
+            <LoadingStatus label="Checking for double bookings" />
+            <Stack gap={6}>
+              <Skeleton height={10} radius="sm" />
+              <Skeleton height={10} radius="sm" width="85%" />
+              <Skeleton height={10} radius="sm" width="65%" />
+            </Stack>
+          </Paper>
+        }
+      >
+        {view.kind === "loading" ? null : renderContent(view)}
+      </CrossfadeSwap>
 
       {isAdmin && (
         <UserSelectModal
@@ -348,20 +365,7 @@ export function DoubleBookingView({
     target.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
   }
 
-  function renderContent(current: View) {
-    if (current.kind === "loading") {
-      return (
-        <Paper withBorder p="sm">
-          <LoadingStatus label="Checking for double bookings" />
-          <Stack gap={6}>
-            <Skeleton height={10} radius="sm" />
-            <Skeleton height={10} radius="sm" width="85%" />
-            <Skeleton height={10} radius="sm" width="65%" />
-          </Stack>
-        </Paper>
-      );
-    }
-
+  function renderContent(current: Exclude<View, { kind: "loading" }>) {
     if (current.kind === "error") {
       return (
         <Paper withBorder p="sm">

@@ -7,13 +7,14 @@ import { Badge, Group, Paper, Stack, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { IconCircleCheck, IconUsersGroup } from "@tabler/icons-react";
 
+import { CrossfadeSwap } from "@/components/CrossfadeSwap";
 import { EmptyState } from "@/components/EmptyState";
 import { NoKeyboardSelect } from "@/components/NoKeyboardSelect";
 import { PageHeader } from "@/components/PageHeader";
 import { useColdStartContent } from "@/components/ColdStartReady";
 import { ClashCard, ClashEventRow } from "@/components/clashCards";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
-import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
+import { MIN_SKELETON_HOLD_MS, useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
 import type { Rect } from "@/lib/motion/origin";
 import type { EventClashEntry } from "@/lib/events/clashActions";
 import { buildEventDeepLink } from "@/lib/events/deepLink";
@@ -243,99 +244,104 @@ export function KahStatusView({ initial, currentUserId }: KahStatusViewProps) {
         </Text>
       ) : null}
 
-      {pending ? (
-        <KahStatusSkeleton />
-      ) : episodes.length === 0 && allClearGroups.length === 0 ? (
-        allGroups ? (
-          <EmptyState
-            icon={<IconUsersGroup size={18} />}
-            description="No KAH groups exist yet."
-            actionLabel="Manage KAH groups"
-            actionHref="/settings/kah-groups"
-          />
-        ) : (
-          <EmptyState
-            icon={<IconUsersGroup size={18} />}
-            description="You are not part of any KAH group."
-          />
-        )
-      ) : (
-        <>
-          {episodes.length > 0 ? (
-            <Stack gap="sm">
-              {episodes.map((episode) => {
-                const awayCount = episode.members.filter((member) => member.away).length;
-                const inCountryCount = episode.members.length - awayCount;
-                return (
-                  <ClashCard
-                    key={`${episode.groupId}:${episode.startDate}`}
-                    heading={`${episode.groupName} — ${episode.worstPct}% of ${episode.requiredPct}%`}
-                    headingSecondary={`${periodLabel(episode)} · ${dayCount(episode.days)}`}
-                    live={false}
-                    summaryBelow={
-                      <Stack gap={6}>
-                        <Group gap="xs" align="center">
-                          {statusBadge(episode.status)}
-                          <Text size="xs" c="dimmed">
-                            {awayCount} away · {inCountryCount} in country
-                          </Text>
-                        </Group>
-                        <MemberChips members={episode.members} currentUserId={currentUserId} />
-                      </Stack>
-                    }
-                  >
-                    {episode.events.length > 0 ? (
-                      episode.events.map((entry, index) => (
-                        <ClashEventRow
-                          key={`${entry.calendarId}:${entry.googleEventId}:${index}`}
-                          entry={entry}
-                          typeFirst
-                          onOpen={(rect) => void openDetail(entry, rect)}
-                        />
-                      ))
-                    ) : (
-                      <Text size="xs" c="dimmed">
-                        No overseas events found for this breach.
-                      </Text>
-                    )}
-                  </ClashCard>
-                );
-              })}
-            </Stack>
+      <CrossfadeSwap
+        loading={pending}
+        minHoldMs={MIN_SKELETON_HOLD_MS}
+        mode="overlay"
+        skeleton={<KahStatusSkeleton />}
+      >
+        {episodes.length === 0 && allClearGroups.length === 0 ? (
+          allGroups ? (
+            <EmptyState
+              icon={<IconUsersGroup size={18} />}
+              description="No KAH groups exist yet."
+              actionLabel="Manage KAH groups"
+              actionHref="/settings/kah-groups"
+            />
           ) : (
-            <Text c="dimmed" ta="center" py="sm">
-              No KAH breaches in the window.
-            </Text>
-          )}
-
-          {/* Groups with no breached day: the "is my group OK?" answer. */}
-          {allClearGroups.length > 0 ? (
-            <Paper withBorder p="sm">
-              <Stack gap={6}>
-                <Text fz="sm" fw={600} c="dimmed">
-                  All clear
-                </Text>
-                {allClearGroups.map((name) => (
-                  <Group key={name} gap={6} wrap="nowrap">
-                    <IconCircleCheck
-                      size={14}
-                      color="var(--mantine-color-green-6)"
-                      aria-hidden
-                      style={{ flexShrink: 0 }}
-                    />
-                    <Text fz="sm" lineClamp={1}>
-                      {name}
-                    </Text>
-                    <Text fz="sm" c="dimmed" lineClamp={1}>
-                      — no breaches in the window
-                    </Text>
-                  </Group>
-                ))}
+            <EmptyState
+              icon={<IconUsersGroup size={18} />}
+              description="You are not part of any KAH group."
+            />
+          )
+        ) : (
+          <>
+            {episodes.length > 0 ? (
+              <Stack gap="sm">
+                {episodes.map((episode) => {
+                  const awayCount = episode.members.filter((member) => member.away).length;
+                  const inCountryCount = episode.members.length - awayCount;
+                  return (
+                    <ClashCard
+                      key={`${episode.groupId}:${episode.startDate}`}
+                      heading={`${episode.groupName} — ${episode.worstPct}% of ${episode.requiredPct}%`}
+                      headingSecondary={`${periodLabel(episode)} · ${dayCount(episode.days)}`}
+                      live={false}
+                      summaryBelow={
+                        <Stack gap={6}>
+                          <Group gap="xs" align="center">
+                            {statusBadge(episode.status)}
+                            <Text size="xs" c="dimmed">
+                              {awayCount} away · {inCountryCount} in country
+                            </Text>
+                          </Group>
+                          <MemberChips members={episode.members} currentUserId={currentUserId} />
+                        </Stack>
+                      }
+                    >
+                      {episode.events.length > 0 ? (
+                        episode.events.map((entry, index) => (
+                          <ClashEventRow
+                            key={`${entry.calendarId}:${entry.googleEventId}:${index}`}
+                            entry={entry}
+                            typeFirst
+                            onOpen={(rect) => void openDetail(entry, rect)}
+                          />
+                        ))
+                      ) : (
+                        <Text size="xs" c="dimmed">
+                          No overseas events found for this breach.
+                        </Text>
+                      )}
+                    </ClashCard>
+                  );
+                })}
               </Stack>
-            </Paper>
-          ) : null}
-        </>
-      )}
+            ) : (
+              <Text c="dimmed" ta="center" py="sm">
+                No KAH breaches in the window.
+              </Text>
+            )}
+
+            {/* Groups with no breached day: the "is my group OK?" answer. */}
+            {allClearGroups.length > 0 ? (
+              <Paper withBorder p="sm">
+                <Stack gap={6}>
+                  <Text fz="sm" fw={600} c="dimmed">
+                    All clear
+                  </Text>
+                  {allClearGroups.map((name) => (
+                    <Group key={name} gap={6} wrap="nowrap">
+                      <IconCircleCheck
+                        size={14}
+                        color="var(--mantine-color-green-6)"
+                        aria-hidden
+                        style={{ flexShrink: 0 }}
+                      />
+                      <Text fz="sm" lineClamp={1}>
+                        {name}
+                      </Text>
+                      <Text fz="sm" c="dimmed" lineClamp={1}>
+                        — no breaches in the window
+                      </Text>
+                    </Group>
+                  ))}
+                </Stack>
+              </Paper>
+            ) : null}
+          </>
+        )}
+      </CrossfadeSwap>
 
       {/* Always mounted so Mantine can play the open/close zoom; `event` toggles
           while `loading` shows the shaped skeleton. */}

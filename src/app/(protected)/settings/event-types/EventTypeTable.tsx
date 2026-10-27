@@ -21,17 +21,19 @@ import {
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { activatable } from "@/lib/ui/activatable";
 import dynamic from "next/dynamic";
+import { CrossfadeSwap } from "@/components/CrossfadeSwap";
 import { FormModalSkeleton } from "@/components/FormModalSkeleton";
+import { useChunkReady } from "@/lib/loading/chunkReady";
+import { MIN_SKELETON_HOLD_MS } from "@/lib/loading/minHoldLoading";
 import { EventTypeGroupsModal } from "./EventTypeGroupsModal";
 import { useActivityRefresh } from "@/components/ActivityBar";
 import type { ReorderDrag } from "@/lib/settings/featureFlags";
 
 // The add/edit event-type form is only mounted on tap; split it out of the
-// event-types route's initial chunk.
-const EventTypeForm = dynamic(() => import("./EventTypeForm").then((mod) => mod.EventTypeForm), {
-  ssr: false,
-  loading: () => <FormModalSkeleton rows={5} />,
-});
+// event-types route's initial chunk. The chunk reveal dissolves through
+// `CrossfadeSwap` instead of `dynamic`'s hard-cut fallback.
+const loadEventTypeForm = () => import("./EventTypeForm").then((mod) => mod.EventTypeForm);
+const EventTypeForm = dynamic(loadEventTypeForm, { ssr: false, loading: () => null });
 
 interface EventTypeTableProps {
   types: EventType[];
@@ -46,6 +48,7 @@ export function EventTypeTable({ types, groups, reorderDrag }: EventTypeTablePro
   const [formOpened, { open: openForm, close: closeForm }] = useDisclosure(false);
   const [editing, setEditing] = useState<EventType | null>(null);
   const [groupsOpened, { open: openGroups, close: closeGroups }] = useDisclosure(false);
+  const eventTypeFormReady = useChunkReady(loadEventTypeForm, formOpened);
 
   const groupById = useMemo(() => new Map(groups.map((group) => [group.id, group])), [groups]);
 
@@ -299,16 +302,23 @@ export function EventTypeTable({ types, groups, reorderDrag }: EventTypeTablePro
         centered
         size={isDesktop ? "lg" : "sm"}
       >
-        <EventTypeForm
-          key={editing?.id ?? "new"}
-          eventType={editing}
-          groups={groups}
-          onDone={() => {
-            closeForm();
-            setEditing(null);
-            refreshAfterSave();
-          }}
-        />
+        <CrossfadeSwap
+          loading={formOpened && !eventTypeFormReady}
+          minHoldMs={MIN_SKELETON_HOLD_MS}
+          mode="overlay"
+          skeleton={<FormModalSkeleton rows={5} />}
+        >
+          <EventTypeForm
+            key={editing?.id ?? "new"}
+            eventType={editing}
+            groups={groups}
+            onDone={() => {
+              closeForm();
+              setEditing(null);
+              refreshAfterSave();
+            }}
+          />
+        </CrossfadeSwap>
       </MotionModal>
 
       <EventTypeGroupsModal

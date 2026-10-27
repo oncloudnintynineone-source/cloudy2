@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import type { CSSProperties } from "react";
 import {
   Badge,
@@ -18,6 +18,7 @@ import {
 import { IconHistory, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
+import { CrossfadeSwap } from "@/components/CrossfadeSwap";
 import { EmptyState } from "@/components/EmptyState";
 import { EventHistoryModal, type EventHistoryPreview } from "@/components/EventHistoryModal";
 import { NoKeyboardSelect } from "@/components/NoKeyboardSelect";
@@ -30,7 +31,6 @@ import {
   type MyEventsRangeMonths,
 } from "@/lib/events/myEventsRange";
 import type { MyEventRow } from "@/lib/events/myEvents";
-import { CONTENT_ENTER_CLASS, useContentEnter } from "@/lib/loading/contentEnter";
 import { useLiveRouteRefresh } from "@/lib/loading/liveRefresh";
 import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
 import type { Rect } from "@/lib/motion/origin";
@@ -72,8 +72,6 @@ export function MyEventsView({
 
   const liveRefreshing = useLiveRouteRefresh(renderedAt);
   const loading = useMinSkeletonHold(liveRefreshing);
-  const contentRef = useRef<HTMLDivElement | null>(null);
-  useContentEnter(contentRef, !loading);
 
   // The shared history modal, opened by tapping a row. The row's own trail is
   // passed as a preview so the modal paints instantly, and rows prefetch their
@@ -142,15 +140,11 @@ export function MyEventsView({
         />
       </Box>
 
-      {showEmpty ? (
-        <EmptyState
-          icon={<IconHistory size={20} />}
-          description="No events created in this range. Widen the range above, or create one from the calendar — events you create will appear here, and stay listed even after they're deleted."
-          actionLabel="Go to calendar"
-          actionHref="/dashboard"
-        />
-      ) : (
-        <Stack gap="sm" ref={contentRef} className={CONTENT_ENTER_CLASS}>
+      <CrossfadeSwap
+        loading={loading}
+        mode="overlay"
+        label="Loading your events"
+        skeleton={
           <Box
             style={{
               border: LIST_BORDER,
@@ -159,67 +153,88 @@ export function MyEventsView({
             }}
           >
             <Stack gap={0}>
-              {loading
-                ? Array.from({ length: 5 }, (_, index) => (
-                    <Group
-                      key={index}
-                      gap="sm"
-                      wrap="nowrap"
-                      align="flex-start"
-                      style={{
-                        padding: "var(--mantine-spacing-sm)",
-                        borderTop: index === 0 ? undefined : LIST_BORDER,
-                      }}
-                    >
+              {Array.from({ length: 5 }, (_, index) => (
+                <Group
+                  key={index}
+                  gap="sm"
+                  wrap="nowrap"
+                  align="flex-start"
+                  style={{
+                    padding: "var(--mantine-spacing-sm)",
+                    borderTop: index === 0 ? undefined : LIST_BORDER,
+                  }}
+                >
+                  <Skeleton
+                    width={4}
+                    height={28}
+                    radius={2}
+                    style={{ flexShrink: 0, marginTop: 1 }}
+                  />
+                  <Box style={{ flex: 1, minWidth: 0 }}>
+                    <Stack gap={8}>
                       <Skeleton
-                        width={4}
-                        height={28}
+                        height={12}
                         radius={2}
-                        style={{ flexShrink: 0, marginTop: 1 }}
+                        style={{ width: `${60 - (index % 3) * 12}%` }}
                       />
-                      <Box style={{ flex: 1, minWidth: 0 }}>
-                        <Stack gap={8}>
-                          <Skeleton
-                            height={12}
-                            radius={2}
-                            style={{ width: `${60 - (index % 3) * 12}%` }}
-                          />
-                          <Skeleton height={8} radius={2} w="40%" />
-                          <Group gap={6}>
-                            <Skeleton circle height={18} style={{ flexShrink: 0 }} />
-                            <Skeleton height={8} radius={2} w="30%" />
-                          </Group>
-                          <Group gap={6}>
-                            <Skeleton circle height={18} style={{ flexShrink: 0 }} />
-                            <Skeleton height={8} radius={2} w="24%" />
-                          </Group>
-                        </Stack>
-                      </Box>
-                    </Group>
-                  ))
-                : items.map((item, index) => (
-                    <MyEventRowView
-                      key={item.key}
-                      item={item}
-                      first={index === 0}
-                      onOpenHistory={(row, rect) => {
-                        if (!row.eventId) {
-                          return;
-                        }
-                        setHistoryOrigin(rect);
-                        setHistoryPreview({
-                          title: row.title,
-                          deleted: row.deleted,
-                          items: row.trail,
-                        });
-                        setHistoryEventId(row.eventId);
-                      }}
-                    />
-                  ))}
+                      <Skeleton height={8} radius={2} w="40%" />
+                      <Group gap={6}>
+                        <Skeleton circle height={18} style={{ flexShrink: 0 }} />
+                        <Skeleton height={8} radius={2} w="30%" />
+                      </Group>
+                      <Group gap={6}>
+                        <Skeleton circle height={18} style={{ flexShrink: 0 }} />
+                        <Skeleton height={8} radius={2} w="24%" />
+                      </Group>
+                    </Stack>
+                  </Box>
+                </Group>
+              ))}
             </Stack>
           </Box>
-        </Stack>
-      )}
+        }
+      >
+        {showEmpty ? (
+          <EmptyState
+            icon={<IconHistory size={20} />}
+            description="No events created in this range. Widen the range above, or create one from the calendar — events you create will appear here, and stay listed even after they're deleted."
+            actionLabel="Go to calendar"
+            actionHref="/dashboard"
+          />
+        ) : (
+          <Stack gap="sm">
+            <Box
+              style={{
+                border: LIST_BORDER,
+                borderRadius: "var(--mantine-radius-md)",
+                overflow: "hidden",
+              }}
+            >
+              <Stack gap={0}>
+                {items.map((item, index) => (
+                  <MyEventRowView
+                    key={item.key}
+                    item={item}
+                    first={index === 0}
+                    onOpenHistory={(row, rect) => {
+                      if (!row.eventId) {
+                        return;
+                      }
+                      setHistoryOrigin(rect);
+                      setHistoryPreview({
+                        title: row.title,
+                        deleted: row.deleted,
+                        items: row.trail,
+                      });
+                      setHistoryEventId(row.eventId);
+                    }}
+                  />
+                ))}
+              </Stack>
+            </Box>
+          </Stack>
+        )}
+      </CrossfadeSwap>
 
       {!loading && pageCount > 1 ? (
         <Stack gap={4} align="center" mt="xs">
@@ -312,11 +327,7 @@ function MyEventRowView({
       </UnstyledButton>
     );
   }
-  return (
-    <Box style={rowStyle}>
-      {body}
-    </Box>
-  );
+  return <Box style={rowStyle}>{body}</Box>;
 }
 
 /** Trail bullet colors ride the brand palette: created blue, edited amber, deleted red. */

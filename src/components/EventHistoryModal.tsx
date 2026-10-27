@@ -5,6 +5,7 @@ import { Badge, Group, Modal, Stack, Text, useMantineTheme } from "@mantine/core
 import { useMediaQuery, useViewportSize } from "@mantine/hooks";
 import { IconHistory } from "@tabler/icons-react";
 
+import { CrossfadeSwap } from "@/components/CrossfadeSwap";
 import { EmptyState } from "@/components/EmptyState";
 import { EventHistoryEntries } from "@/components/EventHistoryEntries";
 import { EventHistorySkeleton } from "@/components/EventHistorySkeleton";
@@ -16,8 +17,13 @@ import {
   hasCachedEventHistory,
   storeCachedEventHistory,
 } from "@/lib/events/historyCache";
-import { buildHistoryEntries, type ChangeTrailItem, type HistoryEntryItem } from "@/lib/events/changeTrail";
+import {
+  buildHistoryEntries,
+  type ChangeTrailItem,
+  type HistoryEntryItem,
+} from "@/lib/events/changeTrail";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
+import { MIN_SKELETON_HOLD_MS } from "@/lib/loading/minHoldLoading";
 import { modalContentWidth, type Rect } from "@/lib/motion/origin";
 import { modalZoomTransitionProps } from "@/lib/motion/transitions";
 import { NARROW_MEDIA_QUERY } from "@/lib/theme";
@@ -147,9 +153,8 @@ export function EventHistoryModal({
 
   const newest = loaded && loaded.rows.length > 0 ? loaded.rows[loaded.rows.length - 1] : undefined;
   const title =
-    (newest?.entityName ??
-      (newest ? createdEventSummary(newest.details)?.title : null) ??
-      null) ??
+    newest?.entityName ??
+    (newest ? createdEventSummary(newest.details)?.title : null) ??
     preview?.title ??
     titleProp ??
     "Event history";
@@ -187,15 +192,24 @@ export function EventHistoryModal({
           <Text size="sm" c="red">
             Could not load the history. Close and try again.
           </Text>
-        ) : previewItems === null ? (
-          <EventHistorySkeleton />
-        ) : previewItems.length === 0 ? (
-          <EmptyState
-            icon={<IconHistory size={20} />}
-            description="No recorded history for this event. Events are tracked for a limited window, and externally created events are never tracked."
-          />
         ) : (
-          <EventHistoryEntries items={previewItems} />
+          <CrossfadeSwap
+            loading={eventId !== null && previewItems === null}
+            minHoldMs={MIN_SKELETON_HOLD_MS}
+            mode="overlay"
+            skeleton={<EventHistorySkeleton />}
+          >
+            {previewItems !== null ? (
+              previewItems.length === 0 ? (
+                <EmptyState
+                  icon={<IconHistory size={20} />}
+                  description="No recorded history for this event. Events are tracked for a limited window, and externally created events are never tracked."
+                />
+              ) : (
+                <EventHistoryEntries items={previewItems} />
+              )
+            ) : null}
+          </CrossfadeSwap>
         )}
       </Stack>
     </Modal>

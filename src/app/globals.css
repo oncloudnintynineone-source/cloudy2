@@ -145,6 +145,22 @@ html {
   pointer-events: none;
 }
 
+/* Overlay mode (`mode="overlay"`): the skeleton stays in flow while it is the
+   only layer (it defines the box while loading), then becomes an absolute
+   cover over the mounted content during the dissolve — the content owns the
+   final height the instant it lands, so modal/detail bodies never take a
+   max-height beat or snap when the retained skeleton unmounts. */
+.c2-crossfade-stack--overlay {
+  display: block;
+  position: relative;
+}
+
+.c2-crossfade-stack--overlay .c2-crossfade-skeleton[data-leaving] {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
 @keyframes c2-crossfade-out {
   from {
     opacity: 1;

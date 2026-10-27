@@ -41,16 +41,12 @@ import { formatColorLabel } from "@/lib/events/eventColors";
 import { ColorDot } from "@/components/ColorSwatchPicker";
 import { ReorderUpDown } from "@/components/reorderUpDown";
 import { SortableList, SortableRow } from "@/components/SortableRow";
-import dynamic from "next/dynamic";
-import { FormModalSkeleton } from "@/components/FormModalSkeleton";
 import { useActivityRefresh } from "@/components/ActivityBar";
 
-// The department detail form is large and only mounted on tap; split it out of
-// the departments route's initial chunk.
-const DepartmentDetail = dynamic(
-  () => import("./DepartmentDetail").then((mod) => mod.DepartmentDetail),
-  { ssr: false, loading: () => <FormModalSkeleton rows={5} /> },
-);
+// The dialog chrome is static and tiny; the heavy form/access body inside it
+// is the lazy chunk (see DepartmentDetail.tsx), so the departments route stays
+// small without the old whole-modal `dynamic` fallback.
+import { DepartmentDetail } from "./DepartmentDetail";
 
 interface DepartmentTableProps {
   departments: Calendar[];

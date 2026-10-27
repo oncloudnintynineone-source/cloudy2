@@ -13,6 +13,7 @@ across mutations.
 - [1.2 The server read](#12-the-server-read)
 - [1.3 Opening an event: deep links](#13-opening-an-event-deep-links)
 - [1.4 The header ticker](#14-the-header-ticker)
+  - [1.4.1 Read reliability](#141-read-reliability)
 - [1.5 Panel state & components](#15-panel-state--components)
 - [1.6 File index & related docs](#16-file-index--related-docs)
 
@@ -176,6 +177,28 @@ The list behind the ticker refreshes:
   `cloudy2:pinned-events-changed` window event (`PINNED_EVENTS_CHANGED_EVENT`,
   dispatched at the dashboard's `onDeleted` / form `onDone`).
 
+### 1.4.1 Read reliability
+
+A launch that races the network used to leave the ticker stuck on the static
+label until the next refocus (a single failed read settled `error` with no
+retry). The shell's background reads (`refreshPinnedEvents`, plus the Double
+Booking and KAH badge scans) now run through `runWithRetry`
+(`src/lib/api/retry.ts`, unit-tested):
+
+- **Bounded backoff**: up to three retries at 500 ms / 1.5 s / 4 s.
+- **Retryable only**: `AbortError` (navigation) and `ApiError` 401/403 (auth)
+  never retry; everything else does.
+- **Offline-aware**: `shouldRetryRead` stops the ladder while
+  `navigator.onLine === false` — no pointless timers on a dead connection.
+- **Recovery hooks**: the shell re-runs all three reads on `online` and on
+  `pageshow` with `persisted` true (bfcache back-navigation), so a read that
+  failed while offline heals the moment connectivity returns.
+
+The panel keeps its **seed fallback**: a failed refresh leaves the last good
+list on screen (with an error state for the panel body) instead of blanking it,
+and the ticker keeps rotating stale-but-real titles rather than dropping to the
+static label. The server caches these reads for 60 s, so retries are cheap.
+
 ## 1.5 Panel state & components
 
 Open/close state lives in `AppShellShell` and rides `PinnedPanelContext`
@@ -204,8 +227,9 @@ scrollbar instead of truncating. A dim `xs`
 orientation line under the modal title ("Shown to everyone on the header ticker · next
 3 months") mirrors the fixed window from §1.2. Loading holds the skeleton for at least
 150ms (`useMinSkeletonHold`) while mirroring the row geometry (accent bar + title +
-meta) inside the same bordered box, and the rows fade in on reveal
-(`useContentEnter` / `.content-enter`). The empty state is the shared `EmptyState`
+meta) inside the same bordered box, and the rows dissolve in on reveal
+(`CrossfadeSwap`, [`loading-transitions.md`](loading-transitions.md) §1.6.1). The empty
+state is the shared `EmptyState`
 with a **Go to calendar** action that closes the panel and navigates to `/dashboard`.
 Tapping a row deep-links to the event (§1.3), its spinner overlay covering just that
 row until the navigation commits.
@@ -220,6 +244,7 @@ row until the navigation commits.
 | `src/lib/dashboard/deepLinkTarget.ts` | Lean target resolver (own months, empty filters, shared title rendering) |
 | `src/lib/dashboard/deepLinkActions.ts` | `resolveDeepLinkTargetAction` server action called in parallel by `DashboardScreen` |
 | `src/lib/settings/featureFlags.ts` | The `pinnedTickerIndicator` flag registry entry |
+| `src/lib/api/retry.ts` | `runWithRetry` — bounded backoff for the shell's background reads (§1.4.1, unit-tested) |
 | `src/lib/ui/pinnedPanel.ts` | `PinnedPanelContext` + change event name |
 | `src/components/PinnedEventsTicker.tsx` | The header pill: indicator + countdown chips + rotating titles |
 | `src/components/PinnedEventsPanel.tsx` | The panel Modal (shared list-row recipe, §1.5) |

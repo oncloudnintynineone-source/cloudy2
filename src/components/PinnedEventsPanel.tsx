@@ -22,7 +22,6 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { buildEventDeepLink } from "@/lib/events/deepLink";
 import { getJson } from "@/lib/api/client";
 import type { PinnedEvent } from "@/lib/events/pinned";
-import { CONTENT_ENTER_CLASS, useContentEnter } from "@/lib/loading/contentEnter";
 import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
 import { modalContentWidth } from "@/lib/motion/origin";
 import { modalZoomTransitionProps } from "@/lib/motion/transitions";
@@ -31,6 +30,7 @@ import { NARROW_MEDIA_QUERY } from "@/lib/theme";
 import { usePinnedPanel } from "@/lib/ui/pinnedPanel";
 import { AUTOSIZE_VERTICAL_SCROLL_PROPS } from "@/lib/ui/scrollArea";
 
+import { CrossfadeSwap } from "./CrossfadeSwap";
 import { EmptyState } from "./EmptyState";
 import { LoadingStatus } from "./LoadingStatus";
 
@@ -52,9 +52,13 @@ interface PinnedEventsPanelProps {
    *  their final height instead of a taller-than-content skeleton; the panel's
    *  own fetch still confirms freshness underneath. */
   seedEvents?: PinnedEvent[] | null;
+  /** Called with the panel's fresh list after a successful fetch so the shell
+   *  can seed the header ticker immediately — a failed mount read then heals
+   *  the pill on the first panel open, without waiting for the close refresh. */
+  onLoaded?: (events: PinnedEvent[]) => void;
 }
 
-export function PinnedEventsPanel({ seedEvents = null }: PinnedEventsPanelProps) {
+export function PinnedEventsPanel({ seedEvents = null, onLoaded }: PinnedEventsPanelProps) {
   const { open, originRect, closePanel } = usePinnedPanel();
   const router = useRouter();
   const pathname = usePathname();
@@ -63,6 +67,19 @@ export function PinnedEventsPanel({ seedEvents = null }: PinnedEventsPanelProps)
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
   const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY);
   const [events, setEvents] = useState<PinnedEvent[] | null>(null);
+  // The panel's own fetch failed. Only surfaced when there is nothing to show
+  // — with a seed list present the stale rows stay (the shell retries on its
+  // own), so a transient failure never blanks a list the ticker already has.
+  const [failed, setFailed] = useState(false);
+  // Render-phase reset on every open (shared recipe with CalendarAccessModal):
+  // a fresh open starts from a clean slate, not the last fetch's failure.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (wasOpen !== open) {
+    setWasOpen(open);
+    if (open) {
+      setFailed(false);
+    }
+  }
   // The tapped row whose deep-link navigation is in flight. Its position (in
   // the list's content coordinates) drives an overlay spinner that covers
   // exactly that row until the dashboard navigation commits, then the panel
@@ -90,15 +107,25 @@ export function PinnedEventsPanel({ seedEvents = null }: PinnedEventsPanelProps)
     let cancelled = false;
     getJson<{ ok: true; events: PinnedEvent[] } | { ok: false; error: string }>("/api/pinned")
       .then((result) => {
-        if (!cancelled) setEvents(result.ok ? result.events : []);
+        if (cancelled) return;
+        if (result.ok) {
+          setEvents(result.events);
+          // Seed the shell's ticker immediately — a failed mount read heals the
+          // pill on the first panel open, not only after the close refresh.
+          onLoaded?.(result.events);
+        } else {
+          setEvents([]);
+        }
       })
       .catch(() => {
-        if (!cancelled) setEvents([]);
+        // Keep `events` untouched so the list falls back to the shell's seed;
+        // a failure only shows when there is nothing to fall back to.
+        if (!cancelled) setFailed(true);
       });
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [open, onLoaded]);
 
   // Two-tier list: `events` is this panel's confirmed-fresh copy (null until
   // the first fetch resolves, retained across opens afterwards); `seedEvents`
@@ -110,8 +137,7 @@ export function PinnedEventsPanel({ seedEvents = null }: PinnedEventsPanelProps)
   // keeps the skeleton up for a deliberate 150ms even when warm data lands
   // instantly, and `useContentEnter` fades the rows in on reveal.
   const visibleEvents = events ?? seedEvents;
-  const loading = useMinSkeletonHold(open && visibleEvents === null);
-  useContentEnter(listRef, !loading);
+  const loading = useMinSkeletonHold(open && visibleEvents === null && !failed);
 
   // The modal zooms out of / shrinks back into the header pin button — the
   // app's standard grow/shrink animation. It is `centered` with a fixed size,
@@ -204,75 +230,85 @@ export function PinnedEventsPanel({ seedEvents = null }: PinnedEventsPanelProps)
         mx="-md"
         px="md"
       >
-        <Box ref={listRef} pos="relative" className={CONTENT_ENTER_CLASS}>
-          {loading ? (
-            <Box
-              style={{
-                border: LIST_BORDER,
-                borderRadius: "var(--mantine-radius-md)",
-                overflow: "hidden",
-              }}
-            >
-              <LoadingStatus label="Loading pinned events" />
-              <Stack gap={0}>
-                {Array.from({ length: 3 }).map((_, index) => (
-                  <Group
-                    key={index}
-                    gap="sm"
-                    wrap="nowrap"
-                    align="flex-start"
-                    style={{
-                      padding: "var(--mantine-spacing-sm)",
-                      borderTop: index === 0 ? undefined : LIST_BORDER,
-                    }}
-                  >
-                    <Skeleton
-                      width={4}
-                      height={28}
-                      radius={2}
-                      style={{ flexShrink: 0, marginTop: 1 }}
+        <Box ref={listRef} pos="relative">
+          <CrossfadeSwap
+            loading={loading}
+            mode="overlay"
+            skeleton={
+              <Box
+                style={{
+                  border: LIST_BORDER,
+                  borderRadius: "var(--mantine-radius-md)",
+                  overflow: "hidden",
+                }}
+              >
+                <LoadingStatus label="Loading pinned events" />
+                <Stack gap={0}>
+                  {Array.from({ length: 3 }).map((_, index) => (
+                    <Group
+                      key={index}
+                      gap="sm"
+                      wrap="nowrap"
+                      align="flex-start"
+                      style={{
+                        padding: "var(--mantine-spacing-sm)",
+                        borderTop: index === 0 ? undefined : LIST_BORDER,
+                      }}
+                    >
+                      <Skeleton
+                        width={4}
+                        height={28}
+                        radius={2}
+                        style={{ flexShrink: 0, marginTop: 1 }}
+                      />
+                      <Box style={{ flex: 1, minWidth: 0 }}>
+                        <Stack gap={8}>
+                          <Skeleton
+                            height={12}
+                            radius={2}
+                            style={{ width: `${60 - (index % 3) * 12}%` }}
+                          />
+                          <Skeleton height={8} radius={2} w="40%" />
+                        </Stack>
+                      </Box>
+                    </Group>
+                  ))}
+                </Stack>
+              </Box>
+            }
+          >
+            {failed && visibleEvents === null ? (
+              <Text size="sm" c="red">
+                Could not load pinned events. Close and try again.
+              </Text>
+            ) : visibleEvents?.length === 0 ? (
+              <EmptyState
+                icon={<IconCalendarEvent size={18} />}
+                description="No upcoming pinned events. Pin one from the event form's settings step — pinned events show here and on the header ticker."
+                actionLabel="Go to calendar"
+                onAction={goToCalendar}
+              />
+            ) : (
+              <Box
+                style={{
+                  border: LIST_BORDER,
+                  borderRadius: "var(--mantine-radius-md)",
+                  overflow: "hidden",
+                }}
+              >
+                <Stack gap={0}>
+                  {visibleEvents?.map((event, index) => (
+                    <PinnedEventRow
+                      key={event.id}
+                      event={event}
+                      first={index === 0}
+                      onOpen={(e) => openEventDay(event, e)}
                     />
-                    <Box style={{ flex: 1, minWidth: 0 }}>
-                      <Stack gap={8}>
-                        <Skeleton
-                          height={12}
-                          radius={2}
-                          style={{ width: `${60 - (index % 3) * 12}%` }}
-                        />
-                        <Skeleton height={8} radius={2} w="40%" />
-                      </Stack>
-                    </Box>
-                  </Group>
-                ))}
-              </Stack>
-            </Box>
-          ) : visibleEvents?.length === 0 ? (
-            <EmptyState
-              icon={<IconCalendarEvent size={18} />}
-              description="No upcoming pinned events. Pin one from the event form's settings step — pinned events show here and on the header ticker."
-              actionLabel="Go to calendar"
-              onAction={goToCalendar}
-            />
-          ) : (
-            <Box
-              style={{
-                border: LIST_BORDER,
-                borderRadius: "var(--mantine-radius-md)",
-                overflow: "hidden",
-              }}
-            >
-              <Stack gap={0}>
-                {visibleEvents?.map((event, index) => (
-                  <PinnedEventRow
-                    key={event.id}
-                    event={event}
-                    first={index === 0}
-                    onOpen={(e) => openEventDay(event, e)}
-                  />
-                ))}
-              </Stack>
-            </Box>
-          )}
+                  ))}
+                </Stack>
+              </Box>
+            )}
+          </CrossfadeSwap>
           {opening && (
             <Box
               style={{

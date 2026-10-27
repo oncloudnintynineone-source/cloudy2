@@ -20,6 +20,7 @@ where it is wired.
 - [1.4 Route-level loading](#14-route-level-loading)
 - [1.5 Minimum skeleton hold](#15-minimum-skeleton-hold)
 - [1.6 Reveal & crossfade](#16-reveal--crossfade)
+  - [1.6.1 `CrossfadeSwap` — the shared swap primitive](#161-crossfadeswap--the-shared-swap-primitive)
 - [1.7 One-shot URL params](#17-one-shot-url-params)
 - [1.8 No-op navigations & in-page exceptions](#18-no-op-navigations--in-page-exceptions)
 - [1.9 Optimistic navigation chrome](#19-optimistic-navigation-chrome)
@@ -31,6 +32,7 @@ where it is wired.
 - [1.13.2 Per-view tab load indicator](#1132-per-view-tab-load-indicator)
 - [1.14 Route-change page transition](#114-route-change-page-transition)
 - [1.15 Code-splitting & low-end device tier](#115-code-splitting--low-end-device-tier)
+  - [1.15.1 Chunk reveals crossfade too](#1151-chunk-reveals-crossfade-too)
 - [1.16 File index & related docs](#116-file-index--related-docs)
 - [1.17 Micro-motion polish](#117-micro-motion-polish)
 - [1.18 Preview-first paint & intent prefetch](#118-preview-first-paint--intent-prefetch)
@@ -232,9 +234,11 @@ would fade the whole box (including the outgoing skeleton) from opacity 0
 before the crossfade.
 
 **In-page reveal into a stable container (other pages)**: a container that
-must **not** remount across navigations (e.g. the parade/audit list) keeps its
-identity, so `useContentEnter(ref, shown)` (`src/lib/loading/contentEnter.ts`)
-restarts the one-shot CSS fade instead:
+must **not** remount across navigations (e.g. a list that keeps its identity
+across filter changes) uses `CrossfadeSwap` (§1.6.1) — the same dissolve the
+dashboard grid uses — rather than a bare `loading ? <Skeleton/> : <Content/>`
+ternary. `useContentEnter(ref, shown)` (`src/lib/loading/contentEnter.ts`)
+remains for cold-mount-only fades where the surface never re-loads in place:
 
 - watches `shown` (i.e. `!loading`) and, on a `false → true` flip,
 - removes the class, forces a style flush (`void el.offsetWidth`), and
@@ -243,6 +247,28 @@ restarts the one-shot CSS fade instead:
   already shows the fade at frame 0 instead of a fully-opaque flash;
 - skips the first mount (`prev === null`) — the SSR-shipped class is already
   playing there.
+
+### 1.6.1 `CrossfadeSwap` — the shared swap primitive
+
+`CrossfadeSwap` (`src/components/CrossfadeSwap.tsx`) owns every skeleton →
+content swap that happens **inside an already-open surface**: the dashboard
+grid, modal/detail bodies, status pages, and search results. Rules:
+
+- **Never hand-roll the ternary.** A bare `loading ? <Skeleton/> : <Content/>`
+  hard-cuts; wrap the pair in `CrossfadeSwap` instead. The outgoing skeleton
+  stays mounted for one `--c2-dur-standard` beat while `c2-crossfade-out`
+  dissolves it over the already-painted content.
+- **`minHoldMs`** (default `0`): hold the skeleton at least this long after
+  `loading` turns false. Pass `MIN_SKELETON_HOLD_MS` when the caller's `loading`
+  is a raw flag (not already wrapped in `useMinSkeletonHold`); pass nothing
+  when the caller holds upstream, so the hold is never applied twice.
+- **`mode="overlay"`** for modal/detail bodies: the skeleton stays in flow
+  while loading (it sizes the dialog), then becomes absolutely positioned over
+  the content for the dissolve, so the modal never snaps height at the end of
+  the beat. The default `stack` mode (dashboard grid) keeps both layers in one
+  grid cell with the content owning the final size.
+- **`contentClassName`** styles the content wrapper (e.g. the search body's
+  fill column).
 
 Related CSS in `globals.css`: the agenda day's directional slide-in
 (`agenda-slide-next`/`agenda-slide-prev`) — the in-month day
@@ -478,8 +504,10 @@ and the non-remounting container means `useContentEnter` never replays.
 | Consumer                                                                                         | Minimum hold                                        | Reveal                                                 | Notes                                                                                                                                                                   |
 | ------------------------------------------------------------------------------------------------ | --------------------------------------------------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `DashboardView` (week/schedule grid)                                                             | `useMinSkeletonHold(…) \|\| !rendererReady`         | `CrossfadeSwap` (static `content-enter` on cold mount) | stable `ScrollArea` keeps scroll position; holds until the renderer chunk is ready; force refresh is a full page reload (route `loading.tsx`), not an in-app transition |
-| `ParadeStateView`                                                                                | `useMinSkeletonHold(initialMonth !== month)`        | `useContentEnter`                                      | in-month changes are optimistic — no skeleton                                                                                                                           |
-| `AuditLogView`                                                                                   | `useMinSkeletonHold(isPending \|\| liveRefreshing)` | `useContentEnter`                                      | filter navigations (no-op guard skips the transition) + the always-fresh live re-read (`useLiveRouteRefresh`, §1.13)                                                    |
+| `ParadeStateView`                                                                                | `useMinSkeletonHold(initialMonth !== month)`        | `CrossfadeSwap`                                        | in-month changes are optimistic — no skeleton                                                                                                                           |
+| `AuditLogView`                                                                                   | `useMinSkeletonHold(isPending \|\| liveRefreshing)` | `CrossfadeSwap`                                        | filter navigations (no-op guard skips the transition) + the always-fresh live re-read (`useLiveRouteRefresh`, §1.13)                                                    |
+| `MyEventsView`, `DoubleBookingView`, `KahStatusView`, `EventDetail`, `EventHistoryModal`, `PinnedEventsPanel`, `EventSearchBody`, `CalendarAccessModal`, `EventClashCheck`, `ShareViewDialog`, `ShareImportDialog` | `useMinSkeletonHold` / held flag                    | `CrossfadeSwap` (`mode="overlay"` for modal bodies)    | in-place data swaps (§1.6.1)                                                                                                                                            |
+| Lazy modal bodies (`EventForm`, settings forms, `TitleRecipeBuilder`, `EventSearchBody`, `DepartmentDetailBody`) | `MIN_SKELETON_HOLD_MS` on the swap                  | `CrossfadeSwap` gated on `useChunkReady`               | chunk reveals (§1.15.1)                                                                                                                                                 |
 | `SettingsForm`, `DepartmentTable`, `ContactList`, `UserTable`, `EventTypeTable`, `TemplatesForm` | —                                                   | static `CONTENT_ENTER_CLASS` on the content root       | server-rendered pages; the SSR fade plays on first paint                                                                                                                |
 | all sixteen route segments                                                                       | —                                                   | `loading.tsx` skeletons                                | §1.4 table                                                                                                                                                              |
 
@@ -882,6 +910,27 @@ on first `QuickLinkIcon` mount. The webhook integration guide's example payloads
 are built on the server and passed down, keeping `notes.ts`'s `node:zlib` import
 out of the client graph (a ~230 KB polyfill chunk otherwise).
 
+### 1.15.1 Chunk reveals crossfade too
+
+`next/dynamic` swaps its fallback for the real component the instant the chunk
+resolves — a hard cut that contradicts §1.6. The recipe for every lazy modal
+body (the wizard, the settings forms, the search body, the department detail):
+
+1. keep the `dynamic()` call at **module level** with `loading: () => null`
+   (rendering a hook-returned component trips `react-hooks/static-components`);
+2. gate a `CrossfadeSwap` on `useChunkReady(loadX, opened)`
+   (`src/lib/loading/chunkReady.ts`) — the same load as a boolean, keyed by the
+   loader function in a `WeakMap`, so the dynamic component, the idle/intent
+   preloads (`loadChunk`) and the gate share one in-flight promise;
+3. `mode="overlay"` + `minHoldMs={MIN_SKELETON_HOLD_MS}` so the skeleton sizes
+   the dialog, holds its beat, and dissolves in place.
+
+`DepartmentDetail` is split into static chrome + a lazy `DepartmentDetailBody`
+so the dialog zooms out of the tapped row instantly while the body chunk is
+still downloading. A failed chunk load leaves the flag false (skeleton stays,
+next open retries). Whole-modal chunks that had no skeleton before (manage
+views, date picker, share import) keep their plain `dynamic()` behavior.
+
 **Viewport reads.** Modal "grow from tapped element" origin math reads the
 viewport through `useViewportSize` (resize-subscribed) rather than
 `window.innerWidth/innerHeight` during render, which forced a layout pass on
@@ -900,8 +949,9 @@ at hydration.
 | File                                                             | Role                                                                                                                                                                                                                                                                                                                          |
 | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `src/lib/loading/minHoldLoading.ts`                              | `useMinSkeletonHold` + `MIN_SKELETON_HOLD_MS`                                                                                                                                                                                                                                                                                 |
-| `src/lib/loading/contentEnter.ts`                                | `CONTENT_ENTER_CLASS` + `useContentEnter`                                                                                                                                                                                                                                                                                     |
-| `src/components/CrossfadeSwap.tsx`                               | Skeleton → content crossfade for the dashboard grids (retains the outgoing skeleton for one motion beat)                                                                                                                                                                                                                      |
+| `src/lib/loading/contentEnter.ts`                                | `CONTENT_ENTER_CLASS` + `useContentEnter` (cold-mount fades only; in-place swaps use `CrossfadeSwap`)                                                                                                                                                                                                                         |
+| `src/lib/loading/chunkReady.ts`                                  | `loadChunk`/`useChunkReady` — lazy modal-chunk loads as a boolean so the chunk skeleton dissolves through `CrossfadeSwap` (§1.15.1)                                                                                                                                                                                            |
+| `src/components/CrossfadeSwap.tsx`                               | The shared skeleton → content swap (retains the outgoing skeleton for one motion beat; `minHoldMs`, `mode="stack"/"overlay"`) — §1.6.1                                                                                                                                                                                         |
 | `src/components/LoadingStatus.tsx`                               | Sr-only `role="status"` announcement included with every skeleton block (§1.4, [`accessibility.md`](accessibility.md) §1.3)                                                                                                                                                                                                   |
 | `src/app/globals.css`                                            | `content-enter` / `c2-crossfade-*` / `agenda-slide-*` / `c2-page-in`/`c2-page-out` keyframes, `::view-transition-*` page rules, reduced-motion guard                                                                                                                                                                          |
 | `src/components/PageTransition.tsx`                              | Per-page `<ViewTransition>` wrapper (fade + rise on route change) — §1.14                                                                                                                                                                                                                                                     |
@@ -910,7 +960,7 @@ at hydration.
 | `src/app/(protected)/dashboard/calendarSkeleton.tsx`             | The view grid skeletons (shared by route + in-page): `MonthGridSkeleton`, `WeekMatrixSkeleton`, `WeekGridSkeleton`, `AgendaListSkeleton`, `ScheduleGridSkeleton`, `DualPaneSkeleton`                                                                                                                                          |
 | `src/app/(protected)/dashboard/eventFormLayout.ts`               | Fixed wizard body-height tokens shared by `EventForm` and its lazy `EventFormSkeleton` fallback (§1.15)                                                                                                                                                                                                                       |
 | `src/app/(protected)/dashboard/EventFormSkeleton.tsx`            | Lazy fallback for the code-split event wizard (§1.15)                                                                                                                                                                                                                                                                         |
-| `src/components/FormModalSkeleton.tsx`                           | Generic fallback for the lazy settings modal forms (§1.15)                                                                                                                                                                                                                                                                    |
+| `src/components/FormModalSkeleton.tsx`                           | Generic modal skeleton — `dynamic` fallback and `CrossfadeSwap` skeleton for the lazy settings modal forms (§1.15/§1.15.1)                                                                                                                                                                                                    |
 | `src/lib/motion/lowEndDevice.ts`                                 | Pure `isLowEndDevice` detection backing the `c2-low-end` motion tier (§1.15)                                                                                                                                                                                                                                                  |
 | `src/components/quickLinkIconMap.tsx`                            | The 39-glyph quick-link icon set, loaded on first `QuickLinkIcon` mount (§1.15)                                                                                                                                                                                                                                               |
 | `src/lib/ui/uiState.ts`                                          | `resolveDashboardView` — shared view resolution for page + route fallback                                                                                                                                                                                                                                                     |

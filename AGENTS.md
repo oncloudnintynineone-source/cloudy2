@@ -492,8 +492,13 @@ none` so taps pass through to the clipped tile, and it hides on a side once
   Design: [docs/event-notifications.md](docs/event-notifications.md).
 - **Standard loading appearance: skeleton only + reveal.** The skeleton is the
   ONLY loading indicator — never dim/darken content (`opacity: isPending ? …` is banned).
-  The dashboard grid uses `CrossfadeSwap`: the skeleton dissolves over the content for one
-  motion beat (`docs/loading-transitions.md` §1.6); other surfaces fade in on reveal.
+  Every in-place skeleton→content swap goes through `CrossfadeSwap` — never a bare
+  `loading ? <Skeleton/> : <Content/>` ternary — with `mode="overlay"` for modal/detail
+  bodies and `minHoldMs={MIN_SKELETON_HOLD_MS}` unless the caller already holds
+  (`docs/loading-transitions.md` §1.6/§1.6.1). Lazy modal chunk skeletons gate on
+  `useChunkReady` (keep `dynamic()` at module level with `loading: () => null`) so chunk
+  reveals crossfade too (§1.15.1); cold-mount-only surfaces fade in via
+  `CONTENT_ENTER_CLASS`.
   Every data-awaiting route segment gets a `loading.tsx`; every skeleton block includes a
   `LoadingStatus` (sr-only `role="status"`). A detail surface opened from a list that
   already carries the data uses **preview-first paint + intent prefetch** instead of a

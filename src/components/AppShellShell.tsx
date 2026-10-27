@@ -89,6 +89,7 @@ import { SearchPanelContext, type SearchPanelValue } from "@/lib/ui/searchPanel"
 import { useRememberedPage, writeUiState } from "@/lib/ui/uiStateClient";
 import { EVENTS_CHANGED_EVENT } from "@/lib/ui/eventChanges";
 import { getJson } from "@/lib/api/client";
+import { runWithRetry } from "@/lib/api/retry";
 import type { UserClashCheckResult } from "@/lib/events/clashActions";
 import type { KahBreachCountResult } from "@/lib/kah/statusActions";
 import { withTimeout } from "@/lib/async";
@@ -667,7 +668,11 @@ export function AppShellShell({
   // settled-empty read as "still loading".
   const [pinnedStatus, setPinnedStatus] = useState<"pending" | "ready" | "error">("pending");
   const refreshPinnedEvents = useCallback(() => {
-    return getJson<PinnedEventsResult>("/api/pinned")
+    // Bounded retry: a cold launch can hit a transiently failing backend, and
+    // a single-shot read left the pill stuck on its static label until the
+    // panel was opened. Terminal failures (401/403, offline) are not retried —
+    // the `online` / `pageshow` listeners below re-run the read instead.
+    return runWithRetry(() => getJson<PinnedEventsResult>("/api/pinned"))
       .then((result) => {
         if (!result.ok) {
           throw new Error(result.error);
@@ -685,6 +690,13 @@ export function AppShellShell({
     void withTimeout(refreshPinnedEvents(), COLD_LEG_TIMEOUT_MS).finally(() => settleLeg("pinned"));
   }, [refreshPinnedEvents, beginLeg, settleLeg]);
   const didOpenPanelRef = useRef(false);
+  // The panel's own fetch succeeded — seed the ticker immediately so a failed
+  // mount read heals on the first panel open (the close refresh below stays as
+  // the after-CRUD path).
+  const handlePinnedLoaded = useCallback((events: PinnedEvent[]) => {
+    setPinnedEvents(events);
+    setPinnedStatus("ready");
+  }, []);
   useEffect(() => {
     if (pinnedOpen) {
       didOpenPanelRef.current = true;
@@ -878,7 +890,9 @@ export function AppShellShell({
   const [doubleBookingCount, setDoubleBookingCount] = useState<number | null>(null);
   const doubleBookingDebounceRef = useRef<number | null>(null);
   const refreshDoubleBooking = useCallback(() => {
-    return getJson<UserClashCheckResult>("/api/badges/clashes", { priority: "low" })
+    return runWithRetry(() =>
+      getJson<UserClashCheckResult>("/api/badges/clashes", { priority: "low" }),
+    )
       .then((result) => {
         if (!result.ok) {
           return;
@@ -946,7 +960,7 @@ export function AppShellShell({
   const [kahCount, setKahCount] = useState<number | null>(null);
   const kahDebounceRef = useRef<number | null>(null);
   const refreshKah = useCallback(() => {
-    return getJson<KahBreachCountResult>("/api/badges/kah", { priority: "low" })
+    return runWithRetry(() => getJson<KahBreachCountResult>("/api/badges/kah", { priority: "low" }))
       .then((result) => {
         if (result.ok) {
           setKahCount(result.count);
@@ -1005,6 +1019,34 @@ export function AppShellShell({
       }
     };
   }, [showKah, refreshKah]);
+
+  // Network-recovery retry: a launch that raced the radio (offline at cold
+  // start) or hit a transiently failing backend leaves the header reads
+  // failed, and `visibilitychange` never fires again while the tab stays
+  // visible. Re-run all three background reads when the browser comes back
+  // online and when the document is restored from the bfcache. Cheap by
+  // construction: the server caches each read for 60s.
+  useEffect(() => {
+    const retry = () => {
+      void refreshPinnedEvents();
+      void refreshDoubleBooking();
+      if (showKah) {
+        void refreshKah();
+      }
+    };
+    const onOnline = () => retry();
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) {
+        retry();
+      }
+    };
+    window.addEventListener("online", onOnline);
+    window.addEventListener("pageshow", onPageShow);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("pageshow", onPageShow);
+    };
+  }, [refreshPinnedEvents, refreshDoubleBooking, refreshKah, showKah]);
 
   // Attach each count to its entry (all other entries have no badge). Copying
   // keeps the module-level consts pristine across renders.
@@ -1359,7 +1401,9 @@ export function AppShellShell({
                 <SearchPanelContext.Provider value={searchPanelValue}>
                   <StatusAnnouncer />
                   {children}
-                  {pinnedEverOpened && <PinnedEventsPanel seedEvents={pinnedEvents} />}
+                  {pinnedEverOpened && (
+                    <PinnedEventsPanel seedEvents={pinnedEvents} onLoaded={handlePinnedLoaded} />
+                  )}
                   <EventSearchModal
                     opened={searchOpen}
                     onClose={() => setSearchOpen(false)}

@@ -15,7 +15,9 @@ import {
 import { MotionModal } from "@/components/MotionModal";
 import { useMediaQuery } from "@mantine/hooks";
 
+import { CrossfadeSwap } from "@/components/CrossfadeSwap";
 import { LoadingStatus } from "@/components/LoadingStatus";
+import { MIN_SKELETON_HOLD_MS } from "@/lib/loading/minHoldLoading";
 import { NARROW_MEDIA_QUERY } from "@/lib/theme";
 import {
   getMyCalendarAccess,
@@ -53,11 +55,7 @@ function CalendarRow({ calendar }: { calendar: MyCalendarRow }) {
               size="sm"
               variant="light"
               color={
-                calendar.role === "owner"
-                  ? "brand"
-                  : calendar.role === "writer"
-                    ? "accent"
-                    : "gray"
+                calendar.role === "owner" ? "brand" : calendar.role === "writer" ? "accent" : "gray"
               }
             >
               {ROLE_LABELS[calendar.role]}
@@ -120,76 +118,83 @@ export function CalendarAccessModal({ opened, onClose }: CalendarAccessModalProp
       centered
       size={isNarrow ? "xs" : isDesktop ? "md" : "sm"}
     >
-      {!data ? (
-        <Stack gap="sm">
-          <LoadingStatus label="Loading calendar access" />
-          <Skeleton height={14} radius="sm" width="60%" />
-          <Skeleton height={40} radius="sm" />
-          <Skeleton height={40} radius="sm" />
-          <Skeleton height={40} radius="sm" />
-        </Stack>
-      ) : data.ok ? (
-        data.hasProfile ? (
-          <Stack gap="md">
-            <Stack gap={2}>
-              <Text fw={500} size="sm">
-                Calendars shared with you
-              </Text>
-              <Text size="sm" c="dimmed">
-                Your own department is shared automatically; extra departments appear here when an
-                admin grants them. Add one to see its events in your own Google Calendar app.
-              </Text>
-            </Stack>
-
-            {data.calendars.length === 0 ? (
-              <Text size="sm" c="dimmed">
-                No department calendars are shared with this account yet. Ask an admin to assign you
-                to a department or grant you access.
-              </Text>
-            ) : (
-              <Stack gap={6}>
-                {data.calendars.map((calendar) => (
-                  <CalendarRow key={calendar.calendarId} calendar={calendar} />
-                ))}
-              </Stack>
-            )}
-
-            {data.email ? (
-              <Text size="xs" c="dimmed">
-                After adding, the calendar appears under “Other calendars” in Google Calendar on any
-                device signed in as {data.email}.
-              </Text>
-            ) : (
-              <Text size="xs" c="orange">
-                No email is linked to your account, so these calendars are not shared with a Google
-                account yet. Ask an admin to add your email.
-              </Text>
-            )}
+      <CrossfadeSwap
+        loading={!data}
+        minHoldMs={MIN_SKELETON_HOLD_MS}
+        mode="overlay"
+        skeleton={
+          <Stack gap="sm">
+            <LoadingStatus label="Loading calendar access" />
+            <Skeleton height={14} radius="sm" width="60%" />
+            <Skeleton height={40} radius="sm" />
+            <Skeleton height={40} radius="sm" />
+            <Skeleton height={40} radius="sm" />
           </Stack>
+        }
+      >
+        {data === null ? null : data.ok ? (
+          data.hasProfile ? (
+            <Stack gap="md">
+              <Stack gap={2}>
+                <Text fw={500} size="sm">
+                  Calendars shared with you
+                </Text>
+                <Text size="sm" c="dimmed">
+                  Your own department is shared automatically; extra departments appear here when an
+                  admin grants them. Add one to see its events in your own Google Calendar app.
+                </Text>
+              </Stack>
+
+              {data.calendars.length === 0 ? (
+                <Text size="sm" c="dimmed">
+                  No department calendars are shared with this account yet. Ask an admin to assign
+                  you to a department or grant you access.
+                </Text>
+              ) : (
+                <Stack gap={6}>
+                  {data.calendars.map((calendar) => (
+                    <CalendarRow key={calendar.calendarId} calendar={calendar} />
+                  ))}
+                </Stack>
+              )}
+
+              {data.email ? (
+                <Text size="xs" c="dimmed">
+                  After adding, the calendar appears under “Other calendars” in Google Calendar on
+                  any device signed in as {data.email}.
+                </Text>
+              ) : (
+                <Text size="xs" c="orange">
+                  No email is linked to your account, so these calendars are not shared with a
+                  Google account yet. Ask an admin to add your email.
+                </Text>
+              )}
+            </Stack>
+          ) : (
+            <Text size="sm" c="dimmed">
+              This is the global Admin account, not a roster profile, so it isn&apos;t a member of
+              any department calendar. Log in with your own account to add your department&apos;s
+              calendar here.
+            </Text>
+          )
         ) : (
-          <Text size="sm" c="dimmed">
-            This is the global Admin account, not a roster profile, so it isn&apos;t a member of any
-            department calendar. Log in with your own account to add your department&apos;s
-            calendar here.
-          </Text>
-        )
-      ) : (
-        <Stack gap="sm" align="flex-start">
-          <Text size="sm" c="red">
-            {data.error}
-          </Text>
-          <Button
-            size="xs"
-            variant="light"
-            onClick={() => {
-              setData(null);
-              setRequestKey((key) => key + 1);
-            }}
-          >
-            Try again
-          </Button>
-        </Stack>
-      )}
+          <Stack gap="sm" align="flex-start">
+            <Text size="sm" c="red">
+              {data.error}
+            </Text>
+            <Button
+              size="xs"
+              variant="light"
+              onClick={() => {
+                setData(null);
+                setRequestKey((key) => key + 1);
+              }}
+            >
+              Try again
+            </Button>
+          </Stack>
+        )}
+      </CrossfadeSwap>
     </MotionModal>
   );
 }

@@ -41,14 +41,16 @@ import {
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { showValidationFailure } from "@/lib/ui/validationFeedback";
 import dynamic from "next/dynamic";
+import { CrossfadeSwap } from "@/components/CrossfadeSwap";
 import { FormModalSkeleton } from "@/components/FormModalSkeleton";
+import { useChunkReady } from "@/lib/loading/chunkReady";
+import { MIN_SKELETON_HOLD_MS } from "@/lib/loading/minHoldLoading";
 
 // The add/edit KAH group form is only mounted on tap; split it out of the
-// kah-groups route's initial chunk.
-const KahGroupForm = dynamic(() => import("./KahGroupForm").then((mod) => mod.KahGroupForm), {
-  ssr: false,
-  loading: () => <FormModalSkeleton rows={4} />,
-});
+// kah-groups route's initial chunk. The chunk reveal dissolves through
+// `CrossfadeSwap` instead of `dynamic`'s hard-cut fallback.
+const loadKahGroupForm = () => import("./KahGroupForm").then((mod) => mod.KahGroupForm);
+const KahGroupForm = dynamic(loadKahGroupForm, { ssr: false, loading: () => null });
 import { useActivityRefresh } from "@/components/ActivityBar";
 
 interface KahGroupTableProps {
@@ -72,6 +74,7 @@ export function KahGroupTable({
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
   const [formOpened, { open: openForm, close: closeForm }] = useDisclosure(false);
   const [editing, setEditing] = useState<KahGroupWithMembers | null>(null);
+  const kahGroupFormReady = useChunkReady(loadKahGroupForm, formOpened);
 
   const kahForm = useForm<KahNotificationsFormValues>({
     initialValues: {
@@ -278,26 +281,33 @@ export function KahGroupTable({
         centered
         size={isDesktop ? "md" : "sm"}
       >
-        <KahGroupForm
-          key={editing?.id ?? "new"}
-          group={
-            editing
-              ? {
-                  id: editing.id,
-                  name: editing.name,
-                  minPercentage: editing.minPercentage,
-                  memberIds: editing.members.map((member) => member.id),
-                }
-              : null
-          }
-          defaultPercentage={defaultPercentage}
-          pickerUsers={pickerUsers}
-          onDone={() => {
-            closeForm();
-            setEditing(null);
-            refreshAfterSave();
-          }}
-        />
+        <CrossfadeSwap
+          loading={formOpened && !kahGroupFormReady}
+          minHoldMs={MIN_SKELETON_HOLD_MS}
+          mode="overlay"
+          skeleton={<FormModalSkeleton rows={4} />}
+        >
+          <KahGroupForm
+            key={editing?.id ?? "new"}
+            group={
+              editing
+                ? {
+                    id: editing.id,
+                    name: editing.name,
+                    minPercentage: editing.minPercentage,
+                    memberIds: editing.members.map((member) => member.id),
+                  }
+                : null
+            }
+            defaultPercentage={defaultPercentage}
+            pickerUsers={pickerUsers}
+            onDone={() => {
+              closeForm();
+              setEditing(null);
+              refreshAfterSave();
+            }}
+          />
+        </CrossfadeSwap>
       </MotionModal>
 
       {/* Mobile-only: at lg the "Add group" button in the toolbar replaces

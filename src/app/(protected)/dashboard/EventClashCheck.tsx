@@ -1,19 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import {
-  Box,
-  Button,
-  Group,
-  Paper,
-  Skeleton,
-  Stack,
-  Text,
-} from "@mantine/core";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Box, Button, Group, Paper, Skeleton, Stack, Text } from "@mantine/core";
 import { MotionModal } from "@/components/MotionModal";
 import { notifications } from "@mantine/notifications";
 import { IconCircleCheck, IconRefresh } from "@tabler/icons-react";
 
+import { CrossfadeSwap } from "@/components/CrossfadeSwap";
 import { LoadingStatus } from "@/components/LoadingStatus";
 import { ClashAffectedChips } from "@/components/clashUi";
 import { ClashCard, ClashEventRow } from "@/components/clashCards";
@@ -28,7 +21,7 @@ import {
 } from "@/lib/events/clashActions";
 import { clashTypeLabel } from "@/lib/events/clashDisplay";
 import { formatInstantToNaive } from "@/lib/events/datetime";
-import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
+import { MIN_SKELETON_HOLD_MS, useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
 import type { Rect } from "@/lib/motion/origin";
 import type { CalendarEvent } from "@/lib/events/queries";
 
@@ -185,20 +178,19 @@ export function EventClashCheck({
     view = { kind: "checking" };
   }
 
-  if (view.kind === "checking") {
-    return (
-      <Paper withBorder p="sm">
-        <LoadingStatus label="Checking for clashes" />
-        <Stack gap={6}>
-          <Skeleton height={10} radius="sm" />
-          <Skeleton height={10} radius="sm" width="80%" />
-        </Stack>
-      </Paper>
-    );
-  }
+  const skeleton = (
+    <Paper withBorder p="sm">
+      <LoadingStatus label="Checking for clashes" />
+      <Stack gap={6}>
+        <Skeleton height={10} radius="sm" />
+        <Skeleton height={10} radius="sm" width="80%" />
+      </Stack>
+    </Paper>
+  );
 
+  let content: ReactNode = null;
   if (view.kind === "error") {
-    return (
+    content = (
       <Paper withBorder p="sm">
         <Group justify="space-between" align="center" gap="xs" wrap="wrap">
           <Text size="xs" c="dimmed">
@@ -216,145 +208,156 @@ export function EventClashCheck({
         </Group>
       </Paper>
     );
-  }
+  } else if (view.kind === "done") {
+    const { result } = view;
+    if (result.clashes.length > 0) {
+      const affectedCount = new Set(
+        result.clashes.flatMap((clash) => clash.affected.map((person) => person.userId)),
+      ).size;
 
-  const { result } = view;
-  if (result.clashes.length > 0) {
-    const affectedCount = new Set(
-      result.clashes.flatMap((clash) => clash.affected.map((person) => person.userId)),
-    ).size;
+      // One timeline per clash day: the candidate ("This event", inert) plus each
+      // conflicting event, which opens its in-place details on tap. Days the
+      // candidate merely spans with no conflict are dropped (`minEntriesPerDay`).
+      // Labels come from the title-template engine.
+      const entries: ClashTimelineEntry[] = [
+        ...(result.candidate
+          ? [
+              {
+                startNaive: result.candidate.effectiveStartNaive,
+                endNaive: result.candidate.effectiveEndNaive,
+                occupiesFullDay: result.candidate.occupiesFullDay,
+                label: "This event",
+                title: "This event",
+                color: "brand",
+              },
+            ]
+          : []),
+        ...result.clashes.map((entry) => ({
+          startNaive: entry.effectiveStartNaive,
+          endNaive: entry.effectiveEndNaive,
+          occupiesFullDay: entry.occupiesFullDay,
+          label: entry.displayLabel ?? clashTypeLabel(entry),
+          title: entry.title,
+          color: entry.color,
+          onSelect: (rect: Rect) => void openDetail(entry, rect),
+        })),
+      ];
+      const todayKey = formatInstantToNaive(new Date()).slice(0, 10);
+      const visual = (
+        <ClashTimelineDays entries={entries} todayKey={todayKey} minEntriesPerDay={2} />
+      );
 
-    // One timeline per clash day: the candidate ("This event", inert) plus each
-    // conflicting event, which opens its in-place details on tap. Days the
-    // candidate merely spans with no conflict are dropped (`minEntriesPerDay`).
-    // Labels come from the title-template engine.
-    const entries: ClashTimelineEntry[] = [
-      ...(result.candidate
-        ? [
-            {
-              startNaive: result.candidate.effectiveStartNaive,
-              endNaive: result.candidate.effectiveEndNaive,
-              occupiesFullDay: result.candidate.occupiesFullDay,
-              label: "This event",
-              title: "This event",
-              color: "brand",
-            },
-          ]
-        : []),
-      ...result.clashes.map((entry) => ({
-        startNaive: entry.effectiveStartNaive,
-        endNaive: entry.effectiveEndNaive,
-        occupiesFullDay: entry.occupiesFullDay,
-        label: entry.displayLabel ?? clashTypeLabel(entry),
-        title: entry.title,
-        color: entry.color,
-        onSelect: (rect: Rect) => void openDetail(entry, rect),
-      })),
-    ];
-    const todayKey = formatInstantToNaive(new Date()).slice(0, 10);
-    const visual = (
-      <ClashTimelineDays entries={entries} todayKey={todayKey} minEntriesPerDay={2} />
-    );
-
-    return (
-      <>
-        <ClashCard
-          heading={`Double booking: ${affectedCount} ${affectedCount === 1 ? "person" : "people"}`}
-          visual={visual}
-        >
-          {result.clashes.map((entry) => (
-            <ClashEventRow
-              key={`${entry.calendarName}:${entry.startNaive}:${entry.title}`}
-              entry={entry}
-              typeFirst
-              onOpen={(rect) => void openDetail(entry, rect)}
-              chips={
-                <ClashAffectedChips
-                  affected={entry.affected}
-                  currentUserId={result.currentUserId}
-                />
-              }
-            />
-          ))}
-          <Text size="xs" c="dimmed">
-            You can still save this event — these are warnings only.
-          </Text>
-        </ClashCard>
-
-        {/* Always mounted so Mantine can play the open/close zoom; `event`
-            toggles while `loading` shows the shaped skeleton. */}
-        <EventDetail
-          event={detailOpen ? (detail?.event ?? null) : null}
-          loading={detailOpen && heldDetailLoading}
-          onClose={closeDetail}
-          readOnly
-          zIndex={300}
-          onOpenInCalendar={onOpenInCalendar ? (event) => setLeaveEvent(event) : undefined}
-          peopleNames={detail?.peopleNames ?? {}}
-          calendarNames={detail?.calendarNames ?? {}}
-          originRect={detailOrigin}
-          currentUserId={result.currentUserId}
-          isAdmin={isAdmin}
-          myActiveDepartmentIds={detail?.myActiveDepartmentIds ?? []}
-          onEdit={() => {}}
-          onDuplicate={() => {}}
-          onDeleted={() => {}}
-          onOptimistic={() => {}}
-          onOptimisticSettled={() => {}}
-          onOptimisticRollback={() => {}}
-        />
-
-        {/* Leaving the wizard discards the draft, so "Open in calendar" is
-            confirmed first. Sits above the detail modal (300). */}
-        <MotionModal
-          opened={leaveEvent !== null}
-          onClose={() => setLeaveEvent(null)}
-          title="Discard draft?"
-          centered
-          size="sm"
-          zIndex={310}
-        >
-          <Text size="sm">
-            Opening this event in the calendar will discard your in-progress draft.
-          </Text>
-          <Group justify="flex-end" mt="md">
-            <Button variant="default" onClick={() => setLeaveEvent(null)}>
-              Cancel
-            </Button>
-            <Button
-              color="red"
-              onClick={() => {
-                const target = leaveEvent;
-                setLeaveEvent(null);
-                if (target) {
-                  onOpenInCalendar?.(target);
+      content = (
+        <>
+          <ClashCard
+            heading={`Double booking: ${affectedCount} ${affectedCount === 1 ? "person" : "people"}`}
+            visual={visual}
+          >
+            {result.clashes.map((entry) => (
+              <ClashEventRow
+                key={`${entry.calendarName}:${entry.startNaive}:${entry.title}`}
+                entry={entry}
+                typeFirst
+                onOpen={(rect) => void openDetail(entry, rect)}
+                chips={
+                  <ClashAffectedChips
+                    affected={entry.affected}
+                    currentUserId={result.currentUserId}
+                  />
                 }
-              }}
-            >
-              Discard &amp; open
-            </Button>
+              />
+            ))}
+            <Text size="xs" c="dimmed">
+              You can still save this event — these are warnings only.
+            </Text>
+          </ClashCard>
+
+          {/* Always mounted so Mantine can play the open/close zoom; `event`
+            toggles while `loading` shows the shaped skeleton. */}
+          <EventDetail
+            event={detailOpen ? (detail?.event ?? null) : null}
+            loading={detailOpen && heldDetailLoading}
+            onClose={closeDetail}
+            readOnly
+            zIndex={300}
+            onOpenInCalendar={onOpenInCalendar ? (event) => setLeaveEvent(event) : undefined}
+            peopleNames={detail?.peopleNames ?? {}}
+            calendarNames={detail?.calendarNames ?? {}}
+            originRect={detailOrigin}
+            currentUserId={result.currentUserId}
+            isAdmin={isAdmin}
+            myActiveDepartmentIds={detail?.myActiveDepartmentIds ?? []}
+            onEdit={() => {}}
+            onDuplicate={() => {}}
+            onDeleted={() => {}}
+            onOptimistic={() => {}}
+            onOptimisticSettled={() => {}}
+            onOptimisticRollback={() => {}}
+          />
+
+          {/* Leaving the wizard discards the draft, so "Open in calendar" is
+            confirmed first. Sits above the detail modal (300). */}
+          <MotionModal
+            opened={leaveEvent !== null}
+            onClose={() => setLeaveEvent(null)}
+            title="Discard draft?"
+            centered
+            size="sm"
+            zIndex={310}
+          >
+            <Text size="sm">
+              Opening this event in the calendar will discard your in-progress draft.
+            </Text>
+            <Group justify="flex-end" mt="md">
+              <Button variant="default" onClick={() => setLeaveEvent(null)}>
+                Cancel
+              </Button>
+              <Button
+                color="red"
+                onClick={() => {
+                  const target = leaveEvent;
+                  setLeaveEvent(null);
+                  if (target) {
+                    onOpenInCalendar?.(target);
+                  }
+                }}
+              >
+                Discard &amp; open
+              </Button>
+            </Group>
+          </MotionModal>
+        </>
+      );
+    } else {
+      content = (
+        <Paper withBorder p="sm" role="status" aria-live="polite">
+          <Group gap="sm" align="flex-start" wrap="nowrap">
+            <IconCircleCheck
+              size={18}
+              style={{ flexShrink: 0, marginTop: 2 }}
+              color="var(--mantine-color-green-6)"
+              aria-hidden
+            />
+            <Box>
+              <Text size="sm">
+                No clashes detected across {result.checkedPeople}{" "}
+                {result.checkedPeople === 1 ? "person" : "people"} for this time.
+              </Text>
+            </Box>
           </Group>
-        </MotionModal>
-      </>
-    );
+        </Paper>
+      );
+    }
   }
 
   return (
-    <Paper withBorder p="sm" role="status" aria-live="polite">
-      <Group gap="sm" align="flex-start" wrap="nowrap">
-        <IconCircleCheck
-          size={18}
-          style={{ flexShrink: 0, marginTop: 2 }}
-          color="var(--mantine-color-green-6)"
-          aria-hidden
-        />
-        <Box>
-          <Text size="sm">
-            No clashes detected across {result.checkedPeople}{" "}
-            {result.checkedPeople === 1 ? "person" : "people"} for this time.
-          </Text>
-        </Box>
-      </Group>
-    </Paper>
+    <CrossfadeSwap
+      loading={view.kind === "checking"}
+      minHoldMs={MIN_SKELETON_HOLD_MS}
+      mode="overlay"
+      skeleton={skeleton}
+    >
+      {content}
+    </CrossfadeSwap>
   );
 }

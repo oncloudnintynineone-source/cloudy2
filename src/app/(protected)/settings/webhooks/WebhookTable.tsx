@@ -24,14 +24,17 @@ import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/componen
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { activatable } from "@/lib/ui/activatable";
 import dynamic from "next/dynamic";
+import { CrossfadeSwap } from "@/components/CrossfadeSwap";
 import { FormModalSkeleton } from "@/components/FormModalSkeleton";
+import { useChunkReady } from "@/lib/loading/chunkReady";
+import { MIN_SKELETON_HOLD_MS } from "@/lib/loading/minHoldLoading";
 
 // The add/edit webhook form is only mounted on tap; split it out of the
-// webhooks route's initial chunk.
-const WebhookForm = dynamic(() => import("./WebhookForm").then((mod) => mod.WebhookForm), {
-  ssr: false,
-  loading: () => <FormModalSkeleton rows={3} />,
-});
+// webhooks route's initial chunk. The chunk reveal dissolves through
+// `CrossfadeSwap` (gated on `useChunkReady`) instead of `dynamic`'s hard-cut
+// fallback.
+const loadWebhookForm = () => import("./WebhookForm").then((mod) => mod.WebhookForm);
+const WebhookForm = dynamic(loadWebhookForm, { ssr: false, loading: () => null });
 
 interface WebhookTableProps {
   webhooks: Webhook[];
@@ -42,6 +45,7 @@ export function WebhookTable({ webhooks }: WebhookTableProps) {
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
   const [formOpened, { open: openForm, close: closeForm }] = useDisclosure(false);
   const [editing, setEditing] = useState<Webhook | null>(null);
+  const webhookFormReady = useChunkReady(loadWebhookForm, formOpened);
   const refreshAfterSave = useActivityRefresh("webhooks:save");
 
   function openCreate() {
@@ -148,25 +152,32 @@ export function WebhookTable({ webhooks }: WebhookTableProps) {
         centered
         size={isDesktop ? "md" : "sm"}
       >
-        <WebhookForm
-          key={editing?.id ?? "new"}
-          webhook={
-            editing
-              ? {
-                  id: editing.id,
-                  name: editing.name,
-                  url: editing.url,
-                  secret: editing.secret ?? "",
-                  enabled: editing.enabled,
-                }
-              : null
-          }
-          onDone={() => {
-            closeForm();
-            setEditing(null);
-            refreshAfterSave();
-          }}
-        />
+        <CrossfadeSwap
+          loading={formOpened && !webhookFormReady}
+          minHoldMs={MIN_SKELETON_HOLD_MS}
+          mode="overlay"
+          skeleton={<FormModalSkeleton rows={3} />}
+        >
+          <WebhookForm
+            key={editing?.id ?? "new"}
+            webhook={
+              editing
+                ? {
+                    id: editing.id,
+                    name: editing.name,
+                    url: editing.url,
+                    secret: editing.secret ?? "",
+                    enabled: editing.enabled,
+                  }
+                : null
+            }
+            onDone={() => {
+              closeForm();
+              setEditing(null);
+              refreshAfterSave();
+            }}
+          />
+        </CrossfadeSwap>
       </MotionModal>
 
       {/* Mobile-only: at lg the "Add webhook" button in the toolbar replaces

@@ -46,6 +46,7 @@ import {
 } from "@tabler/icons-react";
 
 import { AgendaSwipeHint } from "@/components/AgendaSwipeHint";
+import { CrossfadeSwap } from "@/components/CrossfadeSwap";
 import { EmptyState } from "@/components/EmptyState";
 import { FilterButton } from "@/components/FilterButton";
 import { PageHeader } from "@/components/PageHeader";
@@ -55,7 +56,6 @@ import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import { LoadingStatus } from "@/components/LoadingStatus";
 import type { WeekStart } from "@/lib/events/datetime";
 import type { CalendarEvent } from "@/lib/events/queries";
-import { CONTENT_ENTER_CLASS, useContentEnter } from "@/lib/loading/contentEnter";
 import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
 import { type Rect } from "@/lib/motion/origin";
 import { useMotion } from "@/components/MotionProvider";
@@ -214,7 +214,6 @@ export function ParadeStateView({
   // The global activity bar mirrors the cross-month skeleton gate.
   useReportActivity(initialMonth !== month, "parade:nav");
   const contentRef = useRef<HTMLDivElement | null>(null);
-  useContentEnter(contentRef, !contentLoading);
   // Cold-start readiness: this view only mounts after the route's events have
   // streamed, so reporting on mount is exactly "content painted".
   useColdStartContent();
@@ -754,7 +753,11 @@ export function ParadeStateView({
   // attendance buttons, floating at the bottom inset 16px from the viewport
   // edges. The attendance mode bar floats above it (see `mobileAttendanceBar`).
   const mobilePill = (
-    <Affix hiddenFrom="lg" position={{ bottom: "var(--app-floating-bottom-offset)", left: 16, right: 16 }} zIndex={100}>
+    <Affix
+      hiddenFrom="lg"
+      position={{ bottom: "var(--app-floating-bottom-offset)", left: 16, right: 16 }}
+      zIndex={100}
+    >
       {/* `c2-chrome-hide-able` + `c2-chrome-hidden`: the pill fades/slides away
           while the user touches or scrolls the roster and returns when the
           interaction stops (useChromeHide); the CSS carries the
@@ -926,85 +929,85 @@ export function ParadeStateView({
           {/* Same nav-row recipe as the calendar page: the day label takes the
               free space, prev/next sit together beside it, then the mode/filter/
               date controls. Today lives in the date-picker dialog. */}
-          <Group
-            visibleFrom="lg"
-            align="center"
-            gap="xs"
-            wrap="nowrap"
-          >
-          <Text
-            fw={600}
-            size="md"
-            lineClamp={1}
-            style={{ flex: 1, minWidth: 0, textAlign: "left" }}
-          >
-            {dayLabel}
-          </Text>
-          <ActionIcon
-            size={36}
-            variant="default"
-            aria-label="Previous day"
-            onClick={() => shiftDay(-1)}
-          >
-            <IconChevronLeft size={18} />
-          </ActionIcon>
-          <ActionIcon size={36} variant="default" aria-label="Next day" onClick={() => shiftDay(1)}>
-            <IconChevronRight size={18} />
-          </ActionIcon>
-          {desktopAttendanceButton}
-          <FilterButton
-            activeCount={activeFilterCount}
-            size={36}
-            iconSize={18}
-            onClick={(e) => {
-              setFilterOriginRect(e.currentTarget.getBoundingClientRect());
-              openFilter();
-            }}
-          />
-          <ActionIcon
-            size={36}
-            variant="default"
-            aria-label="Select date"
-            title="Select date"
-            onClick={(e) => {
-              setPickerOriginRect(e.currentTarget.getBoundingClientRect());
-              openPicker();
-            }}
-          >
-            <IconCalendarDot size={18} />
-          </ActionIcon>
-        </Group>
+          <Group visibleFrom="lg" align="center" gap="xs" wrap="nowrap">
+            <Text
+              fw={600}
+              size="md"
+              lineClamp={1}
+              style={{ flex: 1, minWidth: 0, textAlign: "left" }}
+            >
+              {dayLabel}
+            </Text>
+            <ActionIcon
+              size={36}
+              variant="default"
+              aria-label="Previous day"
+              onClick={() => shiftDay(-1)}
+            >
+              <IconChevronLeft size={18} />
+            </ActionIcon>
+            <ActionIcon
+              size={36}
+              variant="default"
+              aria-label="Next day"
+              onClick={() => shiftDay(1)}
+            >
+              <IconChevronRight size={18} />
+            </ActionIcon>
+            {desktopAttendanceButton}
+            <FilterButton
+              activeCount={activeFilterCount}
+              size={36}
+              iconSize={18}
+              onClick={(e) => {
+                setFilterOriginRect(e.currentTarget.getBoundingClientRect());
+                openFilter();
+              }}
+            />
+            <ActionIcon
+              size={36}
+              variant="default"
+              aria-label="Select date"
+              title="Select date"
+              onClick={(e) => {
+                setPickerOriginRect(e.currentTarget.getBoundingClientRect());
+                openPicker();
+              }}
+            >
+              <IconCalendarDot size={18} />
+            </ActionIcon>
+          </Group>
 
-        {/* Attendance mode bar: a visible, bounded mode with its own exit (the
+          {/* Attendance mode bar: a visible, bounded mode with its own exit (the
             entry button toggles to Done), the live present count, Copy, and a
             Reset overflow. The destructive all-dates wipe stays behind its own
             confirm. */}
-        {attendanceMode && (
-          <Paper
-            withBorder
-            p="xs"
-            className="c2-attendance-bar"
-            style={{
-              borderColor: "var(--mantine-color-teal-4)",
-              backgroundColor: colorScheme === "dark" ? "#0b2b21" : "#e6fcf5",
-            }}
-          >
-            <Group justify="space-between" gap="xs" wrap="wrap">
-              <Group gap="xs" wrap="nowrap" style={{ minWidth: 0 }}>
-                <IconClipboardCheck size={18} color="var(--mantine-color-teal-6)" aria-hidden />
-                <Stack gap={0} style={{ minWidth: 0 }}>
-                  <Text fw={600} size="sm" lineClamp={1}>
-                    Attendance mode
-                  </Text>
-                  <Text size="xs" c="dimmed" lineClamp={1}>
-                    Saved on this device only
-                  </Text>
-                </Stack>
+          {attendanceMode && (
+            <Paper
+              withBorder
+              p="xs"
+              className="c2-attendance-bar"
+              style={{
+                borderColor: "var(--mantine-color-teal-4)",
+                backgroundColor: colorScheme === "dark" ? "#0b2b21" : "#e6fcf5",
+              }}
+            >
+              <Group justify="space-between" gap="xs" wrap="wrap">
+                <Group gap="xs" wrap="nowrap" style={{ minWidth: 0 }}>
+                  <IconClipboardCheck size={18} color="var(--mantine-color-teal-6)" aria-hidden />
+                  <Stack gap={0} style={{ minWidth: 0 }}>
+                    <Text fw={600} size="sm" lineClamp={1}>
+                      Attendance mode
+                    </Text>
+                    <Text size="xs" c="dimmed" lineClamp={1}>
+                      Saved on this device only
+                    </Text>
+                  </Stack>
+                </Group>
+                {attendanceControls}
               </Group>
-              {attendanceControls}
-            </Group>
-          </Paper>
-        )}
+            </Paper>
+          )}
         </Box>
       )}
 
@@ -1055,9 +1058,10 @@ export function ParadeStateView({
           }
         }}
       >
-        {/* contentRef/`content-enter` stay on the unkeyed parent so the
-            skeleton → content fade is not re-triggered by the remount. */}
-        <Box ref={contentRef} className={CONTENT_ENTER_CLASS}>
+        {/* contentRef stays on the unkeyed parent (it doubles as the swipe
+            paneRef); the skeleton → content dissolve is the CrossfadeSwap
+            inside the keyed day box, so day-change slides stay untouched. */}
+        <Box ref={contentRef}>
           {/* The day key restarts the directional slide-in on every day change;
               month edges get the reveal fade instead (slide dir is cleared). */}
           <Box
@@ -1070,72 +1074,78 @@ export function ParadeStateView({
                   : undefined
             }
           >
-            {contentLoading ? (
-              <Stack gap="lg">
-                <LoadingStatus label="Loading parade state" />
-                <ParadeStateDepartmentSkeleton users={2} />
-                <ParadeStateDepartmentSkeleton users={3} />
-              </Stack>
-            ) : !sections.some(sectionHasUsers) ? (
-              isAdmin ? (
-                <EmptyState
-                  icon={users.length === 0 ? <IconSitemap size={18} /> : <IconUser size={18} />}
-                  description={users.length === 0 ? "No departments found." : "No users found."}
-                  actionLabel={users.length === 0 ? "Manage departments" : "Manage users"}
-                  actionHref={users.length === 0 ? "/settings/departments" : "/settings/users"}
-                />
+            <CrossfadeSwap
+              loading={contentLoading}
+              mode="overlay"
+              skeleton={
+                <Stack gap="lg">
+                  <LoadingStatus label="Loading parade state" />
+                  <ParadeStateDepartmentSkeleton users={2} />
+                  <ParadeStateDepartmentSkeleton users={3} />
+                </Stack>
+              }
+            >
+              {!sections.some(sectionHasUsers) ? (
+                isAdmin ? (
+                  <EmptyState
+                    icon={users.length === 0 ? <IconSitemap size={18} /> : <IconUser size={18} />}
+                    description={users.length === 0 ? "No departments found." : "No users found."}
+                    actionLabel={users.length === 0 ? "Manage departments" : "Manage users"}
+                    actionHref={users.length === 0 ? "/settings/departments" : "/settings/users"}
+                  />
+                ) : (
+                  <EmptyState
+                    icon={users.length === 0 ? <IconSitemap size={18} /> : <IconUser size={18} />}
+                    description={users.length === 0 ? "No departments found." : "No users found."}
+                  />
+                )
               ) : (
-                <EmptyState
-                  icon={users.length === 0 ? <IconSitemap size={18} /> : <IconUser size={18} />}
-                  description={users.length === 0 ? "No departments found." : "No users found."}
-                />
-              )
-            ) : (
-              <Stack gap="lg">
-                {/* Roll-call summary: a Total plus one line per section in tree
+                <Stack gap="lg">
+                  {/* Roll-call summary: a Total plus one line per section in tree
                 order (sub-departments indented under their parent, with the
                 count of every section covering its whole subtree). Read-only
                 — the roster below is where people are listed. */}
-                {summary.rows.length > 0 && (
-                  <Paper withBorder p="sm">
-                    <Stack gap={6}>
-                      <Group justify="space-between" align="baseline" gap="xs" wrap="nowrap">
-                        <Text fw={700} size="sm">
-                          Total
-                        </Text>
-                        <Text fw={700} size="sm">
-                          ({summary.total.present}/{summary.total.total}{" "}
-                          {attendanceMode ? "present" : "in camp"})
-                        </Text>
-                      </Group>
-                      <Divider />
-                      <Stack gap={2}>
-                        {summary.rows.map((row, index) => (
-                          <Text
-                            key={`${row.depth}:${row.name}:${index}`}
-                            size="sm"
-                            fw={row.depth === 0 ? 600 : 400}
-                            lh={1.5}
-                            pl={row.depth * 28}
-                          >
-                            {row.depth > 0 && (
-                              <Text component="span" c="dimmed" inherit>
-                                ›{" "}
-                              </Text>
-                            )}
-                            {row.name}{" "}
-                            <Text component="span" c="dimmed" inherit>
-                              ({row.present}/{row.total})
-                            </Text>
+                  {summary.rows.length > 0 && (
+                    <Paper withBorder p="sm">
+                      <Stack gap={6}>
+                        <Group justify="space-between" align="baseline" gap="xs" wrap="nowrap">
+                          <Text fw={700} size="sm">
+                            Total
                           </Text>
-                        ))}
+                          <Text fw={700} size="sm">
+                            ({summary.total.present}/{summary.total.total}{" "}
+                            {attendanceMode ? "present" : "in camp"})
+                          </Text>
+                        </Group>
+                        <Divider />
+                        <Stack gap={2}>
+                          {summary.rows.map((row, index) => (
+                            <Text
+                              key={`${row.depth}:${row.name}:${index}`}
+                              size="sm"
+                              fw={row.depth === 0 ? 600 : 400}
+                              lh={1.5}
+                              pl={row.depth * 28}
+                            >
+                              {row.depth > 0 && (
+                                <Text component="span" c="dimmed" inherit>
+                                  ›{" "}
+                                </Text>
+                              )}
+                              {row.name}{" "}
+                              <Text component="span" c="dimmed" inherit>
+                                ({row.present}/{row.total})
+                              </Text>
+                            </Text>
+                          ))}
+                        </Stack>
                       </Stack>
-                    </Stack>
-                  </Paper>
-                )}
-                {sections.map((section) => renderSection(section, 0))}
-              </Stack>
-            )}
+                    </Paper>
+                  )}
+                  {sections.map((section) => renderSection(section, 0))}
+                </Stack>
+              )}
+            </CrossfadeSwap>
           </Box>
         </Box>
         {showSwipeHint && <AgendaSwipeHint />}

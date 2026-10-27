@@ -37,14 +37,16 @@ import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { moveToIndex, swapAdjacent, useReorderRows } from "@/lib/ui/reorderRows";
 import { activatable } from "@/lib/ui/activatable";
 import dynamic from "next/dynamic";
+import { CrossfadeSwap } from "@/components/CrossfadeSwap";
 import { FormModalSkeleton } from "@/components/FormModalSkeleton";
+import { useChunkReady } from "@/lib/loading/chunkReady";
+import { MIN_SKELETON_HOLD_MS } from "@/lib/loading/minHoldLoading";
 
 // The add/edit quick-link form (with its icon picker) is only mounted on tap;
-// split it out of the quick-links route's initial chunk.
-const QuickLinkForm = dynamic(() => import("./QuickLinkForm").then((mod) => mod.QuickLinkForm), {
-  ssr: false,
-  loading: () => <FormModalSkeleton rows={4} />,
-});
+// split it out of the quick-links route's initial chunk. The chunk reveal
+// dissolves through `CrossfadeSwap` instead of `dynamic`'s hard-cut fallback.
+const loadQuickLinkForm = () => import("./QuickLinkForm").then((mod) => mod.QuickLinkForm);
+const QuickLinkForm = dynamic(loadQuickLinkForm, { ssr: false, loading: () => null });
 import { useActivityRefresh } from "@/components/ActivityBar";
 
 interface QuickLinkTableProps {
@@ -61,6 +63,7 @@ export function QuickLinkTable({ links, reorderDrag }: QuickLinkTableProps) {
   const arrowsEnabled = isReorderArrowsEnabled(reorderDrag);
   const [formOpened, { open: openForm, close: closeForm }] = useDisclosure(false);
   const [editing, setEditing] = useState<QuickLink | null>(null);
+  const quickLinkFormReady = useChunkReady(loadQuickLinkForm, formOpened);
   const [pendingDelete, setPendingDelete] = useState<QuickLink | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -330,26 +333,33 @@ export function QuickLinkTable({ links, reorderDrag }: QuickLinkTableProps) {
         centered
         size={isDesktop ? "md" : "sm"}
       >
-        <QuickLinkForm
-          key={editing?.id ?? "new"}
-          link={
-            editing
-              ? {
-                  id: editing.id,
-                  label: editing.label,
-                  url: editing.url,
-                  icon: editing.icon,
-                  color: editing.color,
-                  enabled: editing.enabled,
-                }
-              : null
-          }
-          onDone={() => {
-            closeForm();
-            setEditing(null);
-            refreshAfterSave();
-          }}
-        />
+        <CrossfadeSwap
+          loading={formOpened && !quickLinkFormReady}
+          minHoldMs={MIN_SKELETON_HOLD_MS}
+          mode="overlay"
+          skeleton={<FormModalSkeleton rows={4} />}
+        >
+          <QuickLinkForm
+            key={editing?.id ?? "new"}
+            link={
+              editing
+                ? {
+                    id: editing.id,
+                    label: editing.label,
+                    url: editing.url,
+                    icon: editing.icon,
+                    color: editing.color,
+                    enabled: editing.enabled,
+                  }
+                : null
+            }
+            onDone={() => {
+              closeForm();
+              setEditing(null);
+              refreshAfterSave();
+            }}
+          />
+        </CrossfadeSwap>
       </MotionModal>
 
       <MotionModal

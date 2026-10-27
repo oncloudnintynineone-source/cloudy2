@@ -14,6 +14,7 @@ import {
 } from "@mantine/core";
 import { IconAlertTriangle, IconCircleCheck, IconShare } from "@tabler/icons-react";
 
+import { CrossfadeSwap } from "@/components/CrossfadeSwap";
 import { LoadingStatus } from "@/components/LoadingStatus";
 import { MotionModal } from "@/components/MotionModal";
 import {
@@ -22,6 +23,7 @@ import {
   type SharedViewPreview,
 } from "@/lib/dashboardViews/shareActions";
 import type { DashboardViewKind } from "@/lib/dashboardViews/views";
+import { MIN_SKELETON_HOLD_MS } from "@/lib/loading/minHoldLoading";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 
 import { VIEW_TAB_META } from "./viewMeta";
@@ -128,111 +130,110 @@ export function ShareImportDialog({ opened, token, onClose, onAdded }: ShareImpo
   const kindMeta = preview ? VIEW_TAB_META[preview.kind] : null;
 
   return (
-    <MotionModal
-      opened={opened}
-      onClose={onClose}
-      title="Shared calendar view"
-      centered
-      size="sm"
-    >
-      {loading && (
-        <Stack gap="sm" aria-busy>
-          <LoadingStatus label="Loading shared view" />
-          <Skeleton height={28} width="70%" />
-          <Skeleton height={14} width="45%" />
-          <Skeleton height={52} />
-          <Skeleton height={52} />
-          <Skeleton height={36} width="60%" ml="auto" />
-        </Stack>
-      )}
-
-      {!loading && loadingError !== null && (
-        <Stack gap="md">
-          <Alert color="red" icon={<IconAlertTriangle size={18} />} title="Link unavailable">
-            {loadingError}
-          </Alert>
-          <Group justify="flex-end">
-            <Button variant="default" onClick={onClose}>
-              Close
-            </Button>
-          </Group>
-        </Stack>
-      )}
-
-      {!loading && preview !== null && (
-        <Stack gap="md">
-          <Group gap="sm" wrap="nowrap" align="flex-start">
-            <ThemeIcon variant="light" color="brand" size={40} radius="md">
-              {kindMeta?.icon ?? <IconShare size={20} />}
-            </ThemeIcon>
-            <div style={{ minWidth: 0 }}>
-              <Title order={5} style={{ overflowWrap: "anywhere" }}>
-                {preview.name}
-              </Title>
-              <Group gap={6} mt={2}>
-                <Badge variant="light" size="sm">
-                  {preview.kindLabel}
-                </Badge>
-                {preview.sharedBy && (
-                  <Text size="xs" c="dimmed" truncate>
-                    Shared by {preview.sharedBy}
-                  </Text>
-                )}
-              </Group>
-            </div>
-          </Group>
-
-          <Stack gap={6}>
-            <SummaryRow
-              label="Calendars"
-              value={
-                preview.allCalendars
-                  ? "All calendars"
-                  : namesOr(preview.calendarNames, "No calendars")
-              }
-            />
-            <SummaryRow label="Users" value={namesOr(preview.userNames, "Any user")} />
-            <SummaryRow
-              label="Event types"
-              value={namesOr(preview.eventTypeNames, "Any event type")}
-            />
+    <MotionModal opened={opened} onClose={onClose} title="Shared calendar view" centered size="sm">
+      <CrossfadeSwap
+        loading={loading}
+        minHoldMs={MIN_SKELETON_HOLD_MS}
+        mode="overlay"
+        skeleton={
+          <Stack gap="sm" aria-busy>
+            <LoadingStatus label="Loading shared view" />
+            <Skeleton height={28} width="70%" />
+            <Skeleton height={14} width="45%" />
+            <Skeleton height={52} />
+            <Skeleton height={52} />
+            <Skeleton height={36} width="60%" ml="auto" />
           </Stack>
-
-          {preview.missingFilterCount > 0 && (
-            <Alert color="yellow" icon={<IconAlertTriangle size={18} />}>
-              Some shared filters are no longer available and will be skipped.
+        }
+      >
+        {loadingError !== null && (
+          <Stack gap="md">
+            <Alert color="red" icon={<IconAlertTriangle size={18} />} title="Link unavailable">
+              {loadingError}
             </Alert>
-          )}
+            <Group justify="flex-end">
+              <Button variant="default" onClick={onClose}>
+                Close
+              </Button>
+            </Group>
+          </Stack>
+        )}
 
-          {!preview.canAdd && (
-            <Alert color="yellow" icon={<IconAlertTriangle size={18} />}>
-              You have reached the {preview.viewLimit}-view limit. Delete a view before adding
-              another.
-            </Alert>
-          )}
+        {preview !== null && (
+          <Stack gap="md">
+            <Group gap="sm" wrap="nowrap" align="flex-start">
+              <ThemeIcon variant="light" color="brand" size={40} radius="md">
+                {kindMeta?.icon ?? <IconShare size={20} />}
+              </ThemeIcon>
+              <div style={{ minWidth: 0 }}>
+                <Title order={5} style={{ overflowWrap: "anywhere" }}>
+                  {preview.name}
+                </Title>
+                <Group gap={6} mt={2}>
+                  <Badge variant="light" size="sm">
+                    {preview.kindLabel}
+                  </Badge>
+                  {preview.sharedBy && (
+                    <Text size="xs" c="dimmed" truncate>
+                      Shared by {preview.sharedBy}
+                    </Text>
+                  )}
+                </Group>
+              </div>
+            </Group>
 
-          {addError && (
-            <Alert color="red" icon={<IconAlertTriangle size={18} />}>
-              {addError}
-            </Alert>
-          )}
+            <Stack gap={6}>
+              <SummaryRow
+                label="Calendars"
+                value={
+                  preview.allCalendars
+                    ? "All calendars"
+                    : namesOr(preview.calendarNames, "No calendars")
+                }
+              />
+              <SummaryRow label="Users" value={namesOr(preview.userNames, "Any user")} />
+              <SummaryRow
+                label="Event types"
+                value={namesOr(preview.eventTypeNames, "Any event type")}
+              />
+            </Stack>
 
-          <Group justify="flex-end" mt="xs">
-            <Button variant="default" onClick={onClose} disabled={adding}>
-              Cancel
-            </Button>
-            <Button
-              leftSection={<IconCircleCheck size={16} />}
-              onClick={() => void add()}
-              loading={adding}
-              loaderProps={BUTTON_LOADER_PROPS}
-              disabled={!preview.canAdd}
-            >
-              Add view
-            </Button>
-          </Group>
-        </Stack>
-      )}
+            {preview.missingFilterCount > 0 && (
+              <Alert color="yellow" icon={<IconAlertTriangle size={18} />}>
+                Some shared filters are no longer available and will be skipped.
+              </Alert>
+            )}
+
+            {!preview.canAdd && (
+              <Alert color="yellow" icon={<IconAlertTriangle size={18} />}>
+                You have reached the {preview.viewLimit}-view limit. Delete a view before adding
+                another.
+              </Alert>
+            )}
+
+            {addError && (
+              <Alert color="red" icon={<IconAlertTriangle size={18} />}>
+                {addError}
+              </Alert>
+            )}
+
+            <Group justify="flex-end" mt="xs">
+              <Button variant="default" onClick={onClose} disabled={adding}>
+                Cancel
+              </Button>
+              <Button
+                leftSection={<IconCircleCheck size={16} />}
+                onClick={() => void add()}
+                loading={adding}
+                loaderProps={BUTTON_LOADER_PROPS}
+                disabled={!preview.canAdd}
+              >
+                Add view
+              </Button>
+            </Group>
+          </Stack>
+        )}
+      </CrossfadeSwap>
     </MotionModal>
   );
 }

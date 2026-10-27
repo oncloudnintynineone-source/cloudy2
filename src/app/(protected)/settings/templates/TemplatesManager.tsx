@@ -51,15 +51,18 @@ import {
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { AUTOSIZE_VERTICAL_SCROLL_PROPS } from "@/lib/ui/scrollArea";
 import dynamic from "next/dynamic";
+import { CrossfadeSwap } from "@/components/CrossfadeSwap";
 import { FormModalSkeleton } from "@/components/FormModalSkeleton";
+import { useChunkReady } from "@/lib/loading/chunkReady";
+import { MIN_SKELETON_HOLD_MS } from "@/lib/loading/minHoldLoading";
 
 // The title-recipe builder (chip rows, reorderable segments) is only mounted
 // when a template dialog opens; split it out of the templates route's initial
-// chunk.
-const TitleRecipeBuilder = dynamic(
-  () => import("./TitleRecipeBuilder").then((mod) => mod.TitleRecipeBuilder),
-  { ssr: false, loading: () => <FormModalSkeleton rows={5} /> },
-);
+// chunk. The chunk reveal dissolves through `CrossfadeSwap` (gated on
+// `useChunkReady`) instead of `dynamic`'s hard-cut fallback.
+const loadTitleRecipeBuilder = () =>
+  import("./TitleRecipeBuilder").then((mod) => mod.TitleRecipeBuilder);
+const TitleRecipeBuilder = dynamic(loadTitleRecipeBuilder, { ssr: false, loading: () => null });
 
 interface TemplatesManagerProps {
   nameTemplate: string;
@@ -214,6 +217,7 @@ export function TemplatesManager({
 
   const [masterOpened, { open: openMaster, close: closeMaster }] = useDisclosure(false);
   const [editOpened, { open: openEdit, close: closeEdit }] = useDisclosure(false);
+  const recipeBuilderReady = useChunkReady(loadTitleRecipeBuilder, masterOpened || editOpened);
   const [editing, setEditing] = useState<{
     id?: string;
     label: string;
@@ -428,14 +432,21 @@ export function TemplatesManager({
         size={isDesktop ? "md" : "sm"}
         transitionProps={fadeTransitionProps(motion)}
       >
-        <TitleRecipeBuilder
-          mode="master"
-          recipe={eventTitleRecipe}
-          sample={sample}
-          emptySample={emptySample}
-          reorderDrag={reorderDrag}
-          onDone={() => closeAndRefresh(closeMaster)}
-        />
+        <CrossfadeSwap
+          loading={masterOpened && !recipeBuilderReady}
+          minHoldMs={MIN_SKELETON_HOLD_MS}
+          mode="overlay"
+          skeleton={<FormModalSkeleton rows={5} />}
+        >
+          <TitleRecipeBuilder
+            mode="master"
+            recipe={eventTitleRecipe}
+            sample={sample}
+            emptySample={emptySample}
+            reorderDrag={reorderDrag}
+            onDone={() => closeAndRefresh(closeMaster)}
+          />
+        </CrossfadeSwap>
       </Modal>
 
       {/* Add / edit library template */}
@@ -447,17 +458,24 @@ export function TemplatesManager({
         size={isDesktop ? "md" : "sm"}
         transitionProps={fadeTransitionProps(motion)}
       >
-        <TitleRecipeBuilder
-          key={creating ? "create" : (editing?.id ?? "edit")}
-          mode={creating ? "create" : "edit"}
-          templateId={editing?.id}
-          label={editing?.label ?? ""}
-          recipe={editing?.recipe ?? { segments: [{ field: "description" }] }}
-          sample={sample}
-          emptySample={emptySample}
-          reorderDrag={reorderDrag}
-          onDone={() => closeAndRefresh(closeEdit)}
-        />
+        <CrossfadeSwap
+          loading={editOpened && !recipeBuilderReady}
+          minHoldMs={MIN_SKELETON_HOLD_MS}
+          mode="overlay"
+          skeleton={<FormModalSkeleton rows={5} />}
+        >
+          <TitleRecipeBuilder
+            key={creating ? "create" : (editing?.id ?? "edit")}
+            mode={creating ? "create" : "edit"}
+            templateId={editing?.id}
+            label={editing?.label ?? ""}
+            recipe={editing?.recipe ?? { segments: [{ field: "description" }] }}
+            sample={sample}
+            emptySample={emptySample}
+            reorderDrag={reorderDrag}
+            onDone={() => closeAndRefresh(closeEdit)}
+          />
+        </CrossfadeSwap>
       </Modal>
 
       {/* Assignments */}

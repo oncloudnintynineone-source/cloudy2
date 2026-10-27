@@ -30,7 +30,9 @@ import {
   defaultSearchTo,
   SEARCH_MIN_QUERY_LENGTH,
 } from "@/lib/events/searchRange";
+import { CrossfadeSwap } from "@/components/CrossfadeSwap";
 import { useMotion } from "@/components/MotionProvider";
+import { MIN_SKELETON_HOLD_MS } from "@/lib/loading/minHoldLoading";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 
 import { EmptyState } from "./EmptyState";
@@ -343,43 +345,50 @@ export default function EventSearchBody({
           <Text size="xs" c="dimmed" fw={500}>
             Recent searches
           </Text>
-          {history === null ? (
-            <div className="c2-chip-scroll">
-              <LoadingStatus label="Loading recent searches" />
-              {RECENT_SKELETON_WIDTHS.map((width, index) => (
-                <Skeleton key={index} height={22} width={width} radius="xl" />
-              ))}
-            </div>
-          ) : history.length > 0 ? (
-            <div className="c2-chip-scroll">
-              {history.map((term) => (
-                <Group key={term} gap={0} wrap="nowrap">
-                  <Badge
-                    component="button"
-                    type="button"
-                    variant="light"
-                    color="brand"
-                    onClick={() => {
-                      setQuery(term);
-                      void runSearch(term);
-                    }}
-                    styles={{ root: { cursor: "pointer", textTransform: "none" } }}
-                  >
-                    {term}
-                  </Badge>
-                  <ActionIcon
-                    size="sm"
-                    variant="subtle"
-                    color="gray"
-                    aria-label={`Remove "${term}" from recent searches`}
-                    onClick={() => onRemoveSearch(term)}
-                  >
-                    <IconX size={12} />
-                  </ActionIcon>
-                </Group>
-              ))}
-            </div>
-          ) : null}
+          <CrossfadeSwap
+            loading={history === null}
+            minHoldMs={MIN_SKELETON_HOLD_MS}
+            mode="overlay"
+            skeleton={
+              <div className="c2-chip-scroll">
+                <LoadingStatus label="Loading recent searches" />
+                {RECENT_SKELETON_WIDTHS.map((width, index) => (
+                  <Skeleton key={index} height={22} width={width} radius="xl" />
+                ))}
+              </div>
+            }
+          >
+            {history !== null && history.length > 0 ? (
+              <div className="c2-chip-scroll">
+                {history.map((term) => (
+                  <Group key={term} gap={0} wrap="nowrap">
+                    <Badge
+                      component="button"
+                      type="button"
+                      variant="light"
+                      color="brand"
+                      onClick={() => {
+                        setQuery(term);
+                        void runSearch(term);
+                      }}
+                      styles={{ root: { cursor: "pointer", textTransform: "none" } }}
+                    >
+                      {term}
+                    </Badge>
+                    <ActionIcon
+                      size="sm"
+                      variant="subtle"
+                      color="gray"
+                      aria-label={`Remove "${term}" from recent searches`}
+                      onClick={() => onRemoveSearch(term)}
+                    >
+                      <IconX size={12} />
+                    </ActionIcon>
+                  </Group>
+                ))}
+              </div>
+            ) : null}
+          </CrossfadeSwap>
         </Stack>
       )}
 
@@ -420,50 +429,7 @@ export default function EventSearchBody({
         </Group>
       )}
 
-      {loading && (
-        <Box
-          style={{
-            border: LIST_BORDER,
-            borderRadius: "var(--mantine-radius-md)",
-            overflow: "hidden",
-          }}
-        >
-          <LoadingStatus label="Searching events" />
-          <Stack gap={0}>
-            {Array.from({ length: 4 }).map((_, i) => (
-              <Group
-                key={i}
-                gap="sm"
-                wrap="nowrap"
-                align="center"
-                style={{
-                  padding: "var(--mantine-spacing-sm)",
-                  borderTop: i === 0 ? undefined : LIST_BORDER,
-                }}
-              >
-                <Skeleton width={4} height={28} radius={2} style={{ flexShrink: 0 }} />
-                <Box style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
-                  <Skeleton height={13} radius={2} style={{ width: `${60 - (i % 3) * 12}%` }} />
-                  <Skeleton height={10} radius={2} style={{ width: "32%" }} />
-                </Box>
-              </Group>
-            ))}
-          </Stack>
-        </Box>
-      )}
-
-      {!loading && results !== null && results.length === 0 && (
-        <EmptyState
-          icon={<IconSearchOff size={18} />}
-          description={
-            query.trim()
-              ? `No events match “${query.trim()}”. Try another term or widen the date range.`
-              : "No events match your search."
-          }
-        />
-      )}
-
-      {!loading && results !== null && results.length > 0 && (
+      {(loading || (results !== null && results.length > 0)) && (
         <Box
           ref={listRef}
           style={{
@@ -476,61 +442,100 @@ export default function EventSearchBody({
             minHeight: 0,
           }}
         >
-          <Stack gap={0}>
-            {visibleResults?.map((event, index) => {
-              const mine = myIdSet.has(event.id);
-              const external = event.payload.external === true;
-              return (
-                <UnstyledButton
-                  key={`${event.id}:${index}`}
-                  onClick={(e) => handleEventClick(event, e)}
-                  className={[mine && "c2-my-agenda-event", external && "c2-ext-agenda-event"]
-                    .filter(Boolean)
-                    .join(" ")}
-                  style={{
-                    display: "block",
-                    width: "100%",
-                    textAlign: "left",
-                    padding: "var(--mantine-spacing-sm)",
-                    borderTop: index === 0 ? undefined : LIST_BORDER,
-                  }}
-                >
-                  <Group gap="sm" wrap="nowrap" align="center">
-                    <Box
+          <CrossfadeSwap
+            loading={loading}
+            minHoldMs={MIN_SKELETON_HOLD_MS}
+            fill
+            skeleton={
+              <>
+                <LoadingStatus label="Searching events" />
+                <Stack gap={0}>
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <Group
+                      key={i}
+                      gap="sm"
+                      wrap="nowrap"
+                      align="center"
                       style={{
-                        width: 4,
-                        height: 30,
-                        borderRadius: 2,
-                        flexShrink: 0,
-                        background: `var(--mantine-color-${event.color}-filled)`,
+                        padding: "var(--mantine-spacing-sm)",
+                        borderTop: i === 0 ? undefined : LIST_BORDER,
                       }}
-                    />
-                    <Box style={{ minWidth: 0, flex: 1 }}>
-                      <Text component="p" size="sm" truncate>
-                        {event.title}
-                      </Text>
-                      <Text size="xs" c="dimmed" truncate>
-                        {eventWhenLabel(event)}
-                        {event.payload.location ? ` · ${event.payload.location}` : ""}
-                        {event.payload.calendarName ? ` · ${event.payload.calendarName}` : ""}
-                      </Text>
-                    </Box>
+                    >
+                      <Skeleton width={4} height={28} radius={2} style={{ flexShrink: 0 }} />
+                      <Box style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
+                        <Skeleton
+                          height={13}
+                          radius={2}
+                          style={{ width: `${60 - (i % 3) * 12}%` }}
+                        />
+                        <Skeleton height={10} radius={2} style={{ width: "32%" }} />
+                      </Box>
+                    </Group>
+                  ))}
+                </Stack>
+              </>
+            }
+          >
+            {results !== null && results.length > 0 ? (
+              <>
+                <Stack gap={0}>
+                  {visibleResults?.map((event, index) => {
+                    const mine = myIdSet.has(event.id);
+                    const external = event.payload.external === true;
+                    return (
+                      <UnstyledButton
+                        key={`${event.id}:${index}`}
+                        onClick={(e) => handleEventClick(event, e)}
+                        className={[mine && "c2-my-agenda-event", external && "c2-ext-agenda-event"]
+                          .filter(Boolean)
+                          .join(" ")}
+                        style={{
+                          display: "block",
+                          width: "100%",
+                          textAlign: "left",
+                          padding: "var(--mantine-spacing-sm)",
+                          borderTop: index === 0 ? undefined : LIST_BORDER,
+                        }}
+                      >
+                        <Group gap="sm" wrap="nowrap" align="center">
+                          <Box
+                            style={{
+                              width: 4,
+                              height: 30,
+                              borderRadius: 2,
+                              flexShrink: 0,
+                              background: `var(--mantine-color-${event.color}-filled)`,
+                            }}
+                          />
+                          <Box style={{ minWidth: 0, flex: 1 }}>
+                            <Text component="p" size="sm" truncate>
+                              {event.title}
+                            </Text>
+                            <Text size="xs" c="dimmed" truncate>
+                              {eventWhenLabel(event)}
+                              {event.payload.location ? ` · ${event.payload.location}` : ""}
+                              {event.payload.calendarName ? ` · ${event.payload.calendarName}` : ""}
+                            </Text>
+                          </Box>
+                        </Group>
+                      </UnstyledButton>
+                    );
+                  })}
+                </Stack>
+                {results.length > visibleCount && (
+                  <Group justify="center" p="xs">
+                    <Button
+                      variant="subtle"
+                      size="xs"
+                      onClick={() => setVisibleCount((count) => count + RESULT_PAGE_SIZE)}
+                    >
+                      Show more ({results.length - visibleCount} remaining)
+                    </Button>
                   </Group>
-                </UnstyledButton>
-              );
-            })}
-          </Stack>
-          {results.length > visibleCount && (
-            <Group justify="center" p="xs">
-              <Button
-                variant="subtle"
-                size="xs"
-                onClick={() => setVisibleCount((count) => count + RESULT_PAGE_SIZE)}
-              >
-                Show more ({results.length - visibleCount} remaining)
-              </Button>
-            </Group>
-          )}
+                )}
+              </>
+            ) : null}
+          </CrossfadeSwap>
           {opening && (
             <Box
               style={{
@@ -551,6 +556,17 @@ export default function EventSearchBody({
             </Box>
           )}
         </Box>
+      )}
+
+      {!loading && results !== null && results.length === 0 && (
+        <EmptyState
+          icon={<IconSearchOff size={18} />}
+          description={
+            query.trim()
+              ? `No events match “${query.trim()}”. Try another term or widen the date range.`
+              : "No events match your search."
+          }
+        />
       )}
     </Stack>
   );

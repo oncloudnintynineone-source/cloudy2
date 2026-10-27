@@ -4,9 +4,11 @@ import { useEffect, useState } from "react";
 import { Alert, Button, CopyButton, Skeleton, Stack, Text, TextInput } from "@mantine/core";
 import { IconAlertTriangle, IconCheck, IconCopy } from "@tabler/icons-react";
 
+import { CrossfadeSwap } from "@/components/CrossfadeSwap";
 import { LoadingStatus } from "@/components/LoadingStatus";
 import { MotionModal } from "@/components/MotionModal";
 import { createDashboardViewShareLink } from "@/lib/dashboardViews/shareActions";
+import { MIN_SKELETON_HOLD_MS } from "@/lib/loading/minHoldLoading";
 import type { DashboardViewTab } from "@/lib/dashboardViews/views";
 
 interface ShareViewDialogProps {
@@ -62,59 +64,64 @@ export function ShareViewDialog({ tab, onClose }: ShareViewDialogProps) {
 
   return (
     <MotionModal opened={tab !== null} onClose={onClose} title="Share view" centered size="sm">
-      {loading && (
-        <Stack gap="sm" aria-busy>
-          <LoadingStatus label="Creating share link" />
-          <Skeleton height={16} width="80%" />
-          <Skeleton height={36} />
-          <Skeleton height={14} width="60%" />
-        </Stack>
-      )}
+      <CrossfadeSwap
+        loading={loading}
+        minHoldMs={MIN_SKELETON_HOLD_MS}
+        mode="overlay"
+        skeleton={
+          <Stack gap="sm" aria-busy>
+            <LoadingStatus label="Creating share link" />
+            <Skeleton height={16} width="80%" />
+            <Skeleton height={36} />
+            <Skeleton height={14} width="60%" />
+          </Stack>
+        }
+      >
+        {error !== null && (
+          <Stack gap="md">
+            <Alert color="red" icon={<IconAlertTriangle size={18} />}>
+              {error}
+            </Alert>
+          </Stack>
+        )}
 
-      {!loading && error !== null && (
-        <Stack gap="md">
-          <Alert color="red" icon={<IconAlertTriangle size={18} />}>
-            {error}
-          </Alert>
-        </Stack>
-      )}
-
-      {!loading && link !== null && (
-        <Stack gap="md">
-          <Text size="sm" c="dimmed">
-            Anyone signed in who has this link can add a copy of{" "}
-            <Text span fw={600} c="var(--mantine-color-text)">
-              {tab?.name}
+        {link !== null && (
+          <Stack gap="md">
+            <Text size="sm" c="dimmed">
+              Anyone signed in who has this link can add a copy of{" "}
+              <Text span fw={600} c="var(--mantine-color-text)">
+                {tab?.name}
+              </Text>
+              .
             </Text>
-            .
-          </Text>
-          <TextInput
-            label="Share link"
-            value={link}
-            readOnly
-            onFocus={(event) => event.currentTarget.select()}
-            rightSectionWidth={96}
-            rightSection={
-              <CopyButton value={link} timeout={2000}>
-                {({ copied, copy }) => (
-                  <Button
-                    size="compact-sm"
-                    variant={copied ? "light" : "default"}
-                    color={copied ? "teal" : undefined}
-                    leftSection={copied ? <IconCheck size={14} /> : <IconCopy size={14} />}
-                    onClick={copy}
-                  >
-                    {copied ? "Copied" : "Copy"}
-                  </Button>
-                )}
-              </CopyButton>
-            }
-          />
-          <Text size="xs" c="dimmed">
-            The link carries the view definition only; it does not grant access to any events.
-          </Text>
-        </Stack>
-      )}
+            <TextInput
+              label="Share link"
+              value={link}
+              readOnly
+              onFocus={(event) => event.currentTarget.select()}
+              rightSectionWidth={96}
+              rightSection={
+                <CopyButton value={link} timeout={2000}>
+                  {({ copied, copy }) => (
+                    <Button
+                      size="compact-sm"
+                      variant={copied ? "light" : "default"}
+                      color={copied ? "teal" : undefined}
+                      leftSection={copied ? <IconCheck size={14} /> : <IconCopy size={14} />}
+                      onClick={copy}
+                    >
+                      {copied ? "Copied" : "Copy"}
+                    </Button>
+                  )}
+                </CopyButton>
+              }
+            />
+            <Text size="xs" c="dimmed">
+              The link carries the view definition only; it does not grant access to any events.
+            </Text>
+          </Stack>
+        )}
+      </CrossfadeSwap>
     </MotionModal>
   );
 }

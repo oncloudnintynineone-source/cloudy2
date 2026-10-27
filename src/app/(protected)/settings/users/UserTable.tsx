@@ -31,15 +31,19 @@ import { fuzzyFilter } from "@/lib/search/fuzzy";
 import { formatFullName } from "@/lib/settings/formatName";
 import { activatable } from "@/lib/ui/activatable";
 import dynamic from "next/dynamic";
+import { CrossfadeSwap } from "@/components/CrossfadeSwap";
 import { FormModalSkeleton } from "@/components/FormModalSkeleton";
+import { useChunkReady } from "@/lib/loading/chunkReady";
+import { MIN_SKELETON_HOLD_MS } from "@/lib/loading/minHoldLoading";
 import type { DepartmentOption } from "./UserForm";
 
 // The edit-user form is large (roster fields, department access, pickers) and
-// only mounted on tap; split it out of the users route's initial chunk.
-const UserForm = dynamic(() => import("./UserForm").then((mod) => mod.UserForm), {
-  ssr: false,
-  loading: () => <FormModalSkeleton rows={5} />,
-});
+// only mounted on tap; split it out of the users route's initial chunk. The
+// chunk reveal dissolves through `CrossfadeSwap` (gated on `useChunkReady`)
+// instead of `dynamic`'s hard-cut fallback, so the skeleton and the form share
+// one modal body.
+const loadUserForm = () => import("./UserForm").then((mod) => mod.UserForm);
+const UserForm = dynamic(loadUserForm, { ssr: false, loading: () => null });
 
 interface UserTableProps {
   users: RosterUser[];
@@ -55,6 +59,7 @@ export function UserTable({ users, departments, accessByUser, nameTemplate }: Us
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
   const [opened, { open, close }] = useDisclosure(false);
   const [filterOpened, { open: openFilter, close: closeFilter }] = useDisclosure(false);
+  const userFormReady = useChunkReady(loadUserForm, opened);
   // Where the filter trigger sat on screen; the dialog grows out of / shrinks
   // back into it (see src/lib/motion/origin.ts).
   const [filterOriginRect, setFilterOriginRect] = useState<Rect | null>(null);
@@ -375,17 +380,24 @@ export function UserTable({ users, departments, accessByUser, nameTemplate }: Us
         centered
         size={isDesktop ? "lg" : "md"}
       >
-        <UserForm
-          key={editingUser?.id ?? "new"}
-          user={editingUser}
-          departments={departments}
-          access={editingUser ? (accessByUser[editingUser.id] ?? []) : []}
-          onDone={() => {
-            close();
-            setEditingUser(null);
-            refreshAfterSave();
-          }}
-        />
+        <CrossfadeSwap
+          loading={opened && !userFormReady}
+          minHoldMs={MIN_SKELETON_HOLD_MS}
+          mode="overlay"
+          skeleton={<FormModalSkeleton rows={5} />}
+        >
+          <UserForm
+            key={editingUser?.id ?? "new"}
+            user={editingUser}
+            departments={departments}
+            access={editingUser ? (accessByUser[editingUser.id] ?? []) : []}
+            onDone={() => {
+              close();
+              setEditingUser(null);
+              refreshAfterSave();
+            }}
+          />
+        </CrossfadeSwap>
       </MotionModal>
 
       <FilterModal
