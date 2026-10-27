@@ -167,8 +167,13 @@ export function PinnedEventsTicker({
         minHoldMs={MIN_SKELETON_HOLD_MS}
         skeleton={
           <>
-            <Skeleton height={18} width={30} radius="xl" />
-            <Skeleton height={12} radius={2} style={{ width: "55%", maxWidth: 170 }} />
+            <Skeleton className="c2-pinned-ticker-skeleton" height={18} width={30} radius="xl" />
+            <Skeleton
+              className="c2-pinned-ticker-skeleton"
+              height={12}
+              radius={2}
+              style={{ width: "55%", maxWidth: 170 }}
+            />
           </>
         }
       >

@@ -150,7 +150,9 @@ Rotation (`PinnedEventsTicker.tsx`, client):
 - Loading (first read in flight): the pill keeps its shape and shows a skeleton
   row inside it — a countdown-chip block plus a title line — through
   `CrossfadeSwap` (`minHoldMs={MIN_SKELETON_HOLD_MS}`), so the shimmer dissolves
-  into the real titles instead of hard-cutting. The pill's height is the fixed
+  into the real titles instead of hard-cutting. The bars are tinted with the
+  pill's own text color (`currentColor` at ~28% — not Mantine's default grey
+  block), matching the segmented bar's inactive segments. The pill's height is the fixed
   `--c2-header-control-height`, so the header never resizes. A background
   refresh keeps the content (the list only goes `null` before the first
   successful read), so the skeleton never reappears over real titles.

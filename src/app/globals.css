@@ -551,6 +551,18 @@ html {
   min-width: 0;
 }
 
+/* The pill's skeleton follows the pill's text color, not Mantine's body/gray
+   default: kill the opaque base fill so the navy pill shows through, and tint
+   the pulsing shimmer layer with the inherited color (matches the segmented
+   bar's inactive segments above). */
+.c2-pinned-ticker .c2-pinned-ticker-skeleton::before {
+  background-color: transparent;
+}
+
+.c2-pinned-ticker .c2-pinned-ticker-skeleton::after {
+  background-color: color-mix(in srgb, currentColor 28%, transparent);
+}
+
 /* Inline replacement for the old floating count badge: an amber chip riding
    the pill, styled like the Indicator's dot. */
 .c2-pinned-ticker-count {

@@ -2247,6 +2247,8 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   pinned read is in flight and dissolves into the rotating titles through
   `CrossfadeSwap` (`minHoldMs={MIN_SKELETON_HOLD_MS}`); settled-empty and failed reads
   keep the static "Pinned events" label, background refreshes never flash the skeleton,
+  the bars are tinted with the pill's own text color (`currentColor` ~28%) instead of
+  Mantine's default grey,
   and the button's `aria-label` remains the loading announcement (no nested live region).
   Docs: `docs/pinned-events.md` §1.4, `docs/loading-transitions.md` §1.12,
   `docs/accessibility.md` §1.3.
