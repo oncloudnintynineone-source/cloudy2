@@ -1,7 +1,7 @@
 # 1. Registration events
 
-A **registration event** is an ordinary event whose type is marked *Open for
-registration* in Settings → Event Types. It keeps the existing event storage,
+A **registration event** is an ordinary event whose type is marked _Open for
+registration_ in Settings → Event Types. It keeps the existing event storage,
 title, copy reconciliation and participant model; the difference is who may
 change what:
 
@@ -17,11 +17,12 @@ shared update pipeline — not a separate event store.
 - [1.2 Configuration](#12-configuration)
 - [1.3 Permission model](#13-permission-model)
 - [1.4 Registration flow](#14-registration-flow)
-- [1.5 Participants, zero registrants & calendars](#15-participants-zero-registrants--calendars)
-- [1.6 UI](#16-ui)
-- [1.7 Audit, webhooks & notifications](#17-audit-webhooks--notifications)
-- [1.8 Edge cases & limitations](#18-edge-cases--limitations)
-- [1.9 File index & tests](#19-file-index--tests)
+- [1.5 Registration cap](#15-registration-cap)
+- [1.6 Participants, zero registrants & calendars](#16-participants-zero-registrants--calendars)
+- [1.7 UI](#17-ui)
+- [1.8 Audit, webhooks & notifications](#18-audit-webhooks--notifications)
+- [1.9 Edge cases & limitations](#19-edge-cases--limitations)
+- [1.10 File index & tests](#110-file-index--tests)
 
 ## 1.1 Problem
 
@@ -52,11 +53,11 @@ affects existing events of that type on the next read.
 
 ## 1.3 Permission model
 
-| Actor | Edit parameters | Manage participants | Register/deregister self | Delete/duplicate |
-| ----- | --------------- | ------------------- | ------------------------ | ---------------- |
-| Admin | Yes | Yes | Yes (detail button) | Yes |
-| Organizer | Yes | Yes | Yes (detail button) | Yes |
-| Other user | No | No | Yes | No |
+| Actor      | Edit parameters | Manage participants | Register/deregister self | Delete/duplicate |
+| ---------- | --------------- | ------------------- | ------------------------ | ---------------- |
+| Admin      | Yes             | Yes                 | Yes (detail button)      | Yes              |
+| Organizer  | Yes             | Yes                 | Yes (detail button)      | Yes              |
+| Other user | No              | No                  | Yes                      | No               |
 
 The client mirrors this in `EventDetail` (`canModify`), and the server enforces
 it in two layers:
@@ -86,6 +87,7 @@ sequenceDiagram
   A->>G: read a stored copy (uncached)
   A->>A: resolve type, verify registration-enabled
   A->>A: rebuild form values from notes
+  A->>A: check the stored cap for a Register intent
   A->>A: toggle only session user's invitee entry
   A->>C: performEventUpdate (registration mode)
   C->>G: reconcile/update copies
@@ -99,11 +101,36 @@ Key properties:
 - the client sends only the event ref and `"register" | "deregister"`; the
   roster, title, times, location and organizer all come from the stored copy;
 - the action toggles only the session user's id (idempotent);
+- a Register intent is rejected when the stored explicit roster is already at
+  or above the event's cap (Deregister is always allowed);
 - registration reuses the ordinary update reconciliation, so copies in
   departments gained/lost by the roster change are created/retired correctly;
 - no new database table is introduced.
 
-## 1.5 Participants, zero registrants & calendars
+## 1.5 Registration cap
+
+A registration event may optionally carry a **maximum number of explicit
+registrants** (`registrationCap` in the notes block). The cap is per event,
+configured by the organizer in the wizard's Participants step; an empty cap
+means **unlimited**.
+
+- Only unique explicit `inviteeUsers` count. Departments are not participants
+  on registration events and cannot be tagged in the wizard; any legacy
+  department tags are stripped on the next save (the creator's home department
+  is still included as a target independently).
+- The cap constrains **self-service registration only**. The organizer and
+  admins can still add or remove participants in the wizard; lowering the cap
+  below the current roster is allowed and simply marks the event full.
+- Enforcement is server-side in `setEventRegistration`: it reads the stored
+  copy, resolves the type, and rejects a Register intent when the explicit
+  roster is already at/above the cap. The check cannot be bypassed by a forged
+  client ref.
+- The detail modal shows `Registered (N / cap)` plus a progress bar. At
+  capacity the Register button is disabled and a “Registration is full” notice
+  is shown; an existing registrant can always Deregister. A stale/racing
+  Register attempt falls back to a red toast with the same full message.
+
+## 1.6 Participants, zero registrants & calendars
 
 Registrations **are participants** (`inviteeUsers`). Consequently registering:
 
@@ -127,7 +154,7 @@ zero-registrant event is only visible in the calendars it lives in; pinning it
 Duplicating a registration event starts with an **empty roster**: registrations
 belong to one event, not to its duplicate.
 
-## 1.6 UI
+## 1.7 UI
 
 - **Event type form**: “Open for registration” checkbox; forces participants
   on.
@@ -136,22 +163,28 @@ belong to one event, not to its duplicate.
   - no auto-added organizer for a registration type;
   - Participants step explains that people can register themselves and only
     the organizer/admin can edit;
+  - registration types show a **Limit registrations** switch + maximum input
+    (empty/off = unlimited) and a people-only picker (no Departments section);
   - organizer-only lock switch replaced by an explanatory note;
   - review shows a “Registration event” badge;
   - zero participants is accepted on submit.
 - **Event detail**:
   - "Registration event" badge;
-  - the roster is labelled "Registered (N)" and shows an empty state;
+  - the roster is labelled "Registered (N)" or "Registered (N / cap)" and
+    shows an empty state; a capped event adds a progress bar;
+  - at capacity, a non-registered user's **Register** button is disabled and
+    the modal says “Registration is full”; an existing registrant can still
+    deregister;
   - every eligible actor sees a primary **Register** / **Deregister** button:
-    non-organizer/non-admin users see it *instead of* Edit/Delete/Duplicate,
-    while the organizer and admins see it *last* (below their action-icon row,
+    non-organizer/non-admin users see it _instead of_ Edit/Delete/Duplicate,
+    while the organizer and admins see it _last_ (below their action-icon row,
     so they can add/remove themselves without opening the wizard);
   - the button patches the local roster immediately and asks the dashboard to
     revalidate after success.
 - **Read-only surfaces** (Double Booking, KAH status, wizard clash detail) never
   show the registration action.
 
-## 1.7 Audit, webhooks & notifications
+## 1.8 Audit, webhooks & notifications
 
 A register/deregister is a participant change, so it reuses the ordinary update
 pipeline:
@@ -159,16 +192,20 @@ pipeline:
 - one `event.update` audit row with the before→after participant diff, plus a
   flat `registration: "Registered" | "Deregistered"` context field;
 - one `event.updated` webhook;
+- the event snapshots (audit + webhook) carry `registrationCap`, so a cap
+  change appears in the history diff and the webhook body;
 - the best-effort KAH breach check;
 - participant notifications compute newly added users, which is always empty
   for a self-registration (the acting user is excluded).
 
 There is no dedicated organizer-notification on someone else registering.
 
-## 1.8 Edge cases & limitations
+## 1.9 Edge cases & limitations
 
 - **Concurrency**: Google stores the roster in the event notes, so two
   simultaneous registrations are a read-modify-write with last-write-wins.
+  The cap is checked against the copy read at the start of the action, so two
+  racing registrations can both pass and exceed the cap by one or more.
   Expected volume is low; a future hardening path is a per-event lock or a
   relational roster.
 - **Type rename**: per-type flags are resolved by the type name stored in the
@@ -180,26 +217,29 @@ There is no dedicated organizer-notification on someone else registering.
   lives only in the organizer's department. Pinning is the org-wide discovery
   mechanism.
 - **Audit noise**: every registration writes an update row/webhook.
-- **Department-tagged events**: a member of a tagged department is already a
-  participant through the department. The Register/Deregister button only
-  toggles the user's **explicit** entry; it cannot remove someone from a tagged
-  department without affecting that department's other members.
+- **Legacy department tags**: older registration events may still have
+  department tags until their next save. They are not counted toward the cap,
+  are hidden from the registration roster UI, and are removed by the write
+  path's `resolveEventFields`.
 
-## 1.9 File index & tests
+## 1.10 File index & tests
 
-| File | Role |
-| ---- | ---- |
-| `src/db/schema.ts` | `event_types.registration_enabled` |
-| `src/lib/eventTypes/{validate,actions,queries}.ts` | Type flag, forcing participants, audit/display |
-| `src/app/(protected)/settings/event-types/EventTypeForm.tsx` | “Open for registration” control |
-| `src/lib/events/queries.ts` | `payload.registrationEnabled` from the type flag |
-| `src/lib/events/guards.ts` | `registrationEditGuard` |
-| `src/lib/events/registration.ts` | Pure roster toggle + rebuild form values from a copy |
-| `src/lib/events/actions.ts` | `setEventRegistration`, shared update pipeline, authoritative checks |
-| `src/app/(protected)/dashboard/EventDetail.tsx` | Register/deregister UI and local roster patch |
-| `src/app/(protected)/dashboard/EventForm.tsx` | Zero-registrant creation, no auto-self, duplicated-registration reset |
-| `src/lib/events/optimistic.ts` | Optimistic payload carries the flag |
+| File                                                         | Role                                                                                                 |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| `src/db/schema.ts`                                           | `event_types.registration_enabled`                                                                   |
+| `src/lib/eventTypes/{validate,actions,queries}.ts`           | Type flag, forcing participants, audit/display                                                       |
+| `src/app/(protected)/settings/event-types/EventTypeForm.tsx` | “Open for registration” control                                                                      |
+| `src/lib/events/queries.ts`                                  | `payload.registrationEnabled` / `payload.registrationCap` from notes                                 |
+| `src/lib/events/notes.ts`                                    | `registrationCap` notes field + tolerant parser                                                      |
+| `src/lib/events/guards.ts`                                   | `registrationEditGuard`                                                                              |
+| `src/lib/events/registration.ts`                             | Pure roster toggle, seat-count/full helpers + rebuild form values from a copy                        |
+| `src/lib/events/actions.ts`                                  | `setEventRegistration`, shared update pipeline, authoritative checks                                 |
+| `src/app/(protected)/dashboard/EventDetail.tsx`              | Register/deregister UI and local roster patch                                                        |
+| `src/app/(protected)/dashboard/EventForm.tsx`                | Zero-registrant creation, no auto-self, duplicated-registration reset, cap input, people-only picker |
+| `src/lib/events/optimistic.ts`                               | Optimistic payload carries the flag + cap                                                            |
 
-Tests: `guards.test.ts`, `registration.test.ts`, `rangeProjection.test.ts`,
-`optimistic.test.ts`, `eventTypes/validate.test.ts`, plus the event fixtures
-updated for the new payload field.
+Tests: `guards.test.ts`, `registration.test.ts`, `notes.test.ts`,
+`validate.test.ts`, `writeContext.test.ts`, `eventAudit.test.ts`,
+`webhooks/payload.test.ts`, `optimistic.test.ts`,
+`eventTypes/validate.test.ts`, plus the event fixtures updated for the new
+payload field.

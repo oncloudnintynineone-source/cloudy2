@@ -9649,3 +9649,25 @@ Week (Grid), Day, Agenda, Month & Agenda).
 
 **Verification.** `pnpm lint`, `pnpm typecheck`, `pnpm test` (124 files /
 1635 tests).
+
+## 1.352 Registration caps
+
+Registration event types now support an optional per-event registration cap. The cap is
+stored as `registrationCap` in the event notes block (positive integer; absent/0 =
+unlimited), configured by the organizer in the wizard's Participants step via a
+"Limit registrations" switch and maximum input.
+
+- Only unique explicit `inviteeUsers` count. Departments are no longer valid participants
+  on registration events: the wizard hides the Departments picker section and
+  `resolveEventFields` clears legacy department tags and non-registration caps on write.
+- `setEventRegistration` reads a stored copy, resolves the registration type, and rejects
+  a Register intent when the explicit roster is already at/above the cap. Deregister is
+  always allowed. Organizer/admin roster edits remain unlimited by decision.
+  (Read-modify-write concurrency still means simultaneous registrations can overshoot.)
+- The detail modal shows `Registered (N / cap)` plus a progress bar, a "Registration is
+  full" notice at capacity, and disables Register for a non-registered user. Existing
+  registrants can still deregister; stale/racing attempts fall back to a red toast.
+- The cap rides through optimistic stand-ins and audit/webhook snapshots.
+- Tests: new `notes`, `registration`, `validate`, `writeContext`, audit/webhook and
+  optimistic coverage; all existing fixture payloads updated.
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (126 files / 1654 tests).

@@ -13,6 +13,7 @@ import {
   parseEventOutOfCamp,
   parseEventPeople,
   parseEventPinned,
+  parseEventRegistrationCap,
   parseEventStartAmPm,
   parseEventTimeOption,
   parseEventType,
@@ -95,6 +96,12 @@ describe("encodeEventNotes", () => {
         endAmPm: undefined,
       }),
     ).toBe('{"eventType":"Leave","timeOption":"range"}');
+  });
+
+  it("keeps a positive registration cap", () => {
+    expect(encodeEventNotes({ eventType: "Training", registrationCap: 12 })).toBe(
+      '{"eventType":"Training","registrationCap":12}',
+    );
   });
 
   it("keeps the out-of-camp flag when true (the writer omits it otherwise)", () => {
@@ -192,9 +199,9 @@ describe("hasInternalEventMarker / isExternalEvent", () => {
 
 describe("eventDetailUrl", () => {
   it("builds the dashboard details deep link from base url, start, event id and calendar id", () => {
-    expect(
-      eventDetailUrl("https://cal.example.com", "2026-08-18 09:00:00", "g-1", "cal-1"),
-    ).toBe("https://cal.example.com/dashboard?date=2026-08-18&event=g-1&_eventCal=cal-1");
+    expect(eventDetailUrl("https://cal.example.com", "2026-08-18 09:00:00", "g-1", "cal-1")).toBe(
+      "https://cal.example.com/dashboard?date=2026-08-18&event=g-1&_eventCal=cal-1",
+    );
   });
 
   it("omits the date param when the start is empty", () => {
@@ -204,9 +211,9 @@ describe("eventDetailUrl", () => {
   });
 
   it("omits the _eventCal param when the calendar id is empty", () => {
-    expect(
-      eventDetailUrl("https://cal.example.com", "2026-08-18 09:00:00", "g-1", ""),
-    ).toBe("https://cal.example.com/dashboard?date=2026-08-18&event=g-1");
+    expect(eventDetailUrl("https://cal.example.com", "2026-08-18 09:00:00", "g-1", "")).toBe(
+      "https://cal.example.com/dashboard?date=2026-08-18&event=g-1",
+    );
   });
 });
 
@@ -416,5 +423,24 @@ describe("parseEventPeople", () => {
         '{"eventId":"","createdBy":"","inviteeUsers":["u1",42,"u1",null],"inviteeDepartments":"nope"}',
       ),
     ).toEqual({ eventId: null, creatorId: null, userIds: ["u1"], departmentIds: [] });
+  });
+});
+
+describe("parseEventRegistrationCap", () => {
+  it("reads a positive integer cap", () => {
+    expect(parseEventRegistrationCap(encodeEventNotes({ registrationCap: 8 }))).toBe(8);
+  });
+
+  it("treats absent or malformed caps as unlimited", () => {
+    expect(parseEventRegistrationCap(encodeEventNotes({ eventType: "Training" }))).toBeNull();
+    expect(
+      parseEventRegistrationCap(encodeEventNotes({ registrationCap: 0 as unknown as number })),
+    ).toBeNull();
+    expect(
+      parseEventRegistrationCap(encodeEventNotes({ registrationCap: 2.5 as unknown as number })),
+    ).toBeNull();
+    expect(
+      parseEventRegistrationCap(encodeEventNotes({ registrationCap: "5" as unknown as number })),
+    ).toBeNull();
   });
 });

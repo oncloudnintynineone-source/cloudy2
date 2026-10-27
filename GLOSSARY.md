@@ -12,9 +12,9 @@ names in code, docs, and reviews.
 
 ## 1. Dashboard navigation
 
-The decision module that answers, for the calendar page: *given the URL and the held
+The decision module that answers, for the calendar page: _given the URL and the held
 snapshot, which tab and period are displayed, is the held data sufficient, and does this
-navigation require a fetch?* It is pure and client-safe (`src/lib/dashboard/navigation.ts`),
+navigation require a fetch?_ It is pure and client-safe (`src/lib/dashboard/navigation.ts`),
 owning the fetch/display decision so `DashboardScreen` and `DashboardView` are thin
 adapters. A **tab switch** is planned through the same module (`planDashboardSwitch`), so
 the rule that decides "does a tap refetch?" lives once.
@@ -42,11 +42,13 @@ excluded — the record carries its resolved period in the snapshot context.
 
 ## 4. Registration event
 
-An event whose **event type** is marked *Open for registration*
+An event whose **event type** is marked _Open for registration_
 (`event_types.registration_enabled`). It uses the ordinary event/participant model — the
 roster is the participant list (`inviteeUsers`) — but the permission rule flips: only the
 organizer and admins may edit the event or manage participants, while every other user
 may only add/remove **themselves** through `setEventRegistration`. Registration types
 force participants on, may start with zero registrants (the organizer is not
 auto-registered), and keep the organizer's home department as a stable calendar target.
-See `docs/registration-events.md`.
+Departments are not participants on registration events, and an optional per-event
+**registration cap** (`registrationCap`; empty = unlimited) limits explicit registrants
+and blocks self-registration once full. See `docs/registration-events.md`.

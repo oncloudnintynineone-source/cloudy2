@@ -3,7 +3,12 @@ import { describe, expect, it } from "vitest";
 import type { GcalEventItem } from "@/lib/google/types";
 
 import { encodeEventNotes } from "./notes";
-import { applyRegistrationIntent, eventFormValuesFromCopy } from "./registration";
+import {
+  applyRegistrationIntent,
+  eventFormValuesFromCopy,
+  isRegistrationFull,
+  registrationSeatCount,
+} from "./registration";
 
 function copy(overrides: Partial<GcalEventItem> = {}): GcalEventItem {
   return {
@@ -38,6 +43,25 @@ describe("applyRegistrationIntent", () => {
   });
 });
 
+describe("registrationSeatCount / isRegistrationFull", () => {
+  it("counts unique non-empty explicit registrants", () => {
+    expect(registrationSeatCount(["u-1", "u-1", "", "u-2"])).toBe(2);
+    expect(registrationSeatCount(null)).toBe(0);
+    expect(registrationSeatCount(undefined)).toBe(0);
+  });
+
+  it("treats a null cap as unlimited", () => {
+    expect(isRegistrationFull(["u-1", "u-2"], null)).toBe(false);
+    expect(isRegistrationFull(["u-1", "u-2"], undefined)).toBe(false);
+  });
+
+  it("is full at or above the cap for a non-registered user", () => {
+    expect(isRegistrationFull(["u-1", "u-2"], 3, "u-9")).toBe(false);
+    expect(isRegistrationFull(["u-1", "u-2", "u-3"], 3, "u-9")).toBe(true);
+    expect(isRegistrationFull(["u-1", "u-2", "u-3"], 3, "u-1")).toBe(false);
+  });
+});
+
 describe("eventFormValuesFromCopy", () => {
   it("rebuilds a timed event from the stored notes", () => {
     const values = eventFormValuesFromCopy(copy());
@@ -51,6 +75,7 @@ describe("eventFormValuesFromCopy", () => {
       creatorId: "creator-1",
       inviteeUserIds: ["u-2"],
       inviteeDepartments: [],
+      registrationCap: null,
       location: "Hall A",
     });
   });
@@ -77,6 +102,22 @@ describe("eventFormValuesFromCopy", () => {
       end: "2026-08-23 00:00:00",
       inviteeUserIds: [],
     });
+  });
+
+  it("reads a stored registration cap", () => {
+    const values = eventFormValuesFromCopy(
+      copy({
+        description: encodeEventNotes({
+          eventId: "e-1",
+          eventType: "Training",
+          title: "Open day",
+          createdBy: "creator-1",
+          timeOption: "range",
+          registrationCap: 6,
+        }),
+      }),
+    );
+    expect(values?.registrationCap).toBe(6);
   });
 
   it("returns null when the copy has no parseable notes", () => {

@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.350 (calendar skeleton crossfade)** is shipped.
+- All work through changelog **1.352 (registration caps)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -2212,6 +2212,15 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   body scrolls with a pinned footer. Docs: `docs/dashboard-views.md` §1.2,
   `docs/user-picker.md` §1.2/§1.4/§1.6, `docs/event-lifecycle.md` §1.10,
   `docs/accessibility.md` §1.4.
+
+- 1.352 **Registration caps**: registration events may carry an optional per-event
+  `registrationCap` in the notes (empty = unlimited). The wizard's Participants step has
+  a Limit registrations switch + maximum input and a people-only picker; departments are
+  stripped from registration rosters on save. `setEventRegistration` rejects a Register
+  intent once the stored explicit roster reaches the cap. The detail modal shows
+  `Registered (N / cap)` with a progress bar, a full notice, and a disabled Register
+  button (Deregister stays available). Audit/webhook snapshots include the cap.
+  Docs: `docs/registration-events.md` §1.5.
 
 ## 1.4 Open items & next steps
 

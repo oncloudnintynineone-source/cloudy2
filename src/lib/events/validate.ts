@@ -32,6 +32,12 @@ export interface EventFormValues {
   /** Department (calendar) ids tagged on the event (schedule view rows). No validation. */
   inviteeDepartments: string[];
   /**
+   * Maximum number of explicit registrants for a registration event. Null /
+   * absent means unlimited. Only meaningful for registration-enabled types;
+   * the write path clears it for every other type.
+   */
+  registrationCap?: number | null;
+  /**
    * Whether only the organizer (and admins) may edit/delete/duplicate this
    * event. Absent/false lets attendees and active members of tagged
    * departments edit too. The organizer (or an admin) may toggle it on edit;
@@ -53,7 +59,22 @@ export interface EventFormErrors {
   endAmPm?: string;
   start?: string;
   end?: string;
+  registrationCap?: string;
   [key: string]: string | undefined;
+}
+
+/**
+ * Normalize a registration cap to a valid whole number >= 1, or null for
+ * "no limit". Accepts untrusted values so the server can never persist a
+ * fractional/negative/NaN cap from a stale or forged client payload.
+ */
+export function normalizeRegistrationCap(value: unknown): number | null {
+  return typeof value === "number" &&
+    Number.isFinite(value) &&
+    Number.isInteger(value) &&
+    value >= 1
+    ? value
+    : null;
 }
 
 /** Chronological sort key for a side, folding the half-of-day indicator in. */
@@ -140,7 +161,11 @@ export function resolveEventAuthor(
   return {
     ...values,
     creatorId,
-    ownerOnlyEdits: ref ? (canChangeLock ? values.ownerOnlyEdits : ref.ownerOnlyEdits) : values.ownerOnlyEdits,
+    ownerOnlyEdits: ref
+      ? canChangeLock
+        ? values.ownerOnlyEdits
+        : ref.ownerOnlyEdits
+      : values.ownerOnlyEdits,
   };
 }
 
@@ -170,9 +195,17 @@ export function validateEventForm(values: EventFormValues): EventFormErrors {
   // range side (missing time part) already reports its own error.
   const startComplete =
     !!values.start && (values.timeOption !== "range" || !!naiveTimePart(values.start));
-  const endComplete = !!values.end && (values.timeOption !== "range" || !!naiveTimePart(values.end));
+  const endComplete =
+    !!values.end && (values.timeOption !== "range" || !!naiveTimePart(values.end));
   if (startComplete && endComplete && sortKey(values, false) > sortKey(values, true)) {
     errors.end = "End must be on or after start";
+  }
+  if (
+    values.registrationCap !== undefined &&
+    values.registrationCap !== null &&
+    normalizeRegistrationCap(values.registrationCap) === null
+  ) {
+    errors.registrationCap = "Enter a whole number of at least 1";
   }
 
   return errors;

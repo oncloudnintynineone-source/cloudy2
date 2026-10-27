@@ -146,7 +146,11 @@ doc content here.
   update pipeline, never a full edit). The detail modal shows that same self-toggle to the
   organizer/admin below their action-icon row, so they need not open the wizard to
   add/remove themselves. Registration types force participants on, may be
-  created with zero registrants, and do not auto-add the organizer. Design:
+  created with zero registrants, and do not auto-add the organizer. An optional
+  per-event registration cap (notes `registrationCap`, empty = unlimited) limits
+  explicit registrants; the detail modal shows `N / cap`, disables Register when
+  full, and departments are not valid participants on registration events (the
+  wizard hides them and the write path strips legacy tags). Design:
   [docs/registration-events.md](docs/registration-events.md).
 - **Optimistic mutations:** the dashboard renders a short-lived stand-in chip at confirm
   (not after the Google write) by merging an `optimisticOps` overlay into the server

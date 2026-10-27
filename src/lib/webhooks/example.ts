@@ -11,11 +11,7 @@ import {
   type EventSnapshotNames,
   type EventTimeParts,
 } from "@/lib/events/eventAudit";
-import {
-  buildEventWebhookPayload,
-  WEBHOOK_ACTIONS,
-  type WebhookAction,
-} from "./payload";
+import { buildEventWebhookPayload, WEBHOOK_ACTIONS, type WebhookAction } from "./payload";
 
 const NAMES: EventSnapshotNames = {
   departmentNames: { dept: "Alpha" },
@@ -39,6 +35,7 @@ function snapshot() {
     outOfCamp: true,
     overseas: true,
     pinned: true,
+    registrationCap: null,
     location: "Range North",
     departmentIds: ["dept"],
     inviteeUserIds: ["user-2", "user-1"],

@@ -16,6 +16,7 @@ import {
   parseEventOwnerOnlyEdits,
   parseEventPeople,
   parseEventPinned,
+  parseEventRegistrationCap,
   parseEventStartAmPm,
   parseEventTimeOption,
   parseEventTitle,
@@ -25,6 +26,31 @@ import type { EventFormValues } from "./validate";
 import type { GcalEventItem } from "@/lib/google/types";
 
 export type RegistrationIntent = "register" | "deregister";
+
+/** Unique, non-empty explicit registrant ids — the seats a cap counts. */
+export function registrationSeatCount(userIds: readonly string[] | null | undefined): number {
+  return new Set((userIds ?? []).filter((id) => typeof id === "string" && id.length > 0)).size;
+}
+
+/**
+ * Whether a self-registration would be rejected because the explicit roster is
+ * already at or above the cap. An absent/null cap means unlimited, and an
+ * already-registered user is never blocked (they can always deregister).
+ */
+export function isRegistrationFull(
+  userIds: readonly string[] | null | undefined,
+  cap: number | null | undefined,
+  userId?: string,
+): boolean {
+  if (cap == null) {
+    return false;
+  }
+  const ids = userIds ?? [];
+  if (userId && ids.includes(userId)) {
+    return false;
+  }
+  return registrationSeatCount(ids) >= cap;
+}
 
 /**
  * Apply a self-registration intent to a participant id list. Registration
@@ -86,6 +112,7 @@ export function eventFormValuesFromCopy(copy: GcalEventItem): EventFormValues | 
     creatorId: people.creatorId ?? "",
     inviteeUserIds: people.userIds,
     inviteeDepartments: people.departmentIds,
+    registrationCap: parseEventRegistrationCap(copy.description),
     ownerOnlyEdits: parseEventOwnerOnlyEdits(copy.description),
     outOfCamp: parseEventOutOfCamp(copy.description),
     overseas: parseEventOverseas(copy.description),

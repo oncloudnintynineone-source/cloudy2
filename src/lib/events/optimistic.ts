@@ -255,6 +255,7 @@ export function buildOptimisticEvent(params: OptimisticBuildParams): CalendarEve
       inviteeDepartmentIds: normalized.inviteeDepartments,
       ownerOnlyEdits: normalized.ownerOnlyEdits,
       registrationEnabled: registrationEnabled === true,
+      registrationCap: normalized.registrationCap ?? null,
       rawTitle: normalized.title,
       timeOption: normalized.timeOption,
       startAmPm: normalized.timeOption === "half" ? amPmOf(normalized.startAmPm) : null,

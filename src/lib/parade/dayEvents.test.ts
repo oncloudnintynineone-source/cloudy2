@@ -37,6 +37,7 @@ function calendarEvent(overrides: {
       inviteeDepartmentIds: [],
       ownerOnlyEdits: false,
       registrationEnabled: false,
+      registrationCap: null,
       rawTitle: "Event",
       timeOption: "range",
       startAmPm: null,

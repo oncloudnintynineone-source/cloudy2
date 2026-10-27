@@ -38,7 +38,7 @@ The app's domain object is an event, but the storage is Google Calendar — a sy
 app does not own and that other people also edit. That creates four sub-problems this
 pipeline solves:
 
-- **Round-tripping**: the form must prefill from the event on edit with the *original*
+- **Round-tripping**: the form must prefill from the event on edit with the _original_
   data — the raw typed description, not the templated calendar title; the AM/PM
   indicators; the invitees; the out-of-camp flag. Google only stores `summary`,
   `description`, `location`, and dates, so the app's extra state has to be encoded
@@ -51,7 +51,7 @@ pipeline solves:
 - **Constraints**: admins restrict each event type's time options, allowed location
   categories, and remarks field;
   the form and the server must enforce the same rules so a stale form can never submit
- an out-of-policy combination (§1.9, §1.11).
+  an out-of-policy combination (§1.9, §1.11).
 
 ## 1.2 Goals & non-goals
 
@@ -122,15 +122,15 @@ its draft. It is a **staged walk** — one input group visible at a time, built 
 `buildSteps` (`EventForm.tsx`); every role walks the same steps
 (no admin-only extras — there is no "On behalf of" creator step):
 
-| # | Step | Who | Gate before advancing |
-| - | --------------- | --- | ----------------------------------------------------------------- |
-| 1 | `type` | all | custom: a type must be selected |
-| 2 | `time` | all | `start`, `end`, `startAmPm`, `endAmPm` validate cleanly |
-| 3 | `location` | all | none (policy clamping is live, §1.9) |
-| 4 | `invitees` (Participants) | all | none |
-| 5 | `remarks` | all | none |
-| 6 | `settings` (Other settings) | all | none — the "Pin this event" + organizer-only edit-lock switches |
-| 7 | `review` | all | submit only (last step) — read-only summary of everything entered |
+| #   | Step                        | Who | Gate before advancing                                             |
+| --- | --------------------------- | --- | ----------------------------------------------------------------- |
+| 1   | `type`                      | all | custom: a type must be selected                                   |
+| 2   | `time`                      | all | `start`, `end`, `startAmPm`, `endAmPm` validate cleanly           |
+| 3   | `location`                  | all | none (policy clamping is live, §1.9)                              |
+| 4   | `invitees` (Participants)   | all | none                                                              |
+| 5   | `remarks`                   | all | none                                                              |
+| 6   | `settings` (Other settings) | all | none — the "Pin this event" + organizer-only edit-lock switches   |
+| 7   | `review`                    | all | submit only (last step) — read-only summary of everything entered |
 
 The `invitees`, `remarks`, and `location` steps drop out per the selected type's config
 (§1.9.1): `show_location` off removes the Location step entirely — otherwise it always
@@ -150,39 +150,39 @@ Mechanics worth knowing:
   modal never resizes between steps and the buttons never jump. The sizing is tiered so
   the modal actually uses the space a given screen has:
   - **Width** (`DashboardView.tsx`): `xs` (320px) on ≤360px phones, `sm` (380px) across
- the rest of the phone band, `md` (440px) on the narrow desktop band (640–799px), and
- `lg` (620px) on the wide-desktop band (≥800px). The shrink-out motion feeds on the
- matching width (`formContentWidth`), so it always lands on the originating button.
+    the rest of the phone band, `md` (440px) on the narrow desktop band (640–799px), and
+    `lg` (620px) on the wide-desktop band (≥800px). The shrink-out motion feeds on the
+    matching width (`formContentWidth`), so it always lands on the originating button.
   - **Centered at every width**: the host modal is `centered` on all screens, so the
- wizard always has **equal top/bottom gutters**. On phones (< 640px) the body
- **fills the modal's box** to take up as much vertical space as possible:
- `DashboardView` sets `yOffset="44px"`, so Mantine centers inside a
- `100dvh - 88px` (2 × 44px gutter) box, and `WIZARD_BODY_HEIGHT_MOBILE` =
- `calc(100dvh - 164px)` fills it — the 88px of gutters plus the modal's own chrome
- (sticky header ~60px + body bottom padding ~16px = 76px). Equal ~44px gutters
- remain, and the "Tap outside or press Esc to minimize" caption sits in the bottom
- gutter (it stays at the viewport bottom; the header's minimize chevron / X also
- stay). The header controls are 44px targets and the header keeps its ~60px height
- with `py={8}`.
- `100dvh` shrinking with the on-screen keyboard just shortens the body.
+    wizard always has **equal top/bottom gutters**. On phones (< 640px) the body
+    **fills the modal's box** to take up as much vertical space as possible:
+    `DashboardView` sets `yOffset="44px"`, so Mantine centers inside a
+    `100dvh - 88px` (2 × 44px gutter) box, and `WIZARD_BODY_HEIGHT_MOBILE` =
+    `calc(100dvh - 164px)` fills it — the 88px of gutters plus the modal's own chrome
+    (sticky header ~60px + body bottom padding ~16px = 76px). Equal ~44px gutters
+    remain, and the "Tap outside or press Esc to minimize" caption sits in the bottom
+    gutter (it stays at the viewport bottom; the header's minimize chevron / X also
+    stay). The header controls are 44px targets and the header keeps its ~60px height
+    with `py={8}`.
+    `100dvh` shrinking with the on-screen keyboard just shortens the body.
   - **Desktop height**: the centered modal's body grows with the viewport up to
- `min(68dvh, 720px, calc(100dvh - 200px))` so a tall screen is actually used up to a
- comfortable cap.
+    `min(68dvh, 720px, calc(100dvh - 200px))` so a tall screen is actually used up to a
+    comfortable cap.
   - **Wide review step**: at `lg` width the review's definition rows (When, Location,
- Event Type, Organizer, Participants, Departments, Remarks) reflow into a two-column
- grid beneath the full-width calendar preview and clash check — the extra width reads
- as structure, not a stretched single column.
-  The Stepper (`.c2-wizard-steps`) is one non-wrapping row of
-  numbered circles joined by connector lines, so it reads unambiguously as a left→right
-  step path: passed steps show a check, the current circle is filled, future ones are
-  outlined. The **caption** always shows the current step's real name and position
-  (`Location` · `Step 3 of 6`); inline per-step labels are deliberately omitted — the
-  modal is too narrow for them, and the walk's length shifts when a type hides its
-  remarks/invitees step. Clicking any circle calls `goToStep` — a **free jump** (the
-  semantics of the old bottom "Go to Summary" link, now gone): nothing in between is
-  validated; the final submit still catches problems and returns the user to the owning
-  step. A step change resets the body scroll to the top and announces
-  `Step N of M: <name>` through the shell's polite live region.
+    Event Type, Organizer, Participants, Departments, Remarks) reflow into a two-column
+    grid beneath the full-width calendar preview and clash check — the extra width reads
+    as structure, not a stretched single column.
+    The Stepper (`.c2-wizard-steps`) is one non-wrapping row of
+    numbered circles joined by connector lines, so it reads unambiguously as a left→right
+    step path: passed steps show a check, the current circle is filled, future ones are
+    outlined. The **caption** always shows the current step's real name and position
+    (`Location` · `Step 3 of 6`); inline per-step labels are deliberately omitted — the
+    modal is too narrow for them, and the walk's length shifts when a type hides its
+    remarks/invitees step. Clicking any circle calls `goToStep` — a **free jump** (the
+    semantics of the old bottom "Go to Summary" link, now gone): nothing in between is
+    validated; the final submit still catches problems and returns the user to the owning
+    step. A step change resets the body scroll to the top and announces
+    `Step N of M: <name>` through the shell's polite live region.
 - **Enter never submits**: `handleFormKeyDown` (`EventForm.tsx`) cancels the
   browser's implicit form submission for `INPUT`/`SELECT` targets, so only the explicit
   Create/Save button (review step) commits — the Remarks `Textarea` keeps natural newline
@@ -216,7 +216,7 @@ Mechanics worth knowing:
   otherwise the single option's fields render directly. `range` = a `DatePickerInput`
   plus a time control per side — date pickers carry no time. Time is set
   keyboard-free: a shared **`TimeChipSelector`** (`src/components/TimeChipSelector.tsx`,
-  a horizontally scrollable hour row 00–23 +   a fixed minute row 00/15/30/45 — two taps,
+  a horizontally scrollable hour row 00–23 + a fixed minute row 00/15/30/45 — two taps,
   no dropdown) sits below the 24h `TimePicker` (kept for exact values, tap-to-select
   hour/minute lists with `minutesStep={15}`); the two halves join into the naive
   `YYYY-MM-DD HH:mm:ss` string via `joinDateTimeParts`, a cleared time stores a bare
@@ -308,20 +308,20 @@ active tab's month range exclude it — without adding it to the grid's filtered
   skeleton before the target arrived).
 - **Form prefill** (`buildInitialValues`, `EventForm.tsx`):
   - `title` = the notes' raw description (`payload.rawTitle`) — never the rendered
- calendar title; a deliberately blank description round-trips as `""` (legacy events
- without the field fall back to the summary, with `"(no title)"` normalized to `""`,
- `EventForm.tsx`).
+    calendar title; a deliberately blank description round-trips as `""` (legacy events
+    without the field fall back to the summary, with `"(no title)"` normalized to `""`,
+    `EventForm.tsx`).
   - time option resolved against the stored type's allowed set
-  (`resolveTimeOption`, `EventForm.tsx`); legacy full-day events without
-  indicators default to AM→PM.
+    (`resolveTimeOption`, `EventForm.tsx`); legacy full-day events without
+    indicators default to AM→PM.
   - Google's **exclusive** all-day end is converted back to the form's **inclusive**
- end: `end = subOneDay(event.end) 00:00:00` (`EventForm.tsx`, §1.11.2).
-  - Out of Camp + location re-clamped against the type's *current* policy, in case it
-  tightened since the event was last edited.
+    end: `end = subOneDay(event.end) 00:00:00` (`EventForm.tsx`, §1.11.2).
+  - Out of Camp + location re-clamped against the type's _current_ policy, in case it
+    tightened since the event was last edited.
   - Invitees re-prefixed as `dept:`/`user:` values; `creatorId` = the stored organizer
- (falling back to the acting user on a creator-less legacy event); `ownerOnlyEdits`
- from the payload. Attendees are kept exactly as stored — a legacy event's organizer
- who was auto-invited stays in the list, deselectable.
+    (falling back to the acting user on a creator-less legacy event); `ownerOnlyEdits`
+    from the payload. Attendees are kept exactly as stored — a legacy event's organizer
+    who was auto-invited stays in the list, deselectable.
 - **New events** (`EventForm.tsx`): start `09:00:00` / end `10:00:00` on
   `defaultDate`, `range`, `creatorId` = the acting session user (every role — no admin
   on-behalf), `ownerOnlyEdits` = false, and no self chip: the attendee list starts
@@ -333,7 +333,7 @@ never on the read-only surfaces) opens `ShareEventDialog.tsx` — the shared-vie
 dialog's look (description + read-only link field + Copy button) — showing a
 self-contained `origin/share/event?e=<group id>&c=<calendar id>&d=<start date>` URL
 (`buildEventShareLink`, `src/lib/events/deepLink.ts`). Nothing is stored server-side:
-the link *is* the state, so it cannot be revoked individually and rotates with the
+the link _is_ the state, so it cannot be revoked individually and rotates with the
 event data itself. The public landing route `src/app/share/event/page.tsx` (outside
 the `(protected)` layout; the static `event` segment wins over the sibling
 `/share/[token]`) validates the params (`parseEventShareParams`: UUIDs + `YYYY-MM-DD`,
@@ -350,7 +350,7 @@ The wizard minimizes without losing the draft. Tapping the overlay, pressing
 so it cannot cover the floating control layer. The minimized draft then docks into the
 calendar chrome rather than floating as a separate overlay:
 
-- **Below `lg` it docks *inside* the mobile FAB row**, to the left of the period
+- **Below `lg` it docks _inside_ the mobile FAB row**, to the left of the period
   chevrons (`EventDraftChip` in `src/app/(protected)/dashboard/EventDraftBar.tsx`). The
   row is pinned edge-to-edge (`FloatingToolbar`'s `leftOffset`), the chip is the only
   `flex: 1` item and the chevrons / Quick-links / New-event circles are
@@ -417,10 +417,10 @@ Two layers, both pure and unit-tested.
 
 ### 1.5.1 Access guards (`src/lib/events/guards.ts`)
 
-| Guard | Rule | Error |
-| ----- | ---- | ----- |
+| Guard                                                                  | Rule                                                                                                                                                                                                                                                                                                                                                                                                                                     | Error                                                                                                                                        |
+| ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | `modifyGuard(session, event, activeMembersByDepartment)` (`guards.ts`) | The single edit/delete/duplicate authorization (there is no "on behalf of" any more). Admins always pass, ignoring the owner lock. A creator-less event with no people (legacy/external) is admin-only. When the notes `ownerOnlyEdits` lock is set, only the organizer passes. Otherwise the organizer, every tagged attendee, and every **active member of each tagged department** (resolved from the active roster per action) pass. | "Only the organizer can edit this event" / "You can only edit or delete events you're on" / "You can only edit or delete events you created" |
-| `canChangeLock(session, creatorId)` (`guards.ts`) | Whether the actor may set/clear `ownerOnlyEdits`: the organizer or an admin. | — |
+| `canChangeLock(session, creatorId)` (`guards.ts`)                      | Whether the actor may set/clear `ownerOnlyEdits`: the organizer or an admin.                                                                                                                                                                                                                                                                                                                                                             | —                                                                                                                                            |
 
 For **registration-enabled** event types there is an additional restriction: even
 tagged attendees and members of tagged departments may only register/deregister
@@ -440,10 +440,10 @@ department (and only the organizer/admin when the lock is on).
 1. `half` events: both `startAmPm` and `endAmPm` required → "Select AM or PM".
 2. `start` / `end` required.
 3. **Cross-field chronology** via `sortKey`: for `half` events the
- half-of-day indicator is folded into the sort key (`YYYY-MM-DD AM` < `YYYY-MM-DD PM`,
- since the time part is always `00:00:00`), so same-day AM→PM is valid and PM→AM is not;
- for `range` the full naive strings compare. Violation → "End must be on or after
- start".
+   half-of-day indicator is folded into the sort key (`YYYY-MM-DD AM` < `YYYY-MM-DD PM`,
+   since the time part is always `00:00:00`), so same-day AM→PM is valid and PM→AM is not;
+   for `range` the full naive strings compare. Violation → "End must be on or after
+   start".
 
 Deliberately **not** validated in `validateEventForm`: `title` (may be blank — the
 template produces the title), `eventType` (the wizard's custom gate covers it), invitee
@@ -504,8 +504,8 @@ Related pure helpers in `targets.ts`:
 - `eventRefFromCalendarEvent(event)` (`targets.ts`) — builds it from a schedule-ready
   `CalendarEvent` (used by the form on submit).
 - `diffEventTargets(old, new)` (`targets.ts`) — splits into `create`/`keep`/`remove`;
- the update action inlines the equivalent union/set logic
- ([`event-mutations.md` §1.5](event-mutations.md#15-updateevent--reconciling-copies)).
+  the update action inlines the equivalent union/set logic
+  ([`event-mutations.md` §1.5](event-mutations.md#15-updateevent--reconciling-copies)).
 - `dedupeEventsByGroupId(events)` (`targets.ts`) — display dedup: the first event
   seen per non-null group id wins, legacy (null-id) events always pass. Input order
   defines the representative, so callers feed it deterministically (the dashboard reads
@@ -518,18 +518,18 @@ The machine-readable state lives in the Google event **description**; the visibl
 
 ### 1.7.1 Fields (`EventNotes`, `src/lib/events/notes.ts`)
 
-| Field | Stored when | Notes |
-| ----- | ----------- | ----- |
-| `eventType` | set | The type's name |
-| `title` | always (even `""`) | The raw pre-template description; a blank value round-trips to distinguish "no text typed" from legacy |
-| `eventId` | always (app events) | The logical group id shared by all department copies |
-| `createdBy` | set | Organizer user id — fixed at creation to the acting user; NOT an attendee unless they tagged themselves |
-| `inviteeUsers` | non-empty | Tagged attendee user ids (the event shows in each user's row; attendees can edit) |
-| `inviteeDepartments` | non-empty | Tagged department ids (shows in each department row; every active member can edit) |
-| `ownerOnlyEdits` | only when `true` | Organizer-only modification lock (admins bypass; absence = open to attendees/members) |
-| `timeOption` | set | `"range"` \| `"full"` \| `"half"` |
-| `startAmPm` / `endAmPm` | `half` only (legacy `full` events may still carry them) | Half-of-day indicators |
-| `outOfCamp` | **only when `true`** | Absence (legacy) or `false` means in camp; the destination itself goes to Google's `location` field, not the notes |
+| Field                   | Stored when                                             | Notes                                                                                                              |
+| ----------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `eventType`             | set                                                     | The type's name                                                                                                    |
+| `title`                 | always (even `""`)                                      | The raw pre-template description; a blank value round-trips to distinguish "no text typed" from legacy             |
+| `eventId`               | always (app events)                                     | The logical group id shared by all department copies                                                               |
+| `createdBy`             | set                                                     | Organizer user id — fixed at creation to the acting user; NOT an attendee unless they tagged themselves            |
+| `inviteeUsers`          | non-empty                                               | Tagged attendee user ids (the event shows in each user's row; attendees can edit)                                  |
+| `inviteeDepartments`    | non-empty                                               | Tagged department ids (shows in each department row; every active member can edit)                                 |
+| `ownerOnlyEdits`        | only when `true`                                        | Organizer-only modification lock (admins bypass; absence = open to attendees/members)                              |
+| `timeOption`            | set                                                     | `"range"` \| `"full"` \| `"half"`                                                                                  |
+| `startAmPm` / `endAmPm` | `half` only (legacy `full` events may still carry them) | Half-of-day indicators                                                                                             |
+| `outOfCamp`             | **only when `true`**                                    | Absence (legacy) or `false` means in camp; the destination itself goes to Google's `location` field, not the notes |
 
 `encodeEventNotes` (`notes.ts`) drops `undefined`/`null`/empty-array values and keeps
 a blank value **only for `title`**; it returns `""` when nothing survives. The block is a
@@ -538,11 +538,11 @@ migration.
 
 ### 1.7.2 The three stored formats
 
-| Version | Description layout | When written |
-| ------- | ------------------ | ------------ |
+| Version          | Description layout                                                                                           | When written                     |
+| ---------------- | ------------------------------------------------------------------------------------------------------------ | -------------------------------- |
 | **v3** (current) | `Edit: <url>` line, blank line, one **base64url(brotli(JSON))** block line, blank line, `Created in cloudy2` | every create/edit since Phase 2v |
-| **v2** | `Edit: <url>` line, blank line, one **raw JSON** line | intermediate era |
-| **v1** | the description **is** the JSON object alone | earliest era |
+| **v2**           | `Edit: <url>` line, blank line, one **raw JSON** line                                                        | intermediate era                 |
+| **v1**           | the description **is** the JSON object alone                                                                 | earliest era                     |
 
 `encodeNotesBlock(json)` (`notes.ts`) brotli-compresses and base64url-encodes
 (no padding) — one short, **opaque**, deterministic line. Decoding
@@ -570,7 +570,7 @@ flowchart TB
 
 - `withEditLink(block, url)` (`notes.ts`): `Edit: <url>` above the block; Google
   Calendar linkifies plain URLs in notes. The URL is `eventDetailUrl(baseUrl, start,
-  eventId, calendarId)` (`notes.ts`) →
+eventId, calendarId)` (`notes.ts`) →
   `/dashboard?date=<first day>&event=<group id>&_eventCal=<calendar id>` — the
   details deep link (§1.4.2); each copy's link names its own calendar. The app
   origin comes from the request headers (`appBaseUrl`, `src/lib/appUrl.ts`), so the
@@ -586,14 +586,14 @@ flowchart TB
 
 All pure, all total (never throw, tolerate malformed values):
 
-| Parser (`notes.ts`) | Returns |
-| ------------------- | ------- |
-| `parseEventPeople`  | `{ eventId, creatorId, userIds, departmentIds }` — the identity used by copy reconciliation and the user filter |
-| `parseEventType`  | type name or null |
-| `parseEventTitle`  | raw description: `""` for a deliberately blank one, `null` for legacy (field absent) |
-| `parseEventTimeOption`  | `"range"` \| `"full"` \| null |
-| `parseEventStartAmPm` / `parseEventEndAmPm` | `"AM"` \| `"PM"` \| null |
-| `parseEventOutOfCamp`  | `true` only when the flag is exactly `true` |
+| Parser (`notes.ts`)                         | Returns                                                                                                         |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `parseEventPeople`                          | `{ eventId, creatorId, userIds, departmentIds }` — the identity used by copy reconciliation and the user filter |
+| `parseEventType`                            | type name or null                                                                                               |
+| `parseEventTitle`                           | raw description: `""` for a deliberately blank one, `null` for legacy (field absent)                            |
+| `parseEventTimeOption`                      | `"range"` \| `"full"` \| null                                                                                   |
+| `parseEventStartAmPm` / `parseEventEndAmPm` | `"AM"` \| `"PM"` \| null                                                                                        |
+| `parseEventOutOfCamp`                       | `true` only when the flag is exactly `true`                                                                     |
 
 `mapCalendarItem` (`queries.ts`) wires these into the `CalendarEventPayload`
 (`queries.ts`), and the edit form reads them back (§1.4.2) — that is the full
@@ -607,19 +607,19 @@ so editing never re-types the templated calendar title.
 Event titles are authored as a **recipe** (`src/lib/settings/titleRecipe.ts`) instead of
 a hand-written token string: an ordered list of **fields** plus per-field decoration. A
 field shows only when its value has content; a wrapper (`( )` / `[ ]`) belongs to its
-own field; and a **connector** joins a field to the *next shown* field — never leading
+own field; and a **connector** joins a field to the _next shown_ field — never leading
 or trailing. Because the admin never types separators into a `{token}< ... >` grammar,
 an empty field can no longer leave dangling punctuation (`OL:, …`, `(LZH )`).
 
-| Field | Renders (empty when absent) | Style options |
-| ------------ | -------------------------------------------------------- | ----------------------------------- |
-| `type` | the event type's name, or acronym | `name` / `acronym` |
-| `description`| the raw typed description | — |
-| `people` | invitees joined with `", "` (organizer only when self-invited) | `fqn` (default) / `full` / `acronym` |
-| `departments`| tagged department names joined with `", "` | — |
-| `location` | the location string | — |
-| `time` | `HH:MM-HH:MM` (range) / `AM`/`PM` (half) / `""` (full) | — |
-| `text` | the segment's literal words (a blank text hides the segment) | — (typed in the Text field) |
+| Field         | Renders (empty when absent)                                    | Style options                        |
+| ------------- | -------------------------------------------------------------- | ------------------------------------ |
+| `type`        | the event type's name, or acronym                              | `name` / `acronym`                   |
+| `description` | the raw typed description                                      | —                                    |
+| `people`      | invitees joined with `", "` (organizer only when self-invited) | `fqn` (default) / `full` / `acronym` |
+| `departments` | tagged department names joined with `", "`                     | —                                    |
+| `location`    | the location string                                            | —                                    |
+| `time`        | `HH:MM-HH:MM` (range) / `AM`/`PM` (half) / `""` (full)         | —                                    |
+| `text`        | the segment's literal words (a blank text hides the segment)   | — (typed in the Text field)          |
 
 `time` segments also honor a `timeFull` override: when the caller passes a
 pre-rendered wall-clock string (push bodies do), it renders that instead of the
@@ -643,7 +643,7 @@ rollback and are never read.
 1. trims the raw description;
 2. renders the recipe via `renderTitleRecipe`;
 3. **falls back to the raw (trimmed) description when the recipe renders nothing** —
- an empty result yields an intentionally untitled event.
+   an empty result yields an intentionally untitled event.
 
 Half-day AM/PM markers come only from a `time` segment in the recipe, never a
 hardcoded suffix — a recipe without `time` never adds `(AM)`. Full-day events render
@@ -720,11 +720,11 @@ take place in — `event_types.allowed_locations` (a `text[]` matrix column, def
 all three; `src/lib/events/locationPolicy.ts`). The location string is an **optional
 specific place** regardless of category — even in-camp events may record one.
 
-| Category | Label | Stored flags (`outOfCamp` / `overseas`) | Destination | KAH counts tagged member as |
-| -------- | ----- | --------------------------------------- | ----------- | --------------------------- |
-| `in` | In camp | `false` / `false` | optional | in country |
-| `out` | Out of camp | `true` / `false` | recorded | in country |
-| `overseas` | Overseas | `true` / `true` | recorded | **away (not in country)** |
+| Category   | Label       | Stored flags (`outOfCamp` / `overseas`) | Destination | KAH counts tagged member as |
+| ---------- | ----------- | --------------------------------------- | ----------- | --------------------------- |
+| `in`       | In camp     | `false` / `false`                       | optional    | in country                  |
+| `out`      | Out of camp | `true` / `false`                        | recorded    | in country                  |
+| `overseas` | Overseas    | `true` / `true`                         | recorded    | **away (not in country)**   |
 
 An event's location is a **single category** picked in the wizard's Location step — a
 `SegmentedControl` built from the type's allowed categories (untyped events = all three).
@@ -760,7 +760,7 @@ event-type form, Settings → Event Types), all defaulting to `true`:
   and the server drops every attendee beyond the creator (`inviteeUserIds` collapses to
   the creator, `inviteeDepartments` empties), so `{people}` renders just the creator and
   the event lives only in the creator's department calendar. Because target derivation
-  (`resolveTargetCalendars`) runs on the *cleared* input, re-saving an existing
+  (`resolveTargetCalendars`) runs on the _cleared_ input, re-saving an existing
   multi-department event of such a type removes its other departments' copies.
 - `event_types.show_location`: when off, the wizard's **Location step is skipped
   entirely** (§1.9.2). The toggle is disabled in the event-type form unless the
@@ -802,7 +802,7 @@ type hides its Location step:
   a stray specific location.
 - The KAH flags still follow: a type allowed `out` or `overseas` tags its events out of
   camp / away respectively; an `[in]`-only type produces plain in-camp events. Because
-  resolution runs on the *cleared* input, re-saving a legacy event of a type whose step
+  resolution runs on the _cleared_ input, re-saving a legacy event of a type whose step
   was hidden after the event was created converts it to the sole allowed category and
   drops its stored specific location — the same re-save semantics as hidden invitees
   (§1.9.1).
@@ -843,7 +843,7 @@ flowchart LR
   inline groups and before the folders. A type whose `group_id` doesn't resolve (stale
   prop) degrades to ungrouped rather than disappearing.
 - **Picker sections** come from the pure `buildEventTypePickerSections(types,
-  groups)` (`src/lib/eventTypes/groups.ts`, unit-tested in `groups.test.ts`): the
+groups)` (`src/lib/eventTypes/groups.ts`, unit-tested in `groups.test.ts`): the
   non-folder blocks first (inline groups, then ungrouped) and folders last, empty
   groups skipped, and the ungrouped section present only when some type has no group.
   Each section carries a stable `id` (the group id, or `UNGROUPED_ID`) so the UI can
@@ -866,7 +866,7 @@ flowchart LR
   has no group row and is always `collapsible: false` — renders as the previous
   always-expanded labeled section. Inline sections come first, folders last, each in
   its own style. Open state starts from the pure `initialExpandedSectionIds(sections,
-  selectedTypeName)`: only collapsible folders participate, and only the folder that
+selectedTypeName)`: only collapsible folders participate, and only the folder that
   holds an already-selected type opens (edit/duplicate prefill); every other folder —
   including a lone collapsible folder — starts collapsed. Search is deliberately not
   offered.
@@ -891,11 +891,11 @@ flowchart LR
 
 Per event type, `time_options` enables one or more of:
 
-| Option | Label | Form fields | Notes |
-| ------ | ----- | ----------- | ----- |
-| `range` | Start & End | two date pickers + two 24h time pickers (tap-select dropdown, 15-min step) | always timed |
-| `full` | Full Day | two date pickers | plain all-day dates — no half-day markers |
-| `half` | Half Day | two date pickers + AM/PM per side | optional (AM)/(PM) marker in the title |
+| Option  | Label       | Form fields                                                                | Notes                                     |
+| ------- | ----------- | -------------------------------------------------------------------------- | ----------------------------------------- |
+| `range` | Start & End | two date pickers + two 24h time pickers (tap-select dropdown, 15-min step) | always timed                              |
+| `full`  | Full Day    | two date pickers                                                           | plain all-day dates — no half-day markers |
+| `half`  | Half Day    | two date pickers + AM/PM per side                                          | optional (AM)/(PM) marker in the title    |
 
 Legacy note: the AM/PM markers used to live under `full`; events saved before the split
 still carry `"full"` + markers in their notes and display them as-is. Editing such an
@@ -912,7 +912,7 @@ markers, switching to `half` (prefilled from the stored notes) keeps them.
 - `naiveDatePart` / `naiveTimePart` / `joinDateTimeParts`:
   split/join the Start & End form's one-string-per-side storage into the date picker's
   `YYYY-MM-DD` half and the time picker's `HH:mm` half (a blank time stores a bare date
- — the "time not yet chosen" state).
+  — the "time not yet chosen" state).
 - The title's `(AM)`/`(PM)` marker comes from the recipe's `time` segment (§1.8.1), not a
   hardcoded helper.
 
@@ -928,9 +928,9 @@ strings; date-only values are `YYYY-MM-DD`.
   the event occupies on Google:
   - timed: both sides parsed as UTC+8 wall clock;
   - all-day: `start = dateToUtc(startDate)`, **`end = dateToUtc(addOneDay(endDate))`** —
- Google's **exclusive all-day end date** convention (the day after the last day).
+    Google's **exclusive all-day end date** convention (the day after the last day).
 
-The form stores `full`-day ends *inclusively*; `buildGcalEventInput` expands via
+The form stores `full`-day ends _inclusively_; `buildGcalEventInput` expands via
 `absEventRange` (`actions.ts`), and reads convert back (`EventForm.tsx`; the
 detail view displays the inclusive day via `subOneDay`).
 
@@ -942,7 +942,7 @@ malformed (reversed) range still yields the start month.
 ## 1.12 Add to calendar (personal copy)
 
 The event detail modal offers a non-mutating **Add to other Calendars** action that lets a
-user re-create an event in their *own* calendar, separate from the department-calendar
+user re-create an event in their _own_ calendar, separate from the department-calendar
 copies. It never writes to Google or the audit log — it only builds a link or a file
 locally. Placement is branch-dependent:
 
@@ -987,21 +987,21 @@ Every decision-making part of the pipeline is a pure, I/O-free function unit-tes
 Vitest without a DB or Google credentials; the I/O glue (DB lookups, the Google
 writes, headers) is thin and lives in `actions.ts` / `queries.ts`.
 
-| Helper | Module | Tests |
-| ------ | ------ | ----- |
-| `encodeEventNotes`, `parseEventNotes` (v1/v2/v3 + gzip fallback), `encodeNotesBlock`, `withEditLink`, `withInternalMarker`, `isExternalEvent`, `eventDetailUrl`, all field parsers | `events/notes.ts` | `notes.test.ts` |
-| `renderEventTitle`, `renderTitleRecipe` | `events/eventTitle.ts`, `settings/titleRecipe.ts` | `eventAudit.test.ts`, `titleRecipe.test.ts` |
-| `sanitizeTitleRecipe`, recipe validation | `settings/titleRecipe.ts` | `titleRecipe.test.ts` |
-| `normalizeAssignments` (whitelist keys, drop empties), `validateAssignments` (unknown ids) (§1.8.5) | `settings/validate.ts` | `settings/validate.test.ts` |
-| `formatFullName` | `settings/formatName.ts` | `formatName.test.ts` |
-| `clampOutOfCamp` (all allowed-location sets), `flagsFromCategory` / `categoryFromFlags`, `normalizeAllowedLocations` | `events/locationPolicy.ts` | `locationPolicy.test.ts` |
-| `resolveTimeOption(s)`, `normalizeTimeOptions`, `naiveDatePart` / `naiveTimePart` / `joinDateTimeParts` | `events/timeOptions.ts` | `timeOptions.test.ts` |
-| `buildEventTypePickerSections` (grouped sections, empty-group skip, ungrouped last, dangling-id degrade), `initialExpandedSectionIds` (collapsible-folder open state), `sortEventTypeGroups`, `moveEventTypeGroupOrder` (§1.10) | `eventTypes/groups.ts` | `groups.test.ts` |
-| `absEventRange` (timed + all-day exclusive end), naive↔instant, `weekDays`, `monthsInRange`, `shiftMonth`, `monthRange`, `monthGridRows` | `events/datetime.ts` | `datetime.test.ts` |
-| `modifyGuard`, `canChangeLock` | `events/guards.ts` | `guards.test.ts` |
-| `validateEventForm` (range time-part requirement, chronology), `resolveEventAuthor` | `events/validate.ts` | `validate.test.ts` |
-| `deriveTargetCalendarIds`, `diffEventTargets`, `dedupeEventsByGroupId`, `eventRefFromCalendarEvent` | `events/targets.ts` | `targets.test.ts` |
-| `buildGoogleCalendarUrl`, `buildEventIcs`, `icsFileName` (§1.12) | `events/calendarExport.ts` | `calendarExport.test.ts` |
+| Helper                                                                                                                                                                                                                          | Module                                            | Tests                                       |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------- |
+| `encodeEventNotes`, `parseEventNotes` (v1/v2/v3 + gzip fallback), `encodeNotesBlock`, `withEditLink`, `withInternalMarker`, `isExternalEvent`, `eventDetailUrl`, all field parsers                                              | `events/notes.ts`                                 | `notes.test.ts`                             |
+| `renderEventTitle`, `renderTitleRecipe`                                                                                                                                                                                         | `events/eventTitle.ts`, `settings/titleRecipe.ts` | `eventAudit.test.ts`, `titleRecipe.test.ts` |
+| `sanitizeTitleRecipe`, recipe validation                                                                                                                                                                                        | `settings/titleRecipe.ts`                         | `titleRecipe.test.ts`                       |
+| `normalizeAssignments` (whitelist keys, drop empties), `validateAssignments` (unknown ids) (§1.8.5)                                                                                                                             | `settings/validate.ts`                            | `settings/validate.test.ts`                 |
+| `formatFullName`                                                                                                                                                                                                                | `settings/formatName.ts`                          | `formatName.test.ts`                        |
+| `clampOutOfCamp` (all allowed-location sets), `flagsFromCategory` / `categoryFromFlags`, `normalizeAllowedLocations`                                                                                                            | `events/locationPolicy.ts`                        | `locationPolicy.test.ts`                    |
+| `resolveTimeOption(s)`, `normalizeTimeOptions`, `naiveDatePart` / `naiveTimePart` / `joinDateTimeParts`                                                                                                                         | `events/timeOptions.ts`                           | `timeOptions.test.ts`                       |
+| `buildEventTypePickerSections` (grouped sections, empty-group skip, ungrouped last, dangling-id degrade), `initialExpandedSectionIds` (collapsible-folder open state), `sortEventTypeGroups`, `moveEventTypeGroupOrder` (§1.10) | `eventTypes/groups.ts`                            | `groups.test.ts`                            |
+| `absEventRange` (timed + all-day exclusive end), naive↔instant, `weekDays`, `monthsInRange`, `shiftMonth`, `monthRange`, `monthGridRows`                                                                                        | `events/datetime.ts`                              | `datetime.test.ts`                          |
+| `modifyGuard`, `canChangeLock`                                                                                                                                                                                                  | `events/guards.ts`                                | `guards.test.ts`                            |
+| `validateEventForm` (range time-part requirement, chronology), `resolveEventAuthor`                                                                                                                                             | `events/validate.ts`                              | `validate.test.ts`                          |
+| `deriveTargetCalendarIds`, `diffEventTargets`, `dedupeEventsByGroupId`, `eventRefFromCalendarEvent`                                                                                                                             | `events/targets.ts`                               | `targets.test.ts`                           |
+| `buildGoogleCalendarUrl`, `buildEventIcs`, `icsFileName` (§1.12)                                                                                                                                                                | `events/calendarExport.ts`                        | `calendarExport.test.ts`                    |
 
 I/O-bound (not unit-tested, per the repo convention): `actions.ts` (the server
 actions), `queries.ts` (DB + cache reads, `mapCalendarItem`), `appUrl.ts`
@@ -1019,36 +1019,40 @@ store.
 Registration types force the Participants step on, may be created with zero
 participants (the organizer is not auto-added), keep the organizer's home
 department as a target so the event has a stable home, and hide the
-organizer-only lock switch in the wizard. The full permission matrix, storage semantics,
-target-calendar behavior, audit/webhook details and limitations live in
-[`registration-events.md`](registration-events.md).
+organizer-only lock switch in the wizard. A registration event may also carry
+an optional per-event cap on explicit registrants; the organizer sets it in the
+wizard, the detail modal shows `N / cap`, and self-registration is blocked once
+full (organizer/admin roster edits stay unlimited). Departments are not
+participants on registration events. The full permission matrix, cap rules,
+storage semantics, target-calendar behavior, audit/webhook details and
+limitations live in [`registration-events.md`](registration-events.md).
 
 ## 1.15 File index & related docs
 
-| File | Role |
-| ---- | ---- |
-| `src/app/(protected)/dashboard/EventForm.tsx` | The staged wizard (steps, prefill, preview, submit) |
-| `src/app/(protected)/dashboard/page.tsx` | `?event=` / `?edit=` / `?refresh=` param resolution |
-| `src/app/(protected)/dashboard/DashboardView.tsx` | Details/edit deep-link resolution + one-shot param strips |
-| `src/lib/events/actions.ts` | Write path: guards → validate → targets → normalize → Google → audit → cache invalidation |
-| `src/lib/events/notes.ts` | Notes block codec + markers (pure) |
-| `src/lib/events/eventTitle.ts` | `renderEventTitle` (pure) |
-| `src/lib/settings/titleRecipe.ts` | Structured title-recipe types + `renderTitleRecipe` / sanitizer (pure) |
-| `src/lib/settings/tokenTemplate.ts` | Token engine for participant-notification content (pure) |
-| `src/lib/settings/formatName.ts` | Display-name template (pure) |
-| `src/lib/events/locationPolicy.ts` | Location categories / allowed-locations clamping (pure) |
-| `src/lib/events/timeOptions.ts` | Time options + AM/PM marker (pure) |
-| `src/lib/events/datetime.ts` | UTC+8 datetime math (pure) |
-| `src/lib/events/calendarExport.ts` | Add-to-calendar builders: Google template URL + `.ics` (pure, §1.12) |
-| `src/lib/events/guards.ts` | Creator/ownership guards (pure) |
-| `src/lib/events/validate.ts` | Form validation + creator normalization (pure) |
-| `src/lib/events/targets.ts` | Target set, dedup, `EventRef` (pure) |
-| `src/lib/eventTypes/groups.ts` | Group ordering + picker sections (pure) |
-| `src/lib/eventTypes/groupActions.ts` | Group create/rename/delete/move server actions (§1.10) |
-| `src/lib/events/queries.ts` | `mapCalendarItem` — read-back into `CalendarEvent` |
-| `src/lib/events/recentLocations.ts` | `fetchRecentLocations` — per-user location suggestions (server action) |
-| `src/components/TimeChipSelector.tsx` | Tap-to-set `HH:mm` chip grid (hour + minute rows) |
-| `src/lib/appUrl.ts` | App origin for the `Edit:` link |
+| File                                              | Role                                                                                      |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `src/app/(protected)/dashboard/EventForm.tsx`     | The staged wizard (steps, prefill, preview, submit)                                       |
+| `src/app/(protected)/dashboard/page.tsx`          | `?event=` / `?edit=` / `?refresh=` param resolution                                       |
+| `src/app/(protected)/dashboard/DashboardView.tsx` | Details/edit deep-link resolution + one-shot param strips                                 |
+| `src/lib/events/actions.ts`                       | Write path: guards → validate → targets → normalize → Google → audit → cache invalidation |
+| `src/lib/events/notes.ts`                         | Notes block codec + markers (pure)                                                        |
+| `src/lib/events/eventTitle.ts`                    | `renderEventTitle` (pure)                                                                 |
+| `src/lib/settings/titleRecipe.ts`                 | Structured title-recipe types + `renderTitleRecipe` / sanitizer (pure)                    |
+| `src/lib/settings/tokenTemplate.ts`               | Token engine for participant-notification content (pure)                                  |
+| `src/lib/settings/formatName.ts`                  | Display-name template (pure)                                                              |
+| `src/lib/events/locationPolicy.ts`                | Location categories / allowed-locations clamping (pure)                                   |
+| `src/lib/events/timeOptions.ts`                   | Time options + AM/PM marker (pure)                                                        |
+| `src/lib/events/datetime.ts`                      | UTC+8 datetime math (pure)                                                                |
+| `src/lib/events/calendarExport.ts`                | Add-to-calendar builders: Google template URL + `.ics` (pure, §1.12)                      |
+| `src/lib/events/guards.ts`                        | Creator/ownership guards (pure)                                                           |
+| `src/lib/events/validate.ts`                      | Form validation + creator normalization (pure)                                            |
+| `src/lib/events/targets.ts`                       | Target set, dedup, `EventRef` (pure)                                                      |
+| `src/lib/eventTypes/groups.ts`                    | Group ordering + picker sections (pure)                                                   |
+| `src/lib/eventTypes/groupActions.ts`              | Group create/rename/delete/move server actions (§1.10)                                    |
+| `src/lib/events/queries.ts`                       | `mapCalendarItem` — read-back into `CalendarEvent`                                        |
+| `src/lib/events/recentLocations.ts`               | `fetchRecentLocations` — per-user location suggestions (server action)                    |
+| `src/components/TimeChipSelector.tsx`             | Tap-to-set `HH:mm` chip grid (hour + minute rows)                                         |
+| `src/lib/appUrl.ts`                               | App origin for the `Edit:` link                                                           |
 
 Related docs:
 

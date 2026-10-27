@@ -29,6 +29,7 @@ function makeEvent(overrides: Partial<CalendarEvent["payload"]> = {}): CalendarE
     pinned: overrides.pinned ?? false,
     ownerOnlyEdits: overrides.ownerOnlyEdits ?? false,
     registrationEnabled: false,
+    registrationCap: null,
     location: overrides.location ?? "",
     external: overrides.external ?? false,
   };

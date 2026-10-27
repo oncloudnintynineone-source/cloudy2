@@ -15,7 +15,11 @@ import { inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { calendars } from "@/db/schema";
 import { getUserDepartmentIds } from "@/lib/events/queries";
-import { clampEventEnd, type EventFormValues } from "@/lib/events/validate";
+import {
+  clampEventEnd,
+  normalizeRegistrationCap,
+  type EventFormValues,
+} from "@/lib/events/validate";
 import {
   deriveLegacyTargetCalendarIds,
   deriveTargetCalendarIds,
@@ -125,7 +129,11 @@ export async function buildEventTitleContext(input: EventFormValues): Promise<Ev
     recipe: sanitizeTitleRecipe(settings.eventTitleRecipe),
     eventType,
     people,
-    departments: inviteesHidden ? [] : inviteeDepartments.map((id) => departmentNames[id] ?? ""),
+    // Registration events carry only explicit people, never department tags.
+    departments:
+      inviteesHidden || registrationEnabled
+        ? []
+        : inviteeDepartments.map((id) => departmentNames[id] ?? ""),
     timeOptions: eventTypeRow?.timeOptions ?? [],
     allowedLocations: eventTypeRow ? eventTypeRow.allowedLocations : null,
     showRemarks: eventTypeRow ? eventTypeRow.showRemarks : true,
@@ -283,6 +291,18 @@ export function resolveEventFields(
   let next = input;
   if (!context.showRemarks) {
     next = { ...next, title: "" };
+  }
+  if (context.registrationEnabled) {
+    // Registration events are person-only: department tags are not participants
+    // and would make seat counting ambiguous. Clear any legacy tags on save;
+    // the target resolver still keeps the creator's home department.
+    next = {
+      ...next,
+      inviteeDepartments: [],
+      registrationCap: normalizeRegistrationCap(next.registrationCap),
+    };
+  } else {
+    next = { ...next, registrationCap: null };
   }
   if (!context.showInvitees && !context.registrationEnabled) {
     next = {

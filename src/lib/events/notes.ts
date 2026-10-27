@@ -57,6 +57,12 @@ export interface EventNotes {
   /** End half-of-day indicator for "full" events. */
   endAmPm?: string;
   /**
+   * Maximum number of explicit registrants for a registration event. Written
+   * only when a positive integer — absence means unlimited. Department tags
+   * are not used for registration events and never count toward this cap.
+   */
+  registrationCap?: number;
+  /**
    * Whether the event takes place out of camp. Written only when true —
    * absence (legacy events) or false means in camp. In-camp events may still
    * record an optional specific location in Google's location field; the
@@ -344,4 +350,14 @@ export function parseEventPinned(description: string): boolean {
 /** Extract the organizer-only edit lock from the notes block; false when absent. */
 export function parseEventOwnerOnlyEdits(description: string): boolean {
   return parseEventNotes(description)?.ownerOnlyEdits === true;
+}
+
+/**
+ * Extract a valid registration cap from the notes block, or null when absent
+ * or malformed. Only whole numbers >= 1 are meaningful; anything else means
+ * "no limit".
+ */
+export function parseEventRegistrationCap(description: string): number | null {
+  const cap = parseEventNotes(description)?.registrationCap;
+  return typeof cap === "number" && Number.isInteger(cap) && cap >= 1 ? cap : null;
 }

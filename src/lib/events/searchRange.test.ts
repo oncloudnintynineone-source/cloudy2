@@ -35,6 +35,7 @@ function event(overrides: {
       inviteeDepartmentIds: [],
       ownerOnlyEdits: false,
       registrationEnabled: false,
+      registrationCap: null,
       rawTitle: null,
       timeOption: allDay ? "full" : "range",
       startAmPm: null,

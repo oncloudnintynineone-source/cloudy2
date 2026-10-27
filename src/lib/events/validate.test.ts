@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  normalizeRegistrationCap,
   resolveEventAuthor,
   validateEventForm,
   type EventFormValues,
@@ -55,12 +56,8 @@ describe("validateEventForm", () => {
     expect(validateEventForm({ ...base, start: "2026-08-15" }).start).toBe(
       "Start time is required",
     );
-    expect(validateEventForm({ ...base, end: "2026-08-15" }).end).toBe(
-      "End time is required",
-    );
-    expect(
-      validateEventForm({ ...base, start: "2026-08-15", end: "2026-08-15" }),
-    ).toEqual({
+    expect(validateEventForm({ ...base, end: "2026-08-15" }).end).toBe("End time is required");
+    expect(validateEventForm({ ...base, start: "2026-08-15", end: "2026-08-15" })).toEqual({
       start: "Start time is required",
       end: "End time is required",
     });
@@ -198,8 +195,12 @@ describe("resolveEventAuthor", () => {
 
   it("takes the submitted owner-only lock on create", () => {
     expect(
-      resolveEventAuthor({ ...base, creatorId: "ignored", ownerOnlyEdits: true }, "actor-1", null, true)
-        .ownerOnlyEdits,
+      resolveEventAuthor(
+        { ...base, creatorId: "ignored", ownerOnlyEdits: true },
+        "actor-1",
+        null,
+        true,
+      ).ownerOnlyEdits,
     ).toBe(true);
   });
 
@@ -232,8 +233,12 @@ describe("resolveEventAuthor", () => {
       resolveEventAuthor({ ...base, ownerOnlyEdits: true }, "actor-1", ref, false).ownerOnlyEdits,
     ).toBe(false);
     expect(
-      resolveEventAuthor({ ...base, ownerOnlyEdits: false }, "actor-1", { ...ref, ownerOnlyEdits: true }, false)
-        .ownerOnlyEdits,
+      resolveEventAuthor(
+        { ...base, ownerOnlyEdits: false },
+        "actor-1",
+        { ...ref, ownerOnlyEdits: true },
+        false,
+      ).ownerOnlyEdits,
     ).toBe(true);
   });
 
@@ -241,6 +246,26 @@ describe("resolveEventAuthor", () => {
     expect(resolveEventAuthor(base, "actor-1", null, true)).toEqual({
       ...base,
       creatorId: "actor-1",
+    });
+  });
+});
+
+describe("registration cap", () => {
+  it("normalizes only positive whole numbers", () => {
+    expect(normalizeRegistrationCap(10)).toBe(10);
+    expect(normalizeRegistrationCap(0)).toBeNull();
+    expect(normalizeRegistrationCap(-2)).toBeNull();
+    expect(normalizeRegistrationCap(2.5)).toBeNull();
+    expect(normalizeRegistrationCap("10")).toBeNull();
+    expect(normalizeRegistrationCap(undefined)).toBeNull();
+    expect(normalizeRegistrationCap(null)).toBeNull();
+  });
+
+  it("rejects an invalid cap and accepts a valid one", () => {
+    expect(validateEventForm({ ...base, registrationCap: 4 })).toEqual({});
+    expect(validateEventForm({ ...base, registrationCap: null })).toEqual({});
+    expect(validateEventForm({ ...base, registrationCap: 0 })).toMatchObject({
+      registrationCap: "Enter a whole number of at least 1",
     });
   });
 });

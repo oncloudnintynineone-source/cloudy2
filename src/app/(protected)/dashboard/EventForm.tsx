@@ -8,6 +8,7 @@ import {
   Button,
   Grid,
   Group,
+  NumberInput,
   Paper,
   SegmentedControl,
   Stack,
@@ -332,15 +333,21 @@ export function EventForm({
         creatorId: event.payload.creatorId ?? currentUser,
         inviteeUserIds: [],
         inviteeDepartments: [],
+        registrationCap: selectedType?.registrationEnabled
+          ? (event.payload.registrationCap ?? null)
+          : null,
         invitees:
           selectedType && selectedType.showInvitees === false && !selectedType.registrationEnabled
             ? []
-            : [
-                ...event.payload.inviteeDepartmentIds.map((id) => `dept:${id}`),
-                // Attendees are pre-seeded as stored (a legacy event that
-                // auto-invited the organizer keeps them here, deselectable).
-                ...event.payload.inviteeUserIds.map((id) => `user:${id}`),
-              ],
+            : selectedType?.registrationEnabled
+              ? // Registration events never carry department tags.
+                event.payload.inviteeUserIds.map((id) => `user:${id}`)
+              : [
+                  ...event.payload.inviteeDepartmentIds.map((id) => `dept:${id}`),
+                  // Attendees are pre-seeded as stored (a legacy event that
+                  // auto-invited the organizer keeps them here, deselectable).
+                  ...event.payload.inviteeUserIds.map((id) => `user:${id}`),
+                ],
         outOfCamp: clamped.outOfCamp,
         overseas: clamped.overseas,
         pinned: event.payload.pinned,
@@ -382,6 +389,11 @@ export function EventForm({
         creatorId: currentUser,
         inviteeUserIds: [],
         inviteeDepartments: [],
+        // A duplicate keeps the source event's cap (the cap is an event
+        // parameter), but its roster starts empty.
+        registrationCap: selectedType?.registrationEnabled
+          ? (src.payload.registrationCap ?? null)
+          : null,
         invitees:
           selectedType && selectedType.showInvitees === false
             ? []
@@ -414,6 +426,7 @@ export function EventForm({
       creatorId: currentUser,
       inviteeUserIds: [],
       inviteeDepartments: [],
+      registrationCap: null,
       invitees: [`user:${currentUser}`],
       outOfCamp: false,
       overseas: false,
@@ -422,6 +435,15 @@ export function EventForm({
       location: "",
     };
   }
+
+  const sortedEventTypes = useMemo(
+    () => [...eventTypes].sort((a, b) => a.name.localeCompare(b.name)),
+    [eventTypes],
+  );
+
+  const selectedType = sortedEventTypes.find((type) => type.name === form.values.eventType) ?? null;
+  /** Whether the selected type is open for self-registration. */
+  const registrationType = selectedType?.registrationEnabled === true;
 
   // Badge picker user sections (one per department, No department last) for
   // the invitees picker (which prepends a Departments section). Badges show
@@ -446,6 +468,11 @@ export function EventForm({
   );
 
   const inviteePickerGroups = useMemo(() => {
+    // Registration events are person-only: department tags are not
+    // participants, so the picker offers just the user sections.
+    if (registrationType) {
+      return userPickerGroups;
+    }
     const rows = departmentTreeRows(
       inviteeDepartments.map((dept) => ({
         id: dept.id,
@@ -465,7 +492,7 @@ export function EventForm({
         : []),
       ...userPickerGroups,
     ];
-  }, [inviteeDepartments, userPickerGroups]);
+  }, [inviteeDepartments, userPickerGroups, registrationType]);
 
   // Seed the picker dialog draft from the current form value; re-derived every
   // render so the dialog always opens on the latest selection.
@@ -491,11 +518,6 @@ export function EventForm({
     );
   }
 
-  const sortedEventTypes = useMemo(
-    () => [...eventTypes].sort((a, b) => a.name.localeCompare(b.name)),
-    [eventTypes],
-  );
-
   // The type step's sections: one per group (in the admin's display order)
   // plus a trailing "Ungrouped" section; empty groups are skipped.
   const pickerSections = useMemo(
@@ -509,9 +531,6 @@ export function EventForm({
     initialExpandedSectionIds(pickerSections, form.values.eventType),
   );
 
-  const selectedType = sortedEventTypes.find((type) => type.name === form.values.eventType) ?? null;
-  /** Whether the selected type is open for self-registration. */
-  const registrationType = selectedType?.registrationEnabled === true;
   const allowedOptions: TimeOption[] = selectedType ? selectedType.timeOptions : ["range"];
   const effectiveTimeOption = resolveTimeOption(allowedOptions, form.values.timeOption);
   /**
@@ -802,6 +821,16 @@ export function EventForm({
     // otherwise.
     if (type && type.showInvitees === false && !type.registrationEnabled) {
       form.setFieldValue("invitees", []);
+    }
+    // Registration events are person-only: drop any selected departments when
+    // switching to one. Switching away clears the (now meaningless) cap.
+    if (type?.registrationEnabled) {
+      form.setFieldValue(
+        "invitees",
+        form.values.invitees.filter((value) => value.startsWith("user:")),
+      );
+    } else {
+      form.setFieldValue("registrationCap", null);
     }
     // The organizer is not registered automatically for a registration event.
     // Drop the create form's untouched self seed when switching to such a type;
@@ -1410,6 +1439,22 @@ export function EventForm({
           },
         ]
       : []),
+    ...(registrationType
+      ? [
+          {
+            key: "registrationCap",
+            span: 6,
+            node: reviewDef(
+              "Registration limit",
+              <Text size="sm">
+                {form.values.registrationCap != null
+                  ? `${selectedInvitees.userIds.length} / ${form.values.registrationCap}`
+                  : `No limit (${selectedInvitees.userIds.length} registered)`}
+              </Text>,
+            ),
+          },
+        ]
+      : []),
     ...(reviewDepartments.length > 0
       ? [
           {
@@ -1692,12 +1737,48 @@ export function EventForm({
             style={{ "--slide-dir": direction === "forward" ? 1 : -1 } as React.CSSProperties}
           >
             <Stack gap="sm">
+              {registrationType && (
+                <Stack gap="xs">
+                  <Switch
+                    label="Limit registrations"
+                    description="Cap self-service registrations. You and admins can still add or remove participants beyond it; departments are not participants on registration events."
+                    checked={form.values.registrationCap != null}
+                    onChange={(event) => {
+                      if (!event.currentTarget.checked) {
+                        form.setFieldValue("registrationCap", null);
+                        return;
+                      }
+                      form.setFieldValue(
+                        "registrationCap",
+                        Math.max(1, selectedInvitees.userIds.length || 10),
+                      );
+                    }}
+                  />
+                  {form.values.registrationCap != null && (
+                    <NumberInput
+                      label="Maximum registrations"
+                      description="People can register until this many explicit registrants are on the event."
+                      min={1}
+                      allowDecimal={false}
+                      clampBehavior="blur"
+                      value={form.values.registrationCap ?? ""}
+                      error={form.errors.registrationCap}
+                      onChange={(value) =>
+                        form.setFieldValue(
+                          "registrationCap",
+                          typeof value === "number" ? Math.max(1, Math.trunc(value)) : null,
+                        )
+                      }
+                    />
+                  )}
+                </Stack>
+              )}
               {inviteePickerGroups.length > 0 ? (
                 <PickerField
                   label={registrationType ? "Registered attendees" : "Participants"}
                   description={
                     registrationType
-                      ? "Registered attendees. The organizer is not added automatically — add yourself only if you'll attend. People can register themselves from the event; only you and admins can edit it."
+                      ? "Registered attendees. The organizer is not added automatically — add yourself only if you'll attend. People can register themselves from the event; only you and admins can edit it. Departments can't be tagged on registration events."
                       : "Participants can edit this event too. You're in by default — remove yourself if you won't take part; an event must keep at least one participant or department"
                   }
                   items={inviteeSummaryItems}

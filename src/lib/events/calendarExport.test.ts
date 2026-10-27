@@ -34,6 +34,7 @@ function makeEvent(
       inviteeDepartmentIds: [],
       ownerOnlyEdits: false,
       registrationEnabled: false,
+      registrationCap: null,
       rawTitle: opts.rawTitle ?? null,
       timeOption: opts.timeOption ?? (allDay ? "full" : "range"),
       startAmPm: null,

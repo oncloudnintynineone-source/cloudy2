@@ -29,6 +29,7 @@ function event(start: string, end: string, pinned: boolean, allDay = false): Cal
       pinned,
       ownerOnlyEdits: false,
       registrationEnabled: false,
+      registrationCap: null,
       location: "",
       external: false,
     },

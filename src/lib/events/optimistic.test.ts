@@ -56,6 +56,7 @@ function baseEvent(
       pinned: false,
       ownerOnlyEdits: false,
       registrationEnabled: false,
+      registrationCap: null,
       location: "",
       external: false,
     },
@@ -336,13 +337,14 @@ describe("buildOptimisticEvent", () => {
   it("carries the registration flag into the stand-in payload", () => {
     const event = buildOptimisticEvent({
       identity,
-      values: formValues(),
+      values: formValues({ registrationCap: 5 }),
       actingUserId: "user-7",
       title: "Patrol A",
       eventTypeColor: null,
       registrationEnabled: true,
     });
     expect(event.payload.registrationEnabled).toBe(true);
+    expect(event.payload.registrationCap).toBe(5);
   });
 
   it("clamps an inverted end to start (mirroring the server safety net)", () => {

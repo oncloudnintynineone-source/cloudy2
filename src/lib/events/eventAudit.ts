@@ -13,6 +13,7 @@ import {
   parseEventOutOfCamp,
   parseEventOverseas,
   parseEventPinned,
+  parseEventRegistrationCap,
   parseEventStartAmPm,
   parseEventTimeOption,
   parseEventTitle,
@@ -36,6 +37,8 @@ export type EventAuditSnapshot = {
   overseas: boolean;
   /** Whether the event is explicitly marked as pinned (Pinned Events panel). */
   pinned: boolean;
+  /** Maximum explicit registrants; null when uncapped or not a registration event. */
+  registrationCap: number | null;
   /** Out-of-camp destination; null for in-camp events. */
   location: string | null;
   /** Names of the department calendars the event lives in. */
@@ -125,6 +128,7 @@ export function buildEventSnapshot(input: {
   outOfCamp: boolean;
   overseas: boolean;
   pinned: boolean;
+  registrationCap: number | null;
   location: string;
   departmentIds: string[];
   inviteeUserIds: string[];
@@ -139,6 +143,7 @@ export function buildEventSnapshot(input: {
     outOfCamp: input.outOfCamp,
     overseas: input.overseas,
     pinned: input.pinned,
+    registrationCap: input.registrationCap,
     location: input.location.trim() || null,
     departments: input.departmentIds
       .map((id) => input.names.departmentNames[id])
@@ -180,6 +185,7 @@ export function snapshotFromCopy(
     outOfCamp: parseEventOutOfCamp(description),
     overseas: parseEventOverseas(description),
     pinned: parseEventPinned(description),
+    registrationCap: parseEventRegistrationCap(description),
     location: copy?.location ?? "",
     departmentIds,
     inviteeUserIds: ref.inviteeUserIds,

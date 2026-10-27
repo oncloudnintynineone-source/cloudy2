@@ -8,6 +8,7 @@ import {
   Group,
   Menu,
   Modal,
+  Progress,
   Skeleton,
   Stack,
   Text,
@@ -177,6 +178,11 @@ export function EventDetail({
       : (payload?.inviteeUserIds ?? []);
   const isRegistered = effectiveInviteeUserIds.includes(currentUserId);
   const registeredCount = new Set(effectiveInviteeUserIds).size;
+  const registrationCap = registrationEnabled ? (payload?.registrationCap ?? null) : null;
+  const registrationAtCapacity = registrationCap !== null && registeredCount >= registrationCap;
+  // Only a not-yet-registered user is blocked; an existing registrant can
+  // always deregister, and organizers/admins manage the roster via the wizard.
+  const registrationFull = registrationAtCapacity && !isRegistered;
 
   const ownerName = payload && payload.creatorId ? (peopleNames[payload.creatorId] ?? null) : null;
   // Attendees are the full invitee list — an organizer who tagged themselves
@@ -258,6 +264,13 @@ export function EventDetail({
       return;
     }
     const intent = isRegistered ? "deregister" : "register";
+    if (intent === "register" && registrationFull) {
+      notifications.show({
+        color: "red",
+        message: `This event is full (${registeredCount} / ${registrationCap}).`,
+      });
+      return;
+    }
     setRegistrationBusy(true);
     try {
       const result = await setEventRegistration(eventRefFromCalendarEvent(showEvent), intent);
@@ -379,7 +392,11 @@ export function EventDetail({
             {(registrationEnabled ? registeredCount > 0 : peopleResolved.length > 0) ? (
               <>
                 <Text size="xs" c="dimmed" fw={600}>
-                  {registrationEnabled ? `Registered (${registeredCount})` : "Participants"}
+                  {registrationEnabled
+                    ? registrationCap !== null
+                      ? `Registered (${registeredCount} / ${registrationCap})`
+                      : `Registered (${registeredCount})`
+                    : "Participants"}
                 </Text>
                 <Group gap={6} wrap="wrap">
                   {peopleResolved.map(({ id, name }) => (
@@ -396,7 +413,9 @@ export function EventDetail({
             ) : registrationEnabled ? (
               <>
                 <Text size="xs" c="dimmed" fw={600}>
-                  Registered (0)
+                  {registrationCap !== null
+                    ? `Registered (0 / ${registrationCap})`
+                    : "Registered (0)"}
                 </Text>
                 <Text size="sm" c="dimmed">
                   No one has registered yet.
@@ -404,7 +423,23 @@ export function EventDetail({
               </>
             ) : null}
 
-            {departmentNamesResolved.length > 0 && (
+            {registrationEnabled && registrationCap !== null && (
+              <Stack gap={4}>
+                <Progress
+                  value={Math.min(100, (registeredCount / registrationCap) * 100)}
+                  color={registrationAtCapacity ? "yellow" : "brand"}
+                  size="sm"
+                  aria-label={`${registeredCount} of ${registrationCap} registrations used`}
+                />
+                {registrationAtCapacity && (
+                  <Text size="xs" c="yellow.8">
+                    Registration is full ({registeredCount} / {registrationCap}).
+                  </Text>
+                )}
+              </Stack>
+            )}
+
+            {!registrationEnabled && departmentNamesResolved.length > 0 && (
               <>
                 <Text size="xs" c="dimmed" fw={600}>
                   Departments
@@ -436,9 +471,7 @@ export function EventDetail({
             ) : canModify ? (
               <Stack gap="xs" mt="md">
                 <Group justify="flex-end" gap="xs">
-                  {payload.eventId && (
-                    <ShareEventButton onClick={() => setShareEvent(showEvent)} />
-                  )}
+                  {payload.eventId && <ShareEventButton onClick={() => setShareEvent(showEvent)} />}
                   <EventActionsMenu event={showEvent} onDuplicate={onDuplicate} />
                   {payload.eventId && (
                     <Tooltip label="History" position="top">
@@ -490,6 +523,7 @@ export function EventDetail({
                     color={isRegistered ? "gray" : "brand"}
                     variant={isRegistered ? "light" : "filled"}
                     loading={registrationBusy}
+                    disabled={registrationFull}
                     loaderProps={BUTTON_LOADER_PROPS}
                     leftSection={
                       isRegistered ? <IconUserMinus size={18} /> : <IconUserPlus size={18} />
@@ -512,6 +546,7 @@ export function EventDetail({
                     color={isRegistered ? "gray" : "brand"}
                     variant={isRegistered ? "light" : "filled"}
                     loading={registrationBusy}
+                    disabled={registrationFull}
                     loaderProps={BUTTON_LOADER_PROPS}
                     leftSection={
                       isRegistered ? <IconUserMinus size={18} /> : <IconUserPlus size={18} />
@@ -649,13 +684,7 @@ function AddToCalendarMenu({ event }: { event: CalendarEvent }) {
 function ShareEventButton({ onClick }: { onClick: () => void }) {
   return (
     <Tooltip label="Share" position="top">
-      <ActionIcon
-        variant="light"
-        color="gray"
-        size="xl"
-        aria-label="Share event"
-        onClick={onClick}
-      >
+      <ActionIcon variant="light" color="gray" size="xl" aria-label="Share event" onClick={onClick}>
         <IconShare3 size={22} />
       </ActionIcon>
     </Tooltip>

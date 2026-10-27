@@ -31,6 +31,8 @@ import { invalidatePinnedCache } from "@/lib/events/pinned";
 import {
   applyRegistrationIntent,
   eventFormValuesFromCopy,
+  isRegistrationFull,
+  registrationSeatCount,
   storedEventTypeName,
   type RegistrationIntent,
 } from "@/lib/events/registration";
@@ -189,6 +191,7 @@ async function buildGcalEventInput(
       outOfCamp: input.outOfCamp || undefined,
       overseas: input.outOfCamp && input.overseas ? true : undefined,
       pinned: input.pinned || undefined,
+      registrationCap: input.registrationCap ?? undefined,
     }),
   );
   // The marker line at the bottom flags the event as created in the app, so
@@ -381,6 +384,7 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
     outOfCamp: effectiveInput.outOfCamp,
     overseas: effectiveInput.overseas,
     pinned: effectiveInput.pinned,
+    registrationCap: effectiveInput.registrationCap ?? null,
     location: effectiveInput.location,
     departmentIds: targets,
     inviteeUserIds: effectiveInput.inviteeUserIds,
@@ -727,6 +731,7 @@ async function performEventUpdate({
     outOfCamp: effectiveInput.outOfCamp,
     overseas: effectiveInput.overseas,
     pinned: effectiveInput.pinned,
+    registrationCap: effectiveInput.registrationCap ?? null,
     location: effectiveInput.location,
     departmentIds: newTargets,
     inviteeUserIds: effectiveInput.inviteeUserIds,
@@ -854,6 +859,15 @@ export async function setEventRegistration(
       nextInvitees.every((id, index) => id === values.inviteeUserIds[index]);
     if (unchanged) {
       return { ok: true, eventId: ref.eventId, copies: [] };
+    }
+    if (
+      intent === "register" &&
+      isRegistrationFull(values.inviteeUserIds, values.registrationCap, session.user.id)
+    ) {
+      return {
+        ok: false,
+        error: `This event is full (${registrationSeatCount(values.inviteeUserIds)} / ${values.registrationCap}).`,
+      };
     }
 
     const normalized = clampEventEnd({
