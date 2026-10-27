@@ -570,7 +570,7 @@ sequenceDiagram
  participant P as Dashboard page (thin shell)
  participant S as DashboardScreen (client)
  participant I as IndexedDB (cloudy2/dashboardSnapshots)
- participant A as loadDashboardData (server action)
+ participant A as /api/dashboard/load (route handler)
  participant Q as queries + events cache
  P->>S: requireSession + cookie zoom only
  S->>I: read last snapshot
@@ -582,7 +582,7 @@ sequenceDiagram
  A-->>S: fresh snapshot
  S->>I: overwrite cache
  S->>S: swap data in place (no skeleton)
- S->>A: preloadDashboardTabs (idle, fresh + online)
+ S->>A: /api/dashboard/preload (idle, fresh + online)
  A->>Q: ONE union range read + per-tab projection
  Q-->>A: shared config + per-tab deltas
  A-->>S: every tab for the anchor
@@ -591,20 +591,27 @@ sequenceDiagram
 
 - **Thin route.** `page.tsx` resolves only the session (JWT) and the per-device
   zoom from the `cloudy2.ui` cookie, then renders `DashboardScreen`. All heavy
-  reads moved into the `loadDashboardData` server action via
+  reads moved into the `/api/dashboard/load` route handler via
   `buildDashboardData` (`src/lib/dashboard/data.ts`) — the exact resolution the
   page used to run inline (including the events cache and adjacent-month
   prefetch). The route's `loading.tsx` is now only the pre-hydration shell. The
   filter-independent reference reads (calendars, users, event types, settings,
   templates, quick links) are served from a shared 60s in-memory TTL
-  (`src/lib/configCache.ts`), so the `loadDashboardData` read and the later
-  `preloadDashboardTabs` pass don't each re-query the whole config block
+  (`src/lib/configCache.ts`), so the `/api/dashboard/load` read and the later
+  `/api/dashboard/preload` pass don't each re-query the whole config block
   ([`events-cache.md` §1.12](events-cache.md#112-performance)). Every admin
   write that changes one of those reads calls `invalidateConfigCache([...])`
   beside its `revalidatePath(...)`, so the edit is visible on the **next** read
   instead of after the TTL. The invalidation is per-instance (like the cache
   itself): the instance that served the write is fresh immediately; other
   instances converge when their TTL expires.
+- **Reads bypass the server-action queue.** These dashboard reads are plain
+  `fetch` calls to route handlers, never server actions. Next runs server
+  actions **one at a time** on the client (a single global action queue; a
+  navigation only discards the pending action's state, it does not abort its
+  request), so a background preload or badge scan used to delay the user's next
+  save/read for its full duration. The load is abortable too, so a burst of
+  month taps leaves only the last context's request alive.
 - **Cached first paint & warm revisits.** `DashboardScreen` hydrates a
   per-account map of cached _contexts_ from IndexedDB
   (`src/lib/dashboard/localStore.ts`) on mount. The paint is chosen by the
@@ -631,8 +638,9 @@ sequenceDiagram
     re-reading, so no stale record survives a write.
 - **Every tab is preloaded for instant switches (plus the next two months).** After
   the active context is
-  fresh and idle, `DashboardScreen` calls `preloadDashboardTabs` once per anchor
-  (the committed tab + the tab set + the months those tabs need) — deferred to
+  fresh and idle, `DashboardScreen` calls `/api/dashboard/preload` once per
+  signature (the tab set + the months those tabs need; the active view is
+  deliberately excluded so a tab switch never re-runs it) — deferred to
   `requestIdleCallback`
   so it never delays first paint, and skipped offline. `buildDashboardPreload`
   (`src/lib/dashboard/data.ts`) resolves the shared config once and does a single
@@ -649,8 +657,9 @@ sequenceDiagram
   Google refresh — it warms what the active context already fetched, so tabs
   sharing the active months cost ~no extra Google calls; only genuinely cold
   `(calendar, month)` combinations are fetched. A mutation / force refresh bumps
-  a generation ref and clears the warm map, so an in-flight preload can't
-  repopulate stale records.
+  a generation ref, aborts an in-flight preload and clears the warm map, so it
+  can't repopulate stale records — but it deliberately does **not** schedule
+  another full pass (that would make the user wait on a warm-up).
 - **In-place, never interrupting.** A revalidation of the _current_ context
   never shows the grid skeleton (`isNavigating` is false). A context-changing
   fetch shows the skeleton only when the target isn't served from the warm cache;
@@ -660,7 +669,7 @@ sequenceDiagram
 month, date)` — the Month grid's 2-3 months, a week's 1-2 months, or the
   single containing month for Day/Agenda (`src/lib/dashboard/snapshot.ts`). The
   server (`buildDashboardData`) and the client (`DashboardScreen`) compute it
-  from the same pure helper, and the client only calls `loadDashboardData` when
+  from the same pure helper, and the client only calls `/api/dashboard/load` when
   the URL's signature differs from the held record. An in-month day move is
   therefore a pure client re-filter: no server action, no DB read, no skeleton —
   the Day/Week/Agenda date nav uses a plain (non-transition) push and the
@@ -693,7 +702,7 @@ month, date)` — the Month grid's 2-3 months, a week's 1-2 months, or the
   paint, then the fresh snapshot reconciles it.
 - **Force/inactivity refresh.** The header Force refresh (full reload with a
   one-shot `?refresh=` nonce) and `useInactivityRefresh`'s soft navigation both
-  drive a **forced** `loadDashboardData` read (the server honors the nonce
+  drive a **forced** `/api/dashboard/load` read (the server honors the nonce
   within `REFRESH_NONCE_TTL_MS`), then the nonce is stripped as before.
   `useStaleDocumentReconcile` is skipped on `/dashboard` — the provider owns
   refresh, and the cached document is only the shell.

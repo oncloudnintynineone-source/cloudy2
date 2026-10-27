@@ -316,7 +316,9 @@ Two layers keep a device subscribed without the user re-tapping **Enable**:
    in the protected shell) — on load and on return-to-foreground (throttled),
    when permission is already granted it re-subscribes if the browser has no
    subscription and re-syncs the current endpoint/keys through
-   `syncPushSubscription`. This covers the `newSubscription: null` case, the
+   `POST /api/push/sync` (the same `syncPushSubscription` core, as a route
+   handler so the background repair never queues ahead of a user action). This
+   covers the `newSubscription: null` case, the
    deploy-unregister case (the reload runs the hook), and any missed change.
 
 Both are best-effort and never block anything. The **account-wide master switch**

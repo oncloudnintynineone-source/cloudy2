@@ -67,26 +67,29 @@ async function postWebhook(endpoint: {
 export async function dispatchEventWebhook(input: Parameters<
   typeof buildEventWebhookPayload
 >[0]): Promise<void> {
-  let endpoints: { name: string; url: string; secret: string | null }[];
-  try {
-    endpoints = await db
-      .select({ name: webhooks.name, url: webhooks.url, secret: webhooks.secret })
-      .from(webhooks)
-      .where(eq(webhooks.enabled, true));
-  } catch (error) {
-    console.error("[webhook] Failed to read webhook endpoints", error);
-    return;
-  }
-
-  if (endpoints.length === 0) {
-    return;
-  }
-
   const payload = buildEventWebhookPayload(input);
   const body = JSON.stringify(payload);
   const timestamp = Math.floor(Date.now() / 1000).toString();
 
+  // The endpoint read lives inside `after()` too: with no endpoints configured
+  // (the common case) the mutation no longer pays a DB round-trip before it
+  // resolves. Delivery remains best-effort and never affects the response.
   after(async () => {
+    let endpoints: { name: string; url: string; secret: string | null }[];
+    try {
+      endpoints = await db
+        .select({ name: webhooks.name, url: webhooks.url, secret: webhooks.secret })
+        .from(webhooks)
+        .where(eq(webhooks.enabled, true));
+    } catch (error) {
+      console.error("[webhook] Failed to read webhook endpoints", error);
+      return;
+    }
+
+    if (endpoints.length === 0) {
+      return;
+    }
+
     await Promise.allSettled(endpoints.map((endpoint) =>
       postWebhook(endpoint, body, timestamp, payload.action)
     ));

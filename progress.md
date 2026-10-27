@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.347 (shared calendar views)** is shipped.
+- All work through changelog **1.349 (calendar interaction performance)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -2176,6 +2176,20 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   canceled touch never gets `touchend`, so the count stranded at 1 and the chrome
   could never reveal). Docs: `docs/event-lifecycle.md` §1.4.2/§1.12,
   `docs/dashboard-views.md` §1.1, `docs/registration-events.md` §1.6.
+
+- 1.349 **Calendar interaction performance**: dashboard reads (active context,
+  tab preload, deep-link target) and the shell's background reads (pinned,
+  Double Booking/KAH badges, parade-email tick) moved from server actions to
+  `/api/*` route handlers. Next serializes server actions on one client queue, so
+  the recent warm-up/badge work was delaying the user's next save or month read
+  for its full duration; the reads are now plain, abortable `fetch`es. Active
+  reads are debounced (120 ms) and superseded requests are aborted; the tab
+  preload no longer re-runs on tab switches, after mutations, or after a force
+  refresh; the nav idle prefetch runs once per session (not per anchor month);
+  tab-href prefetches are intent-only. Hardened: 15 s Google request timeout and
+  Postgres `statement_timeout`, and the webhook endpoint read moved inside
+  `after()`. Docs: `docs/pwa-offline.md` §1.11/§1.18,
+  `docs/loading-transitions.md` §1.13.2/§1.15, `docs/events-cache.md` §1.12.
 
 ## 1.4 Open items & next steps
 

@@ -20,6 +20,10 @@ function getDb(): PostgresJsDatabase<typeof schema> {
       idle_timeout: 20,
       connect_timeout: 10,
       ssl: connectionString.includes("localhost") ? false : "require",
+      // Bound a pathological query so it cannot hold one of the small pool's
+      // connections (and therefore the list/calendar read waiting behind it)
+      // forever. Cold Neon connects are covered by `connect_timeout` above.
+      connection: { statement_timeout: 15_000 },
     });
     globalForDb.conn = client;
     globalForDb.db = drizzle(client, { schema });

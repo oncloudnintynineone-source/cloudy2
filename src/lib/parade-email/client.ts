@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-import { maybeDispatchParadeEmail } from "./actions";
+import { postJson } from "@/lib/api/client";
 
 // Wait out the launch's own work before the lazy tick's round trip.
 const INITIAL_TICK_DELAY_MS = 3000;
@@ -33,7 +33,9 @@ export function useParadeEmailTick(): void {
         return;
       }
       lastTickAt = now;
-      void maybeDispatchParadeEmail().catch(() => {});
+      // Route handler, not a server action: the opportunistic tick must never
+      // queue ahead of the user's next save or calendar read.
+      void postJson("/api/parade-email/tick", {}).catch(() => {});
     };
 
     const timer = window.setTimeout(tick, INITIAL_TICK_DELAY_MS);

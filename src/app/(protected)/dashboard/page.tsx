@@ -17,9 +17,9 @@ const MONTH_PATTERN = /^\d{4}-\d{2}$/;
  * The Calendar route is a thin server shell (docs/pwa-offline.md). It resolves
  * only the session and the device-local zoom state, then hands off to the
  * client `DashboardScreen`, which paints the last on-device snapshot instantly
- * and revalidates via the `loadDashboardData` server action. All the heavy
+ * and revalidates via the `/api/dashboard/load` route handler. All the heavy
  * reads (tabs, filters, calendars, users, settings, events) moved into that
- * action so the route no longer blocks first paint.
+ * read so the route no longer blocks first paint.
  */
 export default async function DashboardPage() {
   const session = await requireSession();

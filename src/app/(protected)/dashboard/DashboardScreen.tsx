@@ -1,16 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { IconCloudOff } from "@tabler/icons-react";
 
 import { EmptyState } from "@/components/EmptyState";
 import { useReportActivity } from "@/components/ActivityBar";
 import { withTimeout } from "@/lib/async";
+import { isAbortError, isUnauthorized, postJson } from "@/lib/api/client";
 import { isColdLaunchActive } from "@/lib/loading/coldLaunch";
 import { useLoadingIndicator } from "@/lib/loading/loadingIndicator";
-import { loadDashboardData, preloadDashboardTabs } from "@/lib/dashboard/actions";
-import { resolveDeepLinkTargetAction } from "@/lib/dashboard/deepLinkActions";
+import type {
+  LoadDashboardDataResult,
+  PreloadDashboardTabsResult,
+} from "@/lib/dashboard/actions";
 import type { CalendarEvent } from "@/lib/events/queries";
 import {
   clearDashboardSnapshots,
@@ -70,6 +73,18 @@ interface DashboardScreenProps {
  */
 const DASHBOARD_LOAD_TIMEOUT_MS = 20_000;
 
+/**
+ * Fold a burst of context changes (a held month chevron, a rapid tab + date
+ * step) into one read. The read itself is abortable, but only the last tap's
+ * context should ever reach the server.
+ */
+const CONTEXT_FETCH_DEBOUNCE_MS = 120;
+
+/** The lean deep-link target read's response. */
+type DeepLinkResult =
+  | { ok: true; event: CalendarEvent | null }
+  | { ok: false; error: string };
+
 function inputFromParams(params: URLSearchParams) {
   return {
     view: params.get("view"),
@@ -100,6 +115,7 @@ export function DashboardScreen({
   initialDualSplit,
   initialMonth,
 }: DashboardScreenProps) {
+  const router = useRouter();
   const searchParams = useSearchParams();
   // The latest URL params, read by the fetch without re-triggering it on
   // one-shot param changes (edit/event/refresh are not data-bearing). Synced in
@@ -170,6 +186,24 @@ export function DashboardScreen({
   const requestIdRef = useRef(0);
   const hasFreshRef = useRef(false);
   const lastRefreshRef = useRef<string | null>(null);
+  // In-flight reads, aborted when a newer context supersedes them. These are
+  // plain route-handler fetches precisely so they can be cancelled — a server
+  // action cannot be, and a backlog of them used to stall the calendar.
+  const loadAbortRef = useRef<AbortController | null>(null);
+  const preloadAbortRef = useRef<AbortController | null>(null);
+  const deepLinkAbortRef = useRef<AbortController | null>(null);
+  const contextFetchTimerRef = useRef<number | null>(null);
+  useEffect(
+    () => () => {
+      loadAbortRef.current?.abort();
+      preloadAbortRef.current?.abort();
+      deepLinkAbortRef.current?.abort();
+      if (contextFetchTimerRef.current !== null) {
+        window.clearTimeout(contextFetchTimerRef.current);
+      }
+    },
+    [],
+  );
   // Tab preload bookkeeping: the anchor signature + generation last scheduled,
   // and a generation counter bumped by any mutation/force refresh so an
   // in-flight preload can't repopulate the warm cache after it was cleared.
@@ -273,9 +307,19 @@ export function DashboardScreen({
         month: params.get("month"),
         date: params.get("date"),
       });
+      // Supersede any in-flight read: the previous month/tab context is no
+      // longer what the URL asks for, and leaving it to finish would make the
+      // newer read wait on the old one.
+      loadAbortRef.current?.abort();
+      const controller = new AbortController();
+      loadAbortRef.current = controller;
       try {
         const result = await withTimeout(
-          loadDashboardData(inputFromParams(params)),
+          postJson<LoadDashboardDataResult>(
+            "/api/dashboard/load",
+            inputFromParams(params),
+            { signal: controller.signal },
+          ),
           DASHBOARD_LOAD_TIMEOUT_MS,
         );
         if (requestId !== requestIdRef.current) return;
@@ -297,19 +341,30 @@ export function DashboardScreen({
         }
         // A failed read keeps the cached snapshot on screen (offline reads work);
         // the OfflineBanner is the user-facing signal.
-      } catch {
+      } catch (error) {
+        if (isUnauthorized(error)) {
+          // The session expired mid-read: the next authenticated page would
+          // redirect anyway, so leave the stale (cached) view and go to login.
+          router.replace("/login");
+          return;
+        }
+        // An aborted read was superseded by a newer context — not a failure.
+        if (isAbortError(error)) return;
         // Network/session failures: keep the cached render.
         if (requestId === requestIdRef.current) {
           setFailedContextKey(attemptedKey);
           if (recordRef.current === null) setLoadFailed(true);
         }
       } finally {
+        if (loadAbortRef.current === controller) {
+          loadAbortRef.current = null;
+        }
         if (requestId === requestIdRef.current) {
           setBusy(false);
         }
       }
     },
-    [userId, setWarmRecords],
+    [userId, setWarmRecords, router],
   );
 
   // Retry the first read after the retryable error screen (no cached data to
@@ -348,9 +403,16 @@ export function DashboardScreen({
           ),
         );
       }
+      preloadAbortRef.current?.abort();
+      const controller = new AbortController();
+      preloadAbortRef.current = controller;
       setPreloading(true);
       try {
-        const result = await preloadDashboardTabs(inputFromParams(paramsRef.current));
+        const result = await postJson<PreloadDashboardTabsResult>(
+          "/api/dashboard/preload",
+          inputFromParams(paramsRef.current),
+          { signal: controller.signal },
+        );
         if (preloadGenerationRef.current !== generation) return;
         if (preloadedRef.current?.signature !== signature) return;
         if (!result.ok) return;
@@ -372,7 +434,13 @@ export function DashboardScreen({
           userId,
           records.map((record) => ({ data: record.data, context: record.context })),
         );
+      } catch {
+        // Best-effort warm-up: an aborted/offline/failed pass is invisible. The
+        // active tab is already loaded, and any other tab fetches on demand.
       } finally {
+        if (preloadAbortRef.current === controller) {
+          preloadAbortRef.current = null;
+        }
         // Only the run that is still current may drop the flag; a superseded or
         // revalidate-bumped run leaves it to its successor.
         if (
@@ -469,7 +537,27 @@ export function DashboardScreen({
       });
       return;
     }
-    void fetchFresh();
+    // The first read (nothing cached to paint) stays immediate; later context
+    // changes are coalesced so a held month chevron or a rapid tab/date burst
+    // issues one read instead of one per tap. `fetchFresh` also aborts the
+    // previous request, so only the last context reaches the server.
+    if (recordRef.current === null) {
+      void fetchFresh();
+      return;
+    }
+    if (contextFetchTimerRef.current !== null) {
+      window.clearTimeout(contextFetchTimerRef.current);
+    }
+    contextFetchTimerRef.current = window.setTimeout(() => {
+      contextFetchTimerRef.current = null;
+      void fetchFresh();
+    }, CONTEXT_FETCH_DEBOUNCE_MS);
+    return () => {
+      if (contextFetchTimerRef.current !== null) {
+        window.clearTimeout(contextFetchTimerRef.current);
+        contextFetchTimerRef.current = null;
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlKey, previewView]);
 
@@ -484,7 +572,11 @@ export function DashboardScreen({
       // pattern as `fetchFresh`).
       void Promise.resolve().then(() => {
         preloadGenerationRef.current += 1;
-        preloadedRef.current = null;
+        // Keep the signature: a force refresh must not trigger another full
+        // background warm-up on top of the read it already forces.
+        preloadAbortRef.current?.abort();
+        setPreloading(false);
+        setBackgroundKeys(new Set());
         setWarmRecords(new Map());
         void clearDashboardSnapshots(userId);
         void fetchFresh();
@@ -517,15 +609,17 @@ export function DashboardScreen({
         ),
       ),
     ].sort();
-    // The committed `view` rides in the signature so switching the active tab
-    // re-warms the future months for the newly active tab (a warm repeat pass is
-    // cheap — those months are already cached).
-    const signature = `${view ?? ""}|${tabs.map((tab) => tab.id).join(",")}|${months.join(",")}`;
+    // The signature deliberately excludes the active `?view=`: switching tabs
+    // must not re-run the whole background read (the warm records it would
+    // refresh are already in place). It changes only when the tab set or the
+    // anchor's required months change.
+    const signature = `${tabs.map((tab) => tab.id).join(",")}|${months.join(",")}`;
     const generation = preloadGenerationRef.current;
-    if (
-      preloadedRef.current?.signature === signature &&
-      preloadedRef.current.generation === generation
-    ) {
+    // Once a signature has been warmed, it stays warmed for this mount. A
+    // mutation bumps the generation (discarding in-flight results) but does not
+    // force another full pass: the active tab is re-read by `revalidate`, and
+    // any other tab fetches on demand instead of making the user wait.
+    if (preloadedRef.current?.signature === signature) {
       return;
     }
     const run = () => {
@@ -544,7 +638,7 @@ export function DashboardScreen({
         window.clearTimeout(handle);
       }
     };
-  }, [record, source, busy, view, preloadTabs]);
+  }, [record, source, busy, preloadTabs]);
 
   // Post-mutation / filter-change refresh: drop every cached context (the write
   // may affect any of them), then re-read the current one. `report: false`
@@ -555,7 +649,11 @@ export function DashboardScreen({
   const revalidate = useCallback(
     (options?: { report?: boolean; params?: URLSearchParams }) => {
       preloadGenerationRef.current += 1;
-      preloadedRef.current = null;
+      // Discard an in-flight warm-up's results without scheduling another pass
+      // (see the preload effect): the user is waiting on this read.
+      preloadAbortRef.current?.abort();
+      setPreloading(false);
+      setBackgroundKeys(new Set());
       setWarmRecords(new Map());
       const report = options?.report !== false;
       if (report) setRefreshing(true);
@@ -658,9 +756,10 @@ export function DashboardScreen({
   );
 
   // A `?event=`/`?edit=` link resolves its target independently of the grid and
-  // the snapshot: the lean action reads only the target's own months and runs in
-  // parallel with the dashboard load, so the details modal no longer waits for
-  // (or races) the one-shot URL strip.
+  // the snapshot: the lean route-handler read touches only the target's own
+  // months and runs genuinely in parallel with the dashboard load (both are
+  // plain fetches, not serialized server actions), so the details modal never
+  // waits for — or races — the one-shot URL strip.
   const deepLinkId = initialEditEventId ?? initialDetailEventId;
   const deepLinkCalendarId = searchParams.get("_eventCal");
   const deepLinkRequestKey = deepLinkId
@@ -693,6 +792,7 @@ export function DashboardScreen({
     if (!deepLinkRequestKey || !deepLinkId) {
       attemptedDeepLinkRef.current = null;
       deepLinkRequestIdRef.current += 1;
+      deepLinkAbortRef.current?.abort();
       // Deferred: an effect must not call setState synchronously (same pattern
       // as `fetchFresh`).
       void Promise.resolve().then(() => {
@@ -721,6 +821,7 @@ export function DashboardScreen({
     if (gridHasTarget) {
       // The grid the screen will paint already carries the target (and
       // `DashboardView` prefers the grid copy): nothing to read.
+      deepLinkAbortRef.current?.abort();
       void Promise.resolve().then(() => setSettledDeepLinkId(deepLinkId));
       return;
     }
@@ -731,15 +832,22 @@ export function DashboardScreen({
         : undefined) ??
       recordRef.current?.data.activeView.kind ??
       null;
+    deepLinkAbortRef.current?.abort();
+    const controller = new AbortController();
+    deepLinkAbortRef.current = controller;
     void withTimeout(
-      resolveDeepLinkTargetAction({
-        eventId: deepLinkId,
-        date: request.date,
-        calendarId: request.calendarId,
-        view: request.view,
-        viewKind,
-        force: isRefreshNonceFresh(refreshParam, Date.now()),
-      }),
+      postJson<DeepLinkResult>(
+        "/api/dashboard/deep-link",
+        {
+          eventId: deepLinkId,
+          date: request.date,
+          calendarId: request.calendarId,
+          view: request.view,
+          viewKind,
+          force: isRefreshNonceFresh(refreshParam, Date.now()),
+        },
+        { signal: controller.signal },
+      ),
       DASHBOARD_LOAD_TIMEOUT_MS,
     )
       .then((result) => {
@@ -747,10 +855,16 @@ export function DashboardScreen({
         setDeepLinkTarget(result.ok ? result.event : null);
         setSettledDeepLinkId(deepLinkId);
       })
-      .catch(() => {
+      .catch((error) => {
+        if (isAbortError(error)) return;
         if (deepLinkRequestIdRef.current !== requestId) return;
         setDeepLinkTarget(null);
         setSettledDeepLinkId(deepLinkId);
+      })
+      .finally(() => {
+        if (deepLinkAbortRef.current === controller) {
+          deepLinkAbortRef.current = null;
+        }
       });
     // The record/freshness reads happen through refs on purpose: a record
     // arriving mid-read must not start a second request.

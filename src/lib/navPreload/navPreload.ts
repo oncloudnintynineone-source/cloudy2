@@ -3,25 +3,21 @@
  * nav pages (Parade State, Contacts, Double Booking). See
  * docs/loading-transitions.md §1.15.
  *
- * The client warms each route once per (user, anchor month): the prefetch runs
- * that page's server render, which warms the config cache and the cache-backed
- * month read, and lands the payload in the router + RSC caches so a later tap
- * paints without a round trip. The plan is pure — no DOM, no I/O — so the
- * once-per-signature rule and the month key are unit-testable.
+ * One pass per signed-in user per document. The prefetch runs that page's
+ * server render, which warms the config cache and the cache-backed month read,
+ * and lands the payload in the router + RSC caches so a later tap paints
+ * without a round trip. It deliberately does **not** re-run when the dashboard
+ * moves to another month: that turned every month step into three extra route
+ * renders, competing with the read the user was waiting for. The plan is pure —
+ * no DOM, no I/O — so the once-per-signature rule is unit-testable.
  */
 
 /** Nav routes warmed at idle on capable devices (the rest stay intent-only). */
 export const NAV_PRELOAD_HREFS = ["/parade-state", "/contacts", "/double-booking"] as const;
 
-/** `YYYY-MM` month key, matching the cookie/URL `month` anchor format. */
-export function monthKeyOf(date: Date): string {
-  const month = date.getMonth() + 1;
-  return `${date.getFullYear()}-${String(month).padStart(2, "0")}`;
-}
-
-/** One preload pass is keyed by `userId::anchorMonth`. */
-export function navPreloadSignature(userId: string, monthKey: string): string {
-  return `${userId}::${monthKey}`;
+/** The plan key: one warm pass per signed-in user per document. */
+export function navPreloadSignature(userId: string): string {
+  return `${userId}::session`;
 }
 
 /**

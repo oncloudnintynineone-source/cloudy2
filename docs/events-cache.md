@@ -88,7 +88,7 @@ internal one, and the cache is tuned to keep the scarce side cheap. See
 flowchart LR
  subgraph RSC["Server render / action (per request)"]
  D["/dashboard page (thin shell)"]
- FM["loadDashboardData → buildDashboardData<br/>→ readCalendarRange (queries.ts)"]
+ FM["/api/dashboard/load → buildDashboardData<br/>→ readCalendarRange (queries.ts)"]
  end
  subgraph CACHE["Layered events cache (eventsCache.ts)"]
  L1["L1 in-process Map<br/>(metadata-only L2 verify)"]
@@ -132,7 +132,7 @@ month via `fetchMonthEvents`.
 
 The dashboard's client fetch identity mirrors this: `requiredMonths(kind, month, date)`
 (`src/lib/dashboard/snapshot.ts`) returns the same month set the server would read, and
-`DashboardScreen` only calls `loadDashboardData` when that set changes. An in-month day
+`DashboardScreen` only calls `/api/dashboard/load` when that set changes. An in-month day
 move (same month set) is a pure client re-filter — it never reaches this cache or the DB.
 The day inside the loaded month comes from the URL: `DashboardScreen` passes `?date=` as
 the URL-first `date` prop, so the Day/Week (H) grids and chrome move without a read.
@@ -258,7 +258,7 @@ not an in-app navigation:
  alone is the refresh (fresh server data on any page — Settings included). On
  `/dashboard` the server additionally honors the nonce:
 2. The client `DashboardScreen` reads the nonce from the URL and hands it to the
-   `loadDashboardData` server action, which honors it only while it is a finite number
+   `/api/dashboard/load` route, which honors it only while it is a finite number
    younger than `REFRESH_NONCE_TTL_MS` (5min, `snapshot.ts`) — so a stale history entry
    (back/forward) can't silently re-force a fetch.
 3. The action threads `force: true` through `buildDashboardData` / `readCalendarRange`
@@ -282,7 +282,7 @@ not an in-app navigation:
 sequenceDiagram
  participant U as Shell header Force refresh (any page)
  participant SW as Service worker
- participant P as DashboardScreen → loadDashboardData (server action)
+ participant P as DashboardScreen → /api/dashboard/load
  participant C as events cache (L1/L2)
  participant G as Google Calendar
  U->>U: window.location.assign(?refresh=<epoch-ms>)
@@ -430,7 +430,7 @@ fully-cached views from churning extra Google/DB work after the response. Prefet
 month swiping render from cache on the next navigation.
 
 A second, client-driven warm exists on top of this: after the active context is fresh, the
-dashboard calls `preloadDashboardTabs` (`src/lib/dashboard/data.ts`), which takes the
+dashboard calls `/api/dashboard/preload` (`src/lib/dashboard/data.ts`), which takes the
 **union** of every tab's calendars/months and does **one** `readCalendarRange` (the
 cache-key-independent read the tab projections share), then projects each tab's filtered
 events. It then warms the **active tab** for the next two months with a **second**
@@ -530,8 +530,8 @@ module, but they keep the render's total query count low):
   `listEventTypeGroups`, `listUsers`, the settings row, event-title templates and quick
   links) — are React-`cache()`d per request **and** served from a shared 60s in-memory TTL
   (`getCachedValue` via `src/lib/configCache.ts`). The per-request cache alone can't span
-  the dashboard's **two server actions** (the active read + the tab preload are separate
-  requests), so without the TTL every launch re-read the whole config block twice; the TTL
+  the dashboard's **two requests** (the active read and the tab preload are
+  separate), so without the TTL every launch re-read the whole config block twice; the TTL
   collapses that to one read per window per instance. Every admin write that changes one
   of these reads calls `invalidateConfigCache([...])` (`src/lib/configCache.ts`) beside its
   `revalidatePath(...)`, so the edit is visible on the next read rather than after the TTL;

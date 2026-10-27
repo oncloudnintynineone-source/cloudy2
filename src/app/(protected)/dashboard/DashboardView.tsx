@@ -291,8 +291,6 @@ const warmOnIntent = (warm: () => void) => ({
   onTouchStart: warm,
 });
 
-const viewWarmProps = (kind: DashboardViewKind) => warmOnIntent(() => warmViewChunk(kind));
-
 type ChipProps = ComponentPropsWithoutRef<"button">;
 
 /** Merge the detail warm-up into a chip's existing button props. */
@@ -827,9 +825,12 @@ const WEEK_GRID_COLUMN_WIDTH = `calc(max(1, ${ZOOM_VAR}) * 100%)`;
 const DashboardTab = memo(function DashboardTab({
   tab,
   icon,
+  onIntent,
 }: {
   tab: DashboardViewTab;
   icon: ReactNode;
+  /** Warm the tab's renderer chunk and its target URL on hover/focus/press. */
+  onIntent: () => void;
 }) {
   const tabStatus = useDashboardTabStatus();
   // fresh = solid; loading = a small amber spinner in the tab's top-right corner
@@ -843,7 +844,10 @@ const DashboardTab = memo(function DashboardTab({
       title={tab.name}
       aria-busy={status === "loading" || undefined}
       style={{ position: "relative", overflow: "hidden" }}
-      {...viewWarmProps(tab.kind)}
+      {...warmOnIntent(() => {
+        warmViewChunk(tab.kind);
+        onIntent();
+      })}
     >
       <Group
         gap="xs"
@@ -887,10 +891,13 @@ function DashboardViewMenuItem({
   tab,
   active,
   onSwitch,
+  onIntent,
 }: {
   tab: DashboardViewTab;
   active: boolean;
   onSwitch: (tab: Pick<DashboardViewTab, "id" | "kind">) => void;
+  /** Warm the tab's renderer chunk and its target URL on hover/focus/press. */
+  onIntent: () => void;
 }) {
   const tabStatus = useDashboardTabStatus();
   const status = tabStatus[tab.id] ?? "fresh";
@@ -913,7 +920,10 @@ function DashboardViewMenuItem({
       aria-checked={active}
       aria-busy={status === "loading" || undefined}
       onClick={() => onSwitch(tab)}
-      {...viewWarmProps(tab.kind)}
+      {...warmOnIntent(() => {
+        warmViewChunk(tab.kind);
+        onIntent();
+      })}
     >
       <Text
         size="sm"
@@ -2719,34 +2729,24 @@ function DashboardViewImpl({
     [buildHref, router, pathname, searchParams],
   );
 
-  // Warm the client-router cache for every tab's target URL, so a tap's
-  // `router.push` is served instantly (and `useSearchParams` catches up, letting
-  // the optimistic preview clear). The data itself is already warm from the
-  // preload; this only warms the route. `buildParams` strips one-shot params, so
-  // a deep-link URL still produces clean prefetch targets. Best-effort.
-  const prefetchedHrefsRef = useRef("");
-  useEffect(() => {
-    if (typeof navigator !== "undefined" && navigator.onLine === false) return;
-    const hrefs: string[] = [];
-    for (const tab of tabs) {
-      if (tab.id === activeView.id) {
-        continue;
-      }
-      hrefs.push(
-        buildHref(
-          planDashboardSwitch(tab, { view, shownDate, today }, { activeView, tabs }).updates,
-        ),
+  // Warm a tab's target URL on intent (hover/focus/press), not on every date
+  // change. The old effect prefetched every tab on every month/day step, so a
+  // month scroll issued a burst of RSC renders; the data itself is already warm
+  // from the preload, and this only speeds up the tap's route commit.
+  // `buildParams` strips one-shot params, so a deep-link URL still produces
+  // clean prefetch targets. Best-effort.
+  const prefetchTab = useCallback(
+    (tab: Pick<DashboardViewTab, "id" | "kind">) => {
+      if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+      const { updates } = planDashboardSwitch(
+        tab,
+        { view, shownDate, today },
+        { activeView, tabs },
       );
-    }
-    const signature = hrefs.join("|");
-    if (signature === prefetchedHrefsRef.current) {
-      return;
-    }
-    prefetchedHrefsRef.current = signature;
-    for (const href of hrefs) {
-      router.prefetch(href);
-    }
-  }, [router, tabs, buildHref, view, shownDate, today, activeView, searchParams]);
+      router.prefetch(buildHref(updates));
+    },
+    [router, buildHref, view, shownDate, today, activeView, tabs],
+  );
 
   // Warm only what the target screen is likely to need: the event-details
   // chunk, plus the renderer kinds that this account actually has tabs for
@@ -3850,6 +3850,7 @@ function DashboardViewImpl({
           tab={tab}
           active={tab.id === shownTabId}
           onSwitch={switchTab}
+          onIntent={() => prefetchTab(tab)}
         />
       ))}
       {canManageViews && (
@@ -4392,7 +4393,14 @@ function DashboardViewImpl({
                 <Tabs.List ref={tabListElRef} style={{ flexWrap: "nowrap", overflowX: "auto" }}>
                   {tabs.map((tab) => {
                     const meta = VIEW_TAB_META[tab.kind];
-                    return <DashboardTab key={tab.id} tab={tab} icon={meta.icon} />;
+                    return (
+                      <DashboardTab
+                        key={tab.id}
+                        tab={tab}
+                        icon={meta.icon}
+                        onIntent={() => prefetchTab(tab)}
+                      />
+                    );
                   })}
                   {/* Trailing "Add view" affordance: the last item in the
                     scrolling strip, so creating a view is one tap — it opens
@@ -4472,7 +4480,10 @@ function DashboardViewImpl({
                         role="menuitemradio"
                         aria-checked={isActive}
                         onClick={() => switchTab(tab)}
-                        {...viewWarmProps(tab.kind)}
+                        {...warmOnIntent(() => {
+                          warmViewChunk(tab.kind);
+                          prefetchTab(tab);
+                        })}
                       >
                         <Text
                           size="sm"

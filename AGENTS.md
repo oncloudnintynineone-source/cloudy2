@@ -97,24 +97,30 @@ doc content here.
   `DB_POOL_MAX`). Header **Force refresh** = full
   reload + one-shot `?refresh=<epoch-ms>` nonce (SW never caches it; `useOneShotRefreshStrip`
   strips it). The `/dashboard` route is a **thin server shell** (`page.tsx`): all
-  dashboard reads moved into the `loadDashboardData` server action via
-  `buildDashboardData` (`src/lib/dashboard/data.ts`), and the client `DashboardScreen`
-  paints the device-local snapshot for the **anchor the URL/cookie names** (IndexedDB,
-  `src/lib/dashboard/localStore.ts`; the pick is `pickColdPaintRecord` in
-  `src/lib/dashboard/navigation.ts` — never "the newest record", which would be a
-  preload's future-month anchor) instantly, then always revalidates and swaps in place — mutations call the
-  provider's `revalidate()`, never `router.refresh()`. After the active context is fresh,
-  the client **preloads every tab** for the current anchor **and the active tab for the
-  next two months** (`preloadDashboardTabs` →
+  dashboard reads run in **route handlers** (`/api/dashboard/load`, `/api/dashboard/preload`,
+  `/api/dashboard/deep-link`) via `buildDashboardData` (`src/lib/dashboard/data.ts`), and
+  the client `DashboardScreen` paints the device-local snapshot for the **anchor the
+  URL/cookie names** (IndexedDB, `src/lib/dashboard/localStore.ts`; the pick is
+  `pickColdPaintRecord` in `src/lib/dashboard/navigation.ts` — never "the newest record",
+  which would be a preload's future-month anchor) instantly, then always revalidates and
+  swaps in place — mutations call the provider's `revalidate()`, never
+  `router.refresh()`. These reads are route handlers, **not server actions**, on purpose:
+  Next serializes server actions client-side, so a background warm-up would otherwise
+  delay the user's next save/read; the load is also abortable and debounced. After the
+  active context is fresh, the client **preloads every tab** for the current anchor **and
+  the active tab for the next two months** (`/api/dashboard/preload` →
   `buildDashboardPreload`: one union `readCalendarRange` for the anchor + a second read
   scoped to the active tab's calendars for the future months, each projected by
   `projectRangeEvents` and reassembled by `assembleDashboardSnapshot`) so tab switches and
-  forward month navigations paint from the warm cache with no round-trip. **Code**
+  forward month navigations paint from the warm cache with no round-trip. It runs once per
+  signature (tab set + required months — **not** the active view) and is not re-run after
+  a mutation or force refresh. **Code**
   warming is narrower: only the active renderer + the renderer kinds the account has
   tabs for, plus event details, warm at idle; the wizard waits 5 s on capable devices;
   Parade State, Contacts and Double Booking get one idle route-prefetch + chunk pass
-  per `userId::anchorMonth` (`NavIdlePreloader.tsx`, pure plan in `src/lib/navPreload/`);
-  the date picker, manage-views and the remaining nav routes are intent-only. Design:
+  per signed-in user per document (`NavIdlePreloader.tsx`, pure plan in
+  `src/lib/navPreload/`); the date picker, manage-views and the remaining nav routes are
+  intent-only. Design:
   [docs/events-cache.md](docs/events-cache.md) §1.5.1,
   [docs/loading-transitions.md](docs/loading-transitions.md) §1.15,
   [docs/pwa-offline.md](docs/pwa-offline.md) §1.11/§1.18.
@@ -156,7 +162,7 @@ doc content here.
   tab in strip order (the last-viewed tab is not remembered). A tab
   tap is **optimistic**: it sets `previewView` in `DashboardDataContext`, so
   `DashboardScreen` paints a warm tab without waiting on the RSC round-trip that updates
-  `useSearchParams` (each tab's URL is also `router.prefetch`ed). The preview is
+  `useSearchParams` (each tab's URL is also `router.prefetch`ed on hover/focus/press). The preview is
   transition-aware: it survives while `DashboardView` reports a pending router
   transition and reverts when that transition ends without the URL catching up. A **+** at the end of the
   tab strip opens the quick Add-view dialog, and the trailing **Manage views** gear (tooltip)

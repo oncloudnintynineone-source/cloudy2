@@ -92,7 +92,7 @@ There is no registration-time seeding — rows appear on first use:
   navigation) from double-inserting two identical default tabs. Reading before
   seeding keeps the common path (tabs already exist) free of the write
   transaction — important because a dashboard launch reads views twice (the
-  `loadDashboardData` read and the tab preload).
+  `/api/dashboard/load` read and the tab preload).
 
 All queries short-circuit for the **virtual break-glass admin** session
 (`session.user.id === "admin"`, no `users` row — the FK/uuid columns can never

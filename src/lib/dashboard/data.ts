@@ -4,8 +4,8 @@
  * This is the resolution the Calendar page used to run inline in `page.tsx`:
  * session + remembered device state + stored tabs/filters + the month/range
  * event read, reduced to a serializable snapshot. The route now renders a thin
- * client shell and this builder is invoked by the `loadDashboardData` server
- * action so the client can revalidate in the background while showing the last
+ * client shell and this builder is invoked by the `/api/dashboard/load` route
+ * handler so the client can revalidate in the background while showing the last
  * on-device snapshot (docs/pwa-offline.md).
  *
  * The resolution is split into a shared config pass (`resolveDashboardConfig` —
@@ -155,8 +155,9 @@ function currentMonth(): string {
  * user-independent reads (calendars, event types/groups, users, settings,
  * templates, quick links) are React-`cache()`d per request **and** served from a
  * shared 60s in-memory TTL (`src/lib/configCache.ts`), so the config pass and
- * the range read reuse one DB read each — and the separate `preloadDashboardTabs`
- * action (which can't share React's per-request cache) doesn't re-query them.
+ * the range read reuse one DB read each — and the separate
+ * `/api/dashboard/preload` read (which can't share React's per-request cache)
+ * doesn't re-query them.
  */
 async function resolveDashboardConfig(session: Session): Promise<DashboardConfig> {
   const isAdmin = session.user.role === "admin";

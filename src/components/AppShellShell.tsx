@@ -63,7 +63,7 @@ import {
 import { UserMenu } from "@/components/UserMenu";
 import { BANNER_HEIGHT_PX, type BannerConfig } from "@/lib/banner/banner";
 import { BOTTOM_NAV_HEIGHT, RAIL_ORDER, RAIL_TILE_WIDTHS } from "@/lib/bottomNav";
-import { fetchPinnedEvents, type PinnedEvent } from "@/lib/events/pinned";
+import type { PinnedEvent } from "@/lib/events/pinned";
 import type {
   BottomNavVariant,
   PinnedTickerIndicator,
@@ -87,9 +87,15 @@ import {
 import { SearchPanelContext, type SearchPanelValue } from "@/lib/ui/searchPanel";
 import { useRememberedPage, writeUiState } from "@/lib/ui/uiStateClient";
 import { EVENTS_CHANGED_EVENT } from "@/lib/ui/eventChanges";
-import { checkUserClashes } from "@/lib/events/clashActions";
-import { checkKahBreaches } from "@/lib/kah/statusActions";
+import { getJson } from "@/lib/api/client";
+import type { UserClashCheckResult } from "@/lib/events/clashActions";
+import type { KahBreachCountResult } from "@/lib/kah/statusActions";
 import { withTimeout } from "@/lib/async";
+
+/** GET /api/pinned's response. */
+type PinnedEventsResult =
+  | { ok: true; events: PinnedEvent[] }
+  | { ok: false; error: string };
 
 const CALENDAR: NavItem = {
   href: "/dashboard",
@@ -646,9 +652,12 @@ export function AppShellShell({
   // settled-empty read as "still loading".
   const [pinnedStatus, setPinnedStatus] = useState<"pending" | "ready" | "error">("pending");
   const refreshPinnedEvents = useCallback(() => {
-    return fetchPinnedEvents()
-      .then((events) => {
-        setPinnedEvents(events);
+    return getJson<PinnedEventsResult>("/api/pinned")
+      .then((result) => {
+        if (!result.ok) {
+          throw new Error(result.error);
+        }
+        setPinnedEvents(result.events);
         setPinnedStatus("ready");
       })
       .catch(() => setPinnedStatus("error"));
@@ -854,7 +863,7 @@ export function AppShellShell({
   const [doubleBookingCount, setDoubleBookingCount] = useState<number | null>(null);
   const doubleBookingDebounceRef = useRef<number | null>(null);
   const refreshDoubleBooking = useCallback(() => {
-    return checkUserClashes({})
+    return getJson<UserClashCheckResult>("/api/badges/clashes")
       .then((result) => {
         if (!result.ok) {
           return;
@@ -909,7 +918,7 @@ export function AppShellShell({
   const [kahCount, setKahCount] = useState<number | null>(null);
   const kahDebounceRef = useRef<number | null>(null);
   const refreshKah = useCallback(() => {
-    return checkKahBreaches()
+    return getJson<KahBreachCountResult>("/api/badges/kah")
       .then((result) => {
         if (result.ok) {
           setKahCount(result.count);

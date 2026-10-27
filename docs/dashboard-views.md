@@ -546,9 +546,10 @@ directly ([`events-cache.md`](events-cache.md)):
 - The Month view range-reads the months its natural (4–6) week grid displays
   (`monthGridMonths()`, `src/lib/events/datetime.ts`).
 - Every tab is **preloaded for instant switches**: after the active context is
-  fresh, `DashboardScreen` calls `preloadDashboardTabs` once per anchor, which
-  reads the union of every tab's calendars/months in one pass and projects each
-  tab's delta (see [`pwa-offline.md`](pwa-offline.md) §1.18). Switching tabs then
+  fresh, `DashboardScreen` calls `/api/dashboard/preload` once per signature
+  (the tab set + the months those tabs need — not the active view), which reads
+  the union of every tab's calendars/months in one pass and projects each tab's
+  delta (see [`pwa-offline.md`](pwa-offline.md) §1.18). Switching tabs then
   paints from the device cache with no server round-trip.
 - **Tab switches are optimistic, decoupled from the router.** A tap sets a
   `previewView` in `DashboardDataContext`; `DashboardScreen` resolves the
@@ -560,7 +561,8 @@ directly ([`events-cache.md`](events-cache.md)):
   router transition, clears once `?view=` catches up, and reverts immediately if
   the transition ends without the URL matching. A long `PREVIEW_STALL_MS` is only
   a safety net for a transition that never resolves. `DashboardView` also
-  `router.prefetch`es each tab's clean target URL so the URL catches up promptly.
+  `router.prefetch`es a tab's clean target URL on intent (hover/focus/press), so
+  the URL catches up promptly without prefetching every tab on every date change.
   (`docs/loading-transitions.md` §1.10/§1.13.2.)
 - Wide grids (Day/Week (H)/Week (D), plus Month once its fit-width zoom makes it
   overflow) pan horizontally through `useGridPan` + `GridPanControls`

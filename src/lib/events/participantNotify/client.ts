@@ -2,14 +2,17 @@
 
 import { useEffect } from "react";
 
-import { syncPushSubscription, type ClientPushSubscription } from "./actions";
+import { postJson } from "@/lib/api/client";
+import type { ClientPushSubscription, ParticipantPushActionResult } from "./actions";
 
 /**
  * Browser-side Web Push plumbing for the participant notification feature:
  * capability detection, the VAPID application-server key, and subscribe/
  * unsubscribe against the controlling service worker's `pushManager`. The
  * server actions in `./actions.ts` persist the subscription per signed-in
- * account; this module only manipulates the browser side.
+ * account for the UI's explicit actions; the background repair posts to
+ * `/api/push/sync` so it never queues ahead of a user action. This module only
+ * manipulates the browser side.
  *
  * iOS caveat: Web Push works only on the installed home-screen web app
  * (iOS/iPadOS 16.4+, matching the app's browser floor), never in Safari
@@ -258,7 +261,8 @@ export async function repairPushSubscription(): Promise<boolean> {
     if (!payload) {
       return false;
     }
-    const result = await syncPushSubscription(payload);
+    // Background repair — a route-handler fetch, never a queued server action.
+    const result = await postJson<ParticipantPushActionResult>("/api/push/sync", payload);
     return result.ok;
   } catch {
     return false;

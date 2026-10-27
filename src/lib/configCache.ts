@@ -7,7 +7,7 @@ import { invalidateCachedValue } from "@/lib/cache";
  *
  * These are re-read on every dashboard config pass (`resolveDashboardConfig`),
  * which runs twice per launch (the active read and the tab preload) because the
- * two are separate server actions and React's per-request `cache()` can't span
+ * two are separate API requests and React's per-request `cache()` can't span
  * them. They change only on admin writes, so a short window trades a bounded
  * per-instance staleness for removing most of a render's DB round trips — the
  * binding constraint (`docs/neon-usage.md`). 60s matches the events cache's

@@ -1,11 +1,12 @@
-"use server";
-
 /**
- * Client-facing wrapper around the lean deep-link target resolver. The
- * dashboard calls this as soon as a `?event=`/`?edit=` link appears, in
- * parallel with the grid read, so the details modal (or edit form) can open
- * without waiting for the whole snapshot. Failures are returned, never thrown:
- * the caller shows the "Could not open that event" advisory.
+ * Wrapper around the lean deep-link target resolver. The dashboard calls it as
+ * soon as a `?event=`/`?edit=` link appears, in parallel with the grid read, so
+ * the details modal (or edit form) can open without waiting for the whole
+ * snapshot. Failures are returned, never thrown: the caller shows the "Could
+ * not open that event" advisory.
+ *
+ * Called by `/api/dashboard/deep-link` (not a server action), so it never sits
+ * in the App Router's single-flight server-action queue. Server-only.
  */
 
 import type { CalendarEvent } from "@/lib/events/queries";

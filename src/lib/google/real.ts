@@ -17,6 +17,18 @@ import type {
 } from "./types";
 
 /**
+ * Hard cap on every Google request. Without it a stalled socket keeps the
+ * mutating server action (and, on a cold instance, the events-cache refresh
+ * behind it) pending indefinitely — the UI gives up after 20 s, but the request
+ * would still be occupying the instance. Google normally answers in hundreds of
+ * milliseconds; 15 s is generous for the calendar API.
+ */
+const GOOGLE_REQUEST_TIMEOUT_MS = 15_000;
+
+// Applied to every calendar/gmail endpoint created from this module's client.
+google.options({ timeout: GOOGLE_REQUEST_TIMEOUT_MS });
+
+/**
  * Real Google Calendar integration using a GCP service account (JWT auth).
  * Calendar lifecycle, ACL sharing, and event read/write are implemented —
  * Gmail methods are wired in a later phase and currently throw so nothing is

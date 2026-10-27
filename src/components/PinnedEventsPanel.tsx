@@ -20,7 +20,8 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { buildEventDeepLink } from "@/lib/events/deepLink";
-import { fetchPinnedEvents, type PinnedEvent } from "@/lib/events/pinned";
+import { getJson } from "@/lib/api/client";
+import type { PinnedEvent } from "@/lib/events/pinned";
 import { CONTENT_ENTER_CLASS, useContentEnter } from "@/lib/loading/contentEnter";
 import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
 import { modalContentWidth } from "@/lib/motion/origin";
@@ -87,9 +88,9 @@ export function PinnedEventsPanel({ seedEvents = null }: PinnedEventsPanelProps)
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
-    fetchPinnedEvents()
+    getJson<{ ok: true; events: PinnedEvent[] } | { ok: false; error: string }>("/api/pinned")
       .then((result) => {
-        if (!cancelled) setEvents(result);
+        if (!cancelled) setEvents(result.ok ? result.events : []);
       })
       .catch(() => {
         if (!cancelled) setEvents([]);

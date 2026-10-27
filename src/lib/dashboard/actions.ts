@@ -1,12 +1,16 @@
-"use server";
-
 /**
- * Dashboard data loader (docs/pwa-offline.md).
+ * Dashboard data loaders (docs/pwa-offline.md).
  *
- * The Calendar route renders a thin client shell; this action re-reads the
- * same server data the page used to resolve inline and returns it as a
- * serializable snapshot for the device-local cache. It is a read-only POST, so
- * the service worker's `NetworkOnly` fallback already keeps it uncached.
+ * The Calendar route renders a thin client shell; these functions re-read the
+ * same server data the page used to resolve inline and return it as a
+ * serializable snapshot for the device-local cache.
+ *
+ * They are deliberately **not** server actions: the route handlers under
+ * `/api/dashboard/*` call them and the client fetches those routes directly, so
+ * dashboard reads never enter the App Router's single-flight server-action
+ * queue (a background preload could otherwise delay the user's next save or
+ * month read — see docs/loading-transitions.md). The service worker already
+ * keeps `/api/*` uncached. Server-only.
  *
  * Failures are returned, never thrown to the client: a failed revalidation
  * must leave the cached snapshot on screen (and the request surface as an

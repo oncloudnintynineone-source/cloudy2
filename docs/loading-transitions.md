@@ -258,13 +258,13 @@ sequenceDiagram
  participant V as Shell header Force refresh (client)
  participant SW as Service worker
  participant P as Page (server, thin shell)
- participant R as DashboardScreen → loadDashboardData
+ participant R as DashboardScreen → /api/dashboard/load
  V->>V: window.location.assign(?refresh=<epoch-ms>)
  V->>SW: navigation — nonce URL never cached → network
  SW-->>P: full document render (route loading.tsx skeleton)
  P-->>R: document mounts
  alt /dashboard (nonce fresh)
- R->>P: loadDashboardData({ refresh }) → force: true → fresh Google reads in-request
+ R->>P: POST /api/dashboard/load { refresh } → force: true → fresh Google reads in-request
  P-->>R: fresh snapshot
  end
  R->>P: useOneShotRefreshStrip — invalidate RSC path entries + router.replace stripping ?refresh=
@@ -443,11 +443,12 @@ hard loads, new param combinations, and the force-refresh nonce are different
 cache keys and always hit the server, and freshness of the underlying event
 data remains [`events-cache.md`](events-cache.md)'s job. It matches the data
 layer's existing tolerance (60 s fresh window, 30 min stale-while-revalidate).
-The dashboard additionally `router.prefetch`es every tab's target URL on each
-anchor (`DashboardView`), so a tab tap's `router.push` is a client-router hit
-instead of a fresh server render — the URL catches up promptly and the
-optimistic tab preview (§1.13.2) clears. Even before the URL commits, the
-displayed context no longer waits on it.
+The dashboard additionally `router.prefetch`es a tab's target URL **on intent**
+(hover/focus/press, `DashboardView`), so a tab tap's `router.push` is a
+client-router hit instead of a fresh server render — the URL catches up promptly
+and the optimistic tab preview (§1.13.2) clears. Prefetching every tab on every
+date change was removed: a month scroll turned into a burst of RSC renders. Even
+before the URL commits, the displayed context no longer waits on it.
 
 ## 1.11 Mutations are out of scope
 
@@ -716,13 +717,13 @@ reads as an unread notification and confused users. Warm copies of any age rende
 solid; a tap revalidates them silently.
 
 **Loading strategy (hybrid).** The efficient single union-read preload
-(`preloadDashboardTabs`) still warms every tab in one server pass, so a
+(`/api/dashboard/preload`) still warms every tab in one pass, so a
 not-yet-loaded tab flips to solid as its record lands — and, once the pass runs
 past the 300 ms delay, every tab it still has to load shows the spinner until
 the 1 s hold elapses. A tap on a not-yet-loaded tab fires the normal priority
 read for that tab, which shows its spinner immediately. A single-tab
 account skips the preload entirely (the active read already covers it), avoiding
-a second server config pass — and for multi-tab accounts that pass's config
+a second config pass — and for multi-tab accounts that pass's config
 reads are served from the 60s TTL cache (`docs/events-cache.md` §1.12), so it
 adds no DB round trips of its own.
 
@@ -817,14 +818,15 @@ paint; the warm policy is deliberately probability-based:
 | 5 s after the active view            | The wizard                                                           | `googleConfigured` + `canPreloadTabs()` |
 | Hover/focus/pointer-down/touch-start | View kind, wizard, date picker, manage views, event detail           | `canWarmRoutes()`                       |
 | Search history is non-empty          | Search body, idle                                                    | `canPreloadTabs()`                       |
-| Cold start landed, idle              | Parade State / Contacts / Double Booking: `router.prefetch` of each bare href (runs the page's server render — warms the config cache + the cache-backed month read, lands the payload in the router + RSC caches) + their leaf chunks — once per `userId::anchorMonth`, re-planned when the month anchor changes (`UI_STATE_CHANGED_EVENT`, `src/lib/ui/uiStateClient.ts`; pure plan in `src/lib/navPreload/navPreload.ts`, `NavIdlePreloader.tsx`) | `canPreloadTabs()` |
+| Cold start landed, idle              | Parade State / Contacts / Double Booking: `router.prefetch` of each bare href (runs the page's server render — warms the config cache + the cache-backed month read, lands the payload in the router + RSC caches) + their leaf chunks — once per signed-in user per document (pure plan in `src/lib/navPreload/navPreload.ts`, `NavIdlePreloader.tsx`) | `canPreloadTabs()` |
 
 Every other schedule view kind, the date picker, manage-views and the remaining
 nav routes stay unloaded until the idle pass above or intent. The three
 high-traffic pages in that row are the deliberate exception: they are the pages
 a user most often opens right after the calendar, so their RSC payload is paid
-once per anchor month instead of per visit. The all-tab **data** preload and the
-active tab's next two months (§1.11/§1.13.2) are unchanged. The Double Booking
+once per session instead of per visit (re-running it on every month step was
+competing with the read the user was waiting for). The all-tab **data** preload
+and the active tab's next two months (§1.11/§1.13.2) are unchanged. The Double Booking
 scan itself is not re-fetched by the pass — its month cache is already warmed by
 the shell's nav-badge read (see the row above); the pass only adds its route
 prefetch and leaf chunk. The wizard's lazy
@@ -1040,6 +1042,6 @@ Siblings of the same idea elsewhere in the app:
 | Surface               | Preview                                                                                                                                                                         | Prefetch                                                                                   |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | Dashboard first paint | last IndexedDB snapshot paints instantly, revalidation swaps in ([`pwa-offline.md`](pwa-offline.md) §1.11/§1.18)                                                                | —                                                                                          |
-| Dashboard tab switch  | `previewView` paints the warm tab during the RSC round-trip (§1.10, §1.13.2)                                                                                                    | each tab's URL is `router.prefetch`ed; the target view kind warms on tab hover/focus/press |
+| Dashboard tab switch  | `previewView` paints the warm tab during the RSC round-trip (§1.10, §1.13.2)                                                                                                    | the tab's URL is `router.prefetch`ed and its view kind warms, both on hover/focus/press      |
 | Event search          | dialog chrome always mounted while the body chunk idle-preloads only when recent searches exist + near-signal `preloadEventSearchBody()` ([`event-search.md`](event-search.md)) | body chunk                                                                                 |
 | History modal         | the tapped row's inline trail as `preview`                                                                                                                                      | hover/press `prefetchEventHistory`                                                         |
