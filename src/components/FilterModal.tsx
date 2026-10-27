@@ -19,10 +19,7 @@ import { AllNoneControls } from "@/components/AllNoneControls";
 import { PickerBadges, type PickerBadgeItem } from "@/components/PickerField";
 import { SelectableBadge } from "@/components/SelectableBadge";
 import { UserSelectModal } from "@/components/UserSelectModal";
-import {
-  applySectionSelection,
-  sectionSelectionState,
-} from "@/lib/filters/filterSections";
+import { sectionSelectionState } from "@/lib/filters/filterSections";
 import {
   isGroupUnfiltered,
   resolveFilterApply,
@@ -246,7 +243,8 @@ function initialOpenSections(
  * group as selectable badges — flat or split into inline/folder sections — or as
  * a selected-badge summary + Select trigger that opens the UserSelectModal badge
  * picker (variant "search", for large option lists). Every group gets an All/None
- * pair (search groups say "Clear"), and grouped lists add a per-section pair.
+ * pair (search groups say "Clear"); grouped lists keep section counts and folders,
+ * but the All/None action spans the whole group.
  * Selections are staged in a draft and only applied when "Apply" is pressed. The
  * draft lives in a child that mounts with the modal, so it re-initializes from the
  * current applied values every time the dialog opens. "No filter applied" is "all
@@ -382,18 +380,6 @@ function FilterModalBody({
     commitGroupValue(key, value);
   }
 
-  function handleSectionChange(
-    group: FilterGroup,
-    section: FilterGroupSection,
-    mode: "all" | "none",
-  ) {
-    commitGroupValue(
-      group.label,
-      applySectionSelection(section.options, draft[group.label] ?? [], mode),
-      true,
-    );
-  }
-
   function toggleSection(group: FilterGroup, section: FilterGroupSection) {
     const key = sectionKey(group, section);
     setExpandedSections((prev) => {
@@ -457,7 +443,6 @@ function FilterModalBody({
 
   function renderSection(group: FilterGroup, section: FilterGroupSection) {
     const selected = draft[group.label] ?? [];
-    const state = sectionSelectionState(section.options, selected);
     const open =
       !section.collapsible || expandedSections.has(sectionKey(group, section));
     return (
@@ -498,15 +483,6 @@ function FilterModalBody({
                 {section.options.length}
               </Badge>
             </Group>
-          )}
-          {section.options.length > 1 && (
-            <AllNoneControls
-              label={section.label}
-              allSelected={state === "all"}
-              noneSelected={state === "none"}
-              onAll={() => handleSectionChange(group, section, "all")}
-              onNone={() => handleSectionChange(group, section, "none")}
-            />
           )}
         </Group>
         <Collapse expanded={open} transitionDuration={motion.duration.micro}>

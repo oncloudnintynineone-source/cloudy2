@@ -161,8 +161,9 @@ doc content here.
   the shared `FilterModal` renders every group with the same `SelectableBadge`s and an
   All/None pair (search groups label it All/Clear); Event Types reuse the wizard's
   `buildEventTypePickerSections` (inline groups, collapsible folders, counts, Ungrouped)
-  with per-section All/None, and the Users badge picker gains department-section counts,
-  per-section All/Clear, a global Select all/Clear and an amber "(You)" badge.
+  with one group-level All/None across every category (no per-category pair), and the
+  Users badge picker gains department-section counts, per-section All/Clear, a global
+  Select all/Clear and an amber "(You)" badge.
   the active tab lives in `?view=<id>`; with no `?view=` a load defaults to the first
   tab in strip order (the last-viewed tab is not remembered). A tab
   tap is **optimistic**: it sets `previewView` in `DashboardDataContext`, so

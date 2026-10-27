@@ -2205,7 +2205,8 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   for reuse), with a consistent group-level All/None pair (search groups label it
   All/Clear). Dashboard Event Types reuse the wizard's
   `buildEventTypePickerSections` — inline groups, collapsible folders, counts,
-  "Ungrouped", per-section All/None — after the group is revealed with Show/Hide.
+  "Ungrouped" — after the group is revealed with Show/Hide; one group-level All/None
+  spans every category (no per-category pair).
   `UserSelectModal` gains section counts, per-section All/Clear, a global
   Select all/Clear footer, and an amber "(You)" badge for the acting user. The dialog
   body scrolls with a pinned footer. Docs: `docs/dashboard-views.md` §1.2,

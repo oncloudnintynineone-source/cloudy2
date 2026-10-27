@@ -457,16 +457,19 @@ badge grid) and **Users** (badge-dialog picker, `variant: "search"`) — and tuc
 **Event Types** behind a "Show"/"Hide" disclosure (`collapsedGroupLabels`;
 audit-log/user-table callers keep all groups expanded). Every group has a
 consistent **All / None** pair (search groups label the second action **Clear**,
-because empty means "no filter"), and grouped lists also get per-section pairs.
+because empty means "no filter"). Grouped lists keep their section headers, but
+the All/None action spans the whole group — there is no separate All/None per
+event-type category.
 
 **Event Types mirror the wizard's type step exactly**: the dashboard builds
 `FilterGroupSection`s with `buildEventTypePickerSections(eventTypes,
 eventTypeGroups)` (`src/lib/eventTypes/groups.ts`) — inline groups first,
 collapsible folders last, empty groups skipped, "Ungrouped" as the catch-all.
 Folder sections start collapsed unless they hold an already-applied type; each
-section header carries its option count and its own All/None. The group's flat
-`options` remain the canonical value list for apply/count logic; sections are
-presentation only.
+section header carries its option count, while the single group-level All/None
+selects or clears every type across all categories. The group's flat `options`
+remain the canonical value list for apply/count logic; sections are presentation
+only.
 
 The **Users** picker uses the same `SelectableBadge` as the wizard and filter
 grids, now with department section counts, hierarchy indentation, per-section
