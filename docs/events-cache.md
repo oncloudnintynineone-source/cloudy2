@@ -351,7 +351,7 @@ that calendar+month is a blocking re-fetch, so `router.refresh()` shows the chan
 immediately (read-your-own-writes). Other warm instances can't be reached by the purge, so
 they may keep serving their pre-mutation L1 copy with zero I/O until that entry ages out of
 the fresh window (`GCAL_CACHE_FRESH_MS`, 60s) and a background refresh runs — on a
-multi-instance deployment (Vercel) the worst case for a *different* user/instance is ~60s,
+multi-instance deployment (Cloud Run production) the worst case for a *different* user/instance is ~60s,
 though the shared DB row is gone so any cold instance or expired re-read converges right
 away. This window is bounded and self-correcting; it is a deliberate trade for the zero-I/O
 L1 warm hit.
@@ -494,7 +494,8 @@ invalidation. It was replaced with the Postgres table because:
   (no cross-instance sharing), with a 2 MB per-entry fetch-cache cap.
 
 The DB table avoids the entire Next cache runtime and behaves identically in dev, CI,
-Vercel, and self-hosted. See `progress-archive.md` §1.42 for the full history.
+Vercel Preview, Cloud Run production, and self-hosted. See `progress-archive.md` §1.42
+for the full history.
 
 ## 1.12 Performance
 

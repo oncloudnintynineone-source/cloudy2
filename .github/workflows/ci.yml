@@ -125,9 +125,9 @@ jobs:
           context: .
           push: true
           # NEXT_PUBLIC_* values are inlined into the client bundle at build
-          # time, so the Cloud Run image must bake the VAPID public key here
-          # (Vercel inlines it at its own build). The Dockerfile's builder
-          # stage declares ARG/ENV for it.
+          # time, so the Cloud Run production image must bake the VAPID public
+          # key here (the Vercel dev build inlines it at its own build). The
+          # Dockerfile's builder stage declares ARG/ENV for it.
           build-args: >-
             NEXT_PUBLIC_VAPID_PUBLIC_KEY=${{ secrets.NEXT_PUBLIC_VAPID_PUBLIC_KEY }}
           tags: >-
@@ -148,10 +148,10 @@ jobs:
             --cpu=1 --memory=1Gi --concurrency=20 --min-instances=0
             --max-instances=4 --allow-unauthenticated
 
-      # Mirror of the Vercel prod env vars plus NEXTAUTH_URL, whose value is only
+      # Cloud Run production env vars, including NEXTAUTH_URL, whose value is only
       # known after the first deploy. Written via --env-vars-file so values may
       # contain commas/'='; rolls a second revision moments after the first.
-      # The VAPID trio is read from the same secrets Vercel prod mirrors.
+      # The VAPID trio is shared with the Vercel dev preview.
       - name: Set service environment variables
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}

@@ -22,8 +22,9 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
-  DB then `deploy-cloudrun` (Cloud Run shadow). The per-phase "pnpm … pass" claims are
-  therefore no longer repeated here.
+  DB then `deploy-cloudrun` (Cloud Run production on Google Cloud). Vercel only builds
+  the `dev` preview; its Production deployment is disabled. The per-phase "pnpm … pass"
+  claims are therefore no longer repeated here.
 - Feature surface: single-field login (`[phone][keyword]`, admin PIN modal, phone-less
   env root); departments as Google
   Calendars with service-account ACL sharing; audit logging; event CRUD across department
@@ -2224,8 +2225,8 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
 
 ## 1.4 Open items & next steps
 
-1. **`ADMIN_INITIAL_PASSWORD` + `ADMIN_PIN`** must be set on Vercel (Production +
-   Preview), the Cloud Run shadow's GH secret mirrors, and `.env.local` — both seed
+1. **`ADMIN_INITIAL_PASSWORD` + `ADMIN_PIN`** must be set on Vercel Preview, in the
+   Cloud Run production GitHub secrets, and `.env.local` — both seed
    their hash on first login and reconcile on every login afterwards (rotating = change
    the env var + redeploy). Named admins can't sign in until `ADMIN_PIN` is set.
 2. **Breach email transport**: configure either Workspace domain-wide delegation
@@ -2236,7 +2237,7 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
 4. Per-phase manual-QA debts recorded in the archive's verification notes (PWA device
    installs, on-device swipe checks, width sweeps) were never systematically cleared.
 5. **Event participant push** needs the VAPID trio set per surface
-   (Vercel Production/Preview, Cloud Run shadow GH secrets, `.env.local`) — generate
+   (Vercel Preview, Cloud Run production GitHub secrets, `.env.local`) — generate
    once with `npx web-push generate-vapid-keys` and share the same pair; iOS users
    must run iOS/iPadOS 16.4+ from the **installed** home-screen app (remove + re-add
    once if added before 16.4) and tap Enable in Profile → Notifications.
@@ -2244,18 +2245,20 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
 ## 1.5 Deployment & environments
 
 - Three tiers from one codebase — **Local** (`pnpm dev` with `.env.local`), **Dev**
-  (Vercel Preview branch, isolated dev Neon + dev Google), **Prod** (Vercel
-  Production + Cloud Run shadow `cloudy2` sharing prod Neon + prod Google). Full
-  matrix: `docs/developer-guide.md` §1.9; Cloud Run details in §1.9.1.
-- Vercel auto-builds: `main` → production, `dev` → preview, with **fully isolated
-  environments** — separate Neon account (dev DB is migrations-only; `db:seed` never
-  fabricates calendars — it only defaults the user login keyword, so it is safe to
-  run; departments/users are created in-app so dev gets its own calendars) and
-  separate Google account (dev service account).
+  (Vercel Preview branch, isolated dev Neon + dev Google), **Prod** (Cloud Run
+  `cloudy2` on Google Cloud sharing prod Neon + prod Google). Vercel only builds the
+  dev preview; its Production deployment is disabled. Full matrix:
+  `docs/developer-guide.md` §1.9; Cloud Run details in §1.9.1.
+- Vercel auto-builds the `dev` preview only, with **fully isolated environments** —
+  separate Neon account (dev DB is migrations-only; `db:seed` never fabricates
+  calendars — it only defaults the user login keyword, so it is safe to run;
+  departments/users are created in-app so dev gets its own calendars) and separate
+  Google account (dev service account). `main` is not built on Vercel.
 - Migrations auto-apply per environment via CI: `main` push → prod DB
-  (`DATABASE_URL` secret) then `deploy-cloudrun` ships the Cloud Run shadow; `dev`
+  (`DATABASE_URL` secret) then `deploy-cloudrun` ships Cloud Run production; `dev`
   push → dev DB (`DATABASE_URL_PREVIEW` secret).
-- Env vars are set per environment: the Vercel Production/Preview table is in
-  `docs/developer-guide.md` §1.9; the Cloud Run shadow mirrors Production and sets
-  `NEXTAUTH_URL` to its `*.run.app` URL (§1.9.1). Leave `NEXTAUTH_URL` unset on
-  Vercel; set `ENABLE_EXPERIMENTAL_COREPACK = 1`. Canonical gotchas live in AGENTS.md.
+- Env vars are set per environment: the Vercel Preview / Cloud Run production table is
+  in `docs/developer-guide.md` §1.9. Cloud Run production sets `NEXTAUTH_URL` to its
+  `*.run.app` URL (§1.9.1). Leave `NEXTAUTH_URL` unset on Vercel Preview; set
+  `ENABLE_EXPERIMENTAL_COREPACK = 1` for the Vercel build. Canonical gotchas live in
+  AGENTS.md.

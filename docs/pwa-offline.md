@@ -269,7 +269,7 @@ Registration is hardened against an HTTP-cached worker, without which a deploy c
 
 ```mermaid
 sequenceDiagram
- participant D as Vercel deploy (new build)
+ participant D as Cloud Run deploy (new build)
  participant B as Browser
  participant V1 as SW build v1 (controlling)
  participant V2 as SW build v2 (waiting)

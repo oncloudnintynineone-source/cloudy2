@@ -46,8 +46,9 @@ CI order matters: `lint -> typecheck -> test -> db:generate` (schema-drift check
 pushes to `dev`, a `migrate-preview` job runs `pnpm db:migrate` against the dev Neon
 using the `DATABASE_URL_PREVIEW` repo secret; on pushes to `main`, a `migrate` job runs
 it against prod Neon using `DATABASE_URL` — so pending migrations auto-apply on deploy
-per environment — and a `deploy-cloudrun` job then deploys the Cloud Run shadow
-(§1.9.1 of docs/developer-guide.md). PRs only run the quality checks.
+per environment — and a `deploy-cloudrun` job then deploys **Cloud Run production** on
+Google Cloud (§1.9.1 of docs/developer-guide.md). Vercel is only the dev-build host:
+`dev` → Preview; its Production deployment is disabled. PRs only run quality checks.
 
 ## Architecture
 
@@ -365,9 +366,10 @@ doc content here.
   the user to run themselves** — all work lands on `dev`; `main` only advances by merging
   `dev` (never commit straight to `main`). Reference
   [docs/developer-guide.md](docs/developer-guide.md) §1.8: commit → `git push origin dev`
-  (fires CI + Vercel preview, isolated dev Neon/Google) → verify on the preview →
-  `git checkout main && git merge dev && git push origin main` (Vercel prod deploy +
-  Cloud Run shadow deploy + auto-migrate) → switch back to `dev`. Briefly mention what
+  (fires CI + Vercel preview, isolated dev Neon/Google; Vercel builds dev previews only)
+  → verify on the preview → `git checkout main && git merge dev && git push origin main`
+  (Cloud Run production deploy + auto-migrate; Vercel does not build `main`) → switch
+  back to `dev`. Briefly mention what
   the push triggers per environment (§1.7/§1.9), plus the `pnpm db:migrate` shell-env
   step if the schema changed (§1.11). **Suggest a commit message** summarizing the change,
   matching the repo's concise style — then stop. **You never run these git commands
@@ -556,28 +558,31 @@ none` so taps pass through to the clipped tile, and it hides on a side once
   specifically need historical detail** (e.g. why/when a decision was made); for current
   work AGENTS.md + progress.md are sufficient.
 
-## Vercel / Cloud Run / env gotchas
+## Hosting / env gotchas
 
-- Leave `NEXTAUTH_URL` **unset on Vercel** (empty value breaks `/login` prerender; NextAuth
-  falls back to `VERCEL_URL`); on the Cloud Run shadow it **must be set** to the `*.run.app`
-  URL (no `VERCEL_URL` fallback there).
-- Set `ENABLE_EXPERIMENTAL_COREPACK = 1` so Vercel honors pnpm `11.18.0`; otherwise it
-  detects pnpm 10 and ignores the pnpm-11 `allowBuilds` (`@swc/core`/esbuild/sharp/unrs-resolver).
+- **Production is Google Cloud Run** (`cloudy2`, `asia-southeast1`), deployed from `main`
+  by `deploy-cloudrun`. **Vercel only builds the dev preview** from `dev`; its Production
+  deployment is disabled. Environments stay fully isolated: Vercel Preview uses dev Neon +
+  dev Google, Cloud Run uses prod Neon + prod Google.
+- Leave `NEXTAUTH_URL` **unset on Vercel Preview** (empty value breaks `/login` prerender;
+  NextAuth falls back to `VERCEL_URL`); on Cloud Run production it **must be set** to the
+  `*.run.app` URL (no `VERCEL_URL` fallback there).
+- Set `ENABLE_EXPERIMENTAL_COREPACK = 1` so the Vercel dev build honors pnpm `11.18.0`;
+  otherwise it detects pnpm 10 and ignores the pnpm-11 `allowBuilds`
+  (`@swc/core`/esbuild/sharp/unrs-resolver).
 - **Web Push** needs `NEXT_PUBLIC_VAPID_PUBLIC_KEY` + `VAPID_PRIVATE_KEY` + `VAPID_SUBJECT`
-  together on **every** deploy surface (Vercel prod + preview, Cloud Run shadow, `.env.local`).
+  together on **every** deploy surface (Vercel Preview, Cloud Run production, `.env.local`).
   Generate once with `npx web-push generate-vapid-keys`; the same pair is shared across
   environments. `NEXT_PUBLIC_*` is build-time — the Cloud Run image gets it as a Docker
   build arg. Skipped gracefully until all three are set. Details:
   [docs/developer-guide.md](docs/developer-guide.md) §1.9.1, [docs/event-notifications.md](docs/event-notifications.md).
-- `main` → production, `dev` → preview. **Environments are fully isolated** (separate Neon
-  projects + service accounts per env); CI runs `pnpm db:migrate` per branch. **Never point
-  a data-copied DB at a different service account** (the `calendars` table stores Google
-  calendar IDs). Copy `.env.example` → `.env.local`; required: `DATABASE_URL`,
+- `main` → Cloud Run production, `dev` → Vercel Preview. **Environments are fully isolated**
+  (separate Neon projects + service accounts per env); CI runs `pnpm db:migrate` per branch.
+  **Never point a data-copied DB at a different service account** (the `calendars` table
+  stores Google calendar IDs). Copy `.env.example` → `.env.local`; required: `DATABASE_URL`,
   `NEXTAUTH_SECRET`, `ADMIN_INITIAL_PASSWORD`, `ADMIN_PIN`, + Google service-account vars.
-- **Dual-hosting:** Vercel (prod + preview) and, from the same commit, a Cloud Run **shadow**
-  (`deploy-cloudrun`, `main`-only) sharing prod Neon + the prod service account. Platform
-  differences live in env/deploy files, never `next.config`/`src/`. Details + cutover/abort:
-  [docs/developer-guide.md](docs/developer-guide.md) §1.9.1.
+- Platform differences live in env/deploy files, never `next.config`/`src/`. Details:
+  [docs/developer-guide.md](docs/developer-guide.md) §1.9/§1.9.1.
 
 ## Agent skills
 

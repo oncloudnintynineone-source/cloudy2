@@ -117,7 +117,7 @@ Payload types (`types.ts`):
 
 - **`getServiceAccountConfig(env)`** (`config.ts`) — prefers
   `GOOGLE_SERVICE_ACCOUNT_BASE64` (a base64-encoded service-account JSON key; a
-  single env var keeps Vercel secret management simple) and reads
+  single env var keeps deployment secret management simple) and reads
   `client_email`/`private_key` from it; a malformed key **falls through** to the
   individual fields rather than failing. Fallback: `GOOGLE_CLIENT_EMAIL` +
   `GOOGLE_PRIVATE_KEY`, with `\\n` in the pasted key unescaped to real newlines
@@ -130,9 +130,9 @@ Payload types (`types.ts`):
 - **`GOOGLE_CALENDAR_SCOPE`** — the full `calendar` scope (plus `GMAIL_SEND_SCOPE`
  for `sendEmail`).
 
-Why base64-first: on Vercel, a multi-line private key in one env var is fiddly;
-base64 collapses the whole JSON key into one line. The individual-field fallback
-covers local dev.
+Why base64-first: on managed hosts (Vercel Preview, Cloud Run production), a
+multi-line private key in one env var is fiddly; base64 collapses the whole JSON key
+into one line. The individual-field fallback covers local dev.
 
 ## 1.6 The selector
 

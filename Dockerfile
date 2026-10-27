@@ -1,12 +1,12 @@
 # syntax=docker/dockerfile:1
 
-# Cloud Run image (shadow deployment, see docs/developer-guide.md §1.9.1). Runs
-# the regular `next start` server over the full `.next` build — deliberately NOT
+# Cloud Run production image (see docs/developer-guide.md §1.9.1). Runs the
+# regular `next start` server over the full `.next` build — deliberately NOT
 # `output: standalone`: pnpm's isolated (symlinked) node_modules layout makes
 # standalone tracing drop packages (e.g. @swc/helpers -> MODULE_NOT_FOUND), and a
 # hoisted-linker fix would fork the repo's install config. Copying the full
 # node_modules costs image size but is robust and needs no layout tricks. The
-# same commit builds unchanged on Vercel — next.config.ts carries no Cloud
+# same source builds the Vercel dev preview — next.config.ts carries no Cloud
 # Run-specific settings.
 
 FROM node:24-slim AS base
@@ -27,7 +27,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 # NEXT_PUBLIC_* values are inlined into the client bundle at build time. The
 # deploy job (ci.yml) passes the VAPID public key as a build arg so the Cloud
-# Run image's clients can subscribe to push, exactly like Vercel's own build.
+# Run image's clients can subscribe to push, exactly like the Vercel dev build.
 ARG NEXT_PUBLIC_VAPID_PUBLIC_KEY
 ENV NEXT_PUBLIC_VAPID_PUBLIC_KEY=${NEXT_PUBLIC_VAPID_PUBLIC_KEY}
 RUN pnpm build

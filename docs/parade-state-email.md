@@ -54,7 +54,8 @@ sequenceDiagram
 ```
 
 The dispatcher runs inside `after()`, so the triggering request's response is never
-delayed. It is host-agnostic: it works identically on Vercel and the Cloud Run shadow.
+delayed. It is host-agnostic: it works identically on the Vercel dev preview and
+Cloud Run production.
 
 ## 1.2 Data model
 

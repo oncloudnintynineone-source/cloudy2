@@ -117,9 +117,9 @@ actions already read it.
 
 The VAPID pair is generated **once** (`npx web-push generate-vapid-keys`) and
 **shared across environments** — the keys identify the application server, so a
-device subscribed through the Vercel origin keeps validating when the same
-keypair signs from the Cloud Run shadow. Required on every deploy surface
-(Vercel Production + Preview, Cloud Run shadow, `.env.local`):
+device subscribed through the Vercel dev-preview origin keeps validating when the
+same keypair signs from Cloud Run production. Required on every deploy surface
+(Vercel Preview, Cloud Run production, `.env.local`):
 
 | Variable | Purpose |
 | ------------------------------ | -------------------------------------------------------------------- |

@@ -1,9 +1,10 @@
 # 1. Developer guide
 
 Everything needed to develop, test, and deploy Cloudy2: setup, scripts, environment,
-project layout, testing, CI, git workflow, Vercel deployment, Google configuration,
-and the migration workflow. Subsystem design lives in the deep-dive docs indexed in
-§1.12; agent-facing rules live in [`AGENTS.md`](../AGENTS.md).
+project layout, testing, CI, git workflow, hosting (Cloud Run production + Vercel dev
+preview), Google configuration, and the migration workflow. Subsystem design lives in
+the deep-dive docs indexed in §1.12; agent-facing rules live in
+[`AGENTS.md`](../AGENTS.md).
 
 ## Table of contents
 
@@ -26,7 +27,7 @@ and the migration workflow. Subsystem design lives in the deep-dive docs indexed
 | --------- | ------------------------------------------------------------------------------------------- |
 | Framework | Next.js 16 (App Router, Turbopack) + TypeScript |
 | UI | Mantine v9 (mobile-first; desktop layout at `lg` = 640px) |
-| Hosting | Vercel (`main` → production, `dev` → preview) + Cloud Run shadow (`main`-only) — see §1.9 |
+| Hosting | Google Cloud Run (`main` → production) + Vercel (`dev` → dev preview only; Production disabled) — see §1.9 |
 | Database  | Neon Postgres + Drizzle ORM |
 | Auth | NextAuth v4 (Credentials provider, JWT sessions) |
 | Google | Service account: Calendar v3 + Gmail v1 (real client when configured, no-op stub otherwise) |
@@ -79,15 +80,15 @@ seed defaults on first run; admins manage them in-app afterwards (Settings).
 | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `DATABASE_URL` | Neon Postgres connection string |
 | `NEXTAUTH_SECRET` | Session signing secret (`openssl rand -base64 32`) |
-| `NEXTAUTH_URL` | App URL for local dev (`http://localhost:3000`). **Leave unset on Vercel** — an empty value breaks prerender; NextAuth falls back to `VERCEL_URL` |
-| `GOOGLE_SERVICE_ACCOUNT_BASE64` | Base64-encoded GCP service-account JSON key (one env var keeps Vercel secret management simple) |
+| `NEXTAUTH_URL` | App URL for local dev (`http://localhost:3000`). **Leave unset on Vercel Preview** — an empty value breaks prerender; NextAuth falls back to `VERCEL_URL`. Cloud Run production sets it to the `*.run.app` URL |
+| `GOOGLE_SERVICE_ACCOUNT_BASE64` | Base64-encoded GCP service-account JSON key (one env var keeps deployment secret management simple) |
 | `GOOGLE_CLIENT_EMAIL` | Fallback: individual service-account email (used only when the base64 var is empty) |
 | `GOOGLE_PRIVATE_KEY` | Fallback: individual private key (`\n` escapes are unescaped automatically) |
 | `GOOGLE_DELEGATE_EMAIL` | Workspace account impersonated for Gmail send (KAH breach emails) and granted owner ACLs on department calendars. Leave empty when using `SMTP_URL` instead |
 | `SMTP_URL` | SMTP fallback for breach emails, e.g. a personal Gmail app password (`smtp://user:pass@smtp.gmail.com:465`; URL-encode special characters, `smtps:`/465 = implicit TLS) |
 | `EMAIL_FROM` | Optional From override (defaults to the SMTP username) |
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY`  | Web Push VAPID **public** key (event participant notifications). Inlined into the client (`pushManager.subscribe`) and read by the server. Generate once with `npx web-push generate-vapid-keys`; the same pair serves every environment |
-| `VAPID_PRIVATE_KEY` | Web Push VAPID **private** key (server-only). Same pair on every environment; mirror to the Cloud Run shadow's GH secret |
+| `VAPID_PRIVATE_KEY` | Web Push VAPID **private** key (server-only). Same pair on every environment; mirror to the Cloud Run production GitHub secret and Vercel Preview |
 | `VAPID_SUBJECT` | Web Push `mailto:` (or `https:`) contact identifying the application server, e.g. `mailto:cloudy2@example.com`. Required alongside the keys — without all three, participant push is skipped (no crash) |
 | `ADMIN_INITIAL_PASSWORD` | Emergency (break-glass) root password. Bcrypt-hashed into `settings.admin_password_hash` on first login and reconciled on every login, so changing the env var + redeploying rotates it. Sign in on the Admin surface with the phone field left blank |
 | `ADMIN_PIN` | Shared sign-in PIN for every `role='admin'` user (named admins sign in with their phone + this PIN). Bcrypt-hashed into `settings.admin_pin_hash` on first login and reconciled on every login like `ADMIN_INITIAL_PASSWORD`; no in-app way to set or change it |
@@ -148,9 +149,10 @@ docs/ # Design deep-dives (indexed in §1.12)
 ## 1.7 CI
 
 One GitHub Actions workflow (`ci.yml`) runs the quality checks on every push/PR and
-the environment-specific jobs on branch pushes. Vercel deploys **independently** of
-this workflow via its git integration (see the plain-English overview in the
-[`README` §1.4](../README.md#14-development--deployment-at-a-glance)).
+the environment-specific jobs on branch pushes. Vercel builds the `dev` preview
+**independently** of this workflow via its git integration; production deploys only
+through this workflow (Cloud Run). See the plain-English overview in the
+[`README` §1.4](../README.md#14-development--deployment-at-a-glance).
 
 ```mermaid
 flowchart LR
@@ -159,7 +161,7 @@ flowchart LR
  Q -->|"ref = dev"| MP["migrate-preview job<br/>pnpm db:migrate<br/>(DATABASE_URL_PREVIEW secret) → dev Neon"]
  Q -->|"ref = main"| MIG["migrate job<br/>pnpm db:migrate<br/>(DATABASE_URL secret) → prod Neon"]
  MIG -->|"main only"| CR["deploy-cloudrun job<br/>Docker build → Artifact Registry →<br/>Cloud Run cloudy2 + env-var revision"]
- TRIG -. "Vercel git integration (independent of ci.yml)" .-> VER["dev → Preview · main → Production"]
+ TRIG -. "Vercel git integration (dev preview only)" .-> VER["dev → Preview"]
 ```
 
 - The **quality job** runs on every push and PR: `lint` → `typecheck` → `test` → a
@@ -171,9 +173,9 @@ flowchart LR
   environment on deploy. Both jobs are branch-gated with their own concurrency group
   and wait on `quality`. PRs only run the quality job.
 - `main` pushes additionally run `deploy-cloudrun` (after `quality` and `migrate`,
-  so migrations land before traffic): Docker build → Artifact Registry → Cloud Run,
-  plus env vars that mirror Vercel prod (§1.9.1). This is the migration-shadow
-  deployment; Vercel keeps deploying independently of `ci.yml`.
+  so migrations land before traffic): Docker build → Artifact Registry → Cloud Run
+  production, plus the production env vars (§1.9.1). Vercel does not build `main`;
+  its Production deployment is disabled.
 
 ## 1.8 Git workflow (cheatsheet)
 
@@ -184,14 +186,13 @@ merging `dev`. Never commit directly to `main`.**
 flowchart LR
  FB[feature branch] -- "PR (quality only)" --> DEV[dev]
  DEV -- "push" --> A1["GitHub Actions — quality<br/>+ migrate-preview (dev Neon)"]
- DEV -- "push" --> V1["Vercel Preview build"]
+ DEV -- "push" --> V1["Vercel dev-preview build"]
  A1 & V1 --> PREV["Preview<br/>isolated dev Neon + dev Google"]
  PREV -- "verify on the preview" --> DEV
  DEV -- "merge" --> MAIN[main]
  MAIN -- "push" --> A2["GitHub Actions — quality<br/>+ migrate (prod Neon)"]
- MAIN -- "push" --> V2["Vercel Production build"]
- A2 -- "after migrate: deploy-cloudrun" --> CR["Cloud Run shadow"]
- V2 & CR --> P["Production<br/>shared prod Neon + prod Google"]
+ A2 -- "after migrate: deploy-cloudrun" --> CR["Cloud Run production"]
+ CR --> P["Production<br/>prod Neon + prod Google"]
 ```
 
 ### Terminal
@@ -205,7 +206,7 @@ git push origin dev # verify on the preview URL before shipping
 # 2. Ship to prod (only after the preview checks out)
 git checkout main && git pull origin main
 git merge dev # merge, never cherry-pick (duplicate SHAs)
-git push origin main # Vercel prod + Cloud Run shadow deploy + migrate job vs prod Neon
+git push origin main # Cloud Run production deploy + migrate job vs prod Neon
 
 # 3. Verify prod, then back to work
 git checkout dev
@@ -223,10 +224,11 @@ git checkout dev
  `ADMIN_INITIAL_PASSWORD` alone — and exercise the changed flows; isolated dev Neon +
  dev Google account, so prod is untouchable; CI already migrated the dev DB.
 4. **Ship:** status bar → switch to `main` → Source Control `…` → **Pull** → command
- palette → **Git: Merge Branch…** → `dev` → `…` → **Push**. Vercel prod deploys; CI
- runs the `migrate` job against the prod DB, then `deploy-cloudrun` ships the Cloud
- Run shadow.
-5. **Verify prod** (log in, confirm the change), then switch back to `dev`.
+ palette → **Git: Merge Branch…** → `dev` → `…` → **Push**. CI runs the `migrate`
+ job against the prod DB, then `deploy-cloudrun` ships Cloud Run production. Vercel
+ does not build `main`.
+5. **Verify prod** (log in on the `*.run.app` URL, confirm the change), then switch
+ back to `dev`.
 6. **Before any branch switch:** commit or stash (Source Control `…` → **Pull, Push**
  → **Stash** / **Pop Stash**) — or uncommitted work gets stranded.
 7. Optionally protect `main` with GitHub branch rules (require PR + CI).
@@ -236,23 +238,22 @@ git checkout dev
 ## 1.9 Deployment (hosting environments)
 
 One codebase, three tiers — `main` is production and only advances by merging `dev`
-(§1.8). Environments are isolated per the split below; prod is served from **two**
-hosts (Vercel Production and the Cloud Run shadow) sharing the same data, so either
-can act as the other's fallback during the migration. A plain-English overview of
+(§1.8). **Production runs on Google Cloud Run** (Cloud Run service `cloudy2`); Vercel
+is the **dev-build host only** (`dev` → Preview) and its Production deployment is
+disabled. Environments are isolated per the split below. A plain-English overview of
 the same tiers is in the [`README` §1.4](../README.md#14-development--deployment-at-a-glance).
 
 | Tier | Host | Deploy trigger | Data / accounts |
-| --------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------- |
+| --------- | ------------------------------------------------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------- |
 | **Local** | `pnpm dev` on your machine (`.env.local`) | — | your local env (dev Neon + dev Google, per `.env.local`) |
 | **Dev** | Vercel **Preview** (branch `dev`) | Vercel git integration; CI runs quality + `migrate-preview` | isolated dev Neon + dev Google (separate accounts) |
-| **Prod**  | Vercel **Production** (branch `main`) + Cloud Run **shadow** `cloudy2` (§1.9.1) | Vercel git integration; CI runs `migrate` → `deploy-cloudrun` | shared prod Neon + prod Google — same commit on both hosts |
+| **Prod**  | Cloud Run `cloudy2` on **Google Cloud** (`main`-only, §1.9.1) | CI runs `migrate` → `deploy-cloudrun` | prod Neon + prod Google |
 
 ```mermaid
 flowchart TB
  A["Local<br/>pnpm dev · .env.local"]
- B["Vercel Preview<br/>(dev branch)"]
- C["Vercel Production<br/>(main branch)"]
- D["Cloud Run shadow<br/>(main-only, deploy-cloudrun)"]
+ B["Vercel Preview<br/>(dev branch, dev builds only)"]
+ C["Cloud Run production<br/>(main-only, deploy-cloudrun)"]
  NE1["dev Neon project<br/>(separate Neon account)"]
  GO1["dev Google service account<br/>(separate Google account)"]
  NE2["prod Neon project"]
@@ -263,45 +264,42 @@ flowchart TB
  B --> GO1
  C --> NE2
  C --> GO2
- D --> NE2
- D --> GO2
 ```
 
-Vercel auto-builds on every push: `main` → production, `dev` → preview. The two Vercel
-environments are **fully isolated**: every environment variable has separate
-Production and Preview values (Project → Settings → Environment Variables), pointing
-at a dedicated dev Neon project and a dedicated dev Google service account (separate
-accounts from prod). Dev activity — events, calendars, ACLs, emails — never touches
-prod data.
+Vercel builds only the `dev` preview: a `dev` push produces a Preview deployment
+against the dedicated dev Neon project and dev Google service account. The Vercel
+project's Production deployment is disabled, so `main` is never built on Vercel.
+Dev activity — events, calendars, ACLs, emails — never touches prod data.
 
-| Variable | Production | Preview |
-| ------------------------------- | --------------------------------- | ------------------------------------------------------------ |
-| `DATABASE_URL` | prod Neon project | dev Neon project (separate Neon account) |
-| `GOOGLE_SERVICE_ACCOUNT_BASE64` | prod service-account key | dev service-account key (separate Google account) |
-| `NEXTAUTH_SECRET` | prod secret | separate dev secret |
-| `ADMIN_INITIAL_PASSWORD` | prod emergency-admin password | dev-only password |
-| `ADMIN_PIN` | prod shared admin PIN | dev-only admin PIN |
-| `SMTP_URL` / `EMAIL_FROM` | prod email transport | test inbox (the dev Google account's own Gmail app password) |
-| `GOOGLE_DELEGATE_EMAIL` | Workspace delegate for Gmail send | unset — dev uses `SMTP_URL` |
-| `NEXT_PUBLIC_VAPID_PUBLIC_KEY`  | Web Push VAPID public key | same key pair (shared across environments) |
-| `VAPID_PRIVATE_KEY` | Web Push VAPID private key | same key pair |
-| `VAPID_SUBJECT` | Web Push `mailto:` contact | same contact |
-| `ENABLE_EXPERIMENTAL_COREPACK`  | `1` | `1` |
-| `NEXTAUTH_URL` | unset | unset |
+| Variable | Dev (Vercel Preview) | Prod (Cloud Run) |
+| ------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| `DATABASE_URL` | dev Neon project (separate Neon account) | prod Neon project |
+| `GOOGLE_SERVICE_ACCOUNT_BASE64` | dev service-account key (separate Google account) | prod service-account key |
+| `NEXTAUTH_SECRET` | separate dev secret | prod secret |
+| `ADMIN_INITIAL_PASSWORD` | dev-only password | prod emergency-admin password |
+| `ADMIN_PIN` | dev-only admin PIN | prod shared admin PIN |
+| `SMTP_URL` / `EMAIL_FROM` | test inbox (the dev Google account's own Gmail app password) | prod email transport |
+| `GOOGLE_DELEGATE_EMAIL` | unset — dev uses `SMTP_URL` | Workspace delegate for Gmail send |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY`  | same key pair (shared across environments) | same key pair |
+| `VAPID_PRIVATE_KEY` | same key pair | same key pair |
+| `VAPID_SUBJECT` | same contact | same contact |
+| `ENABLE_EXPERIMENTAL_COREPACK`  | `1` | not used — the Docker image installs pnpm itself |
+| `NEXTAUTH_URL` | unset | the `*.run.app` URL |
 
-The Cloud Run shadow mirrors the **Production** column of the table above (env vars
-applied by the `deploy-cloudrun` job), with one difference: `NEXTAUTH_URL` **is set**
-there — to the service's `*.run.app` URL (no `VERCEL_URL` fallback exists on Cloud
-Run). See §1.9.1 for the full Cloud Run env/setup details.
+The **Prod (Cloud Run)** column is applied by the `deploy-cloudrun` job from GitHub
+Actions secrets. `NEXTAUTH_URL` **is set** there — to the service's `*.run.app` URL
+(no `VERCEL_URL` fallback exists on Cloud Run). See §1.9.1 for the full Cloud Run
+env/setup details.
 
-- `ENABLE_EXPERIMENTAL_COREPACK` = `1` — makes Vercel honor the `packageManager`
-  field (pnpm `11.18.0`). Without it, Vercel detects pnpm 10 from the lockfile,
-  which ignores `allowBuilds` and emits "Ignored build scripts" warnings for
+- `ENABLE_EXPERIMENTAL_COREPACK` = `1` — makes the Vercel dev build honor the
+  `packageManager` field (pnpm `11.18.0`). Without it, Vercel detects pnpm 10 from the
+  lockfile, which ignores `allowBuilds` and emits "Ignored build scripts" warnings for
   `esbuild`, `sharp`, and `unrs-resolver`.
-- Leave `NEXTAUTH_URL` **unset on Vercel** — Vercel injects `VERCEL_URL` and
-  NextAuth falls back to it. An empty value fails the build with `TypeError:
-Invalid URL` during prerender. On the Cloud Run shadow it **must be set** to the
-  service's `*.run.app` URL (§1.9.1) — there is no `VERCEL_URL` fallback there.
+- Leave `NEXTAUTH_URL` **unset on Vercel Preview** — Vercel injects `VERCEL_URL` and
+  NextAuth falls back to it. An empty value fails the build with
+  `TypeError: Invalid URL` during prerender. On Cloud Run production it **must be
+  set** to the service's `*.run.app` URL (§1.9.1) — there is no `VERCEL_URL` fallback
+  there.
 
 > **Warning:** never point a data-copied database (e.g. a Neon branch of prod) at a
 > different service account — the `calendars` table stores **Google calendar IDs**, so
@@ -319,18 +317,17 @@ concurrency group.
 Native build scripts for `esbuild`, `sharp`, and `unrs-resolver` are approved via
 `allowBuilds` in `pnpm-workspace.yaml` (pnpm 11 format).
 
-## 1.9.1 Cloud Run shadow deployment
+## 1.9.1 Cloud Run production deployment
 
-While the Vercel → Cloud Run migration is ongoing, the **same commit** builds and
-runs on both platforms from one codebase. Vercel remains the live production and
-preview; a `main`-only GitHub Actions job (`deploy-cloudrun` in `ci.yml`) deploys a
-**shadow** Cloud Run service that mirrors Vercel prod (same code, same prod Neon,
-same prod Google service account).
+Production runs on **Google Cloud Run** (`cloudy2`, region `asia-southeast1`). A
+`main`-only GitHub Actions job (`deploy-cloudrun` in `ci.yml`) builds the Docker image
+and deploys it against prod Neon + the prod Google service account. Vercel is kept
+only for the `dev` preview build; its Production deployment is disabled.
 
-- **Platform split lives in env/config, never in `src/`.** The Docker image runs
+- **Hosting split lives in env/config, never in `src/`.** The Docker image runs
   the regular `next start` server over the full `.next` build — no
-  Cloud Run-specific config exists in `next.config.ts`, so Vercel's build is
-  byte-identical to a Vercel-only setup. There is no `VERCEL_URL` coupling
+  Cloud Run-specific config exists in `next.config.ts`, so Vercel's dev-preview build
+  and the production image share the same source. There is no `VERCEL_URL` coupling
   anywhere in `src/`.
 - **Container**: multi-stage `Dockerfile` (`node:24-slim`): `pnpm install
 --frozen-lockfile` (`.npmrc` carries resilient fetch settings; `pnpm-workspace.yaml`
@@ -348,18 +345,18 @@ same prod Google service account).
   `*.run.app` URL and issues a single `gcloud run services update` with
   `--env-vars-file` (so values may contain commas/`=`) covering **all** env vars
   including `NEXTAUTH_URL` — a second, fully-configured revision seconds later.
-- **Env vars** mirror Vercel **Production**: `DATABASE_URL`, `NEXTAUTH_SECRET`
-  (same value — harmless since sessions are per-origin), `GOOGLE_SERVICE_ACCOUNT_BASE64`,
-  `GOOGLE_DELEGATE_EMAIL`, `SMTP_URL`, `EMAIL_FROM`,
+- **Env vars** are the production values: `DATABASE_URL`, `NEXTAUTH_SECRET`
+  (the prod secret; Vercel Preview uses a separate dev secret),
+  `GOOGLE_SERVICE_ACCOUNT_BASE64`, `GOOGLE_DELEGATE_EMAIL`, `SMTP_URL`, `EMAIL_FROM`,
    `ADMIN_INITIAL_PASSWORD`, `ADMIN_PIN`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`,
    `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`
-  (the Web Push pair is **shared** with Vercel — same keys, so a device subscribed
-  through one origin's push still validates against the other's). Unlike Vercel
-  (which inlines `NEXT_PUBLIC_*` at its own build), the Cloud Run image is built in
-  GitHub Actions, so the deploy job passes `NEXT_PUBLIC_VAPID_PUBLIC_KEY` as a
-  **Docker build arg** and the `Dockerfile` builder stage declares `ARG`/`ENV` for it
- — without that the client bundle in the image has no VAPID public key and the PWA
-  reports push as unconfigured.
+  (the Web Push pair is **shared** with Vercel Preview — same keys, so a device
+  subscribed through one origin's push still validates against the other's). Unlike
+  the Vercel build (which inlines `NEXT_PUBLIC_*` at its own build), the Cloud Run
+  image is built in GitHub Actions, so the deploy job passes
+  `NEXT_PUBLIC_VAPID_PUBLIC_KEY` as a **Docker build arg** and the `Dockerfile`
+  builder stage declares `ARG`/`ENV` for it — without that the client bundle in the
+  image has no VAPID public key and the PWA reports push as unconfigured.
   Cloud Run does not block SMTP ports 465/587, so the nodemailer fallback works.
 - **One-time GCP setup** (console): project + billing account (card; Always-Free
   tier applies) → enable Cloud Run Admin + Artifact Registry → create Artifact
@@ -367,7 +364,7 @@ same prod Google service account).
   (`roles/run.admin` + `roles/artifactregistry.writer`), store its JSON key as the
   GitHub **secret** `GCP_SA_KEY`. GitHub Actions settings for the deploy job:
   **variable** `GCP_PROJECT_ID` (not sensitive — unmasked in logs) + **secrets**
-  `GCP_SA_KEY` and mirrors of Vercel prod (`DATABASE_URL`, `NEXTAUTH_SECRET`,
+  `GCP_SA_KEY` and the production values (`DATABASE_URL`, `NEXTAUTH_SECRET`,
    `GOOGLE_SERVICE_ACCOUNT_BASE64`, `GOOGLE_DELEGATE_EMAIL`, `SMTP_URL`,
    `EMAIL_FROM`, `ADMIN_INITIAL_PASSWORD`, `ADMIN_PIN`,
    `VAPID_PRIVATE_KEY`,
@@ -375,22 +372,20 @@ same prod Google service account).
   is not sensitive — if you prefer, store it (and `VAPID_SUBJECT`) as repo
   **variables** (`vars.*`) instead and adjust `ci.yml` accordingly; the private key
   must stay a secret. Set a budget alert (~$5) as a guard.
-- **Shadow caveats**: both instances share prod Neon + the prod service account.
-  Read-only validation (login, month views, search, audit CSV, PWA) is
-  zero-risk; mutation tests (create/edit events, adding departments — which
-  creates real Google calendars) touch prod data twice, so keep them to admins and
-  create-then-delete. Sessions are per-origin: a user logged into Vercel must log
-  in again on the `*.run.app` URL.
+- **Production caveats**: Cloud Run is the live production host, so any event or
+  department mutation writes real prod data and real Google calendars. Sessions are
+  per-origin: a user logged into the Vercel dev preview must log in again on the
+  `*.run.app` URL.
 - **Daily parade-state email trigger**: there is **no external scheduler**. The send is a
   lazy in-app tick — the protected shell calls `maybeDispatchParadeEmail` on app open and
   return-from-background, and the dispatcher sends when the admin-configured UTC+8 time +
   weekday window is open and the day is unclaimed. No `CRON_SECRET`, no Cloud Scheduler job
   to create or rotate. Configure the schedule under Settings → Parade State Email. Design:
   [parade-state-email.md](parade-state-email.md) §1.4/§1.5.
-- **Cutover** (when ready): disable/delete the Vercel project + delete
-  `vercel.json` (nothing to change in `next.config.ts` — no Cloud Run-specific
-  config exists). Abort path: delete the Cloud Run service — Vercel is untouched.
-  Both are deployment decisions, not code changes.
+- **Vercel dev builds**: the Vercel project remains only for Preview builds from
+  `dev`; `vercel.json` is kept for that build. Its Production deployment must stay
+  disabled so `main` ships only through Cloud Run. These are deployment settings,
+  not code changes.
 
 ## 1.10 Google integration setup
 
