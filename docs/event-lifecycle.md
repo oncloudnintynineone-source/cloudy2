@@ -811,9 +811,10 @@ type hides its Location step:
 
 The wizard's type step was a flat, alphabetical list of every event type — overwhelming
 once the catalog grew. Event type **groups** (categories) let an admin organize that
-list: each event type belongs to at most one group, and the type step renders a grid
-of **group tiles** — tapping a tile opens a popup with that group's type badges, so
-only one group's options are on screen at a time.
+list: each event type belongs to at most one group. Groups not marked as folders render
+directly as a labeled row (category name above, type badges below); groups marked as
+folders collapse into a chip whose popup holds their type badges, so flagged groups
+don't flood the step.
 
 ```mermaid
 flowchart LR
@@ -821,7 +822,7 @@ flowchart LR
  A -->|Group select in the type form| T[(event_types.group_id<br/>nullable FK, ON DELETE SET NULL)]
  G -->|listEventTypeGroups| P[buildEventTypePickerSections<br/>pure — eventTypes/groups.ts]
  T -->|listEventTypes| P
- P -->|ordered sections| W[EventTypeGroupGrid:<br/>group tiles → popup of badges]
+ P -->|ordered sections| W[EventTypeGroupGrid:<br/>inline labeled rows + folder chips → popup]
 ```
 
 - **Schema** (migration `0031`): the `event_type_groups` table (`name` unique,
@@ -829,47 +830,51 @@ flowchart LR
   with `ON DELETE SET NULL` (the same pattern as `calendars.parent_id`), so deleting a
   group never deletes a type: its types simply become ungrouped. Migration `0047` adds
   `collapsible` (boolean, default `true`).
-- **Display order**: groups render in `sort_order` order (name as tiebreak), with the
-  "Ungrouped" catch-all last; types within a group stay alphabetical. `sort_order` is
+- **Display order**: non-folder (inline) groups render first in `sort_order` order (name
+  as tiebreak), then the "Ungrouped" catch-all, then the folder groups in the same
+  order — so the collapsed chips sit at the bottom. Types within a group stay
+  alphabetical. `sort_order` is
   managed with up/down buttons there; a move re-ranks the
   whole list (position = rank), which also closes legacy gaps — the same convention as
   the department order (`moveDepartment`, `roster/actions.ts`). With the
   `reorderDrag` feature flag a **drag handle** can join or replace the arrows
   depending on the mode (`reorderEventTypeGroups`) — see [`reorder.md`](reorder.md).
-- **Ungrouped types** render in the "Ungrouped" section (`UNGROUPED_LABEL`), after the
-  groups. A type whose `group_id` doesn't resolve (stale
+- **Ungrouped types** render in the "Ungrouped" section (`UNGROUPED_LABEL`) as an inline
+  labeled row, after the inline groups. A type whose `group_id` doesn't resolve (stale
   prop) degrades to ungrouped rather than disappearing.
 - **Picker sections** come from the pure `buildEventTypePickerSections(types,
- groups)` (`src/lib/eventTypes/groups.ts`, unit-tested in `groups.test.ts`): every
-  non-empty group in display order, then the ungrouped section, which is present only
-  when some type has no group.
-  Each section carries a stable `id` (the group id, or `UNGROUPED_ID`) so the UI can
+ groups)` (`src/lib/eventTypes/groups.ts`, unit-tested in `groups.test.ts`): the
+  non-folder blocks first (inline groups, then ungrouped) and folders last, empty
+  groups skipped, and the ungrouped section present only when some type has no group.
+  Each section carries a stable `id` (the group id, or `UNGROUPED_ID`) and the group's
+  `collapsible` flag so the UI can
   key on it. The dashboard page fetches the
   groups in the same `Promise.all` as the types (`listEventTypeGroups()`, per-request
   React-cached like `listEventTypes`) and passes them through `DashboardView` to
   `EventForm`.
 - **Filters reuse the same sections.** The dashboard's Event Types filter builds its
   `FilterGroupSection`s with the same `buildEventTypePickerSections` call, so the
-  filter dialog shows the identical group tiles, counts and
+  filter dialog shows the identical inline rows, folder chips and
   "Ungrouped" catch-all. The single group-level
   All/None selects or clears every type across all categories. The group's flat option
   list stays the canonical value set for apply and active-filter counting
   (`src/components/FilterModal.tsx`).
-- **Grid layout (`EventTypeGroupGrid`, `src/components/EventTypeGroupGrid.tsx`).** Both
-  surfaces render their sections through this shared component: a wrapping row of
-  content-width **container chips** — brand-outline badges (the type badges in the
-  popup are borderless light/filled, so container and options never read the same)
-  showing the group name plus a right-edge chevron that rotates with the popup; a
-  light-brand fill appears once the group holds a selection (counts stay off the
-  chip; the `aria-label` carries them). Tapping a chip opens a Mantine `Popover`
+- **Grouped layout (`EventTypeGroupGrid`, `src/components/EventTypeGroupGrid.tsx`).** Both
+  surfaces render their sections through this shared component. Inline groups (and
+  Ungrouped) each get their own row — a dimmed name-only category label above a wrapping
+  row of `SelectableBadge`s, toggled directly with no popup. Folder groups become
+  content-width **container chips** in a wrapping row after the inline rows: a
+  brand-outline badge (the type badges in the popup are borderless light/filled, so
+  container and options never read the same) showing the group name plus a right-edge
+  chevron that rotates with the popup; a light-brand fill appears once the group holds a
+  selection (counts stay off the chip; the `aria-label` carries them). Tapping a chip
+  opens a Mantine `Popover`
   (zIndex 300, above the modals, standard `popoverTransitionProps` pop) with the
   group's `SelectableBadge`s. `mode="single"` (the wizard) closes the popup on select;
-  `mode="multi"` (the filter dialog) keeps it open for several toggles. A lone section
-  (e.g. an org with no groups at all) skips the chip + popup and renders the badges
-  directly — no extra tap when there is nothing to chunk away. The admin's
-  `collapsible` flag no longer changes the picker (every group is a chip); it only
-  marks the group with a folder icon in the admin list. Search is deliberately not
-  offered.
+  `mode="multi"` (the filter dialog) keeps it open for several toggles. A lone
+  non-folder section (e.g. an org with no groups at all) skips the label row and renders
+  the badges directly — no extra chrome when there is nothing to chunk away. Search is
+  deliberately not offered.
 - **Management** lives in Settings → Event Types under **Manage groups** (a dialog,
   not a separate tab): create (appends after the last group), inline rename, delete
   (the confirm states how many types become ungrouped), up/down reordering, and a

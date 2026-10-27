@@ -512,19 +512,21 @@ export function EventForm({
     );
   }
 
-  // The type step's sections: one per group (in the admin's display order)
-  // plus a trailing "Ungrouped" section; empty groups are skipped.
+  // The type step's sections: inline groups (rendered as labeled rows) first,
+  // then "Ungrouped", then the folder groups (chips + popup); empty groups are
+  // skipped by the builder.
   const pickerSections = useMemo(
     () => buildEventTypePickerSections(eventTypes, eventTypeGroups),
     [eventTypes, eventTypeGroups],
   );
 
-  // The grid picker's normalized sections (group tile -> popup of types).
+  // The picker's normalized sections (inline row / folder chip + popup).
   const typeGridSections = useMemo(
     () =>
       pickerSections.map((section) => ({
         id: section.id,
         label: section.name,
+        collapsible: section.collapsible,
         options: section.types.map((type) => ({ value: type.name, label: type.name })),
       })),
     [pickerSections],
@@ -1545,8 +1547,8 @@ export function EventForm({
                   No event types
                 </Text>
               ) : (
-                // Group tiles -> popup of that group's types (shared with the
-                // filter dialog). A lone section renders its badges directly.
+                // Inline groups -> labeled rows; folder groups -> chips with a
+                // popup of that group's types (shared with the filter dialog).
                 <EventTypeGroupGrid
                   sections={typeGridSections}
                   mode="single"

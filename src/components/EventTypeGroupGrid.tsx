@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Badge, Group, Popover, UnstyledButton } from "@mantine/core";
+import { Badge, Group, Popover, Stack, Text, UnstyledButton } from "@mantine/core";
 import { IconChevronDown } from "@tabler/icons-react";
 
 import { SelectableBadge } from "@/components/SelectableBadge";
@@ -17,6 +17,11 @@ export interface EventTypeGroupSection {
   /** Stable identity across re-renders (the event-type group id). */
   id: string;
   label: string;
+  /**
+   * true = folder section (rendered as a chip whose popup holds the badges);
+   * false = rendered directly as a labeled row of badges.
+   */
+  collapsible: boolean;
   options: EventTypeGroupOption[];
 }
 
@@ -37,13 +42,17 @@ interface EventTypeGroupGridProps {
 const POPOVER_Z_INDEX = 300;
 
 /**
- * The event-type picker's grid layout, shared by the wizard's type step and
- * the filter dialog's Event Types group: one tile per group; tapping a tile
- * opens a popup with that group's `SelectableBadge`s. This keeps the whole
- * picker one compact grid instead of a long stack of expanded sections.
- * A single section (e.g. an org with no groups at all) skips the tile + popup
- * and renders the badges directly — no extra tap when there is nothing to
- * chunk away.
+ * The event-type picker's grouped layout, shared by the wizard's type step and
+ * the filter dialog's Event Types group. Groups flagged as folders render as
+ * content-width chips whose popup holds that group's `SelectableBadge`s;
+ * every other group renders directly as its own row — category label above,
+ * badges below — so ordinary groups are never hidden behind an extra tap.
+ * The inline rows come first, then the folder chips (the pure builder already
+ * orders them that way).
+ *
+ * A lone non-folder section (e.g. an org with no groups at all) skips the
+ * label row and renders the badges directly — no extra chrome when there is
+ * nothing to chunk away.
  */
 export function EventTypeGroupGrid({
   sections,
@@ -54,7 +63,7 @@ export function EventTypeGroupGrid({
   if (sections.length === 0) {
     return null;
   }
-  if (sections.length === 1) {
+  if (sections.length === 1 && !sections[0].collapsible) {
     return (
       <Group gap={6} wrap="wrap">
         {sections[0].options.map((option) => (
@@ -68,18 +77,45 @@ export function EventTypeGroupGrid({
       </Group>
     );
   }
+  const inlineSections = sections.filter((section) => !section.collapsible);
+  const folderSections = sections.filter((section) => section.collapsible);
   return (
-    <Group gap="xs" wrap="wrap">
-      {sections.map((section) => (
-        <GroupTile
-          key={section.id}
-          section={section}
-          isSelected={isSelected}
-          onToggle={onToggle}
-          mode={mode}
-        />
-      ))}
-    </Group>
+    <Stack gap="md">
+      {inlineSections.length > 0 && (
+        <Stack gap="sm">
+          {inlineSections.map((section) => (
+            <div key={section.id} role="group" aria-label={section.label}>
+              <Text size="xs" fw={600} c="dimmed" mb={4}>
+                {section.label}
+              </Text>
+              <Group gap={6} wrap="wrap">
+                {section.options.map((option) => (
+                  <SelectableBadge
+                    key={option.value}
+                    label={option.label}
+                    selected={isSelected(option.value)}
+                    onToggle={() => onToggle(option.value)}
+                  />
+                ))}
+              </Group>
+            </div>
+          ))}
+        </Stack>
+      )}
+      {folderSections.length > 0 && (
+        <Group gap="xs" wrap="wrap">
+          {folderSections.map((section) => (
+            <GroupTile
+              key={section.id}
+              section={section}
+              isSelected={isSelected}
+              onToggle={onToggle}
+              mode={mode}
+            />
+          ))}
+        </Group>
+      )}
+    </Stack>
   );
 }
 

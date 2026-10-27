@@ -171,7 +171,8 @@ doc content here.
   the shared `FilterModal` renders every group with the same `SelectableBadge`s and an
   All/None pair (search groups label it All/Clear); Event Types reuse the wizard's
   `buildEventTypePickerSections` rendered through the shared `EventTypeGroupGrid`
-  (group tile → popup of badges, counts, Ungrouped; single section renders badges
+  (non-folder groups as name-only labeled rows, folder groups as chips → popup of
+  badges, Ungrouped last among the rows; a lone non-folder section renders badges
   directly)
   with one group-level All/None across every category (no per-category pair), and the
   Users badge picker gains department-section counts, per-section All/Clear, a global

@@ -72,6 +72,11 @@ export interface FilterGroupSection {
   /** Stable identity across re-renders (event-type group id, department id, …). */
   id: string;
   label: string;
+  /**
+   * Folder-style section: rendered as a chip whose popup holds the badges.
+   * `false` sections render directly as a labeled row.
+   */
+  collapsible: boolean;
   options: FilterOption[];
 }
 
@@ -92,9 +97,9 @@ export interface FilterGroup {
   /** Every selectable value in the group (also the union of `sections`). */
   options: FilterOption[];
   /**
-   * Optional grouped presentation: the options render as a grid of group
-   * tiles, each opening a popup of that group's badges (flat groups omit
-   * this).
+   * Optional grouped presentation: inline sections render as labeled rows of
+   * badges, folder sections as chips whose popups hold their badges (see
+   * `EventTypeGroupGrid`; flat groups omit this).
    */
   sections?: FilterGroupSection[];
   /** Optional quick action rendered beside the group label (e.g. "My Events"). */
@@ -208,8 +213,8 @@ function initialDraft(
 
 /**
  * Reusable filter dialog: opens from a trigger button and presents each filter
- * group as selectable badges — flat, or as a grid of group tiles whose popups
- * hold the badges — or as
+ * group as selectable badges — flat, split into labeled rows and folder chips
+ * (see `EventTypeGroupGrid`), or as
  * a selected-badge summary + Select trigger that opens the UserSelectModal badge
  * picker (variant "search", for large option lists). Every group gets an All/None
  * pair (search groups say "Clear"); grouped lists keep section counts, but the

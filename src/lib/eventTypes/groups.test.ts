@@ -32,7 +32,7 @@ describe("sortEventTypeGroups", () => {
 });
 
 describe("buildEventTypePickerSections", () => {
-  it("lists groups in display order with types by name, then the ungrouped catch-all", () => {
+  it("lists inline groups in display order first, then Ungrouped, then the folder groups", () => {
     const sections = buildEventTypePickerSections(
       [
         type("Zeta", null),
@@ -45,27 +45,30 @@ describe("buildEventTypePickerSections", () => {
     );
     expect(sections).toEqual([
       {
+        id: UNGROUPED_ID,
+        name: UNGROUPED_LABEL,
+        ungrouped: true,
+        collapsible: false,
+        types: [type("Eta", null), type("Zeta", null)],
+      },
+      {
         id: "g2",
         name: "Leave",
         ungrouped: false,
+        collapsible: true,
         types: [type("Alpha", "g2"), type("Gamma", "g2")],
       },
       {
         id: "g1",
         name: "Drill",
         ungrouped: false,
+        collapsible: true,
         types: [type("Beta", "g1")],
-      },
-      {
-        id: UNGROUPED_ID,
-        name: UNGROUPED_LABEL,
-        ungrouped: true,
-        types: [type("Eta", null), type("Zeta", null)],
       },
     ]);
   });
 
-  it("ignores the collapsible flag: every group keeps its display-order slot", () => {
+  it("renders non-collapsible groups first, then Ungrouped, then the collapsible folders", () => {
     const sections = buildEventTypePickerSections(
       [type("Alpha", "g1"), type("Beta", "g2"), type("Gamma", "g3"), type("Eta", null)],
       [
@@ -76,9 +79,20 @@ describe("buildEventTypePickerSections", () => {
     );
     expect(sections.map((section) => section.name)).toEqual([
       "Inline A",
-      "Folder B",
       "Inline C",
       UNGROUPED_LABEL,
+      "Folder B",
+    ]);
+  });
+
+  it("carries each group's collapsible flag; the ungrouped section is never collapsible", () => {
+    const sections = buildEventTypePickerSections(
+      [type("Alpha", "g1"), type("Beta", "g2")],
+      [group("g1", "Leave", 0, false), group("g2", "Drill", 1, true)],
+    );
+    expect(sections.map((section) => [section.id, section.collapsible])).toEqual([
+      ["g1", false],
+      ["g2", true],
     ]);
   });
 
@@ -88,7 +102,7 @@ describe("buildEventTypePickerSections", () => {
       group("g2", "Drill", 1),
     ]);
     expect(sections).toEqual([
-      { id: "g1", name: "Leave", ungrouped: false, types: [type("Alpha", "g1")] },
+      { id: "g1", name: "Leave", ungrouped: false, collapsible: true, types: [type("Alpha", "g1")] },
     ]);
   });
 
@@ -106,6 +120,7 @@ describe("buildEventTypePickerSections", () => {
         id: UNGROUPED_ID,
         name: UNGROUPED_LABEL,
         ungrouped: true,
+        collapsible: false,
         types: [type("Alpha", "missing"), type("Beta", null)],
       },
     ]);

@@ -8,9 +8,8 @@ export interface EventTypeGroupRef {
   name: string;
   sortOrder: number;
   /**
-   * The admin's folder flag (Settings → Event Types). The grid-based picker
-   * renders every group as a tile + popup, so this no longer changes the
-   * picker layout — it is kept for the admin group list.
+   * Whether the group renders as a collapsible folder (chip + popup) in the
+   * pickers. `false` groups render directly as a labeled row of type badges.
    */
   collapsible: boolean;
 }
@@ -26,6 +25,12 @@ export interface EventTypePickerSection {
   name: string;
   /** true for the trailing catch-all of types that belong to no group. */
   ungrouped: boolean;
+  /**
+   * true = folder section (rendered as a chip whose popup holds the types);
+   * false = rendered directly as a labeled row of type badges. The ungrouped
+   * section is never collapsible (there is no group row to flag).
+   */
+  collapsible: boolean;
   types: EventTypeRef[];
 }
 
@@ -45,10 +50,12 @@ export function sortEventTypeGroups(
 }
 
 /**
- * The sections the event-type grid picker renders: every non-empty group in
- * display order, then the trailing "Ungrouped" catch-all. Types within a
- * section stay alphabetical, empty groups are skipped, and a type whose group
- * id is missing from the list degrades to ungrouped (stale-prop defense).
+ * The sections the event-type pickers render. Non-folder content comes first so
+ * the folder chips sit at the bottom: non-collapsible groups in display order,
+ * then the trailing "Ungrouped" catch-all, then the collapsible groups in
+ * display order. Types within a section stay alphabetical, empty groups are
+ * skipped, and a type whose group id is missing from the list degrades to
+ * ungrouped (stale-prop defense).
  */
 export function buildEventTypePickerSections(
   types: readonly EventTypeRef[],
@@ -56,30 +63,34 @@ export function buildEventTypePickerSections(
 ): EventTypePickerSection[] {
   const knownGroupIds = new Set(groups.map((group) => group.id));
   const sortedTypes = [...types].sort((a, b) => a.name.localeCompare(b.name));
-  const sections: EventTypePickerSection[] = [];
+  const inline: EventTypePickerSection[] = [];
+  const folders: EventTypePickerSection[] = [];
   for (const group of sortEventTypeGroups(groups)) {
     const members = sortedTypes.filter((type) => type.groupId === group.id);
     if (members.length > 0) {
-      sections.push({
+      const section: EventTypePickerSection = {
         id: group.id,
         name: group.name,
         ungrouped: false,
+        collapsible: group.collapsible,
         types: members,
-      });
+      };
+      (group.collapsible ? folders : inline).push(section);
     }
   }
   const ungrouped = sortedTypes.filter(
     (type) => type.groupId === null || !knownGroupIds.has(type.groupId),
   );
   if (ungrouped.length > 0) {
-    sections.push({
+    inline.push({
       id: UNGROUPED_ID,
       name: UNGROUPED_LABEL,
       ungrouped: true,
+      collapsible: false,
       types: ungrouped,
     });
   }
-  return sections;
+  return [...inline, ...folders];
 }
 
 /**
