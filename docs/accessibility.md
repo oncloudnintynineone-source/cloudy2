@@ -52,15 +52,15 @@ Mechanics:
 
 Current call sites (mostly `DashboardView`, plus a few others noted below):
 
-| Trigger | Message |
-| ------- | ------- |
-| View tab / chevron (nav row or mobile bottom cluster) / Today / date picker / agenda day change | `"Month view, March 2026"` — one watcher on the optimistic chrome (`shownView` + `periodLabel`) covers every path; the first render only records a baseline (no page-load noise). Below `lg` the same two facts are *also* visible — the period label in the inset bottom control pill and the view name on a thin dimmed strip beneath the header ([`dashboard-views.md`](dashboard-views.md) §1.1, Mobile view indicator); that line is static content, not a live region, so it adds no duplicate announcement |
-| More Filters apply / Myself toggle / Clear | `"2 filters active"` / `"Filters cleared"` (`filterCountMessage` mirrors `activeFilterCount`'s group semantics) |
-| Timeline zoom in/out | `"Zoom 125%"` |
-| Pinch-to-zoom (touch; also `DashboardView` + `DualPaneView`) | the same zoom string, announced once on release (`"Columns 150%"` for the Week (Grid)'s axis) — the discrete zoom buttons remain the keyboard/screen-reader path |
-| Wizard step change (`EventForm`) | `"Step N of M: <name>"` |
-| Wizard minimize / restore / confirmed discard (`DashboardView`) | `"Event form minimized. Your draft is kept."` / `"Event form restored."` / `"Event draft discarded."` |
-| Cold-start readiness (`ColdStartReady`) | `"Calendar up to date"` |
+| Trigger                                                                                         | Message                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| View tab / chevron (nav row or mobile bottom cluster) / Today / date picker / agenda day change | `"Month view, March 2026"` — one watcher on the optimistic chrome (`shownView` + `periodLabel`) covers every path; the first render only records a baseline (no page-load noise). Below `lg` the same two facts are _also_ visible — the period label in the inset bottom control pill and the view name on a thin dimmed strip beneath the header ([`dashboard-views.md`](dashboard-views.md) §1.1, Mobile view indicator); that line is static content, not a live region, so it adds no duplicate announcement |
+| More Filters apply / Myself toggle / Clear                                                      | `"2 filters active"` / `"Filters cleared"` (`filterCountMessage` mirrors `activeFilterCount`'s group semantics)                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Timeline zoom in/out                                                                            | `"Zoom 125%"`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Pinch-to-zoom (touch; also `DashboardView` + `DualPaneView`)                                    | the same zoom string, announced once on release (`"Columns 150%"` for the Week (Grid)'s axis) — the discrete zoom buttons remain the keyboard/screen-reader path                                                                                                                                                                                                                                                                                                                                                  |
+| Wizard step change (`EventForm`)                                                                | `"Step N of M: <name>"`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Wizard minimize / restore / confirmed discard (`DashboardView`)                                 | `"Event form minimized. Your draft is kept."` / `"Event form restored."` / `"Event draft discarded."`                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Cold-start readiness (`ColdStartReady`)                                                         | `"Calendar up to date"`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 
 ## 1.3 Loading announcements
 
@@ -75,6 +75,11 @@ server-safe (no hooks), so the same component serves:
   branch, and the Pinned Events panel's fetch skeleton.
 
 New skeleton sites must include it (see [`loading-transitions.md`](loading-transitions.md) §1.4).
+
+**One exception:** the header pinned-events pill's skeleton lives **inside its
+button**, where a nested `role="status"` live region would be invalid — the
+button's own `aria-label` carries the pending state ("Loading pinned events")
+instead ([`pinned-events.md`](pinned-events.md) §1.4).
 
 ## 1.4 Count badges & text alternatives
 
@@ -146,18 +151,18 @@ minimize too).
 
 ## 1.7 File index & related docs
 
-| File | Role |
-| ---- | ---- |
-| `src/lib/ui/announcer.tsx` | `StatusAnnouncer` live region + `announce()` singleton |
-| `src/components/LoadingStatus.tsx` | Sr-only loading announcement for skeleton blocks |
-| `src/components/AppShellShell.tsx` | Skip link, `#main-content` target, announcer mount |
-| `src/components/PinnedEventsTicker.tsx` | Pinned-count aria-label; `aria-hidden` chip + rotating titles |
-| `src/components/FilterButton.tsx` | Dynamic filter-count aria-label |
-| `src/app/globals.css` | `.c2-sr-only` + `.c2-skip-link` styles |
-| `src/app/(protected)/dashboard/DashboardView.tsx` | View/period/filter/zoom announcements |
-| `src/app/(protected)/dashboard/EventForm.tsx` | Wizard step announcements |
+| File                                              | Role                                                              |
+| ------------------------------------------------- | ----------------------------------------------------------------- |
+| `src/lib/ui/announcer.tsx`                        | `StatusAnnouncer` live region + `announce()` singleton            |
+| `src/components/LoadingStatus.tsx`                | Sr-only loading announcement for skeleton blocks                  |
+| `src/components/AppShellShell.tsx`                | Skip link, `#main-content` target, announcer mount                |
+| `src/components/PinnedEventsTicker.tsx`           | Pinned-count aria-label; `aria-hidden` chip + rotating titles     |
+| `src/components/FilterButton.tsx`                 | Dynamic filter-count aria-label                                   |
+| `src/app/globals.css`                             | `.c2-sr-only` + `.c2-skip-link` styles                            |
+| `src/app/(protected)/dashboard/DashboardView.tsx` | View/period/filter/zoom announcements                             |
+| `src/app/(protected)/dashboard/EventForm.tsx`     | Wizard step announcements                                         |
 | `src/app/(protected)/dashboard/EventDraftBar.tsx` | Minimized-draft bar + docked FAB-row chip, resume/discard targets |
-| `src/components/ColdStartReady.tsx` | Cold-start readiness announcement |
+| `src/components/ColdStartReady.tsx`               | Cold-start readiness announcement                                 |
 
 Related docs:
 

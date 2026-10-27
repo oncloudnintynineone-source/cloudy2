@@ -535,6 +535,22 @@ html {
   }
 }
 
+/* Skeleton swap inside the pill: the button's inner content now sits in the
+   `CrossfadeSwap` wrapper, so both swap layers lay out like the pill's own
+   flex row (chips + title). The pill keeps its fixed header height, and the
+   shimmer → title dissolve never resizes the header. */
+.c2-pinned-ticker-swap {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.c2-pinned-ticker-swap .c2-crossfade-layer {
+  display: flex;
+  align-items: center;
+  gap: var(--mantine-spacing-xs);
+  min-width: 0;
+}
+
 /* Inline replacement for the old floating count badge: an amber chip riding
    the pill, styled like the Indicator's dot. */
 .c2-pinned-ticker-count {

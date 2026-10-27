@@ -96,13 +96,13 @@ The **indicator style is a feature flag** (`pinnedTickerIndicator`, Settings →
 Feature Flags, org-wide, default `classic`) — admins switch it to compare the
 variants live and keep the winner:
 
-| Flag | Indicator | Title space |
-| ---- | --------- | ----------- |
-| `classic` | inline amber **`1/N` chip** — position within the rotation plus how many events are pinned (replaced the floating amber `Indicator` badge) | baseline |
-| `split` | the `1/N` and `5d` joined into one **two-tone pill** — amber left half (counter) + blue right half (countdown), content-sized so it reads as a single leading token | ~+5px |
-| `segmented` | thin **segmented progress bar** along the pill's bottom edge — one segment per pinned event, the current rotation position lit amber (count + position at a glance, zero in-flow width) | +~37px |
-| `badge` | compact amber **count badge** (`N`) over the pill's upper-right corner, absolutely positioned | +~37px |
-| `stacked` | the `1/N` and `5d` folded into one narrow **two-line leading block** (position over countdown) | +~33px |
+| Flag        | Indicator                                                                                                                                                                               | Title space |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| `classic`   | inline amber **`1/N` chip** — position within the rotation plus how many events are pinned (replaced the floating amber `Indicator` badge)                                              | baseline    |
+| `split`     | the `1/N` and `5d` joined into one **two-tone pill** — amber left half (counter) + blue right half (countdown), content-sized so it reads as a single leading token                     | ~+5px       |
+| `segmented` | thin **segmented progress bar** along the pill's bottom edge — one segment per pinned event, the current rotation position lit amber (count + position at a glance, zero in-flow width) | +~37px      |
+| `badge`     | compact amber **count badge** (`N`) over the pill's upper-right corner, absolutely positioned                                                                                           | +~37px      |
+| `stacked`   | the `1/N` and `5d` folded into one narrow **two-line leading block** (position over countdown)                                                                                          | +~33px      |
 
 ```mermaid
 flowchart LR
@@ -147,16 +147,25 @@ Rotation (`PinnedEventsTicker.tsx`, client):
   clamped index.
 - The countdown re-reads the clock on a slow (60s) interval, so a single
   non-rotating pinned event still rolls its `D` count over at midnight.
-- Loading / zero events: the pill degrades to the static "Pinned events" label
-  (the pre-ticker look, now icon-less) with no indicator chrome.
-- The static label is shared by three states (first read in flight, settled
-  empty, failed read) **on purpose** — the pill is never the loading signal.
-  The shell passes a `status` (`pending`/`ready`/`error`) that only changes
-  the accessible name, so a screen reader hears "Loading pinned events…",
+- Loading (first read in flight): the pill keeps its shape and shows a skeleton
+  row inside it — a countdown-chip block plus a title line — through
+  `CrossfadeSwap` (`minHoldMs={MIN_SKELETON_HOLD_MS}`), so the shimmer dissolves
+  into the real titles instead of hard-cutting. The pill's height is the fixed
+  `--c2-header-control-height`, so the header never resizes. A background
+  refresh keeps the content (the list only goes `null` before the first
+  successful read), so the skeleton never reappears over real titles.
+- Settled empty and failed reads: the pill degrades to the static "Pinned
+  events" label (the pre-ticker look, now icon-less) with no indicator chrome —
+  never an endless skeleton. The shell passes a `status`
+  (`pending`/`ready`/`error`) that also drives the accessible name besides
+  choosing the skeleton, so a screen reader hears "Loading pinned events…",
   "Pinned events" or "Pinned events unavailable" instead of a misleading
-  permanent "still loading". The cold-start readiness indicator
+  permanent "still loading". The skeleton carries no nested `LoadingStatus`
+  live region (invalid inside a button; the `aria-label` already announces it —
+  [`accessibility.md` §1.3](accessibility.md#13-loading-announcements)). The
+  cold-start readiness indicator
   ([`loading-transitions.md` §1.13.1](loading-transitions.md#1131-cold-start-readiness))
-  is the user-visible gauge for the once-per-launch data tail.
+  still gauges the once-per-launch data tail.
 
 Sizing & a11y:
 
@@ -236,18 +245,18 @@ row until the navigation commits.
 
 ## 1.6 File index & related docs
 
-| File | Role |
-| ---- | ---- |
-| `src/lib/events/pinned.ts` | `fetchPinnedEvents` (panel `title` + ticker `tickerTitle`) |
-| `src/lib/events/pinnedSelect.ts` | Pure upcoming-window selection (unit-tested) |
-| `src/lib/events/deepLink.ts` | Shared deep-link builder + `deepLinkMonths` target-month window |
-| `src/lib/dashboard/deepLinkTarget.ts` | Lean target resolver (own months, empty filters, shared title rendering) |
-| `src/lib/dashboard/deepLinkActions.ts` | `resolveDeepLinkTargetAction` server action called in parallel by `DashboardScreen` |
-| `src/lib/settings/featureFlags.ts` | The `pinnedTickerIndicator` flag registry entry |
-| `src/lib/api/retry.ts` | `runWithRetry` — bounded backoff for the shell's background reads (§1.4.1, unit-tested) |
-| `src/lib/ui/pinnedPanel.ts` | `PinnedPanelContext` + change event name |
-| `src/components/PinnedEventsTicker.tsx` | The header pill: indicator + countdown chips + rotating titles |
-| `src/components/PinnedEventsPanel.tsx` | The panel Modal (shared list-row recipe, §1.5) |
+| File                                    | Role                                                                                    |
+| --------------------------------------- | --------------------------------------------------------------------------------------- |
+| `src/lib/events/pinned.ts`              | `fetchPinnedEvents` (panel `title` + ticker `tickerTitle`)                              |
+| `src/lib/events/pinnedSelect.ts`        | Pure upcoming-window selection (unit-tested)                                            |
+| `src/lib/events/deepLink.ts`            | Shared deep-link builder + `deepLinkMonths` target-month window                         |
+| `src/lib/dashboard/deepLinkTarget.ts`   | Lean target resolver (own months, empty filters, shared title rendering)                |
+| `src/lib/dashboard/deepLinkActions.ts`  | `resolveDeepLinkTargetAction` server action called in parallel by `DashboardScreen`     |
+| `src/lib/settings/featureFlags.ts`      | The `pinnedTickerIndicator` flag registry entry                                         |
+| `src/lib/api/retry.ts`                  | `runWithRetry` — bounded backoff for the shell's background reads (§1.4.1, unit-tested) |
+| `src/lib/ui/pinnedPanel.ts`             | `PinnedPanelContext` + change event name                                                |
+| `src/components/PinnedEventsTicker.tsx` | The header pill: indicator + countdown chips + rotating titles                          |
+| `src/components/PinnedEventsPanel.tsx`  | The panel Modal (shared list-row recipe, §1.5)                                          |
 
 Related docs:
 

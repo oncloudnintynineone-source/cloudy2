@@ -18,8 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.354 (app-wide skeleton crossfades + pinned ticker
-  reliability)** is shipped.
+- All work through changelog **1.355 (pinned ticker loading skeleton)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -2243,6 +2242,14 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   with bounded backoff (`src/lib/api/retry.ts`) and re-run on `online`/bfcache
   `pageshow`, and the pinned panel keeps its last good list on a failed refresh.
   Docs: `docs/loading-transitions.md` §1.6.1/§1.15.1, `docs/pinned-events.md` §1.4.1.
+- 1.355 **Pinned ticker loading skeleton**: the header pill shows a skeleton row
+  (countdown-chip block + title line) inside its fixed-height shape while the first
+  pinned read is in flight and dissolves into the rotating titles through
+  `CrossfadeSwap` (`minHoldMs={MIN_SKELETON_HOLD_MS}`); settled-empty and failed reads
+  keep the static "Pinned events" label, background refreshes never flash the skeleton,
+  and the button's `aria-label` remains the loading announcement (no nested live region).
+  Docs: `docs/pinned-events.md` §1.4, `docs/loading-transitions.md` §1.12,
+  `docs/accessibility.md` §1.3.
 
 ## 1.4 Open items & next steps
 

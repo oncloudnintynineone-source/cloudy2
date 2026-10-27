@@ -272,7 +272,9 @@ doc content here.
   Feature Flags, org-wide, default `classic`) — inline amber `1/N` chip, a two-tone
   `1/N`+`5d` split pill, bottom segmented rotation bar, corner count badge, or a stacked
   `1/N`-over-`5d` block (all keep the count
-  in the pill's `aria-label`); tapping opens the pinned panel ("Pin this event" switch on
+  in the pill's `aria-label`); while the first read is in flight the pill shows a
+  skeleton row inside its fixed height (settled empty/error keep the static label);
+  tapping opens the pinned panel ("Pin this event" switch on
   the wizard's Other settings step). Titles render via the `pinnedHeader` template target
   (panel list: `pinned`). Design: [docs/pinned-events.md](docs/pinned-events.md);
   flags: [docs/feature-flags.md](docs/feature-flags.md).
