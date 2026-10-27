@@ -12,6 +12,7 @@ import { NARROW_MEDIA_QUERY } from "@/lib/theme";
 import { firstDayOfWeek, weekDays, type WeekStart } from "@/lib/events/datetime";
 import { modalContentWidth, type Rect } from "@/lib/motion/origin";
 import { modalZoomTransitionProps } from "@/lib/motion/transitions";
+import { useEnterTransitionReady } from "@/lib/motion/useEnterTransitionReady";
 import { useMotion } from "@/components/MotionProvider";
 
 export type DateSelectorKind = "month" | "week" | "day";
@@ -94,10 +95,13 @@ export function DateSelectorModal({
   const viewport = { w: viewportSize.width, h: viewportSize.height };
   const contentWidth = modalContentWidth(viewport, isNarrow ? 300 : isDesktop ? 440 : 380);
   const transitionProps = modalZoomTransitionProps(motion, originRect, viewport, contentWidth);
+  // The dashboard mounts this picker lazily on first open, so defer that first
+  // open one frame to let it zoom in like every later open.
+  const dialogOpened = useEnterTransitionReady(opened);
 
   return (
     <Modal
-      opened={opened}
+      opened={dialogOpened}
       onClose={onClose}
       title={title}
       centered

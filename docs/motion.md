@@ -142,6 +142,13 @@ the tokens.
 - **Mantine:** use a factory from `src/lib/motion/transitions.ts` (plain dialogs:
   render `MotionModal`; menus: `popoverTransitionProps`; or `useMotion()` for a
   one-off `transitionDuration`).
+- **Lazily mounted overlays:** Mantine's `Transition` starts in the `entered`
+  state when its first render is already `opened`, so an overlay mounted open
+  (a lazily imported modal or one rendered conditionally on open) would skip its
+  enter animation. `MotionModal` already handles this; raw `Modal`/`Modal.Root`
+  call sites must pass their `opened` value through `useEnterTransitionReady`
+  (`src/lib/motion/useEnterTransitionReady.ts`) so the closed state commits for
+  one frame before the real open.
 - **JS tween:** pass `useMotion()` into the tween and use `cubicBezier(motion.easingCurves.out)`
   so the curve matches the CSS.
 
@@ -152,6 +159,7 @@ the tokens.
 | `src/lib/motion/tokens.ts` | base durations/easings/distances/scales + `cubicBezier` evaluator |
 | `src/lib/motion/profile.ts` | profiles, `resolveMotion`, `motionCssText`, `motionStyleVars`, `STANDARD_MOTION` |
 | `src/lib/motion/transitions.ts` | shared Mantine transition factories (`fade`, `pop`, zoom) |
+| `src/lib/motion/useEnterTransitionReady.ts` | defers a first-mount-open overlay one frame so its enter transition plays |
 | `src/components/MotionProvider.tsx` | `useMotion()` context |
 | `src/components/MotionModal.tsx` | profile-aware plain `Modal` (fade by default) |
 | `src/app/(protected)/layout.tsx` | resolves `motionProfile`, publishes `:root:root` vars, wraps in `MotionProvider` |

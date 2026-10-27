@@ -126,6 +126,7 @@ import { departmentPathLabels, departmentTreeRows } from "@/lib/roster/hierarchy
 import { useColdStartContent } from "@/components/ColdStartReady";
 import { modalContentWidth, type Rect } from "@/lib/motion/origin";
 import { modalFormTransitionProps, modalZoomTransitionProps } from "@/lib/motion/transitions";
+import { useEnterTransitionReady } from "@/lib/motion/useEnterTransitionReady";
 import { useMotion } from "@/components/MotionProvider";
 import {
   buildScheduleResources,
@@ -1329,6 +1330,10 @@ function DashboardViewImpl({
   // and screen-reader users are not left on a hidden modal.
   const resumeDraftRef = useRef<HTMLButtonElement | null>(null);
   const formIsOpen = formState !== null;
+  // A `?edit=` deep link opens the wizard on the dashboard's first mount; hold
+  // that first open one frame so its enter transition runs (every later open
+  // starts from the always-mounted closed modal and animates normally).
+  const formModalOpened = useEnterTransitionReady(formIsOpen && !formMinimized);
   // The minimized draft's presentation, shared by the desktop bar and the mobile
   // FAB-row chip so both read from one place.
   const draftKind = formState?.event ? "edit" : formState?.templateEvent ? "duplicate" : "create";
@@ -5603,7 +5608,7 @@ function DashboardViewImpl({
       )}
 
       <Modal.Root
-        opened={formIsOpen && !formMinimized}
+        opened={formModalOpened}
         onClose={minimizeForm}
         closeOnEscape={!discardConfirmOpen}
         keepMounted

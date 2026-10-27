@@ -51,6 +51,7 @@ import {
   popoverTransitionProps,
 } from "@/lib/motion/transitions";
 import { useMotion } from "@/components/MotionProvider";
+import { useEnterTransitionReady } from "@/lib/motion/useEnterTransitionReady";
 import { BUTTON_LOADER_PROPS, NARROW_MEDIA_QUERY } from "@/lib/theme";
 import { formatDateTime } from "./clientDateTime";
 import { ShareEventDialog } from "./ShareEventDialog";
@@ -162,6 +163,10 @@ export function EventDetail({
   const viewport = { w: viewportSize.width, h: viewportSize.height };
   const contentWidth = modalContentWidth(viewport, isNarrow ? 320 : isDesktop ? 440 : 380);
   const transitionProps = modalZoomTransitionProps(motion, originRect, viewport, contentWidth);
+  // The details modal is lazy-mounted on first open (and opens immediately for
+  // a deep link), so hold its first open one frame to let the enter transition
+  // run instead of Mantine starting in "entered".
+  const detailOpened = useEnterTransitionReady(loading || event !== null);
 
   const showEvent = event ?? displayEvent;
   const payload = showEvent?.payload;
@@ -280,7 +285,7 @@ export function EventDetail({
   return (
     <>
       <Modal
-        opened={loading || event !== null}
+        opened={detailOpened}
         onClose={onClose}
         title="Event"
         centered

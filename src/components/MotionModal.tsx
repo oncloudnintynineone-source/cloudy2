@@ -4,6 +4,7 @@ import { Modal, type ModalProps } from "@mantine/core";
 
 import { useMotion } from "@/components/MotionProvider";
 import { fadeTransitionProps } from "@/lib/motion/transitions";
+import { useEnterTransitionReady } from "@/lib/motion/useEnterTransitionReady";
 
 /**
  * Plain `<Modal>` that follows the active `motionProfile` by default: a fade +
@@ -13,7 +14,14 @@ import { fadeTransitionProps } from "@/lib/motion/transitions";
  * `modalZoomTransitionProps` / `modalFormTransitionProps`; an explicit
  * `transitionProps` prop always wins here too.
  */
-export function MotionModal({ transitionProps, ...props }: ModalProps) {
+export function MotionModal({ transitionProps, opened, ...props }: ModalProps) {
   const motion = useMotion();
-  return <Modal {...props} transitionProps={transitionProps ?? fadeTransitionProps(motion)} />;
+  const enterReady = useEnterTransitionReady(opened === true);
+  return (
+    <Modal
+      {...props}
+      opened={opened === true && enterReady}
+      transitionProps={transitionProps ?? fadeTransitionProps(motion)}
+    />
+  );
 }
