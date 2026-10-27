@@ -856,18 +856,18 @@ flowchart LR
   list stays the canonical value set for apply and active-filter counting
   (`src/components/FilterModal.tsx`).
 - **Grid layout (`EventTypeGroupGrid`, `src/components/EventTypeGroupGrid.tsx`).** Both
-  surfaces render their sections through this shared component: a `SimpleGrid` of
-  full-width chips built on the exact `SelectableBadge` metrics (same size, radius,
-  uppercase type, brand light → filled language) so each tile reads as the parent of
-  the badges in its popup — name only, plus a chevron that rotates with the popup;
-  a tile turns filled once its group holds a selection (counts stay off the chip;
-  the `aria-label` carries them). Tapping a tile opens a Mantine `Popover`
+  surfaces render their sections through this shared component: a wrapping row of
+  content-width **container chips** — brand-outline badges (the type badges in the
+  popup are borderless light/filled, so container and options never read the same)
+  showing the group name plus a right-edge chevron that rotates with the popup; a
+  light-brand fill appears once the group holds a selection (counts stay off the
+  chip; the `aria-label` carries them). Tapping a chip opens a Mantine `Popover`
   (zIndex 300, above the modals, standard `popoverTransitionProps` pop) with the
   group's `SelectableBadge`s. `mode="single"` (the wizard) closes the popup on select;
   `mode="multi"` (the filter dialog) keeps it open for several toggles. A lone section
-  (e.g. an org with no groups at all) skips the tile + popup and renders the badges
+  (e.g. an org with no groups at all) skips the chip + popup and renders the badges
   directly — no extra tap when there is nothing to chunk away. The admin's
-  `collapsible` flag no longer changes the picker (every group is a tile); it only
+  `collapsible` flag no longer changes the picker (every group is a chip); it only
   marks the group with a folder icon in the admin list. Search is deliberately not
   offered.
 - **Management** lives in Settings → Event Types under **Manage groups** (a dialog,

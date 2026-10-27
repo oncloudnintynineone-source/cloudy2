@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Badge, Group, Popover, SimpleGrid, UnstyledButton } from "@mantine/core";
+import { Badge, Group, Popover, UnstyledButton } from "@mantine/core";
 import { IconChevronDown } from "@tabler/icons-react";
 
 import { SelectableBadge } from "@/components/SelectableBadge";
@@ -69,7 +69,7 @@ export function EventTypeGroupGrid({
     );
   }
   return (
-    <SimpleGrid cols={{ base: 2, sm: 3 }} spacing="xs" verticalSpacing="xs">
+    <Group gap="xs" wrap="wrap">
       {sections.map((section) => (
         <GroupTile
           key={section.id}
@@ -79,16 +79,17 @@ export function EventTypeGroupGrid({
           mode={mode}
         />
       ))}
-    </SimpleGrid>
+    </Group>
   );
 }
 
 /**
- * One group as a full-width chip: the exact `SelectableBadge` metrics
- * (size, radius, uppercase type, brand light/filled language) so the tile
- * reads as the parent of the badges in its popup — just wider. Filled once
- * the group holds a selection; the chevron rotates with the popup. Counts
- * stay off the chip (the `aria-label` still carries them).
+ * One group as a content-width container chip: a brand **outline** badge (the
+ * type badges inside its popup are borderless light/filled, so the container
+ * and its options never read the same) with the group name and a right-edge
+ * chevron that rotates with the popup. A light-brand fill appears once the
+ * group holds a selection (counts stay off the chip; the `aria-label` carries
+ * them).
  */
 function GroupTile({
   section,
@@ -135,23 +136,24 @@ function GroupTile({
             section.options.length === 1 ? "" : "s"
           }${selectedCount > 0 ? `, ${selectedCount} selected` : ""}`}
           style={{
-            display: "block",
-            width: "100%",
             cursor: "pointer",
             borderRadius: "var(--mantine-radius-md)",
+            maxWidth: "100%",
           }}
         >
           <Badge
             size="lg"
-            variant={selectedCount > 0 ? "filled" : "light"}
+            variant="outline"
             aria-hidden
             style={{
-              width: "100%",
-              justifyContent: "space-between",
               gap: 6,
               height: "auto",
               minHeight: "calc(var(--badge-height-lg) * 1.5)",
               paddingBlock: 4,
+              maxWidth: "100%",
+              ...(selectedCount > 0
+                ? { backgroundColor: "var(--mantine-color-brand-light)" }
+                : undefined),
             }}
           >
             <span
