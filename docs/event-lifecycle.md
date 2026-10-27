@@ -857,10 +857,13 @@ flowchart LR
   (`src/components/FilterModal.tsx`).
 - **Grid layout (`EventTypeGroupGrid`, `src/components/EventTypeGroupGrid.tsx`).** Both
   surfaces render their sections through this shared component: a `SimpleGrid` of
-  bordered tiles — group name, gray total-count badge, and an amber selected-count
-  badge (brand-tinted border) once the group holds selections. Tapping a tile opens a
-  Mantine `Popover` (zIndex 300, above the modals) with the group's
-  `SelectableBadge`s. `mode="single"` (the wizard) closes the popup on select;
+  full-width chips built on the exact `SelectableBadge` metrics (same size, radius,
+  uppercase type, brand light → filled language) so each tile reads as the parent of
+  the badges in its popup — name only, plus a chevron that rotates with the popup;
+  a tile turns filled once its group holds a selection (counts stay off the chip;
+  the `aria-label` carries them). Tapping a tile opens a Mantine `Popover`
+  (zIndex 300, above the modals, standard `popoverTransitionProps` pop) with the
+  group's `SelectableBadge`s. `mode="single"` (the wizard) closes the popup on select;
   `mode="multi"` (the filter dialog) keeps it open for several toggles. A lone section
   (e.g. an org with no groups at all) skips the tile + popup and renders the badges
   directly — no extra tap when there is nothing to chunk away. The admin's

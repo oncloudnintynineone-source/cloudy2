@@ -1,9 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Badge, Group, Popover, SimpleGrid, Text, UnstyledButton } from "@mantine/core";
+import { Badge, Group, Popover, SimpleGrid, UnstyledButton } from "@mantine/core";
+import { IconChevronDown } from "@tabler/icons-react";
 
 import { SelectableBadge } from "@/components/SelectableBadge";
+import { useMotion } from "@/components/MotionProvider";
+import { popoverTransitionProps } from "@/lib/motion/transitions";
 
 export interface EventTypeGroupOption {
   value: string;
@@ -42,7 +45,12 @@ const POPOVER_Z_INDEX = 300;
  * and renders the badges directly — no extra tap when there is nothing to
  * chunk away.
  */
-export function EventTypeGroupGrid({ sections, isSelected, onToggle, mode }: EventTypeGroupGridProps) {
+export function EventTypeGroupGrid({
+  sections,
+  isSelected,
+  onToggle,
+  mode,
+}: EventTypeGroupGridProps) {
   if (sections.length === 0) {
     return null;
   }
@@ -75,6 +83,13 @@ export function EventTypeGroupGrid({ sections, isSelected, onToggle, mode }: Eve
   );
 }
 
+/**
+ * One group as a full-width chip: the exact `SelectableBadge` metrics
+ * (size, radius, uppercase type, brand light/filled language) so the tile
+ * reads as the parent of the badges in its popup — just wider. Filled once
+ * the group holds a selection; the chevron rotates with the popup. Counts
+ * stay off the chip (the `aria-label` still carries them).
+ */
 function GroupTile({
   section,
   isSelected,
@@ -86,6 +101,7 @@ function GroupTile({
   onToggle: (value: string) => void;
   mode: EventTypeGroupGridProps["mode"];
 }) {
+  const motion = useMotion();
   const [open, setOpen] = useState(false);
   const selectedCount = section.options.reduce(
     (count, option) => count + (isSelected(option.value) ? 1 : 0),
@@ -108,6 +124,7 @@ function GroupTile({
       shadow="md"
       radius="md"
       zIndex={POPOVER_Z_INDEX}
+      transitionProps={popoverTransitionProps(motion)}
     >
       <Popover.Target>
         <UnstyledButton
@@ -120,30 +137,42 @@ function GroupTile({
           style={{
             display: "block",
             width: "100%",
-            padding: "var(--mantine-spacing-sm)",
-            borderRadius: "var(--mantine-radius-md)",
-            border: `1px solid ${
-              selectedCount > 0 ? "var(--mantine-color-brand-6)" : "var(--mantine-color-gray-3)"
-            }`,
-            background: selectedCount > 0 ? "var(--mantine-color-brand-0)" : undefined,
             cursor: "pointer",
+            borderRadius: "var(--mantine-radius-md)",
           }}
         >
-          <Group gap={6} wrap="nowrap" justify="space-between">
-            <Text size="sm" fw={600} truncate>
+          <Badge
+            size="lg"
+            variant={selectedCount > 0 ? "filled" : "light"}
+            aria-hidden
+            style={{
+              width: "100%",
+              justifyContent: "space-between",
+              gap: 6,
+              height: "auto",
+              minHeight: "calc(var(--badge-height-lg) * 1.5)",
+              paddingBlock: 4,
+            }}
+          >
+            <span
+              style={{
+                minWidth: 0,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
               {section.label}
-            </Text>
-            <Group gap={4} wrap="nowrap">
-              {selectedCount > 0 && (
-                <Badge size="sm" variant="filled" color="accent" aria-hidden>
-                  {selectedCount}
-                </Badge>
-              )}
-              <Badge size="sm" variant="light" color="gray" aria-hidden>
-                {section.options.length}
-              </Badge>
-            </Group>
-          </Group>
+            </span>
+            <IconChevronDown
+              size={14}
+              style={{
+                flexShrink: 0,
+                transform: open ? "rotate(180deg)" : undefined,
+                transition: `transform ${motion.duration.micro}ms ${motion.easing.out}`,
+              }}
+            />
+          </Badge>
         </UnstyledButton>
       </Popover.Target>
       <Popover.Dropdown aria-label={`${section.label} options`}>
