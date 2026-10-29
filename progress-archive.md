@@ -9734,3 +9734,23 @@ server read per user intent; it is gated by online/Save-Data/2G, deduped, and ab
 - Added pure `buildDayAgendaByUser` (department expansion + chronological sort) and
   `ParadeEvent` color/external fields; unit-tested in `dayEvents.test.ts`.
 - Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test`.
+
+## 1.358 Durable pinned-events selection cache
+
+- The pinned ticker/panel read no longer scans every department calendar over the
+  rolling 3-month window on each cold serverless instance. The selection is stored in a
+  new `pinned_event_cache` singleton row (`src/lib/events/pinnedCache.ts`): served for
+  60s, then served while a rebuild runs in `after()`; a missing/corrupt row rebuilds
+  blocking. Rebuilds snapshot the events-cache epoch and skip persistence if an event
+  mutation advanced it mid-scan.
+- Only the raw, group-deduped `CalendarEvent[]` is stored (selected by the `pinned` notes
+  flag via the new pure `selectPinnedEvents`). `fetchPinnedEvents` still applies the
+  rolling time filter and renders titles/department names per request from the cached
+  settings/users/types/templates, so those edits apply without invalidation.
+- `invalidatePinnedCache()` deletes the row on event create/update/delete; the admin
+  calendar-cache purge now deletes it too. This replaces the per-instance 60s memo, so
+  the cold-start readiness leg no longer waits on a full all-calendar scan every launch.
+- Pure helpers (`decodePinnedSelection`, `pinnedCacheIsFresh`) and the selection split
+  are unit-tested. New migration `drizzle/0062_natural_proemial_gods.sql` (with meta).
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (131 files / 1685 tests),
+  `pnpm db:generate` (no drift).

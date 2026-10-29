@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { selectUpcomingPinnedEvents } from "./pinnedSelect";
+import { selectPinnedEvents, selectUpcomingPinnedEvents } from "./pinnedSelect";
 import type { CalendarEvent } from "./queries";
 
 function event(start: string, end: string, pinned: boolean, allDay = false): CalendarEvent {
@@ -35,6 +35,16 @@ function event(start: string, end: string, pinned: boolean, allDay = false): Cal
     },
   };
 }
+
+describe("selectPinnedEvents", () => {
+  it("stores pinned events regardless of whether they have ended", () => {
+    const result = selectPinnedEvents([
+      event("2026-08-01 09:00:00", "2026-08-01 10:00:00", true),
+      event("2026-09-02 09:00:00", "2026-09-02 10:00:00", false),
+    ]);
+    expect(result.map((e) => e.start)).toEqual(["2026-08-01 09:00:00"]);
+  });
+});
 
 describe("selectUpcomingPinnedEvents", () => {
   it("only keeps events explicitly marked as pinned", () => {

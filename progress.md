@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.357 (PWA/route loading skeleton alignment)** is shipped.
+- All work through changelog **1.358 (Durable pinned-events selection cache)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -2266,6 +2266,11 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   correct page gutters (no extra `p="md"`), `.card-grid` card layouts, and the shared
   `MyEventsListSkeleton` reused by the in-view crossfade. Docs:
   `docs/loading-transitions.md` §1.4, `docs/pwa-offline.md` §1.5.1.
+- 1.358 **Durable pinned-events selection cache**: the pinned ticker/panel read stores
+  the pinned selection in a `pinned_event_cache` singleton (raw events, 60s
+  stale-while-revalidate rebuild, epoch-guarded) instead of rescanning every department
+  × 3 months on each cold instance. CRUD + calendar-cache purge delete the row. Docs:
+  `docs/pinned-events.md` §1.2, `docs/events-cache.md` §1.12/§1.13, `docs/neon-usage.md` §1.5.
 
 ## 1.4 Open items & next steps
 

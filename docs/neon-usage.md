@@ -135,10 +135,10 @@ SELECT pg_stat_statements_reset();
 After the DB-load reductions, expect:
 
 - **Active hours / egress (consumption API):** a downward trend once a workday's usage is
-  compared against the previous window — chiefly because the pinned-events ticker's
-  background refreshes and duplicate per-render reads no longer touch the DB, so idle
-  stretches can
-  actually reach Neon's 5-minute suspend.
+  compared against the previous window — chiefly because the pinned-events ticker now
+  reads one durable `pinned_event_cache` row instead of rescanning every department ×
+  month on each cold instance, and duplicate per-render reads no longer touch the DB, so
+  idle stretches can actually reach Neon's 5-minute suspend.
 - **`pg_stat_statements`:** `calendars`/`event_types` reads roughly halve per render
   (page + `fetchRangeEvents` now share one `React.cache`d read each); the `google_event_cache`
   full-payload `SELECT` call count drops to "one per L1-miss month", with warm views

@@ -9,6 +9,7 @@ import { AUDIT_ACTIONS, actorFromUser } from "@/lib/audit/build";
 import { diffFields } from "@/lib/audit/diff";
 import { logAction } from "@/lib/audit/log";
 import { invalidateConfigCache } from "@/lib/configCache";
+import { invalidatePinnedCache } from "@/lib/events/pinned";
 import { purgeGcalCache } from "@/lib/google/eventsCache";
 import { requireAdmin } from "@/lib/session";
 import type { BannerFormValues } from "@/lib/banner/banner";
@@ -297,6 +298,7 @@ export async function purgeCalendarCache(): Promise<SettingsActionResult> {
 
   try {
     await purgeGcalCache();
+    await invalidatePinnedCache();
     await logAction({
       ...actorFromUser({
         id: session.user.id,

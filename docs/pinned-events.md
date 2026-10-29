@@ -28,20 +28,38 @@ across mutations.
 
 ## 1.2 The server read
 
-`src/lib/events/pinned.ts` (server actions):
+`GET /api/pinned` → `fetchPinnedEvents()` (`src/lib/events/pinned.ts`) backs **both**
+the panel and the header ticker — the ticker derives its count from the list length.
+The expensive part (scanning **all** calendars over the rolling 3-month window) lives
+in a **durable singleton cache**, not on the request path:
 
-- `fetchPinnedEvents()` month-reads **all** calendars through the events cache
-  (`fetchRangeEvents`) and resolves display-ready data: titles rendered through the
-  event-title templates and department names resolved. It backs **both** the panel
-  and the header ticker — the ticker derives its count from the list length (the
-  old count-only `countPinnedEvents` read is gone; the zero-event case early-returns
-  before resolving users/types, so it stays cheap).
+- `pinnedCache.ts` (`readPinnedSelection`) reads one `pinned_event_cache` row holding
+  the raw, group-deduped `CalendarEvent[]` selected by the `pinned` notes flag. The
+  row is served directly while younger than 60 s; after that the current row is
+  served while `rebuildPinnedSelection` rescans in `after()` — the read never blocks
+  on a warm row. A missing/corrupt row (first ever, purge) rebuilds blocking.
+- The rebuild is the old all-calendar `fetchRangeEvents` scan (`pinnedWindowMonths` —
+  today through the end of the month two months out, matching the month-grid reads),
+  then `selectPinnedEvents`. It snapshots the events-cache epoch and refuses to
+  persist if an event mutation advanced it mid-scan, so a stale scan can never
+  overwrite a post-mutation row.
+- Only raw events are stored, never rendered titles. `fetchPinnedEvents` applies the
+  rolling time filter (`selectUpcomingPinnedEvents` — drops ended events, sorts by
+  start) and resolves display data per request: titles rendered through each
+  consumer's template assignment and department names resolved. So settings, user,
+  and event-type changes apply immediately without invalidating the row.
 - Each consumer renders through its own **template-assignment target** (Settings →
   Templates → View assignments): the panel list via `pinned` (`PinnedEvent.title`),
   the header ticker via `pinnedHeader` (`PinnedEvent.tickerTitle`). Unassigned =
   master template, exactly like the dashboard views.
-- The pure `selectUpcomingPinnedEvents` (`pinnedSelect.ts`, unit-tested) drops events
-  already ended and sorts by start.
+- Event create/update/delete call `invalidatePinnedCache()` (deletes the row), and so
+  does the admin calendar-cache purge, so the next read rescans. External Google
+  edits converge on the same 60 s window as the events cache. The pure
+  `selectPinnedEvents` / `selectUpcomingPinnedEvents` (`pinnedSelect.ts`) and the
+  decode/TTL helpers (`pinnedSelection.ts`) are unit-tested.
+
+This replaced a per-instance 60 s in-memory memo, which made every cold serverless
+instance repeat the scan — the read was the last cold-start readiness leg to settle.
 
 ## 1.3 Opening an event: deep links
 

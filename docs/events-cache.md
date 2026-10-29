@@ -550,10 +550,13 @@ module, but they keep the render's total query count low):
 - The dashboard's **intent prefetch** calls the same `/api/dashboard/load` only after a
   tab/period hover, focus, or press. It is abortable, deduped by request key, and shares
   this cache exactly like the active read; it never forces a Google refresh.
-- `fetchPinnedEvents` (a global, user-independent value) is served from a 60s in-memory
-  TTL (`src/lib/cache.ts`), so the header ticker's + panel's mount/refocus/panel-close/
-  CRUD refreshes collapse to one read per window; event mutations call
-  `invalidatePinnedCache` for immediate freshness.
+- The pinned-events **selection** (a global, user-independent value) is stored in the
+  durable `pinned_event_cache` singleton (`src/lib/events/pinnedCache.ts`), so the header
+  ticker's + panel's mount/refocus/panel-close/CRUD refreshes read one row instead of
+  rescanning every department × month on each cold instance. The row is served for 60 s
+  and then revalidated in `after()`; event mutations (and the admin calendar-cache purge)
+  call `invalidatePinnedCache` for immediate freshness. This replaced the old per-instance
+  in-memory TTL (`src/lib/cache.ts`). See [`pinned-events.md`](pinned-events.md#12-the-server-read).
 
 ## 1.13 File index & related docs
 
@@ -561,7 +564,7 @@ module, but they keep the render's total query count low):
 | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `src/lib/google/eventsCache.ts`             | Layered cache read + invalidation (L1/L2/Google)                                                                                                                |
 | `src/lib/google/eventsCacheCodec.ts`        | Pure state + codec helpers (unit-tested)                                                                                                                        |
-| `src/db/schema.ts`                          | `google_event_cache` table                                                                                                                                      |
+| `src/db/schema.ts`                          | `google_event_cache` + `pinned_event_cache` tables                                                                                                              |
 | `drizzle/0011_panoramic_mariko_yashida.sql` | Migration creating the table                                                                                                                                    |
 | `src/lib/events/queries.ts`                 | `readCalendarRange` + `projectRangeEvents` (split so one raw read backs several filter sets); `fetchMonthEvents` / `fetchRangeEvents` wrappers + gated prefetch |
 | `src/lib/events/actions.ts`                 | Mutations → `invalidateGcalCache`                                                                                                                               |
@@ -571,7 +574,9 @@ module, but they keep the render's total query count low):
 | `src/app/globals.css`                       | Native pull-to-refresh disabled (`overscroll-behavior-y: contain`)                                                                                              |
 | `src/lib/events/datetime.ts`                | `monthRange`, `shiftMonth`, `monthsInRange`, `monthGridMonths`, `monthGridRows`                                                                                 |
 | `src/lib/async.ts`                          | `mapWithConcurrency`                                                                                                                                            |
-| `src/lib/cache.ts`                          | Generic TTL cache backing the pinned list read                                                                                                                  |
+| `src/lib/cache.ts`                          | Generic per-instance TTL cache (pinned no longer uses it; see `pinnedCache.ts`)                                                                                 |
+| `src/lib/events/pinnedCache.ts`             | Durable singleton cache for the pinned-events selection (read/rebuild/invalidate)                                                                               |
+| `src/lib/events/pinnedSelection.ts`         | Pure selection decode + 60 s freshness gate (unit-tested)                                                                                                       |
 | `src/app/sw.ts`                             | Service worker: `NetworkOnly` for data (unchanged)                                                                                                              |
 
 Related docs:

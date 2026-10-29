@@ -70,8 +70,12 @@ async function ensureCacheEpoch(): Promise<void> {
   epochRowEnsured = true;
 }
 
-/** The current cache invalidation epoch (0 when the row is absent). */
-async function readCacheEpoch(): Promise<number> {
+/**
+ * The current cache invalidation epoch (0 when the row is absent). Shared with
+ * the pinned-selection cache so a rebuild that started before an event mutation
+ * refuses to persist a pre-mutation snapshot.
+ */
+export async function readCacheEpoch(): Promise<number> {
   await ensureCacheEpoch();
   const [row] = await db
     .select({ epoch: cacheInvalidation.epoch })

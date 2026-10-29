@@ -695,6 +695,25 @@ export const googleEventCache = pgTable(
   (table) => [primaryKey({ columns: [table.calendarGoogleId, table.month] })],
 );
 
+/**
+ * Singleton durable cache of the explicitly-pinned event selection — all
+ * department calendars over the rolling 3-month window, already deduped by
+ * event group. Stores raw `CalendarEvent`s (no rendered titles), so settings /
+ * user / event-type changes apply without invalidating it; `fetchPinnedEvents`
+ * shapes the display list per request from the cached config reads. Shared
+ * across serverless instances and invalidated by event CRUD, so a cold instance
+ * reads one row instead of rescanning every department/month.
+ */
+export const pinnedEventCache = pgTable(
+  "pinned_event_cache",
+  {
+    id: text("id").primaryKey().default("singleton"),
+    events: jsonb("events").notNull(),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [check("pinned_event_cache_singleton", sql`${table.id} = 'singleton'`)],
+);
+
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type Calendar = typeof calendars.$inferSelect;
@@ -712,6 +731,8 @@ export type AuditLog = typeof auditLogs.$inferSelect;
 export type NewAuditLog = typeof auditLogs.$inferInsert;
 export type GoogleEventCache = typeof googleEventCache.$inferSelect;
 export type NewGoogleEventCache = typeof googleEventCache.$inferInsert;
+export type PinnedEventCache = typeof pinnedEventCache.$inferSelect;
+export type NewPinnedEventCache = typeof pinnedEventCache.$inferInsert;
 export type Webhook = typeof webhooks.$inferSelect;
 export type NewWebhook = typeof webhooks.$inferInsert;
 export type QuickLink = typeof quickLinks.$inferSelect;
