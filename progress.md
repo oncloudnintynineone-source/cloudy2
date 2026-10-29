@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.355 (pinned ticker loading skeleton)** is shipped.
+- All work through changelog **1.356 (Parade State templated titles + day agenda)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -2252,6 +2252,11 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   and the button's `aria-label` remains the loading announcement (no nested live region).
   Docs: `docs/pinned-events.md` §1.4, `docs/loading-transitions.md` §1.12,
   `docs/accessibility.md` §1.3.
+- 1.356 **Parade State templated titles + day agenda**: a new `paradeState`
+  title-template target resolves roster event titles through the shared recipe engine;
+  each person's card gains a calendar button opening their full day agenda (in-camp +
+  out-of-camp events) whose rows open the shared read-only event detail modal in place.
+  Docs: `docs/event-lifecycle.md` §1.8.5, `docs/user-guide.md` §1.7.
 
 ## 1.4 Open items & next steps
 

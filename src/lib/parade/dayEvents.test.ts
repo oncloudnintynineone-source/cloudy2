@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { CalendarEvent } from "@/lib/events/queries";
 
 import {
+  buildDayAgendaByUser,
   buildEventsByUser,
   eventCoversDay,
   involvedUserIds,
@@ -60,6 +61,8 @@ function paradeEvent(overrides: Partial<ParadeEvent> = {}): ParadeEvent {
     end: "2026-09-13 10:00:00",
     allDay: false,
     outOfCamp: true,
+    external: false,
+    color: "blue",
     eventType: null,
     location: "",
     calendarName: "HQ",
@@ -101,6 +104,8 @@ describe("toParadeEvent", () => {
       id: "cal:1",
       title: "Event",
       outOfCamp: true,
+      external: false,
+      color: "blue",
       calendarName: "HQ",
       inviteeUserIds: ["u1"],
     });
@@ -179,5 +184,35 @@ describe("buildEventsByUser", () => {
     const map = buildEventsByUser([out]);
     expect(map.get("u1")?.map((e) => e.id)).toEqual(["out"]);
     expect(map.has("u2")).toBe(false);
+  });
+});
+
+describe("buildDayAgendaByUser", () => {
+  it("includes both in-camp and out-of-camp events, sorted by start", () => {
+    const later = paradeEvent({
+      id: "later",
+      outOfCamp: false,
+      start: "2026-09-13 15:00:00",
+      inviteeUserIds: ["u1"],
+    });
+    const earlier = paradeEvent({
+      id: "earlier",
+      outOfCamp: true,
+      start: "2026-09-13 08:00:00",
+      inviteeUserIds: ["u1"],
+    });
+    const map = buildDayAgendaByUser([later, earlier]);
+    expect(map.get("u1")?.map((event) => event.id)).toEqual(["earlier", "later"]);
+  });
+
+  it("expands department tags for the agenda", () => {
+    const event = paradeEvent({
+      id: "dept",
+      outOfCamp: false,
+      inviteeDepartmentIds: ["d1"],
+    });
+    const map = buildDayAgendaByUser([event], new Map([["d1", ["u2", "u3"]]]));
+    expect(map.get("u2")?.map((entry) => entry.id)).toEqual(["dept"]);
+    expect(map.get("u3")?.map((entry) => entry.id)).toEqual(["dept"]);
   });
 });

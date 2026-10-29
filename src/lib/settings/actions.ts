@@ -125,7 +125,10 @@ export async function createEventTitleTemplate(
       field: "templateLabel",
     };
   }
-  const labelError = validateTitleTemplateLabel(label, existing.map((r) => r.label));
+  const labelError = validateTitleTemplateLabel(
+    label,
+    existing.map((r) => r.label),
+  );
   if (labelError) return { ok: false, error: labelError, field: "templateLabel" };
   const prepared = prepareTitleRecipe(recipe);
   if ("error" in prepared) {
@@ -153,6 +156,7 @@ export async function createEventTitleTemplate(
   invalidateConfigCache(["eventTitleTemplates"]);
   revalidatePath("/settings/templates");
   revalidatePath("/dashboard");
+  revalidatePath("/parade-state");
   return { ok: true };
 }
 
@@ -200,6 +204,7 @@ export async function updateEventTitleTemplateById(
   invalidateConfigCache(["eventTitleTemplates"]);
   revalidatePath("/settings/templates");
   revalidatePath("/dashboard");
+  revalidatePath("/parade-state");
   return { ok: true };
 }
 
@@ -244,15 +249,13 @@ export async function deleteEventTitleTemplate(id: string): Promise<SettingsActi
   invalidateConfigCache(["eventTitleTemplates", "settings"]);
   revalidatePath("/settings/templates");
   revalidatePath("/dashboard");
+  revalidatePath("/parade-state");
   return { ok: true };
 }
 
 export async function duplicateEventTitleTemplate(id: string): Promise<SettingsActionResult> {
   const session = await requireAdmin();
-  const [row] = await db
-    .select()
-    .from(eventTitleTemplates)
-    .where(eq(eventTitleTemplates.id, id));
+  const [row] = await db.select().from(eventTitleTemplates).where(eq(eventTitleTemplates.id, id));
   if (!row) return { ok: false, error: "Template not found" };
 
   const existing = await db.select({ label: eventTitleTemplates.label }).from(eventTitleTemplates);
@@ -265,10 +268,7 @@ export async function duplicateEventTitleTemplate(id: string): Promise<SettingsA
   }
 
   const recipe = sanitizeTitleRecipe((row as unknown as { recipe?: unknown })?.recipe);
-  const [created] = await db
-    .insert(eventTitleTemplates)
-    .values({ label, recipe })
-    .returning();
+  const [created] = await db.insert(eventTitleTemplates).values({ label, recipe }).returning();
 
   await logAction({
     ...actorFromUser({
@@ -286,6 +286,7 @@ export async function duplicateEventTitleTemplate(id: string): Promise<SettingsA
   invalidateConfigCache(["eventTitleTemplates"]);
   revalidatePath("/settings/templates");
   revalidatePath("/dashboard");
+  revalidatePath("/parade-state");
   return { ok: true };
 }
 

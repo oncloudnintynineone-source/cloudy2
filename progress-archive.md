@@ -9718,3 +9718,19 @@ the next verification pass; each workstream is independently revertible.
 **Limitations.** The boot read is a single early call to the existing API (no API/DB
 change) and is rejected on signature/user/age mismatch. Intent prefetch spends one
 server read per user intent; it is gated by online/Save-Data/2G, deduped, and abortable.
+
+## 1.356 Parade State templated titles + per-user day agenda
+
+- Added the `paradeState` title-template assignment target. Parade State resolves
+  every month event through the shared `resolveDisplayTitles` / `displayTitleOptions`
+  engine in `page.tsx`, so roster cards, the per-user agenda, and the read-only detail
+  modal all show the admin-selected template (Master when unassigned; external events
+  keep their Google title). Title/template/assignment edits revalidate `/parade-state`.
+- Added a calendar button to each roster card that opens the person's day agenda
+  (`ParadeAgendaModal`): all involved events for the shown day, in camp and out of
+  camp, chronological, with time/type/location/calendar metadata and badges. Tapping a
+  row opens the shared read-only `EventDetail` stacked above the agenda, with the same
+  "Open in calendar" deep link as Double Booking.
+- Added pure `buildDayAgendaByUser` (department expansion + chronological sort) and
+  `ParadeEvent` color/external fields; unit-tested in `dayEvents.test.ts`.
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test`.

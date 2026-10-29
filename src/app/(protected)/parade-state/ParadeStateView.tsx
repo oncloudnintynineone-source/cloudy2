@@ -31,6 +31,7 @@ import { useClipboard, useDisclosure, useDrag, useMediaQuery } from "@mantine/ho
 import { notifications } from "@mantine/notifications";
 import {
   IconCalendarDot,
+  IconCalendarEvent,
   IconCheck,
   IconChevronLeft,
   IconChevronRight,
@@ -54,6 +55,7 @@ import { useColdStartContent } from "@/components/ColdStartReady";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import { LoadingStatus } from "@/components/LoadingStatus";
 import { MotionModal } from "@/components/MotionModal";
+import { buildEventDeepLink } from "@/lib/events/deepLink";
 import type { WeekStart } from "@/lib/events/datetime";
 import type { CalendarEvent } from "@/lib/events/queries";
 import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
@@ -61,7 +63,13 @@ import { type Rect } from "@/lib/motion/origin";
 import { useMotion } from "@/components/MotionProvider";
 import { fadeTransitionProps } from "@/lib/motion/transitions";
 import { departmentPathLabels, departmentTreeRows } from "@/lib/roster/hierarchy";
-import { buildEventsByUser, eventCoversDay, toParadeEvent } from "@/lib/parade/dayEvents";
+import {
+  buildDayAgendaByUser,
+  buildEventsByUser,
+  eventCoversDay,
+  toParadeEvent,
+  type ParadeEvent,
+} from "@/lib/parade/dayEvents";
 import { buildParadeSections, type ParadeSection } from "@/lib/parade/sections";
 import { formatFullName } from "@/lib/settings/formatName";
 import { activatable } from "@/lib/ui/activatable";
@@ -75,6 +83,7 @@ import { useChromeHide } from "@/lib/ui/chromeHide";
 import { COARSE_POINTER_MEDIA_QUERY, DESKTOP_MEDIA_QUERY } from "@/lib/theme";
 import { saveParadeFilters } from "@/lib/userPrefs/actions";
 import { invalidateCurrentPathCaches } from "@/lib/pwa/client";
+import { EventDetail } from "../dashboard/EventDetail";
 
 import { buildAttendanceReport, type AttendanceReportDepartment } from "./attendanceReport";
 import {
@@ -86,6 +95,7 @@ import {
 } from "./attendanceStorage";
 import { departmentSummaryRows, departmentTreeHeadcount } from "./headcount";
 import { formatEventTimeBadge } from "@/lib/parade/eventTimeBadge";
+import { ParadeAgendaModal } from "./ParadeAgendaModal";
 import { ParadeStateDepartmentSkeleton } from "./paradeStateSkeleton";
 
 // Opened on demand; splitting it keeps `@mantine/dates` + `@mantine/schedule`'s
@@ -146,6 +156,10 @@ export interface ParadeStateViewProps {
     departmentParentId: string | null;
   }[];
   nameTemplate: string;
+  /** Roster user id → display name, for the in-place event detail modal. */
+  peopleNames: Record<string, string>;
+  /** Department ids the signed-in user actively belongs to (detail modal parity). */
+  myActiveDepartmentIds: string[];
   /** Admin: the empty state links into Settings; non-admins get the plain message. */
   isAdmin?: boolean;
   /** Which day the account's calendar week starts on (for the date picker). */
@@ -164,6 +178,8 @@ export function ParadeStateView({
   departmentMemberships,
   filterUsers,
   nameTemplate,
+  peopleNames,
+  myActiveDepartmentIds,
   isAdmin = false,
   weekStartsOn = "monday",
 }: ParadeStateViewProps) {
@@ -191,6 +207,10 @@ export function ParadeStateView({
   // Direction of the in-month day slide (1 = forward/next, -1 = back/prev);
   // 0 disables it so month-edge switches and jumps use the reveal fade only.
   const [slideDir, setSlideDir] = useState(0);
+  // Per-user day agenda, plus the read-only event detail stacked above it.
+  const [agendaUserId, setAgendaUserId] = useState<string | null>(null);
+  const [detailEvent, setDetailEvent] = useState<CalendarEvent | null>(null);
+  const [detailOrigin, setDetailOrigin] = useState<Rect | null>(null);
 
   // Day switches flip the state optimistically and push a URL whose re-render
   // brings the props equal to the new state; refreshes (stale-document
@@ -498,6 +518,21 @@ export function ParadeStateView({
     [dayEvents, memberships],
   );
 
+  const agendaByUser = useMemo(
+    () => buildDayAgendaByUser(dayEvents, memberships),
+    [dayEvents, memberships],
+  );
+
+  const calendarEventsById = useMemo(
+    () => new Map(events.map((event) => [event.id, event] as const)),
+    [events],
+  );
+
+  const calendarNames = useMemo(
+    () => Object.fromEntries(calendars.map((calendar) => [calendar.id, calendar.name])),
+    [calendars],
+  );
+
   // The department hierarchy (parents before children, by the shared sortOrder)
   // with each user's direct department section; "Unassigned" stays a terminal
   // top-level section. Headcounts aggregate down the tree at render time.
@@ -642,6 +677,33 @@ export function ParadeStateView({
     </Group>
   );
 
+  const agendaUser = agendaUserId ? (users.find((user) => user.id === agendaUserId) ?? null) : null;
+  const agendaDisplayName = agendaUser
+    ? formatFullName(
+        { name: agendaUser.name, departmentName: agendaUser.department?.name ?? null },
+        nameTemplate,
+      )
+    : "";
+  const agendaEvents = agendaUserId ? (agendaByUser.get(agendaUserId) ?? []) : [];
+
+  function openAgenda(user: ParadeStateUser) {
+    setAgendaUserId(user.id);
+  }
+
+  function closeAgenda() {
+    setAgendaUserId(null);
+    setDetailEvent(null);
+  }
+
+  function openAgendaEvent(event: ParadeEvent, rect: Rect) {
+    const target = calendarEventsById.get(event.id);
+    if (!target) {
+      return;
+    }
+    setDetailOrigin(rect);
+    setDetailEvent(target);
+  }
+
   function renderUserCard(user: ParadeStateUser) {
     const userEvents = eventsByUser.get(user.id) ?? [];
     const checked = attendanceMode && checkedIds.has(user.id);
@@ -706,9 +768,22 @@ export function ParadeStateView({
                 style={{ flexShrink: 0 }}
               />
             )}
-            <Text fw={600} size="sm">
+            <Text fw={600} size="sm" style={{ flex: 1, minWidth: 0 }}>
               {displayName}
             </Text>
+            <ActionIcon
+              size={28}
+              variant="subtle"
+              color="gray"
+              aria-label={`View ${displayName}'s agenda on ${dayLabel}`}
+              title="View day agenda"
+              onClick={(event) => {
+                event.stopPropagation();
+                openAgenda(user);
+              }}
+            >
+              <IconCalendarEvent size={16} />
+            </ActionIcon>
           </Group>
           {userEvents.length > 0 && (
             <Stack gap={2} ml="xs">
@@ -1172,6 +1247,45 @@ export function ParadeStateView({
           (see `mobileAttendanceBar`). */}
       {mobilePill}
       {(attendanceMode || attendanceBarClosing) && mobileAttendanceBar}
+
+      <ParadeAgendaModal
+        opened={agendaUser !== null}
+        displayName={agendaDisplayName}
+        date={date}
+        dayLabel={dayLabel}
+        events={agendaEvents}
+        onClose={closeAgenda}
+        onOpenEvent={openAgendaEvent}
+      />
+
+      <EventDetail
+        event={detailEvent}
+        onClose={() => setDetailEvent(null)}
+        readOnly
+        zIndex={300}
+        onOpenInCalendar={(event) => {
+          router.push(
+            buildEventDeepLink({
+              view: null,
+              start: event.start,
+              eventId: event.payload.eventId,
+              calendarId: event.payload.calendarId,
+            }),
+          );
+        }}
+        peopleNames={peopleNames}
+        calendarNames={calendarNames}
+        originRect={detailOrigin}
+        currentUserId={currentUser}
+        isAdmin={isAdmin}
+        myActiveDepartmentIds={myActiveDepartmentIds}
+        onEdit={() => {}}
+        onDuplicate={() => {}}
+        onDeleted={() => {}}
+        onOptimistic={() => {}}
+        onOptimisticSettled={() => {}}
+        onOptimisticRollback={() => {}}
+      />
 
       <FilterModal
         opened={filterOpened}

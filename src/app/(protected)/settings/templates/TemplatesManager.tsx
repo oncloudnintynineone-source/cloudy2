@@ -601,8 +601,9 @@ function AssignmentsDialog({
     >
       <Stack>
         <Text size="sm" c="dimmed">
-          Each calendar view, the pinned ticker, and the Double Booking report use the assigned
-          template, or Master when empty. Notifications fall back to their built-in copy when empty.
+          Each calendar view, the pinned ticker, the Double Booking report, and Parade State use the
+          assigned template, or Master when empty. Notifications fall back to their built-in copy
+          when empty.
         </Text>
         <ScrollArea.Autosize
           {...AUTOSIZE_VERTICAL_SCROLL_PROPS}

@@ -16,6 +16,8 @@ export interface ParadeEvent {
   end: string;
   allDay: boolean;
   outOfCamp: boolean;
+  external: boolean;
+  color: CalendarEvent["color"];
   eventType: string | null;
   location: string;
   calendarName: string;
@@ -54,6 +56,8 @@ export function toParadeEvent(event: CalendarEvent): ParadeEvent {
     end: event.end,
     allDay: event.payload.allDay,
     outOfCamp: event.payload.outOfCamp,
+    external: event.payload.external,
+    color: event.color,
     eventType: event.payload.eventType,
     location: event.payload.location,
     calendarName: event.payload.calendarName,
@@ -116,6 +120,35 @@ export function buildEventsByUser(
   }
   for (const [userId, events] of map) {
     map.set(userId, sortParadeEvents(events));
+  }
+  return map;
+}
+
+/**
+ * Map each involved user id to *every* event that day, in camp and out of camp,
+ * sorted chronologically by start. This backs the per-user day agenda; the
+ * roster card itself keeps using `buildEventsByUser` (out-of-camp only).
+ */
+export function buildDayAgendaByUser(
+  dayEvents: readonly ParadeEvent[],
+  memberships?: DepartmentMemberships,
+): Map<string, ParadeEvent[]> {
+  const map = new Map<string, ParadeEvent[]>();
+  for (const event of dayEvents) {
+    for (const userId of involvedUserIds(event, memberships)) {
+      let list = map.get(userId);
+      if (!list) {
+        list = [];
+        map.set(userId, list);
+      }
+      list.push(event);
+    }
+  }
+  for (const [userId, events] of map) {
+    map.set(
+      userId,
+      [...events].sort((a, b) => a.start.localeCompare(b.start)),
+    );
   }
   return map;
 }

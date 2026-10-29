@@ -127,7 +127,7 @@ export function prepareEventTitleRecipeEdit(
       patch: { eventTitleRecipe: normalized },
       auditBefore: { eventTitleRecipe: sanitizeTitleRecipe(before?.eventTitleRecipe) },
       auditAfter: { eventTitleRecipe: normalized },
-      revalidate: ["/settings/templates", "/dashboard"],
+      revalidate: ["/settings/templates", "/dashboard", "/parade-state"],
     },
   };
 }
@@ -157,7 +157,7 @@ export function prepareAssignmentsEdit(
         assignments: normalizeAssignments(before?.eventTitleTemplateAssignments),
       },
       auditAfter: { assignments: cleaned },
-      revalidate: ["/settings/templates", "/dashboard"],
+      revalidate: ["/settings/templates", "/dashboard", "/parade-state"],
     },
   };
 }

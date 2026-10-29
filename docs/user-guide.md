@@ -198,6 +198,12 @@ sub-departments, with aggregated counts):
 
 - Each person shows their status for the day (out-of-camp/overseas events are
   highlighted).
+- The calendar button on a person's card opens that person's **day agenda** — every
+  event that day, in camp or out of camp. Tap an event in the agenda to open its
+  read-only details in place (with **Open in calendar** if you need the full view).
+- Event titles on the roster and agenda follow Settings → Templates: admins can
+  assign a template to the **Parade state** target, otherwise the Master template is
+  used. External events keep their Google title.
 - Department headers show `X/Y` — **in camp** (no out-of-camp event) by default,
   **present** (marked) during attendance mode — aggregated over every
   sub-department.

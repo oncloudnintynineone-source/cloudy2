@@ -1,11 +1,13 @@
 import { PageContainer } from "@/components/PageContainer";
 import { PageTransition } from "@/components/PageTransition";
 import { formatInstantToNaive } from "@/lib/events/datetime";
+import { displayTitleOptions, resolveDisplayTitles } from "@/lib/events/eventTitleDisplay";
 import { fetchMonthEvents, listCalendars } from "@/lib/events/queries";
+import { listEventTypes } from "@/lib/eventTypes/queries";
 import { filterUserOptionIds } from "@/lib/filters/filterUserOptions";
 import { listUsers } from "@/lib/roster/queries";
 import { formatFullName } from "@/lib/settings/formatName";
-import { getSettings } from "@/lib/settings/queries";
+import { getSettings, listEventTitleTemplates } from "@/lib/settings/queries";
 import { requireSession } from "@/lib/session";
 import { getUserPreferences } from "@/lib/userPrefs/queries";
 import { ParadeStateView } from "./ParadeStateView";
@@ -36,10 +38,12 @@ export default async function ParadeStatePage({ searchParams }: ParadeStatePageP
   const dateParam = urlDate ?? today();
   const month = dateParam.slice(0, 7);
 
-  const [calendars, allUsers, settings] = await Promise.all([
+  const [calendars, allUsers, settings, eventTypes, titleTemplates] = await Promise.all([
     listCalendars(),
     listUsers(),
     getSettings(),
+    listEventTypes(),
+    listEventTitleTemplates(),
   ]);
 
   const calendarIds = calendars.map((calendar) => calendar.id);
@@ -80,6 +84,47 @@ export default async function ParadeStatePage({ searchParams }: ParadeStatePageP
     userFilter: selectedUsers,
     memberships,
   });
+
+  // The Parade State event labels honour the admin's title-template engine:
+  // the `paradeState` assignment target when set, else Master. Resolving here
+  // (rather than in the client view) keeps the roster, the per-user agenda and
+  // the detail modal on one rendered title, matching the dashboard.
+  const displayEvents = resolveDisplayTitles(
+    events,
+    displayTitleOptions("paradeState", {
+      nameTemplate: settings.nameTemplate,
+      masterRecipe: settings.eventTitleRecipe,
+      assignments: settings.eventTitleTemplateAssignments as Record<string, string>,
+      templates: titleTemplates.map(({ id, label, recipe }) => ({ id, label, recipe })),
+      usersById: new Map(
+        allUsers.map((user) => [
+          user.id,
+          {
+            id: user.id,
+            name: user.name,
+            shortname: user.shortname,
+            departmentName: user.department?.name ?? null,
+          },
+        ]),
+      ),
+      eventTypesByName: new Map(
+        eventTypes.map((type) => [type.name, { name: type.name, shortname: type.shortname }]),
+      ),
+      calendarsById: new Map(calendars.map((calendar) => [calendar.id, calendar.name])),
+    }),
+  );
+
+  const peopleNames = Object.fromEntries(
+    allUsers.map((user) => [
+      user.id,
+      formatFullName(
+        { name: user.name, departmentName: user.department?.name ?? null },
+        settings.nameTemplate,
+      ),
+    ]),
+  );
+  const currentUserDepartment = allUsers.find((user) => user.id === session.user.id)?.department;
+  const myActiveDepartmentIds = currentUserDepartment ? [currentUserDepartment.id] : [];
 
   const visibleUsers = scopeParadeUsers(activeUsers, calendarIds, selectedCalendars, selectedUsers);
 
@@ -126,7 +171,7 @@ export default async function ParadeStatePage({ searchParams }: ParadeStatePageP
                 }
               : null,
           }))}
-          events={events}
+          events={displayEvents}
           calendars={calendars.map((calendar) => ({
             id: calendar.id,
             name: calendar.name,
@@ -139,6 +184,8 @@ export default async function ParadeStatePage({ searchParams }: ParadeStatePageP
           departmentMemberships={departmentMemberships}
           filterUsers={filterUsers}
           nameTemplate={settings.nameTemplate}
+          peopleNames={peopleNames}
+          myActiveDepartmentIds={myActiveDepartmentIds}
           isAdmin={session.user.role === "admin"}
           weekStartsOn={prefs?.weekStart ?? "monday"}
         />

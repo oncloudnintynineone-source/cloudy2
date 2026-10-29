@@ -467,7 +467,8 @@ none` so taps pass through to the clipped tile, and it hides on a side once
   [docs/feature-flags.md](docs/feature-flags.md).
 - **Templates:** display-name template + **structured recipes** (`src/lib/settings/titleRecipe.ts`,
   no free text beyond an optional per-segment Text field) with per-target assignments
-  (incl. `pinned`/`pinnedHeader` and the push bodies `notifyCreated`/`notifyAdded`).
+  (incl. `pinned`/`pinnedHeader`, `doubleBooking`, `paradeState`, and the push bodies
+  `notifyCreated`/`notifyAdded`).
   Title templates are composed as chip rows reordered through the shared `useReorderRows`
   FLIP. Design: [docs/event-lifecycle.md](docs/event-lifecycle.md) §1.8.
 - **Event notes:** `Edit: <url>` line (a `?event=` deep link carrying `_eventCal`; legacy

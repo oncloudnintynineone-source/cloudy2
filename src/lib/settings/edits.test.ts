@@ -90,7 +90,11 @@ describe("prepareEventTitleRecipeEdit", () => {
     expect(outcome.prepared.auditBefore).toEqual({
       eventTitleRecipe: { segments: [{ field: "type" }] },
     });
-    expect(outcome.prepared.revalidate).toEqual(["/settings/templates", "/dashboard"]);
+    expect(outcome.prepared.revalidate).toEqual([
+      "/settings/templates",
+      "/dashboard",
+      "/parade-state",
+    ]);
   });
 
   it("rejects an empty recipe", () => {

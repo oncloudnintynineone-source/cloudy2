@@ -687,19 +687,24 @@ assignments modal (Settings → Templates):
   (`src/lib/settings/validate.ts`) — the seven dashboard views
   (`DASHBOARD_VIEW_VALUES`: `month`, `week`, `weekv2`, `weekgrid`, `schedule`, `agenda`, `dual`), the
   `pinned` Pinned Events panel, the `pinnedHeader` ticker, the `doubleBooking`
-  Double Booking report's event labels ("Double booking (clash report)"), and the
+  Double Booking report's event labels ("Double booking (clash report)"), the
+  `paradeState` Parade State roster's event labels ("Parade state"), and the
   two push bodies `notifyCreated` / `notifyAdded` ("Notification — new event" /
   "Added to event").
 - Pure `normalizeAssignments` (`validate.ts`) keeps only whitelisted keys and
   drops empty/null entries; `validateAssignments` rejects unknown template
   ids (unit-tested in `validate.test.ts`).
 - **Unassigned target = Master fallback** (`settings.event_title_recipe`) for views,
-  pinned, the ticker and Double Booking; notification targets fall back to the
-  **built-in copy** in `src/lib/events/notifyRecipes.ts` instead (the master title
-  recipe has no intro sentence). Double Booking labels are rendered server-side in
-  `checkUserClashes` via `clashLabelFor` (`src/lib/events/clashLabel.ts`), which
-  builds the same recipe input `resolveDisplayTitles` does — see
-  [`user-clashes.md`](user-clashes.md) §1.8.
+  pinned, the ticker, Double Booking, and Parade State; notification targets fall
+  back to the **built-in copy** in `src/lib/events/notifyRecipes.ts` instead (the
+  master title recipe has no intro sentence). Double Booking labels are rendered
+  server-side in `checkUserClashes` via `clashLabelFor`
+  (`src/lib/events/clashLabel.ts`), which builds the same recipe input
+  `resolveDisplayTitles` does — see [`user-clashes.md`](user-clashes.md) §1.8.
+  Parade State resolves its labels server-side in
+  `src/app/(protected)/parade-state/page.tsx` through the same
+  `resolveDisplayTitles` engine with the `paradeState` target, so roster cards, the
+  per-user day agenda, and the detail modal share one rendered title.
 - Dashboard views are display-only re-renders; `fetchPinnedEvents` renders every
   pinned event twice — `title` through the `pinned` target for the panel list and
   `tickerTitle` through `pinnedHeader` for the header ticker

@@ -96,9 +96,9 @@ describe("validateNameTemplate", () => {
 
 describe("normalizeAssignments", () => {
   it("drops non-string and blank values", () => {
-    expect(
-      normalizeAssignments({ month: "", week: 5, schedule: null, agenda: "tpl-1" }),
-    ).toEqual({ agenda: "tpl-1" });
+    expect(normalizeAssignments({ month: "", week: 5, schedule: null, agenda: "tpl-1" })).toEqual({
+      agenda: "tpl-1",
+    });
   });
 
   it("keeps the pinned targets alongside the dashboard views", () => {
@@ -146,7 +146,7 @@ describe("validateAssignments", () => {
     ).toEqual({});
   });
 
-  it("defines the seven dashboard views plus pinned, double-booking, and notification targets", () => {
+  it("defines the seven dashboard views plus pinned, double-booking, parade-state, and notification targets", () => {
     expect(EVENT_TITLE_ASSIGNMENT_TARGETS).toEqual([
       "month",
       "week",
@@ -158,6 +158,7 @@ describe("validateAssignments", () => {
       "pinned",
       "pinnedHeader",
       "doubleBooking",
+      "paradeState",
       "notifyCreated",
       "notifyAdded",
     ]);
