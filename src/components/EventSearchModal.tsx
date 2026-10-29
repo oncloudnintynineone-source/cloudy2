@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Modal, useMantineTheme } from "@mantine/core";
+import { useMantineTheme } from "@mantine/core";
 import { useMediaQuery, useViewportSize } from "@mantine/hooks";
 import { canPreloadTabs } from "@/lib/pwa/warmup";
 import { NARROW_MEDIA_QUERY } from "@/lib/theme";
@@ -20,6 +20,7 @@ import { modalZoomTransitionProps } from "@/lib/motion/transitions";
 import { useMotion } from "@/components/MotionProvider";
 
 import { CrossfadeSwap } from "./CrossfadeSwap";
+import { MotionModal } from "./MotionModal";
 import EventSearchBodySkeleton from "./EventSearchBodySkeleton";
 
 // Only the search body (its `@mantine/dates` DatePickerInputs and the result
@@ -144,7 +145,7 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
   const transitionProps = modalZoomTransitionProps(motion, originRect, viewport, contentWidth);
 
   return (
-    <Modal
+    <MotionModal
       opened={opened}
       onClose={onClose}
       title="Search events"
@@ -166,6 +167,6 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
           onClose={onClose}
         />
       </CrossfadeSwap>
-    </Modal>
+    </MotionModal>
   );
 }

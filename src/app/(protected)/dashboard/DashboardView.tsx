@@ -387,9 +387,9 @@ const FilterModal = dynamic(
   {
     ssr: false,
     loading: () => (
-      <Modal opened onClose={() => {}} title="Filters" centered>
+      <MotionModal opened onClose={() => {}} title="Filters" centered>
         <FormModalSkeleton rows={6} />
-      </Modal>
+      </MotionModal>
     ),
   },
 );
@@ -5669,7 +5669,7 @@ function DashboardViewImpl({
         onToggle={immersiveMode.active ? immersiveMode.exit : immersiveMode.enter}
       />
 
-      <Modal
+      <MotionModal
         opened={agendaDate !== null}
         onClose={() => setAgendaDate(null)}
         title={
@@ -5770,7 +5770,7 @@ function DashboardViewImpl({
             </Button>
           </>
         )}
-      </Modal>
+      </MotionModal>
 
       {(detailEvent !== null || detailLinkPending || detailEverOpened) && (
         <EventDetail
@@ -6078,7 +6078,7 @@ function DashboardViewImpl({
           Manage-views modal's Add-view button (kind picker + name). Only shown
           when the account owns stored views (canManageViews). */}
       {canManageViews && (
-        <Modal
+        <MotionModal
           opened={createOpened}
           onClose={closeCreateView}
           title="Add view"
@@ -6127,7 +6127,7 @@ function DashboardViewImpl({
               </Button>
             </Group>
           </Stack>
-        </Modal>
+        </MotionModal>
       )}
 
       {/* Mobile-only: at lg the "New event" / "Quick links" buttons in the nav

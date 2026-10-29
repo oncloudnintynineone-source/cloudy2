@@ -22,7 +22,6 @@ import {
   Divider,
   Group,
   Menu,
-  Modal,
   Paper,
   Stack,
   Text,
@@ -54,6 +53,7 @@ import { useReportActivity } from "@/components/ActivityBar";
 import { useColdStartContent } from "@/components/ColdStartReady";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import { LoadingStatus } from "@/components/LoadingStatus";
+import { MotionModal } from "@/components/MotionModal";
 import type { WeekStart } from "@/lib/events/datetime";
 import type { CalendarEvent } from "@/lib/events/queries";
 import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
@@ -1192,7 +1192,7 @@ export function ParadeStateView({
         originRect={pickerOriginRect}
         weekStartsOn={weekStartsOn}
       />
-      <Modal
+      <MotionModal
         opened={resetOpened}
         onClose={closeResetConfirm}
         title="Clear all dates"
@@ -1214,7 +1214,7 @@ export function ParadeStateView({
             Clear all
           </Button>
         </Group>
-      </Modal>
+      </MotionModal>
     </Stack>
   );
 }

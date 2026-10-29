@@ -4,7 +4,6 @@ import {
   Box,
   Group,
   Loader,
-  Modal,
   ScrollArea,
   Skeleton,
   Stack,
@@ -33,6 +32,7 @@ import { AUTOSIZE_VERTICAL_SCROLL_PROPS } from "@/lib/ui/scrollArea";
 import { CrossfadeSwap } from "./CrossfadeSwap";
 import { EmptyState } from "./EmptyState";
 import { LoadingStatus } from "./LoadingStatus";
+import { MotionModal } from "./MotionModal";
 
 const LIST_BORDER = "1px solid var(--mantine-color-default-border)";
 
@@ -205,7 +205,7 @@ export function PinnedEventsPanel({ seedEvents = null, onLoaded }: PinnedEventsP
   };
 
   return (
-    <Modal
+    <MotionModal
       opened={open}
       onClose={closePanel}
       centered
@@ -330,7 +330,7 @@ export function PinnedEventsPanel({ seedEvents = null, onLoaded }: PinnedEventsP
           )}
         </Box>
       </ScrollArea.Autosize>
-    </Modal>
+    </MotionModal>
   );
 }
 

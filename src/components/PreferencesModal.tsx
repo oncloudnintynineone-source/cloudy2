@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Button, Group, Loader, Modal, SegmentedControl, Stack, Text } from "@mantine/core";
+import { Button, Group, Loader, SegmentedControl, Stack, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 
 import { clearAllDashboardSnapshots } from "@/lib/dashboard/localStore";
 import type { WeekStart } from "@/lib/events/datetime";
 import { getWeekStart, setWeekStart } from "@/lib/userPrefs/actions";
+import { MotionModal } from "@/components/MotionModal";
 import { useMotion } from "@/components/MotionProvider";
 import { fadeTransitionProps } from "@/lib/motion/transitions";
 
@@ -85,7 +86,7 @@ export function PreferencesModal({ opened, onClose }: PreferencesModalProps) {
   }, []);
 
   return (
-    <Modal
+    <MotionModal
       opened={opened}
       onClose={onClose}
       title="Preferences"
@@ -137,6 +138,6 @@ export function PreferencesModal({ opened, onClose }: PreferencesModalProps) {
           />
         )}
       </Stack>
-    </Modal>
+    </MotionModal>
   );
 }

@@ -6,7 +6,6 @@ import {
   Badge,
   Button,
   Group,
-  Modal,
   Paper,
   Stack,
   Switch,
@@ -17,6 +16,7 @@ import {
 import { notifications } from "@mantine/notifications";
 import { IconCheck, IconPencil, IconPlus, IconTrash, IconX } from "@tabler/icons-react";
 
+import { MotionModal } from "@/components/MotionModal";
 import { useMotion } from "@/components/MotionProvider";
 import { fadeTransitionProps } from "@/lib/motion/transitions";
 import {
@@ -224,7 +224,7 @@ export function EventTypeGroupsModal({
   }
 
   return (
-    <Modal
+    <MotionModal
       opened={opened}
       onClose={close}
       title="Event type groups"
@@ -428,7 +428,7 @@ export function EventTypeGroupsModal({
         )}
       </Stack>
 
-      <Modal
+      <MotionModal
         opened={deleting !== null}
         onClose={() => setDeleting(null)}
         title="Delete event type group"
@@ -458,7 +458,7 @@ export function EventTypeGroupsModal({
             </Button>
           </Group>
         </Stack>
-      </Modal>
-    </Modal>
+      </MotionModal>
+    </MotionModal>
   );
 }

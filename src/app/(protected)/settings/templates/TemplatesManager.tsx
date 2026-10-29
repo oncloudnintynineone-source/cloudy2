@@ -6,7 +6,6 @@ import {
   Badge,
   Button,
   Group,
-  Modal,
   Paper,
   ScrollArea,
   Stack,
@@ -20,6 +19,7 @@ import { notifications } from "@mantine/notifications";
 import { IconCopy, IconPencil, IconTrash } from "@tabler/icons-react";
 
 import { useActivityRefresh } from "@/components/ActivityBar";
+import { MotionModal } from "@/components/MotionModal";
 import { useMotion } from "@/components/MotionProvider";
 import { NoKeyboardSelect } from "@/components/NoKeyboardSelect";
 import { ROW_ACTION_ICON_SIZE, ROW_ACTION_SIZE } from "@/components/reorderUpDown";
@@ -424,7 +424,7 @@ export function TemplatesManager({
       </Paper>
 
       {/* Master */}
-      <Modal
+      <MotionModal
         opened={masterOpened}
         onClose={closeMaster}
         title="Master event title"
@@ -447,10 +447,10 @@ export function TemplatesManager({
             onDone={() => closeAndRefresh(closeMaster)}
           />
         </CrossfadeSwap>
-      </Modal>
+      </MotionModal>
 
       {/* Add / edit library template */}
-      <Modal
+      <MotionModal
         opened={editOpened}
         onClose={closeEdit}
         title={creating ? "Add template" : editing ? `Edit ${editing.label}` : "Template"}
@@ -476,7 +476,7 @@ export function TemplatesManager({
             onDone={() => closeAndRefresh(closeEdit)}
           />
         </CrossfadeSwap>
-      </Modal>
+      </MotionModal>
 
       {/* Assignments */}
       <AssignmentsDialog
@@ -501,7 +501,7 @@ export function TemplatesManager({
       />
 
       {/* Delete confirm */}
-      <Modal
+      <MotionModal
         opened={deleting !== null}
         onClose={() => setDeleting(null)}
         title="Delete template"
@@ -525,7 +525,7 @@ export function TemplatesManager({
             </Button>
           </Group>
         </Stack>
-      </Modal>
+      </MotionModal>
     </Stack>
   );
 }
@@ -591,7 +591,7 @@ function AssignmentsDialog({
   };
 
   return (
-    <Modal
+    <MotionModal
       opened={opened}
       onClose={onClose}
       title="Assign templates to targets"
@@ -646,7 +646,7 @@ function AssignmentsDialog({
           </Button>
         </Group>
       </Stack>
-    </Modal>
+    </MotionModal>
   );
 }
 
@@ -706,7 +706,7 @@ function NameTemplateDialog({
   };
 
   return (
-    <Modal
+    <MotionModal
       opened={opened}
       onClose={onClose}
       title="Display name template"
@@ -768,6 +768,6 @@ function NameTemplateDialog({
           </Button>
         </Group>
       </Stack>
-    </Modal>
+    </MotionModal>
   );
 }

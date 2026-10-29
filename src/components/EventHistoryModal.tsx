@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Badge, Group, Modal, Stack, Text, useMantineTheme } from "@mantine/core";
+import { Badge, Group, Stack, Text, useMantineTheme } from "@mantine/core";
 import { useMediaQuery, useViewportSize } from "@mantine/hooks";
 import { IconHistory } from "@tabler/icons-react";
 
@@ -9,6 +9,7 @@ import { CrossfadeSwap } from "@/components/CrossfadeSwap";
 import { EmptyState } from "@/components/EmptyState";
 import { EventHistoryEntries } from "@/components/EventHistoryEntries";
 import { EventHistorySkeleton } from "@/components/EventHistorySkeleton";
+import { MotionModal } from "@/components/MotionModal";
 import { useMotion } from "@/components/MotionProvider";
 import { createdEventSummary } from "@/lib/events/history";
 import { getEventHistory, type EventHistoryResult } from "@/lib/events/historyActions";
@@ -162,7 +163,7 @@ export function EventHistoryModal({
   const retentionDays = loaded ? loaded.retentionDays : retentionDaysProp;
 
   return (
-    <Modal
+    <MotionModal
       opened={eventId !== null}
       onClose={onClose}
       title="Event history"
@@ -212,6 +213,6 @@ export function EventHistoryModal({
           </CrossfadeSwap>
         )}
       </Stack>
-    </Modal>
+    </MotionModal>
   );
 }

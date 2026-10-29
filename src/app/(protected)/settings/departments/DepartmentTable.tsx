@@ -5,7 +5,6 @@ import {
   Box,
   Button,
   Group,
-  Modal,
   Paper,
   Stack,
   Table,
@@ -17,6 +16,7 @@ import { notifications } from "@mantine/notifications";
 import { IconPlus, IconSitemap } from "@tabler/icons-react";
 
 import { EmptyState } from "@/components/EmptyState";
+import { MotionModal } from "@/components/MotionModal";
 import { useMotion } from "@/components/MotionProvider";
 import type { Calendar } from "@/db/schema";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
@@ -395,7 +395,7 @@ export function DepartmentTable({ departments, reorderDrag }: DepartmentTablePro
         onRequestDelete={requestDelete}
       />
 
-      <Modal
+      <MotionModal
         opened={confirmOpened}
         onClose={closeConfirm}
         title="Delete department"
@@ -426,7 +426,7 @@ export function DepartmentTable({ departments, reorderDrag }: DepartmentTablePro
             Delete
           </Button>
         </Group>
-      </Modal>
+      </MotionModal>
 
       {/* Mobile-only: at lg the "Add department" button in the toolbar replaces
           the FAB. hiddenFrom sits on the toolbar itself: its Affix portals to

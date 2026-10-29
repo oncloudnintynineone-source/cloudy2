@@ -5,7 +5,6 @@ import {
   Badge,
   Button,
   Group,
-  Modal,
   Stack,
   Text,
   useMantineTheme,
@@ -15,6 +14,7 @@ import { IconChevronDown, IconPlus } from "@tabler/icons-react";
 
 import { AllNoneControls } from "@/components/AllNoneControls";
 import { EventTypeGroupGrid } from "@/components/EventTypeGroupGrid";
+import { MotionModal } from "@/components/MotionModal";
 import { PickerBadges, type PickerBadgeItem } from "@/components/PickerField";
 import { SelectableBadge } from "@/components/SelectableBadge";
 import { UserSelectModal } from "@/components/UserSelectModal";
@@ -248,7 +248,7 @@ export function FilterModal({
   const transitionProps = modalZoomTransitionProps(motion, originRect, viewport, contentWidth);
 
   return (
-    <Modal
+    <MotionModal
       opened={opened}
       onClose={onClose}
       title={title}
@@ -278,7 +278,7 @@ export function FilterModal({
         collapsedGroupLabels={collapsedGroupLabels}
         hint={hint}
       />
-    </Modal>
+    </MotionModal>
   );
 }
 

@@ -563,9 +563,10 @@ export function AppShellShell({
   const [pinnedOpen, setPinnedOpen] = useState(false);
   const [pinnedEverOpened, setPinnedEverOpened] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
-  // The search modal chrome is always mounted (like PinnedEventsPanel); only
-  // its body chunk is lazy. The modal stays in the tree so the zoom-out and
-  // shrink-back animations always play.
+  // The search modal chrome is always mounted; only its body chunk is lazy.
+  // The modal stays in the tree so the zoom-out and shrink-back animations
+  // always play. (PinnedEventsPanel, by contrast, is lazy-mounted after its
+  // first open and relies on MotionModal's first-open guard for the same feel.)
   // The search trigger's rect at open time; the modal zooms out of / shrinks into it.
   const [searchOriginRect, setSearchOriginRect] = useState<Rect | null>(null);
   const searchButtonRef = useRef<HTMLButtonElement>(null);

@@ -102,11 +102,11 @@ surfaces use the same clock. Mantine applies the transition's `in`/`out` state
 styles after the shared timing function, so each factory can give the enter and
 exit different curves without a second transition component.
 
-Plain dialogs use the shared `MotionModal` (`src/components/MotionModal.tsx`),
-which defaults to `fadeTransitionProps` but still honors an explicit
-`transitionProps`. Grow-from-trigger dialogs keep using `<Modal>` with the zoom
-factories; menus use `popoverTransitionProps`; `Collapse`/`Accordion` pass
-`transitionDuration` + (for Collapse) `transitionTimingFunction`.
+Every standalone dialog uses the shared `MotionModal`
+(`src/components/MotionModal.tsx`), which defaults to `fadeTransitionProps` but
+honors an explicit `transitionProps` — grow-from-trigger dialogs pass their zoom
+factory there too. Menus use `popoverTransitionProps`; `Collapse`/`Accordion`
+pass `transitionDuration` + (for Collapse) `transitionTimingFunction`.
 
 ## 1.5 Reduced motion & low-end devices
 
@@ -145,10 +145,14 @@ the tokens.
 - **Lazily mounted overlays:** Mantine's `Transition` starts in the `entered`
   state when its first render is already `opened`, so an overlay mounted open
   (a lazily imported modal or one rendered conditionally on open) would skip its
-  enter animation. `MotionModal` already handles this; raw `Modal`/`Modal.Root`
-  call sites must pass their `opened` value through `useEnterTransitionReady`
-  (`src/lib/motion/useEnterTransitionReady.ts`) so the closed state commits for
-  one frame before the real open.
+  enter animation. **Every standalone dialog renders through `MotionModal`** —
+  including grow-from-trigger ones, which pass their zoom factory as
+  `transitionProps` — so the guard is intrinsic and cannot be forgotten. The
+  only exception is a compound `Modal.Root`, which must pass its `opened` value
+  through `useEnterTransitionReady` (`src/lib/motion/useEnterTransitionReady.ts`)
+  so the closed state commits for one frame before the real open. A lint rule
+  (`eslint.config.mjs`) rejects raw `Modal` imports outside `MotionModal` and
+  the one `Modal.Root` consumer.
 - **JS tween:** pass `useMotion()` into the tween and use `cubicBezier(motion.easingCurves.out)`
   so the curve matches the CSS.
 
@@ -161,7 +165,7 @@ the tokens.
 | `src/lib/motion/transitions.ts` | shared Mantine transition factories (`fade`, `pop`, zoom) |
 | `src/lib/motion/useEnterTransitionReady.ts` | defers a first-mount-open overlay one frame so its enter transition plays |
 | `src/components/MotionProvider.tsx` | `useMotion()` context |
-| `src/components/MotionModal.tsx` | profile-aware plain `Modal` (fade by default) |
+| `src/components/MotionModal.tsx` | the app's standalone-modal wrapper: profile fade by default + first-mount-open guard |
 | `src/app/(protected)/layout.tsx` | resolves `motionProfile`, publishes `:root:root` vars, wraps in `MotionProvider` |
 | `src/app/globals.css` | standard `:root` fallback + every `--c2-*` consumer |
 | `src/lib/motion/profile.test.ts` | profile scaling + CSS parity |
