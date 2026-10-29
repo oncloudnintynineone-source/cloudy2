@@ -7,7 +7,6 @@ import {
   Box,
   Group,
   Pagination,
-  Skeleton,
   Stack,
   Text,
   ThemeIcon,
@@ -34,6 +33,8 @@ import type { MyEventRow } from "@/lib/events/myEvents";
 import { useLiveRouteRefresh } from "@/lib/loading/liveRefresh";
 import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
 import type { Rect } from "@/lib/motion/origin";
+
+import { MyEventsListSkeleton } from "./myEventsSkeleton";
 
 const LIST_BORDER = "1px solid var(--mantine-color-default-border)";
 
@@ -144,55 +145,7 @@ export function MyEventsView({
         loading={loading}
         mode="overlay"
         label="Loading your events"
-        skeleton={
-          <Box
-            style={{
-              border: LIST_BORDER,
-              borderRadius: "var(--mantine-radius-md)",
-              overflow: "hidden",
-            }}
-          >
-            <Stack gap={0}>
-              {Array.from({ length: 5 }, (_, index) => (
-                <Group
-                  key={index}
-                  gap="sm"
-                  wrap="nowrap"
-                  align="flex-start"
-                  style={{
-                    padding: "var(--mantine-spacing-sm)",
-                    borderTop: index === 0 ? undefined : LIST_BORDER,
-                  }}
-                >
-                  <Skeleton
-                    width={4}
-                    height={28}
-                    radius={2}
-                    style={{ flexShrink: 0, marginTop: 1 }}
-                  />
-                  <Box style={{ flex: 1, minWidth: 0 }}>
-                    <Stack gap={8}>
-                      <Skeleton
-                        height={12}
-                        radius={2}
-                        style={{ width: `${60 - (index % 3) * 12}%` }}
-                      />
-                      <Skeleton height={8} radius={2} w="40%" />
-                      <Group gap={6}>
-                        <Skeleton circle height={18} style={{ flexShrink: 0 }} />
-                        <Skeleton height={8} radius={2} w="30%" />
-                      </Group>
-                      <Group gap={6}>
-                        <Skeleton circle height={18} style={{ flexShrink: 0 }} />
-                        <Skeleton height={8} radius={2} w="24%" />
-                      </Group>
-                    </Stack>
-                  </Box>
-                </Group>
-              ))}
-            </Stack>
-          </Box>
-        }
+        skeleton={<MyEventsListSkeleton />}
       >
         {showEmpty ? (
           <EmptyState

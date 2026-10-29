@@ -80,26 +80,43 @@
       }
 
       /* Header bar — AppShell.Header: the app's opaque brand-navy header,
-         56px + safe-area, "Cloudy2" (Mantine size-lg / weight 700) left,
-         controls right (pin · theme · avatar placeholders). No bottom border
-         (matches the app header). */
+         56px + safe-area. The live header anchors the pinned-events pill at
+         the left edge (where the logo used to sit) with the refresh + profile
+         controls at the right, so the shell mirrors that shape: one full-width
+         pill skeleton + two control placeholders. */
       header {
         height: calc(56px + env(safe-area-inset-top, 0px));
         padding: env(safe-area-inset-top, 0px) 16px 0;
         background: #0d47a1;
         display: flex;
         align-items: center;
-        justify-content: space-between;
+        gap: 8px;
       }
-      header h1 {
-        font-size: 1.125rem;
-        font-weight: 700;
-        color: #fff;
+      .hdr-pill {
+        flex: 1 1 auto;
+        min-width: 0;
+        height: 30px;
+        border-radius: 999px;
+        background: #0a3a85;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding-inline: 12px;
+      }
+      .hdr-pill .sk {
+        background: rgba(255, 255, 255, 0.28);
       }
       .hdr-ctl {
         display: flex;
         align-items: center;
         gap: 8px;
+        flex-shrink: 0;
+      }
+      .hdr-ctl .sk {
+        width: 34px;
+        height: 34px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.28);
       }
 
       /* Skeleton primitive — Mantine Skeleton (gray-3 / dark-4) with its exact
@@ -190,11 +207,13 @@
 
       /* Content column — fills the region between the header and the fixed
          bottom nav with an even 16px gutter on every side (mirrors the AppShell
-         main's `md` padding that dashboard/loading.tsx relies on). */
+         main's `md` padding that dashboard/loading.tsx relies on). The bottom
+         reserve uses the max safe-area inset the footer grows by, matching the
+         shell's edge-to-edge fast path below. */
       main {
         flex: 1;
         display: flex;
-        padding: 16px 16px calc(56px + 16px + env(safe-area-inset-bottom, 0px));
+        padding: 16px 16px calc(56px + 16px + var(--c2-max-bottom));
       }
       .stack {
         flex: 1;
@@ -211,9 +230,12 @@
         height: 100%;
       }
 
-      /* Bottom nav (AppShell.Footer): mobile-only, 56px + safe-area. Uses the
-         edge-to-edge fast-path pattern (max inset + `calc(live - max)`) so
-         Chrome can retract its chin and reach the device edge. */
+      /* Bottom nav (AppShell.Footer): mobile-only, 56px + safe-area. The live
+         footer is an always-scrolling rail of fixed-width tiles (default
+         `medium` = 84px, labels shown), so the shell mirrors that geometry —
+         five default tiles with the same 84px width. Uses the edge-to-edge
+         fast-path pattern (max inset + `calc(live - max)`) so Chrome can
+         retract its chin and reach the device edge. */
       .bnav {
         position: fixed;
         bottom: calc(env(safe-area-inset-bottom, 0px) - var(--c2-max-bottom));
@@ -224,14 +246,28 @@
         background: var(--c2-body);
         border-top: 1px solid var(--c2-border);
         display: flex;
-        align-items: center;
-        justify-content: space-around;
+        align-items: stretch;
+        overflow: hidden;
+      }
+      .bnav::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        bottom: var(--c2-max-bottom);
+        right: 0;
+        width: 44px;
+        background: linear-gradient(to left, var(--c2-body), transparent);
+        pointer-events: none;
       }
       .bnav .item {
+        flex: 0 0 84px;
+        min-height: 56px;
         display: flex;
         flex-direction: column;
         align-items: center;
+        justify-content: center;
         gap: 2px;
+        padding-block: 6px;
       }
       @media (min-width: 40em) {
         .bnav {
@@ -242,14 +278,16 @@
   </head>
   <body>
     <header>
-      <h1>Cloudy2</h1>
-      <div class="hdr-ctl" aria-hidden="true">
-        <span class="sk sk-pulse" style="width: 26px; height: 26px"></span>
-        <span class="sk sk-pulse" style="width: 26px; height: 26px"></span>
+      <div class="hdr-pill" aria-hidden="true">
+        <span class="sk sk-pulse" style="width: 30px; height: 18px; border-radius: 999px"></span>
         <span
           class="sk sk-pulse"
-          style="width: 30px; height: 30px; border-radius: 50%"
+          style="flex: 1; max-width: 170px; height: 12px; border-radius: 2px"
         ></span>
+      </div>
+      <div class="hdr-ctl" aria-hidden="true">
+        <span class="sk sk-pulse"></span>
+        <span class="sk sk-pulse"></span>
       </div>
     </header>
     <div class="sr-only" role="status">Loading Cloudy2…</div>
@@ -265,10 +303,11 @@
       </div>
     </main>
     <div class="bnav" aria-hidden="true">
-      <span class="item"><span class="sk sk-pulse" style="width: 24px; height: 24px; border-radius: 6px"></span><span class="sk sk-pulse" style="width: 44px; height: 10px; border-radius: 2px"></span></span>
-      <span class="item"><span class="sk sk-pulse" style="width: 24px; height: 24px; border-radius: 6px"></span><span class="sk sk-pulse" style="width: 44px; height: 10px; border-radius: 2px"></span></span>
-      <span class="item"><span class="sk sk-pulse" style="width: 24px; height: 24px; border-radius: 6px"></span><span class="sk sk-pulse" style="width: 44px; height: 10px; border-radius: 2px"></span></span>
-      <span class="item"><span class="sk sk-pulse" style="width: 24px; height: 24px; border-radius: 6px"></span><span class="sk sk-pulse" style="width: 44px; height: 10px; border-radius: 2px"></span></span>
+      <span class="item"><span class="sk sk-pulse" style="width: 22px; height: 22px; border-radius: 6px"></span><span class="sk sk-pulse" style="width: 44px; height: 10px; border-radius: 2px"></span></span>
+      <span class="item"><span class="sk sk-pulse" style="width: 22px; height: 22px; border-radius: 6px"></span><span class="sk sk-pulse" style="width: 44px; height: 10px; border-radius: 2px"></span></span>
+      <span class="item"><span class="sk sk-pulse" style="width: 22px; height: 22px; border-radius: 6px"></span><span class="sk sk-pulse" style="width: 44px; height: 10px; border-radius: 2px"></span></span>
+      <span class="item"><span class="sk sk-pulse" style="width: 22px; height: 22px; border-radius: 6px"></span><span class="sk sk-pulse" style="width: 44px; height: 10px; border-radius: 2px"></span></span>
+      <span class="item"><span class="sk sk-pulse" style="width: 22px; height: 22px; border-radius: 6px"></span><span class="sk sk-pulse" style="width: 44px; height: 10px; border-radius: 2px"></span></span>
     </div>
     <!--
       Launch targets the inline script is allowed to resolve to. Mirrors

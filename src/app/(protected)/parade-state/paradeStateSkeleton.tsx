@@ -5,7 +5,7 @@ export function ParadeStateDepartmentSkeleton({ users = 2 }: { users?: number })
   return (
     <Box>
       <Skeleton h={16} w={140} mb="xs" />
-      <Stack gap="xs">
+      <Box component="div" className="card-grid">
         {Array.from({ length: users }).map((_, userIdx) => (
           <Paper key={userIdx} withBorder p="sm">
             <Stack gap={4}>
@@ -22,7 +22,7 @@ export function ParadeStateDepartmentSkeleton({ users = 2 }: { users?: number })
             </Stack>
           </Paper>
         ))}
-      </Stack>
+      </Box>
     </Box>
   );
 }

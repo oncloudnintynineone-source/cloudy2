@@ -191,20 +191,23 @@ SW-less environments.
 **The shell is pixel-matched to the app's route skeleton.** Because a launch can
 hand off from the shell either to a cached document or to the streamed
 `loading.tsx` fallback (§1.5), the two must read as one skeleton, not two:
-`loading.html` mirrors `dashboard/loading.tsx` + `calendarSkeleton.tsx` — all
-five view variants (month / week (H) / week (D) matrix / agenda / schedule,
-pre-rendered and selected by `main[data-view]` from the remembered view), the
-same Mantine v9 palette values (light `#fff` body / `#dee2e6` skeletons; dark
+`loading.html` mirrors `dashboard/loading.tsx`'s plain full-area block — the same
+Mantine v9 palette values (light `#fff` body / `#dee2e6` skeletons; dark
 `#242424` / `#424242`), the same skeleton pulse (opacity 0.4 → 1, 1500 ms), the
-same brand-blue header bar and mobile bottom-nav placeholders, and the manual
-`mantine-color-scheme-value` localStorage override applied pre-paint (matching
-`defaultColorScheme="auto"`). `launchShell.test.ts` guards the variant set, the
-default view, and the scheme override. Known gaps: a configured announcement
-banner's height can't be mirrored in this static shell — the shell always draws
-the bare 56px bar, so a banner-configured deployment shifts by the banner
-height exactly at the shell→app handoff (the app itself is aligned from first
-paint, `announcement-banner.md` §1.3.1; warm launches served straight from the
-document cache skip the shell entirely), and the desktop sidebar isn't mirrored
+same 16px content gutter, and the manual `mantine-color-scheme-value`
+localStorage override applied pre-paint (matching `defaultColorScheme="auto"`).
+Its chrome mirrors the live shell: the brand-blue header carries the
+pinned-events pill skeleton + refresh/profile placeholders, and the mobile
+footer is the fixed-width (84px default) scrolling rail with labels, not the old
+four-item bar. `launchShell.test.ts` guards the plain box, brand overlay,
+header/rail shapes, and the scheme override. Known gaps: a configured
+announcement banner's height can't be mirrored in this static shell — the shell
+always draws the bare 56px bar, so a banner-configured deployment shifts by the
+banner height exactly at the shell→app handoff (the app itself is aligned from
+first paint, `announcement-banner.md` §1.3.1; warm launches served straight from
+the document cache skip the shell entirely); the rail always mirrors the default
+`medium` width and the non-admin tile count (role/`bottomNavVariant` are
+server-only), and the desktop sidebar/search trigger aren't mirrored
 (mobile-first; desktop is unaffected by the splash path).
 
 **One caveat on "no server round trip":** `navigationPreload: true` is enabled
@@ -419,7 +422,7 @@ Client-side helpers live in `src/lib/pwa/client.ts`: `invalidatePathCaches` /
 `documentCachedAtIso()` — the single reader of the SW's document stamp.
 
 Tests: `src/lib/pwa/swRules.test.ts` (61 cases) and
-`src/lib/pwa/launchShell.test.ts` (11 cases — parses `public/loading.html` and
+`src/lib/pwa/launchShell.test.ts` (12 cases — parses `public/loading.html` and
 holds its inline copy of the route whitelist to the server's definitions, plus
 its default target, its paint-before-redirect structure, its view-variant
 skeletons, and its color-scheme override; it also **executes the shell's redirect
@@ -455,8 +458,8 @@ sign-out isolation, and the deploy-takeover pill (§1.8).
 | `src/lib/loading/liveRefreshRules.ts`                              | `needsLiveRefresh` + `LIVE_REFRESH_EVENT` — the always-fresh re-read rules (pure)                                                                                                                                                                                                                                                                   |
 | `src/lib/loading/liveRefresh.ts`                                   | `useLiveRouteRefresh` — always-fresh route revalidation in place (§1.6/§1.11)                                                                                                                                                                                                                                                                       |
 | `public/offline.html`                                              | Branded offline explainer (precached) — "You're offline" + Try again; no saved-views list (§1.9)                                                                                                                                                                                                                                                    |
-| `public/loading.html`                                              | Branded launch shell (precached) — plain full-page loading block mirroring the route skeleton, with the centered brand overlay (app icon breathing + "Waking from Deep Sleep…") and sr-only status; resolves the remembered page + view from the `cloudy2.ui` cookie and redirects after a presented frame (§1.5.1)                                 |
-| `src/lib/pwa/launchShell.test.ts`                                  | Drift guard for the launch shell's inline copy of the route whitelist / redirect structure / skeleton variants / scheme override, its runtime smoke test under a DOM shim, and the SW launch route's invariants (precached shell, no redirect, no cookie peek)                                                                                      |
+| `public/loading.html`                                              | Branded launch shell (precached) — plain full-page loading block mirroring the route skeleton, with the centered brand overlay (app icon breathing + "Waking from Deep Sleep…") and sr-only status; header pinned-pill + control placeholders and the fixed-width scrolling-nav rail mirror the live chrome; resolves the remembered page from the `cloudy2.ui` cookie and redirects after a presented frame (§1.5.1) |
+| `src/lib/pwa/launchShell.test.ts`                                  | Drift guard for the launch shell's inline copy of the route whitelist / redirect structure / plain-box skeleton / header + rail chrome / scheme override, its runtime smoke test under a DOM shim, and the SW launch route's invariants (precached shell, no redirect, no cookie peek)                                                               |
 | `src/app/(protected)/settings/**` + `src/components/LoginForm.tsx` | Same invalidate-then-refresh migration                                                                                                                                                                                                                                                                                                              |
 | `docs/pwa-offline.md`                                              | This document                                                                                                                                                                                                                                                                                                                                       |
 | `docs/events-cache.md`                                             | Server-side Google Calendar cache (the background revalidation target)                                                                                                                                                                                                                                                                              |

@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.356 (Parade State templated titles + day agenda)** is shipped.
+- All work through changelog **1.357 (PWA/route loading skeleton alignment)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -2257,6 +2257,15 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   each person's card gains a calendar button opening their full day agenda (in-camp +
   out-of-camp events) whose rows open the shared read-only event detail modal in place.
   Docs: `docs/event-lifecycle.md` §1.8.5, `docs/user-guide.md` §1.7.
+- 1.357 **PWA/route loading skeleton alignment**: the precached launch shell now
+  mirrors the live header (pinned-events pill + refresh/profile placeholders) and the
+  fixed-width (84px default) scrolling-nav rail instead of the old title + four-item
+  bar, and reserves the footer's max safe-area inset. Route skeletons now mirror their
+  pages' opening blocks via the shared `PageHeaderSkeleton` (Contacts, Parade State,
+  KAH Status, Double Booking, My Events), with the desktop-only sticky controls,
+  correct page gutters (no extra `p="md"`), `.card-grid` card layouts, and the shared
+  `MyEventsListSkeleton` reused by the in-view crossfade. Docs:
+  `docs/loading-transitions.md` §1.4, `docs/pwa-offline.md` §1.5.1.
 
 ## 1.4 Open items & next steps
 

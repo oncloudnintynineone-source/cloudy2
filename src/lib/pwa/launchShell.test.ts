@@ -80,7 +80,7 @@ describe("PWA launch shell", () => {
     // this localStorage key; the shell's head script must apply it pre-paint
     // so the skeleton doesn't flash the wrong scheme.
     expect(SHELL_HTML).toContain('localStorage.getItem("mantine-color-scheme-value")');
-    expect(SHELL_HTML).toContain('data-c2-scheme');
+    expect(SHELL_HTML).toContain("data-c2-scheme");
   });
 
   it("only lists routes that resolveLaunchTarget accepts unchanged", () => {
@@ -98,8 +98,9 @@ describe("PWA launch shell", () => {
     // The whole point of the shell is that it paints before navigating away —
     // redirecting pre-paint means the Android splash never lifts, which is the
     // exact bug this page fixes. Two nested rAFs guarantee a presented frame.
-    const nested =
-      /requestAnimationFrame\(\s*function\s*\(\)\s*\{\s*requestAnimationFrame\(/.test(SHELL_HTML);
+    const nested = /requestAnimationFrame\(\s*function\s*\(\)\s*\{\s*requestAnimationFrame\(/.test(
+      SHELL_HTML,
+    );
     expect(nested).toBe(true);
     expect(SHELL_HTML).toContain("location.replace(target)");
   });
@@ -118,6 +119,21 @@ describe("PWA launch shell", () => {
     expect(SHELL_HTML).toMatch(
       /bottom:\s*calc\(env\(safe-area-inset-bottom,\s*0px\)\s*-\s*var\(--c2-max-bottom\)\)/,
     );
+  });
+
+  it("mirrors the live header and scrolling-rail chrome", () => {
+    // The header's old "Cloudy2" title + three generic icons no longer match
+    // the live shell (pinned-events pill left, refresh + profile right), and
+    // the footer is now a fixed-width scrolling rail. Keep the static shell's
+    // shapes in step so the handoff doesn't visibly reflow.
+    expect(SHELL_HTML).toContain('class="hdr-pill"');
+    expect(SHELL_HTML).toContain('class="hdr-ctl"');
+    expect(
+      (SHELL_HTML.match(/class="hdr-ctl"[\s\S]*?<\/div>/)?.[0].match(/sk sk-pulse/g) ?? []).length,
+    ).toBe(2);
+    expect(SHELL_HTML).toContain("flex: 0 0 84px");
+    expect(SHELL_HTML.match(/class="item"/g) ?? []).toHaveLength(5);
+    expect(SHELL_HTML).not.toContain("<h1>Cloudy2</h1>");
   });
 });
 
@@ -179,9 +195,7 @@ function runShellScript(cookie: string | null) {
     document: {
       createElement: () => element(),
       getElementById: (id: string) =>
-        id === "c2-launch-routes"
-          ? { textContent: JSON.stringify(shellRoutes()) }
-          : element(id),
+        id === "c2-launch-routes" ? { textContent: JSON.stringify(shellRoutes()) } : element(id),
       cookie: cookie ?? "",
       documentElement: { setAttribute() {} },
     },

@@ -1,8 +1,11 @@
-import { Skeleton, Stack } from "@mantine/core";
+import { Box, Skeleton, Stack } from "@mantine/core";
 
 import { LoadingStatus } from "@/components/LoadingStatus";
 import { PageContainer } from "@/components/PageContainer";
+import { PageHeaderSkeleton } from "@/components/PageHeader";
 import { PageTransition } from "@/components/PageTransition";
+
+import { MyEventsListSkeleton } from "./myEventsSkeleton";
 
 export default function MyEventsLoading() {
   return (
@@ -10,10 +13,18 @@ export default function MyEventsLoading() {
       <PageContainer>
         <Stack gap="md">
           <LoadingStatus label="Loading your events" />
-          <Skeleton height={42} width="45%" radius="sm" />
-          {Array.from({ length: 5 }, (_, index) => (
-            <Skeleton key={index} height={72} radius="sm" />
-          ))}
+          <PageHeaderSkeleton titleWidth="24%" subtitleWidth="75%" />
+
+          {/* The sticky Range control mirror (same vertical gutter as the
+              live page's chrome block). */}
+          <Box py="md" style={{ borderBottom: "1px solid var(--mantine-color-default-border)" }}>
+            <Stack gap={4}>
+              <Skeleton height={12} width={48} radius="sm" />
+              <Skeleton height={36} width={150} radius="sm" />
+            </Stack>
+          </Box>
+
+          <MyEventsListSkeleton />
         </Stack>
       </PageContainer>
     </PageTransition>
