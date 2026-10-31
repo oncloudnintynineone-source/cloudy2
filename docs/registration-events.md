@@ -121,7 +121,7 @@ Key properties:
 
 A registration event may optionally carry a **maximum number of explicit
 registrants** (`registrationCap` in the notes block). The cap is per event,
-configured by the organizer in the wizard's Participants step; an empty cap
+configured by the organizer in the wizard's Other settings step; an empty cap
 means **unlimited**.
 
 - Only unique explicit `inviteeUsers` count. Departments are not participants
@@ -177,8 +177,10 @@ belong to one event, not to its duplicate.
   - no auto-added organizer for a registration event;
   - Participants step explains that people can register themselves and only
     the organizer/admin can edit;
-  - registration events show a **Limit registrations** switch + maximum input
-    (empty/off = unlimited) and a people-only picker (no Departments section);
+  - Other settings also shows the registration **Limit registrations** switch
+    + maximum input (empty/off = unlimited) beneath the Open for registration
+    switch;
+  - registration events use a people-only picker (no Departments section);
   - review shows a “Registration event” badge;
   - zero participants is accepted on submit.
 - **Event detail**:

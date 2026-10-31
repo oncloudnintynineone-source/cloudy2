@@ -1706,42 +1706,6 @@ export function EventForm({
             style={{ "--slide-dir": direction === "forward" ? 1 : -1 } as React.CSSProperties}
           >
             <Stack gap="sm">
-              {registrationType && (
-                <Stack gap="xs">
-                  <Switch
-                    label="Limit registrations"
-                    description="Cap self-service registrations. You and admins can still add or remove participants beyond it; departments are not participants on registration events."
-                    checked={form.values.registrationCap != null}
-                    onChange={(event) => {
-                      if (!event.currentTarget.checked) {
-                        form.setFieldValue("registrationCap", null);
-                        return;
-                      }
-                      form.setFieldValue(
-                        "registrationCap",
-                        Math.max(1, selectedInvitees.userIds.length || 10),
-                      );
-                    }}
-                  />
-                  {form.values.registrationCap != null && (
-                    <NumberInput
-                      label="Maximum registrations"
-                      description="People can register until this many explicit registrants are on the event."
-                      min={1}
-                      allowDecimal={false}
-                      clampBehavior="blur"
-                      value={form.values.registrationCap ?? ""}
-                      error={form.errors.registrationCap}
-                      onChange={(value) =>
-                        form.setFieldValue(
-                          "registrationCap",
-                          typeof value === "number" ? Math.max(1, Math.trunc(value)) : null,
-                        )
-                      }
-                    />
-                  )}
-                </Stack>
-              )}
               {inviteePickerGroups.length > 0 ? (
                 <PickerField
                   label={registrationType ? "Registered attendees" : "Participants"}
@@ -1910,6 +1874,42 @@ export function EventForm({
                       }
                     }}
                   />
+                  {registrationType && (
+                    <Stack gap="xs">
+                      <Switch
+                        label="Limit registrations"
+                        description="Cap self-service registrations. You and admins can still add or remove participants beyond it; departments are not participants on registration events."
+                        checked={form.values.registrationCap != null}
+                        onChange={(event) => {
+                          if (!event.currentTarget.checked) {
+                            form.setFieldValue("registrationCap", null);
+                            return;
+                          }
+                          form.setFieldValue(
+                            "registrationCap",
+                            Math.max(1, selectedInvitees.userIds.length || 10),
+                          );
+                        }}
+                      />
+                      {form.values.registrationCap != null && (
+                        <NumberInput
+                          label="Maximum registrations"
+                          description="People can register until this many explicit registrants are on the event."
+                          min={1}
+                          allowDecimal={false}
+                          clampBehavior="blur"
+                          value={form.values.registrationCap ?? ""}
+                          error={form.errors.registrationCap}
+                          onChange={(value) =>
+                            form.setFieldValue(
+                              "registrationCap",
+                              typeof value === "number" ? Math.max(1, Math.trunc(value)) : null,
+                            )
+                          }
+                        />
+                      )}
+                    </Stack>
+                  )}
                 </>
               )}
             </Stack>
