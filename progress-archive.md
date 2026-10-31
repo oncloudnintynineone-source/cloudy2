@@ -9773,3 +9773,21 @@ server read per user intent; it is gated by online/Save-Data/2G, deduped, and ab
 - Existing events that relied on the old type flag read as ordinary events until their
   organizer re-enables registration; no automatic notes backfill.
 - Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm db:generate`.
+
+## 1.360 Event wizard step indicators
+
+- Added the `wizardStepIndicator` org-wide feature flag (Settings → Feature Flags):
+  `rail` (default), `guided`, or `classic`.
+- `rail` replaces the number-only circles with always-visible numbered name pills
+  (Type · Time · Location · Participants · Remarks · Settings · Review). The pills wrap
+  on phones; the wizard's fixed body height absorbs the extra row by shrinking the
+  scroll area, so the modal never resizes. Every pill is a free step jump and keeps the
+  full step name in its accessible name.
+- `guided` shows circles with names beneath at ≥800px; below that the compact Mantine
+  Stepper keeps the circles and the caption's `Steps · N/M` button opens the full named
+  step list. `classic` preserves the original number-only Stepper.
+- Extracted the step definitions/labels into pure `eventFormSteps.ts` (unit-tested) and
+  the strip rendering into `EventFormSteps.tsx`; the flag travels through
+  `DashboardSharedConfig` (snapshot version 9) into `EventForm`.
+- New migration `drizzle/0064_heavy_vulcan.sql` (with meta).
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm db:generate`.

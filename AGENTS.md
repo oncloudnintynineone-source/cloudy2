@@ -132,8 +132,9 @@ doc content here.
   [docs/pwa-offline.md](docs/pwa-offline.md) §1.11/§1.18.
 - **Event lifecycle & mutations:** staged wizard → Google copies with notes-block
   round-trip; cross-department copies reconciled by `findCopies` (deliberately uncached).
-  Wizard body is a fixed-height column + bottom **step strip** (caption + non-wrapping
-  Stepper, tap = jump), so the modal never resizes between steps. The detail modal's
+  Wizard body is a fixed-height column + bottom **step strip** (`EventFormSteps`, whose
+  variant comes from `wizardStepIndicator`; tap = jump), so the modal never resizes
+  between steps. The detail modal's
   **Share** action opens a self-contained `/share/event?e=&c=&d=` link (public landing
   route → login hop → the `?event=` details deep link) — the URL carries the whole
   target, nothing is stored.
@@ -441,8 +442,9 @@ none` so taps pass through to the clipped tile, and it hides on a side once
   org (A/B-style experiments, alternate heads), **don't hand-roll a toggle** — extend the
   feature-flag framework: add the typed `settings` column + one `FeatureFlagDef` entry in
   `src/lib/settings/featureFlags.ts` (the last Settings tab auto-renders its control), resolve
-  the value server-side and pass it down as a prop. Flags are **global** (no per-user override),
-  default to today's behavior, and every flip is audited. Flags: `pinnedTickerIndicator`
+  the value server-side and pass it down as a prop. Flags are **global** (no per-user override);
+  every flip is audited. They default to today's behavior except `wizardStepIndicator`, whose
+  default is the user-requested labelled rail (`classic` remains selectable). Flags: `pinnedTickerIndicator`
   ([`pinned-events.md`](docs/pinned-events.md) §1.4); `savedEventToastVariant` — the four
   post-save event-confirmation presentations (classic pill / restyled pill / toast + action /
   plain toast), resolved into `DashboardSharedConfig` → `EventForm`
@@ -465,7 +467,10 @@ none` so taps pass through to the clipped tile, and it hides on a side once
   popover entrances use the profile's `pop` curve (so `playful` overshoots)
   while exits stay on `out`, plain dialogs render through the shared
   `MotionModal`, and Collapse/Accordion pass `transitionDuration`
-  ([`motion.md`](docs/motion.md)). Design:
+  ([`motion.md`](docs/motion.md)); and `wizardStepIndicator` — the create/edit
+  wizard's step strip (labelled rail default / labels + mobile step list /
+  numbered circles), resolved into `DashboardSharedConfig` → `EventForm`
+  ([`event-lifecycle.md`](docs/event-lifecycle.md) §1.4). Design:
   [docs/feature-flags.md](docs/feature-flags.md).
 - **Templates:** display-name template + **structured recipes** (`src/lib/settings/titleRecipe.ts`,
   no free text beyond an optional per-segment Text field) with per-target assignments

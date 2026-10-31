@@ -5,9 +5,10 @@ one is shipped as the default. Today it owns the pinned-events header ticker's
 indicator style, the post-save event confirmation's presentation, the app-wide
 frosted-glass `translucencyLevel`, the manageable lists' reorder interaction
 (drag-only default, arrows + drag, or arrows only), the mobile bottom
-navigation's scrolling-rail tile width (`wide`/`medium`/`tight`), and the
-app-wide motion cadence (`motionProfile`); new flags join the same registry
-(Settings → Feature Flags, last strip tab).
+navigation's scrolling-rail tile width (`wide`/`medium`/`tight`), the app-wide
+motion cadence (`motionProfile`), and the create/edit event wizard's step
+indicator (`wizardStepIndicator`); new flags join the same registry (Settings →
+Feature Flags, last strip tab).
 
 ## Table of contents
 
@@ -96,7 +97,7 @@ normalization) and the full quality gates before pushing.
 | `src/app/(protected)/settings/feature-flags/` | Page + generic `FeatureFlagsForm` + skeleton |
 | `src/app/(protected)/layout.tsx` | Resolves the shell-facing flags (`translucencyLevel`, `pinnedTickerIndicator`, `bottomNavVariant`) and the `motionProfile` into the shell (publishes the motion CSS vars + wraps in `MotionProvider`) |
 | `src/lib/bottomNav.ts` | `footerPrimaryFor` — the `bottomNavVariant` flag's pure primary-tile rule (unit-tested in `bottomNav.test.ts`) |
-| `src/lib/dashboard/data.ts` | Resolves the dashboard-facing flags (`savedEventToastVariant`, `reorderDrag`) into `DashboardSharedConfig` |
+| `src/lib/dashboard/data.ts` | Resolves the dashboard-facing flags (`savedEventToastVariant`, `reorderDrag`, `wizardStepIndicator`) into `DashboardSharedConfig` |
 
 Related docs:
 
@@ -118,4 +119,7 @@ Related docs:
   footer offsets stay intact).
 - [`motion.md`](motion.md) — the `motionProfile` flag: the app-wide animation
   system (durations, easings, distances, stagger) and its four profiles.
+- [`event-lifecycle.md`](event-lifecycle.md) §1.4 — the `wizardStepIndicator` flag:
+  the wizard's labelled rail (default), desktop labels + mobile step list, and
+  classic number-only circles.
 - [`audit-log.md`](audit-log.md) — how admin writes are recorded.

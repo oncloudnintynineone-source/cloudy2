@@ -35,7 +35,10 @@ export const PINNED_TICKER_INDICATOR_OPTIONS = [
 ] as const;
 export type PinnedTickerIndicator = (typeof PINNED_TICKER_INDICATOR_OPTIONS)[number];
 
-export const pinnedTickerIndicatorFlag: FeatureFlagDef<"pinnedTickerIndicator", PinnedTickerIndicator> = {
+export const pinnedTickerIndicatorFlag: FeatureFlagDef<
+  "pinnedTickerIndicator",
+  PinnedTickerIndicator
+> = {
   key: "pinnedTickerIndicator",
   label: "Pinned events indicator",
   description:
@@ -61,7 +64,10 @@ export const SAVED_EVENT_TOAST_OPTIONS = [
 ] as const;
 export type SavedEventToastVariant = (typeof SAVED_EVENT_TOAST_OPTIONS)[number];
 
-export const savedEventToastVariantFlag: FeatureFlagDef<"savedEventToastVariant", SavedEventToastVariant> = {
+export const savedEventToastVariantFlag: FeatureFlagDef<
+  "savedEventToastVariant",
+  SavedEventToastVariant
+> = {
   key: "savedEventToastVariant",
   label: "Saved-event confirmation",
   description:
@@ -145,6 +151,27 @@ export const bottomNavVariantFlag: FeatureFlagDef<"bottomNavVariant", BottomNavV
   defaultValue: "medium",
 };
 
+export const WIZARD_STEP_INDICATOR_OPTIONS = ["rail", "guided", "classic"] as const;
+export type WizardStepIndicator = (typeof WIZARD_STEP_INDICATOR_OPTIONS)[number];
+
+export const wizardStepIndicatorFlag: FeatureFlagDef<"wizardStepIndicator", WizardStepIndicator> = {
+  key: "wizardStepIndicator",
+  label: "Event wizard step indicator",
+  description:
+    "How the create/edit event wizard names its steps. The labelled rail " +
+    "shows every step name up front (wrapping on narrow screens); Labels + " +
+    "step list keeps the circles and adds labels on wide desktops, with a " +
+    "tappable step list on smaller screens; Classic keeps the number-only " +
+    "circles. Toggle to compare the variants live, then keep the one you want.",
+  options: WIZARD_STEP_INDICATOR_OPTIONS,
+  optionLabels: {
+    rail: "Labelled rail",
+    guided: "Labels + step list",
+    classic: "Numbered circles",
+  },
+  defaultValue: "rail",
+};
+
 export const motionProfileFlag: FeatureFlagDef<"motionProfile", MotionProfile> = {
   key: "motionProfile",
   label: "Motion profile",
@@ -172,6 +199,7 @@ export const FEATURE_FLAGS = [
   reorderDragFlag,
   bottomNavVariantFlag,
   motionProfileFlag,
+  wizardStepIndicatorFlag,
 ] as const;
 export type FeatureFlagKey = (typeof FEATURE_FLAGS)[number]["key"];
 

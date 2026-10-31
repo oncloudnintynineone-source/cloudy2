@@ -1,0 +1,1 @@
+ALTER TABLE "settings" ADD COLUMN "wizard_step_indicator" text DEFAULT 'rail' NOT NULL;

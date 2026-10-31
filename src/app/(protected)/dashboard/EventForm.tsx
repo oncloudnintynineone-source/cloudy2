@@ -11,7 +11,6 @@ import {
   Paper,
   SegmentedControl,
   Stack,
-  Stepper,
   Switch,
   Tabs,
   Text,
@@ -46,7 +45,9 @@ import {
 import type { EventClashCheckRequest } from "@/lib/events/clashActions";
 import { fetchRecentLocations } from "@/lib/events/recentLocations";
 import { EventClashCheck } from "./EventClashCheck";
+import { EventFormSteps } from "./EventFormSteps";
 import { WIZARD_BODY_HEIGHT_DESKTOP, WIZARD_BODY_HEIGHT_MOBILE } from "./eventFormLayout";
+import { STEP_LABELS, buildSteps, type StepId } from "./eventFormSteps";
 import { subOneDay } from "@/lib/events/datetime";
 import {
   buildOptimisticEvent,
@@ -85,7 +86,7 @@ import {
   type TitleRecipe,
 } from "@/lib/settings/titleRecipe";
 import { BUTTON_LOADER_PROPS, DESKTOP_WIDE_MEDIA_QUERY } from "@/lib/theme";
-import type { SavedEventToastVariant } from "@/lib/settings/featureFlags";
+import type { SavedEventToastVariant, WizardStepIndicator } from "@/lib/settings/featureFlags";
 import { announce } from "@/lib/ui/announcer";
 import { showValidationFailure } from "@/lib/ui/validationFeedback";
 import {
@@ -130,6 +131,8 @@ interface EventFormProps {
    * submit handler's success branch.
    */
   savedEventToastVariant?: SavedEventToastVariant;
+  /** How the wizard names its steps (Settings → Feature Flags). */
+  wizardStepIndicator: WizardStepIndicator;
   /** Session user id; stored as the event organizer on create. */
   currentUser: string;
   /**
@@ -176,43 +179,6 @@ const AMPM_OPTIONS = [
   { label: "PM", value: "PM" },
 ];
 
-/** Wizard step ids for the staged event form. */
-type StepId = "type" | "time" | "location" | "invitees" | "remarks" | "settings" | "review";
-
-interface StepDef {
-  id: StepId;
-  /** Form fields that must validate cleanly before the step can be left. */
-  fields: (keyof EventFormState)[];
-}
-
-/**
- * The full wizard walk: the location, remarks and invitees steps drop out per
- * the selected type's config. A type whose location step is hidden (admin-set
- * `show_location` off, only possible with a single allowed location) has no
- * Location step at all — every event saves in that sole category. An unlocked
- * exclusively in-camp type keeps the step but collapses the category selector
- * to a single, disabled option while still offering an optional specific
- * location. Types with remarks or invitees disabled have neither step.
- * Everyone passes through the always-present "Other settings" step (Pin +
- * organizer-only edit lock + per-event registration) and ends on a read-only
- * review of everything entered so far.
- */
-function buildSteps(
-  showLocationStep: boolean,
-  showRemarksStep: boolean,
-  showInviteesStep: boolean,
-): StepDef[] {
-  return [
-    { id: "type", fields: [] },
-    { id: "time", fields: ["start", "end", "startAmPm", "endAmPm"] },
-    ...(showLocationStep ? [{ id: "location", fields: [] } satisfies StepDef] : []),
-    ...(showInviteesStep ? [{ id: "invitees", fields: [] } satisfies StepDef] : []),
-    ...(showRemarksStep ? [{ id: "remarks", fields: [] } satisfies StepDef] : []),
-    { id: "settings", fields: [] },
-    { id: "review", fields: [] },
-  ];
-}
-
 /** Maps a server-reported error field to the wizard step that owns it. */
 const STEP_BY_FIELD: Partial<Record<EventResultField, StepId>> = {
   title: "remarks",
@@ -220,21 +186,6 @@ const STEP_BY_FIELD: Partial<Record<EventResultField, StepId>> = {
   end: "time",
   startAmPm: "time",
   endAmPm: "time",
-};
-
-/**
- * Short display names for the step chip rail. They describe the *section*, not
- * a position — the walk's length shifts when the selected type hides its
- * remarks/invitees step, so numbered labels would renumber mid-flow.
- */
-const STEP_LABELS: Record<StepId, string> = {
-  type: "Type",
-  time: "Time",
-  location: "Location",
-  invitees: "Participants",
-  remarks: "Remarks",
-  settings: "Other settings",
-  review: "Review",
 };
 
 /** Section label of the flat department list inside the invitee badge picker. */
@@ -250,6 +201,7 @@ export function EventForm({
   viewEventTitleRecipe,
   viewLabel,
   savedEventToastVariant,
+  wizardStepIndicator,
   currentUser,
   isAdmin,
   inviteeDepartments,
@@ -687,7 +639,7 @@ export function EventForm({
   }
 
   /**
-   * Jump straight to any step (the bottom step strip / Stepper). Like the old
+   * Jump straight to any step (the bottom step strip). Like the old
    * "Go to Summary" link, this never validates the steps in between — the
    * final submit still catches problems and returns the user to the owning
    * step. Tapping the step you are already on is a no-op.
@@ -1976,37 +1928,19 @@ export function EventForm({
         )}
       </div>
 
-      {/* Bottom step strip: a caption naming the current section plus a compact
-          Stepper, both anchored above the action bar so they live in the thumb
-          zone next to Back/Next. The circles are joined by connector lines so
-          the row reads unambiguously as a left→right step path; passed steps
-          show a check, the current circle is filled, future ones are outlined.
-          Tapping any circle is a free jump (see `goToStep`). Inline per-step
-          labels are omitted — the modal is too narrow for them — so the
-          current step's real name always shows in the caption instead. */}
-      <Stack gap={4} className="c2-wizard-steps">
-        <Group justify="space-between">
-          <Text size="sm" fw={600} style={{ lineHeight: 1.4 }}>
-            {STEP_LABELS[currentStep.id]}
-          </Text>
-          <Text size="xs" c="dimmed">
-            Step {step + 1} of {steps.length}
-          </Text>
-        </Group>
-        <Stepper
-          active={step}
-          onStepClick={goToStep}
-          allowNextStepsSelect
-          wrap={false}
-          size="sm"
-          iconSize={24}
-          styles={{ separator: { marginInline: 6 } }}
-        >
-          {steps.map((s) => (
-            <Stepper.Step key={s.id} aria-label={STEP_LABELS[s.id]} />
-          ))}
-        </Stepper>
-      </Stack>
+      {/* Bottom step strip, anchored above the action bar so it lives in the
+          thumb zone next to Back/Next. The `wizardStepIndicator` feature flag
+          picks the presentation: the default labelled rail names every step,
+          the guided variant labels the circles on wide desktops and offers a
+          step menu on smaller screens, and classic keeps the bare circles.
+          Tapping any step is a free jump (see `goToStep`). */}
+      <EventFormSteps
+        steps={steps}
+        step={step}
+        variant={wizardStepIndicator}
+        isDesktopWide={isDesktopWide}
+        onJump={goToStep}
+      />
 
       <Group justify={step === 0 ? "flex-end" : "space-between"} gap="sm">
         {step > 0 && (

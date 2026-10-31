@@ -982,6 +982,146 @@ html {
   flex: 0 0 auto;
 }
 
+/* Always-visible labelled step rail (`wizardStepIndicator` = rail). The pills
+   wrap to a second row on phones; the fixed wizard body absorbs the extra
+   height by shrinking the scroll area, so the modal itself never resizes. */
+.c2-wizard-step-rail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.c2-wizard-step-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 3px 9px 3px 5px;
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: 999px;
+  background: var(--mantine-color-body);
+  color: var(--mantine-color-dimmed);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+
+.c2-wizard-step-pill-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--mantine-color-default-hover);
+  color: var(--mantine-color-dimmed);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.c2-wizard-step-pill[data-completed] {
+  border-color: var(--mantine-primary-color-light-color);
+  color: var(--mantine-primary-color-light-color);
+}
+
+.c2-wizard-step-pill[data-completed] .c2-wizard-step-pill-num {
+  background: var(--mantine-primary-color-light);
+  color: var(--mantine-primary-color-light-color);
+}
+
+.c2-wizard-step-pill[data-active] {
+  border-color: var(--mantine-primary-color-filled);
+  background: var(--mantine-primary-color-filled);
+  color: var(--mantine-primary-color-contrast);
+}
+
+.c2-wizard-step-pill[data-active] .c2-wizard-step-pill-num {
+  background: rgba(255, 255, 255, 0.22);
+  color: inherit;
+}
+
+.c2-wizard-step-pill:focus-visible {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: 2px;
+}
+
+/* Wide-desktop guided variant (`wizardStepIndicator` = guided): circles with
+   their names beneath, so the whole walk is readable without a menu. The
+   narrow guided tier keeps the compact Mantine Stepper + step menu. */
+.c2-wizard-guided-steps {
+  display: flex;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.c2-wizard-guided-step {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0;
+  border-radius: var(--mantine-radius-sm);
+  color: var(--mantine-color-dimmed);
+}
+
+.c2-wizard-guided-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  border: 2px solid var(--mantine-color-default-border);
+  border-radius: 999px;
+  background: var(--mantine-color-default-hover);
+  color: var(--mantine-color-dimmed);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.c2-wizard-guided-label {
+  max-width: 100%;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.15;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.c2-wizard-guided-step[data-completed] {
+  color: var(--mantine-primary-color-light-color);
+}
+
+.c2-wizard-guided-step[data-completed] .c2-wizard-guided-icon {
+  border-color: var(--mantine-primary-color-filled);
+  background: var(--mantine-primary-color-filled);
+  color: var(--mantine-primary-color-contrast);
+}
+
+.c2-wizard-guided-step[data-active] {
+  color: var(--mantine-primary-color-filled);
+}
+
+.c2-wizard-guided-step[data-active] .c2-wizard-guided-icon {
+  border-color: var(--mantine-primary-color-filled);
+  background: var(--mantine-color-body);
+  color: var(--mantine-primary-color-filled);
+}
+
+.c2-wizard-guided-step:focus-visible {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: 2px;
+}
+
 .c2-wizard-scroll {
   flex: 1 1 auto;
   min-height: 0;

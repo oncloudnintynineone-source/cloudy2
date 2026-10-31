@@ -13,6 +13,7 @@ import {
   reorderDragFlag,
   savedEventToastVariantFlag,
   bottomNavVariantFlag,
+  wizardStepIndicatorFlag,
 } from "./featureFlags";
 
 describe("feature flag registry", () => {
@@ -43,15 +44,30 @@ describe("resolveFlagValue", () => {
     expect(resolveFlagValue(translucencyLevelFlag, "strong")).toBe("strong");
     expect(resolveFlagValue(reorderDragFlag, "arrowsDrag")).toBe("arrowsDrag");
     expect(resolveFlagValue(bottomNavVariantFlag, "tight")).toBe("tight");
+    expect(resolveFlagValue(wizardStepIndicatorFlag, "guided")).toBe("guided");
   });
 
   it("falls back to the default for unknown values", () => {
-    for (const unknown of ["fancy", "", 42, null, undefined, {}, "classic", "roleAware", "sheetExpand", "scrollRail"]) {
+    for (const unknown of [
+      "fancy",
+      "",
+      42,
+      null,
+      undefined,
+      {},
+      "classic",
+      "roleAware",
+      "sheetExpand",
+      "scrollRail",
+    ]) {
       expect(resolveFlagValue(pinnedTickerIndicatorFlag, unknown)).toBe("classic");
       expect(resolveFlagValue(savedEventToastVariantFlag, unknown)).toBe("pill");
       expect(resolveFlagValue(translucencyLevelFlag, unknown)).toBe("medium");
       expect(resolveFlagValue(reorderDragFlag, unknown)).toBe("drag");
       expect(resolveFlagValue(bottomNavVariantFlag, unknown)).toBe("medium");
+    }
+    for (const unknown of ["fancy", "", 42, null, undefined, {}]) {
+      expect(resolveFlagValue(wizardStepIndicatorFlag, unknown)).toBe("rail");
     }
   });
 });
@@ -69,6 +85,7 @@ describe("normalizeFeatureFlags", () => {
       reorderDrag: "drag",
       bottomNavVariant: "medium",
       motionProfile: "standard",
+      wizardStepIndicator: "rail",
     });
   });
 
@@ -81,6 +98,7 @@ describe("normalizeFeatureFlags", () => {
       reorderDrag: "drag",
       bottomNavVariant: "medium",
       motionProfile: "standard",
+      wizardStepIndicator: "rail",
     });
   });
 });
@@ -93,6 +111,7 @@ describe("isFeatureFlagKey", () => {
     expect(isFeatureFlagKey("reorderDrag")).toBe(true);
     expect(isFeatureFlagKey("bottomNavVariant")).toBe(true);
     expect(isFeatureFlagKey("motionProfile")).toBe(true);
+    expect(isFeatureFlagKey("wizardStepIndicator")).toBe(true);
     expect(isFeatureFlagKey("notAFlag")).toBe(false);
   });
 });
@@ -125,6 +144,7 @@ describe("validateFeatureFlags", () => {
         reorderDrag: "arrowsDrag",
         bottomNavVariant: "wide",
         motionProfile: "playful",
+        wizardStepIndicator: "guided",
       }),
     ).toEqual({});
   });

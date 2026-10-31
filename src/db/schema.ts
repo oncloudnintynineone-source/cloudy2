@@ -462,6 +462,15 @@ export const settings = pgTable(
      */
     motionProfile: text("motion_profile").notNull().default("standard"),
     /**
+     * Event wizard step indicator (Settings → Feature Flags): how the staged
+     * create/edit form names its steps — `rail` (default, always-visible
+     * labelled pills), `guided` (circles with desktop labels + a mobile step
+     * list) or `classic` (numbered circles only). One of the keys in
+     * `FEATURE_FLAGS` (`src/lib/settings/featureFlags.ts`); the registry's
+     * default backs the column default. See docs/event-lifecycle.md §1.4.
+     */
+    wizardStepIndicator: text("wizard_step_indicator").notNull().default("rail"),
+    /**
      * Daily parade-state email (Settings → Parade State Email): when enabled,
      * the selected roster users receive one snapshot on each configured weekday
      * once the configured send time has passed (Singapore time). The trigger is

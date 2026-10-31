@@ -145,7 +145,9 @@ Mechanics worth knowing:
   in `EventForm.tsx` (`WIZARD_BODY_HEIGHT_MOBILE` / `WIZARD_BODY_HEIGHT_DESKTOP` below):
   the active step's content in the middle on an **internal scroll** (`.c2-wizard-scroll`),
   and, pinned at the bottom above the **Back / Next / Create-Save bar**, the step strip —
-  a caption naming the current step plus a compact Mantine **Stepper**. Because the body
+  rendered by `EventFormSteps` with the presentation picked by the
+  `wizardStepIndicator` feature flag (§1.4.1 and
+  [`feature-flags.md`](feature-flags.md)). Because the body
   height is a pure function of the viewport — never of the active step's content — the
   modal never resizes between steps and the buttons never jump. The sizing is tiered so
   the modal actually uses the space a given screen has:
@@ -172,17 +174,27 @@ Mechanics worth knowing:
     Event Type, Organizer, Participants, Departments, Remarks) reflow into a two-column
     grid beneath the full-width calendar preview and clash check — the extra width reads
     as structure, not a stretched single column.
-    The Stepper (`.c2-wizard-steps`) is one non-wrapping row of
-    numbered circles joined by connector lines, so it reads unambiguously as a left→right
-    step path: passed steps show a check, the current circle is filled, future ones are
-    outlined. The **caption** always shows the current step's real name and position
-    (`Location` · `Step 3 of 6`); inline per-step labels are deliberately omitted — the
-    modal is too narrow for them, and the walk's length shifts when a type hides its
-    remarks/invitees step. Clicking any circle calls `goToStep` — a **free jump** (the
-    semantics of the old bottom "Go to Summary" link, now gone): nothing in between is
-    validated; the final submit still catches problems and returns the user to the owning
-    step. A step change resets the body scroll to the top and announces
-    `Step N of M: <name>` through the shell's polite live region.
+  - **Step strip variants** (Settings → Feature Flags → **Event wizard step
+    indicator**), all rendered by `EventFormSteps`:
+    - **Labelled rail** (`rail`, default): every step is a tappable numbered pill with
+      its short name (Type · Time · Location · Participants · Remarks · Settings ·
+      Review). The pills wrap to a second row on phones; the fixed body height absorbs
+      the extra height by shrinking the scroll area, so the modal never resizes.
+    - **Labels + step list** (`guided`): wide desktops (≥800px) show numbered circles
+      with the names beneath; below that the compact Mantine **Stepper** keeps the
+      circles and the caption's `Steps · N/M` button opens a menu listing every full
+      step name, with the current one checked.
+    - **Numbered circles** (`classic`): the original non-wrapping Stepper with a caption
+      naming the current step and position (`Location` · `Step 3 of 6`).
+
+    In every variant passed steps are visually distinct from the current and future
+    ones, and the full step name is available in the control's accessible name. The
+    step labels describe the *section*, not a position, because the walk's length shifts
+    when a type hides its remarks/invitees step. Clicking any step calls `goToStep` — a
+    **free jump** (the semantics of the old bottom "Go to Summary" link, now gone):
+    nothing in between is validated; the final submit still catches problems and returns
+    the user to the owning step. A step change resets the body scroll to the top and
+    announces `Step N of M: <name>` through the shell's polite live region.
 - **Enter never submits**: `handleFormKeyDown` (`EventForm.tsx`) cancels the
   browser's implicit form submission for `INPUT`/`SELECT` targets, so only the explicit
   Create/Save button (review step) commits — the Remarks `Textarea` keeps natural newline
@@ -268,7 +280,7 @@ Mechanics worth knowing:
   row is the full attendee selection (an organizer who tagged themselves appears both as
   Organizer and among the participants — the current user's name there gets the same
   amber `(You)` badge as on the Participants step). There are no per-section edit links on the review
-  page itself, but the bottom Stepper (§1.4) jumps straight back to any earlier step
+  page itself, but the bottom step strip (§1.4) jumps straight back to any earlier step
   without walking.
 
 ### 1.4.2 Deep links back to the event

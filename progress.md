@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.358 (Durable pinned-events selection cache)** is shipped.
+- All work through changelog **1.360 (Event wizard step indicators)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -2279,6 +2279,11 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   `0063_curly_apocalypse.sql`); existing type-enabled events must be reopened by their
   organizer to opt back in. Docs: `docs/registration-events.md`,
   `docs/event-lifecycle.md` §1.14, `docs/event-mutations.md` §1.11.
+- 1.360 **Event wizard step indicators**: new `wizardStepIndicator` feature flag
+  defaults to an always-visible labelled step rail (Type · Time · Location ·
+  Participants · Remarks · Settings · Review), with optional desktop-labels/mobile-step-list
+  and classic number-only variants. Migration `0064_heavy_vulcan.sql`. Docs:
+  `docs/event-lifecycle.md` §1.4, `docs/feature-flags.md`.
 
 ## 1.4 Open items & next steps
 

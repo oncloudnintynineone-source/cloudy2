@@ -1092,6 +1092,7 @@ function DashboardViewImpl({
   googleConfigured,
   savedEventToastVariant,
   reorderDrag,
+  wizardStepIndicator,
   weekStartsOn,
   quickLinks,
   selectedCalendarIds,
@@ -5916,6 +5917,7 @@ function DashboardViewImpl({
                   viewEventTitleRecipe={viewEventTitleRecipe}
                   viewLabel={activeView.name}
                   savedEventToastVariant={savedEventToastVariant}
+                  wizardStepIndicator={wizardStepIndicator}
                   currentUser={currentUser}
                   isAdmin={isAdmin}
                   inviteeDepartments={inviteeDepartments}

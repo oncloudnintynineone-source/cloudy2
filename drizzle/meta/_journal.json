@@ -449,6 +449,13 @@
       "when": 1793410878631,
       "tag": "0063_curly_apocalypse",
       "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1793412605582,
+      "tag": "0064_heavy_vulcan",
+      "breakpoints": true
     }
   ]
 }

@@ -26,7 +26,11 @@ import {
   type DashboardViewKind,
   type DashboardViewTab,
 } from "@/lib/dashboardViews/views";
-import type { ReorderDrag, SavedEventToastVariant } from "@/lib/settings/featureFlags";
+import type {
+  ReorderDrag,
+  SavedEventToastVariant,
+  WizardStepIndicator,
+} from "@/lib/settings/featureFlags";
 import type { TitleRecipe } from "@/lib/settings/titleRecipe";
 
 /**
@@ -34,7 +38,7 @@ import type { TitleRecipe } from "@/lib/settings/titleRecipe";
  * version differs is ignored (and overwritten on the next successful load), so
  * a deploy that changes the shape can never feed the new UI a stale record.
  */
-export const DASHBOARD_SNAPSHOT_VERSION = 8;
+export const DASHBOARD_SNAPSHOT_VERSION = 9;
 
 /** The one-shot `?refresh=` nonce is honored only within this window. */
 export const REFRESH_NONCE_TTL_MS = 5 * 60_000;
@@ -82,6 +86,11 @@ export interface DashboardSnapshot {
    * drag handle / up-down chevrons.
    */
   reorderDrag: ReorderDrag;
+  /**
+   * Event wizard step indicator (Settings → Feature Flags): labelled rail,
+   * desktop labels + mobile step list, or number-only circles.
+   */
+  wizardStepIndicator: WizardStepIndicator;
   /**
    * Which day the account's calendar week starts on (per-user preference).
    * Drives every week/month grid's `firstDayOfWeek` and the months a view
