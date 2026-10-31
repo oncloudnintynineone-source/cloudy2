@@ -292,13 +292,6 @@ export const eventTypes = pgTable(
     /** Whether the event form shows the Participants step for this type. */
     showInvitees: boolean("show_invitees").notNull().default(true),
     /**
-     * Whether events of this type are open for self-registration. Anyone who
-     * can see the event may add/remove themselves as a participant; only the
-     * organizer and admins may edit the event or manage its participants.
-     * Registration events always show the Participants step.
-     */
-    registrationEnabled: boolean("registration_enabled").notNull().default(false),
-    /**
      * Whether the wizard shows the Location step for this type. When off, the
      * step is skipped entirely and events save in the type's sole allowed
      * location category with no specific place — only meaningful when

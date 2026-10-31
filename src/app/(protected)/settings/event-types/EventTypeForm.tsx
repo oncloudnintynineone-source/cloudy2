@@ -41,8 +41,6 @@ interface EventTypeFormProps {
     allowedLocations: string[];
     showRemarks: boolean;
     showInvitees: boolean;
-    /** Whether events of this type are open for self-registration. */
-    registrationEnabled: boolean;
     /** Whether the wizard shows the Location step (off requires one allowed location). */
     showLocation: boolean;
     /** Whether events of this type are informational (excluded from clash checks). */
@@ -68,10 +66,7 @@ export function EventTypeForm({ eventType, groups, onDone }: EventTypeFormProps)
         ? normalizeAllowedLocations(eventType.allowedLocations)
         : [...LOCATION_CATEGORIES],
       showRemarks: eventType ? eventType.showRemarks !== false : true,
-      showInvitees: eventType
-        ? eventType.registrationEnabled === true || eventType.showInvitees !== false
-        : true,
-      registrationEnabled: eventType ? eventType.registrationEnabled === true : false,
+      showInvitees: eventType ? eventType.showInvitees !== false : true,
       // A type with a hidden location step needs exactly one allowed location
       // (validation enforces it), so default to showing unless the edited type
       // already hides it with a single-category matrix.
@@ -248,27 +243,9 @@ export function EventTypeForm({ eventType, groups, onDone }: EventTypeFormProps)
           />
           <Checkbox
             label="Show participants in the event form"
-            description={
-              form.values.registrationEnabled
-                ? "Registration events always show the Participants step."
-                : "Let users tag people and departments on events of this type; hide it for types that involve only the organizer"
-            }
-            disabled={form.values.registrationEnabled}
+            description="Let users tag people and departments on events of this type; hide it for types that involve only the organizer"
             checked={form.values.showInvitees}
             onChange={(event) => form.setFieldValue("showInvitees", event.currentTarget.checked)}
-          />
-          <Checkbox
-            label="Open for registration"
-            description="Anyone who can see the event can register or deregister themselves as a participant. Only the organizer and admins can edit the event or manage participants."
-            checked={form.values.registrationEnabled}
-            onChange={(event) => {
-              const checked = event.currentTarget.checked;
-              form.setFieldValue("registrationEnabled", checked);
-              // Registration needs a participant roster.
-              if (checked) {
-                form.setFieldValue("showInvitees", true);
-              }
-            }}
           />
           <Checkbox
             label="Show location in the event form"

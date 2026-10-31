@@ -61,11 +61,6 @@ export interface EventTypeDisplayInfo {
   /** Whether the event form shows the Participants step. */
   showInvitees: boolean;
   /**
-   * Whether events of this type are open for self-registration. Registration
-   * types always show participants and may be created with no registrants.
-   */
-  registrationEnabled: boolean;
-  /**
    * Whether the wizard shows the Location step; false means the type skips it
    * and events save in its sole allowed location category with no specific
    * location (valid only when the allowlist has one entry).
@@ -99,7 +94,6 @@ export async function getEventTypesByNames(
       allowedLocations: eventTypes.allowedLocations,
       showRemarks: eventTypes.showRemarks,
       showInvitees: eventTypes.showInvitees,
-      registrationEnabled: eventTypes.registrationEnabled,
       showLocation: eventTypes.showLocation,
       excludeFromClash: eventTypes.excludeFromClash,
     })
@@ -115,7 +109,6 @@ export async function getEventTypesByNames(
         allowedLocations: normalizeAllowedLocations(row.allowedLocations),
         showRemarks: row.showRemarks,
         showInvitees: row.showInvitees,
-        registrationEnabled: row.registrationEnabled,
         showLocation: row.showLocation,
         excludeFromClash: row.excludeFromClash,
       },

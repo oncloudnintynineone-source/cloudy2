@@ -1,7 +1,7 @@
 # 1. Registration events
 
-A **registration event** is an ordinary event whose type is marked _Open for
-registration_ in Settings → Event Types. It keeps the existing event storage,
+A **registration event** is an ordinary event whose creator opened it for
+self-registration in the event wizard. It keeps the existing event storage,
 title, copy reconciliation and participant model; the difference is who may
 change what:
 
@@ -35,21 +35,27 @@ event store would duplicate identity, notes, copies, audit and cache logic.
 
 ## 1.2 Configuration
 
-`event_types.registration_enabled` (boolean, default `false`) is edited in
-Settings → Event Types as **Open for registration**. The flag is per type, so an
-admin can create a dedicated type (e.g. “Training — Open”) or convert an
-existing one.
+`registrationEnabled` is a per-event flag stored in the event's notes block
+(like `pinned` and `ownerOnlyEdits`). There is no event-type setting: the event
+type is only a template for other form fields.
+
+The organizer configures it in the wizard's **Other settings** step as **Open
+for registration**. The switch is only available once **“Only I can edit this
+event”** (the organizer-only lock) is on, and enabling registration forces that
+lock on; turning the lock off clears registration. Only the organizer or an
+admin may change either value.
 
 Enabling it:
 
-- forces `show_invitees` on (the Participants step is the roster);
-- hides the organizer-only edit-lock switch in the event wizard (the lock is
-  redundant: registration events are always organizer/admin-only);
+- forces the Participants step on (the participant list is the roster);
 - allows the event to be created with **zero participants**;
-- stops the wizard from auto-seeding the organizer as a participant.
+- stops the wizard from auto-seeding the organizer as a participant;
+- makes self-registration the only action available to everyone else.
 
-The flag is resolved at read time from the event type, so turning it on/off
-affects existing events of that type on the next read.
+The flag is stored in Google's event notes, so copies of the event agree and a
+changing read picks it up immediately. Events saved before this per-event flag
+(including those formerly enabled by an event type) are treated as not open for
+registration until their organizer enables it.
 
 ## 1.3 Permission model
 
@@ -59,15 +65,19 @@ affects existing events of that type on the next read.
 | Organizer  | Yes             | Yes                 | Yes (detail button)      | Yes              |
 | Other user | No              | No                  | Yes                      | No               |
 
+This is the same as the ordinary organizer-only lock: registration can only be
+enabled together with that lock, so the edit permission itself enforces who may
+change the registration configuration.
+
 The client mirrors this in `EventDetail` (`canModify`), and the server enforces
 it in two layers:
 
 1. the existing `modifyGuard` runs first (so a forged ref that is not even on
    the event is rejected);
 2. before any write, `performEventUpdate` / `deleteEvent` read the stored copy,
-   resolve its type from the notes, and apply `registrationEditGuard` when the
-   type is registration-enabled. This authoritative check cannot be bypassed by
-   a forged client `EventRef`.
+   read its per-event registration flag from the notes, and apply
+   `registrationEditGuard` when it is enabled. This authoritative check cannot
+   be bypassed by a forged client `EventRef`.
 
 `?edit=` deep links for a registration event open the details modal instead of
 the wizard when the actor is not the organizer/admin.
@@ -156,16 +166,19 @@ belong to one event, not to its duplicate.
 
 ## 1.7 UI
 
-- **Event type form**: “Open for registration” checkbox; forces participants
-  on.
-- **Event type list**: a “Registration” badge.
+- **Event type form/list**: no registration control or badge (registration is
+  per event).
 - **Event wizard**:
-  - no auto-added organizer for a registration type;
+  - Other settings shows the organizer-only lock and the **Open for
+    registration** switch, the latter disabled until the lock is on;
+  - enabling registration clears department tags and any untouched auto-seeded
+    organizer, and turns the lock on;
+  - turning the lock off clears registration and the cap;
+  - no auto-added organizer for a registration event;
   - Participants step explains that people can register themselves and only
     the organizer/admin can edit;
-  - registration types show a **Limit registrations** switch + maximum input
+  - registration events show a **Limit registrations** switch + maximum input
     (empty/off = unlimited) and a people-only picker (no Departments section);
-  - organizer-only lock switch replaced by an explanatory note;
   - review shows a “Registration event” badge;
   - zero participants is accepted on submit.
 - **Event detail**:
@@ -192,8 +205,9 @@ pipeline:
 - one `event.update` audit row with the before→after participant diff, plus a
   flat `registration: "Registered" | "Deregistered"` context field;
 - one `event.updated` webhook;
-- the event snapshots (audit + webhook) carry `registrationCap`, so a cap
-  change appears in the history diff and the webhook body;
+- the event snapshots (audit + webhook) carry `registrationEnabled` and
+  `registrationCap`, so either change appears in the history diff and the
+  webhook body;
 - the best-effort KAH breach check;
 - participant notifications compute newly added users, which is always empty
   for a self-registration (the acting user is excluded).
@@ -202,15 +216,16 @@ There is no dedicated organizer-notification on someone else registering.
 
 ## 1.9 Edge cases & limitations
 
+- **Existing events**: events that were registration-enabled only through the
+  old event-type flag have no per-event flag in their notes, so they read as
+  ordinary events. Their organizer can reopen the wizard and enable
+  registration; no automatic backfill is performed.
 - **Concurrency**: Google stores the roster in the event notes, so two
   simultaneous registrations are a read-modify-write with last-write-wins.
   The cap is checked against the copy read at the start of the action, so two
   racing registrations can both pass and exceed the cap by one or more.
   Expected volume is low; a future hardening path is a per-event lock or a
   relational roster.
-- **Type rename**: per-type flags are resolved by the type name stored in the
-  event notes. Renaming a type (pre-existing behavior) means existing events no
-  longer resolve its flags until re-saved.
 - **Copy churn**: joining/leaving a department can create/retire that
   department's Google copy.
 - **Discovery**: with the existing target rule, an event with no registrants
@@ -226,11 +241,8 @@ There is no dedicated organizer-notification on someone else registering.
 
 | File                                                         | Role                                                                                                 |
 | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
-| `src/db/schema.ts`                                           | `event_types.registration_enabled`                                                                   |
-| `src/lib/eventTypes/{validate,actions,queries}.ts`           | Type flag, forcing participants, audit/display                                                       |
-| `src/app/(protected)/settings/event-types/EventTypeForm.tsx` | “Open for registration” control                                                                      |
 | `src/lib/events/queries.ts`                                  | `payload.registrationEnabled` / `payload.registrationCap` from notes                                 |
-| `src/lib/events/notes.ts`                                    | `registrationCap` notes field + tolerant parser                                                      |
+| `src/lib/events/notes.ts`                                    | `registrationEnabled` + `registrationCap` notes fields and parsers                                   |
 | `src/lib/events/guards.ts`                                   | `registrationEditGuard`                                                                              |
 | `src/lib/events/registration.ts`                             | Pure roster toggle, seat-count/full helpers + rebuild form values from a copy                        |
 | `src/lib/events/actions.ts`                                  | `setEventRegistration`, shared update pipeline, authoritative checks                                 |

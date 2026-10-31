@@ -19,6 +19,7 @@ import {
   encodeNotesBlock,
   eventDetailUrl,
   parseEventPeople,
+  parseEventRegistrationEnabled,
   withEditLink,
   withInternalMarker,
 } from "@/lib/events/notes";
@@ -33,10 +34,8 @@ import {
   eventFormValuesFromCopy,
   isRegistrationFull,
   registrationSeatCount,
-  storedEventTypeName,
   type RegistrationIntent,
 } from "@/lib/events/registration";
-import { getEventTypesByNames } from "@/lib/eventTypes/queries";
 import {
   buildEventTitleContext,
   calendarNames,
@@ -191,6 +190,7 @@ async function buildGcalEventInput(
       outOfCamp: input.outOfCamp || undefined,
       overseas: input.outOfCamp && input.overseas ? true : undefined,
       pinned: input.pinned || undefined,
+      registrationEnabled: input.registrationEnabled || undefined,
       registrationCap: input.registrationCap ?? undefined,
     }),
   );
@@ -250,16 +250,12 @@ async function legacyFallback(ref: EventRef): Promise<{
 }
 
 /**
- * Whether the stored copy belongs to a registration-enabled event. This is the
- * authoritative check used by update/delete (never the client-supplied ref).
+ * Whether the stored copy is open for registration. This is the per-event
+ * notes flag and the authoritative check used by update/delete (never the
+ * client-supplied ref).
  */
 async function isRegistrationEvent(copy: GcalEventItem): Promise<boolean> {
-  const typeName = storedEventTypeName(copy);
-  if (!typeName) {
-    return false;
-  }
-  const types = await getEventTypesByNames([typeName]);
-  return types.get(typeName)?.registrationEnabled === true;
+  return parseEventRegistrationEnabled(copy.description);
 }
 
 /**
@@ -384,6 +380,7 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
     outOfCamp: effectiveInput.outOfCamp,
     overseas: effectiveInput.overseas,
     pinned: effectiveInput.pinned,
+    registrationEnabled: effectiveInput.registrationEnabled === true,
     registrationCap: effectiveInput.registrationCap ?? null,
     location: effectiveInput.location,
     departmentIds: targets,
@@ -498,10 +495,17 @@ export async function updateEvent(
   }
   // The organizer is fixed: an edit keeps the stored organizer (adopting the
   // acting user on a creator-less legacy/external first edit). Only the
-  // organizer or an admin may change the owner-only lock — every other editor
-  // keeps the stored value.
+  // organizer or an admin may change the owner-only lock and the per-event
+  // registration flag — every other editor keeps the stored values.
+  const canChangeOwnership = canChangeLock(session, ref.creatorId);
+  const authorResolved = resolveEventAuthor(input, session.user.id, ref, canChangeOwnership);
   const normalized = clampEventEnd(
-    resolveEventAuthor(input, session.user.id, ref, canChangeLock(session, ref.creatorId)),
+    canChangeOwnership
+      ? authorResolved
+      : {
+          ...authorResolved,
+          registrationEnabled: ref.registrationEnabled,
+        },
   );
 
   const errors = validateEventForm(normalized);
@@ -637,11 +641,22 @@ async function performEventUpdate({
     // Authoritative registration restriction: a registration event may only be
     // edited by its organizer or an admin, even if a forged ref would satisfy
     // the preliminary attendee/department guard above.
-    if (mode === "update" && firstCopy && (await isRegistrationEvent(firstCopy))) {
+    if (mode === "update" && firstCopy) {
       const people = parseEventPeople(firstCopy.description);
-      const registrationError = registrationEditGuard(session, people.creatorId);
-      if (registrationError) {
-        return { ok: false, error: registrationError };
+      if (await isRegistrationEvent(firstCopy)) {
+        const registrationError = registrationEditGuard(session, people.creatorId);
+        if (registrationError) {
+          return { ok: false, error: registrationError };
+        }
+      }
+      // Nobody but the organizer/admin may flip registration on an ordinary
+      // event either — the stored copy, not the client ref, is authoritative.
+      const storedRegistration = parseEventRegistrationEnabled(firstCopy.description);
+      if (
+        !canChangeLock(session, people.creatorId) &&
+        (effectiveInput.registrationEnabled === true) !== storedRegistration
+      ) {
+        return { ok: false, error: "Only the organizer can change registration" };
       }
     }
 
@@ -731,6 +746,7 @@ async function performEventUpdate({
     outOfCamp: effectiveInput.outOfCamp,
     overseas: effectiveInput.overseas,
     pinned: effectiveInput.pinned,
+    registrationEnabled: effectiveInput.registrationEnabled === true,
     registrationCap: effectiveInput.registrationCap ?? null,
     location: effectiveInput.location,
     departmentIds: newTargets,
@@ -874,9 +890,11 @@ export async function setEventRegistration(
       ...values,
       inviteeUserIds: nextInvitees,
       // Preserve the stored organizer/lock exactly; self-registration never
-      // adopts the acting user as organizer.
+      // adopts the acting user as organizer. Registration is already verified
+      // on the stored copy, so keep it on through the shared write path.
       creatorId: values.creatorId,
       ownerOnlyEdits: values.ownerOnlyEdits,
+      registrationEnabled: true,
     });
     const errors = validateEventForm(normalized);
     if (Object.keys(errors).length > 0) {
@@ -902,6 +920,7 @@ export async function setEventRegistration(
       inviteeUserIds: values.inviteeUserIds,
       inviteeDepartmentIds: values.inviteeDepartments,
       ownerOnlyEdits: values.ownerOnlyEdits,
+      registrationEnabled: true,
     };
     return performEventUpdate({
       session,

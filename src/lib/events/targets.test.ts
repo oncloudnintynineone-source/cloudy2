@@ -177,6 +177,7 @@ describe("eventRefFromCalendarEvent", () => {
       inviteeUserIds: ["u2"],
       inviteeDepartmentIds: ["cal-9"],
       ownerOnlyEdits: true,
+      registrationEnabled: false,
     });
   });
 

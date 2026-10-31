@@ -337,11 +337,10 @@ describe("buildOptimisticEvent", () => {
   it("carries the registration flag into the stand-in payload", () => {
     const event = buildOptimisticEvent({
       identity,
-      values: formValues({ registrationCap: 5 }),
+      values: formValues({ registrationEnabled: true, registrationCap: 5 }),
       actingUserId: "user-7",
       title: "Patrol A",
       eventTypeColor: null,
-      registrationEnabled: true,
     });
     expect(event.payload.registrationEnabled).toBe(true);
     expect(event.payload.registrationCap).toBe(5);

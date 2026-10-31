@@ -100,7 +100,6 @@ const FIELD_LABELS: Record<string, string> = {
   allowedLocations: "Allowed locations",
   showLocation: "Show location",
   showRemarks: "Show remarks",
-  registrationEnabled: "Open for registration",
   registration: "Registration",
   excludeFromClash: "Exclude from conflict checks",
   userKeyword: "Login keyword",

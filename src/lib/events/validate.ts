@@ -32,6 +32,12 @@ export interface EventFormValues {
   /** Department (calendar) ids tagged on the event (schedule view rows). No validation. */
   inviteeDepartments: string[];
   /**
+   * Whether anyone may register/deregister themselves on this event. Only
+   * meaningful together with the organizer-only edit lock: a registration
+   * event is always organizer/admin-only. No validation.
+   */
+  registrationEnabled?: boolean;
+  /**
    * Maximum number of explicit registrants for a registration event. Null /
    * absent means unlimited. Only meaningful for registration-enabled types;
    * the write path clears it for every other type.

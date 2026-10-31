@@ -57,6 +57,13 @@ export interface EventNotes {
   /** End half-of-day indicator for "full" events. */
   endAmPm?: string;
   /**
+   * Whether the event is open for self-registration. Written only when true —
+   * absence (legacy/non-registration events) means closed. A registration
+   * event is organizer/admin-only, so this is only ever set together with
+   * `ownerOnlyEdits`.
+   */
+  registrationEnabled?: boolean;
+  /**
    * Maximum number of explicit registrants for a registration event. Written
    * only when a positive integer — absence means unlimited. Department tags
    * are not used for registration events and never count toward this cap.
@@ -350,6 +357,11 @@ export function parseEventPinned(description: string): boolean {
 /** Extract the organizer-only edit lock from the notes block; false when absent. */
 export function parseEventOwnerOnlyEdits(description: string): boolean {
   return parseEventNotes(description)?.ownerOnlyEdits === true;
+}
+
+/** Extract the per-event self-registration flag; false when absent (legacy). */
+export function parseEventRegistrationEnabled(description: string): boolean {
+  return parseEventNotes(description)?.registrationEnabled === true;
 }
 
 /**

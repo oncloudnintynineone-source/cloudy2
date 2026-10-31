@@ -14,6 +14,7 @@ import {
   parseEventPeople,
   parseEventPinned,
   parseEventRegistrationCap,
+  parseEventRegistrationEnabled,
   parseEventStartAmPm,
   parseEventTimeOption,
   parseEventType,
@@ -423,6 +424,23 @@ describe("parseEventPeople", () => {
         '{"eventId":"","createdBy":"","inviteeUsers":["u1",42,"u1",null],"inviteeDepartments":"nope"}',
       ),
     ).toEqual({ eventId: null, creatorId: null, userIds: ["u1"], departmentIds: [] });
+  });
+});
+
+describe("parseEventRegistrationEnabled", () => {
+  it("reads the per-event registration flag", () => {
+    expect(
+      parseEventRegistrationEnabled(encodeEventNotes({ registrationEnabled: true })),
+    ).toBe(true);
+  });
+
+  it("treats absent or false values as closed", () => {
+    expect(parseEventRegistrationEnabled(encodeEventNotes({ eventType: "Training" }))).toBe(false);
+    expect(
+      parseEventRegistrationEnabled(
+        encodeEventNotes({ registrationEnabled: false as unknown as boolean }),
+      ),
+    ).toBe(false);
   });
 });
 

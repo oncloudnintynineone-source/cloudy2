@@ -17,6 +17,7 @@ import {
   parseEventPeople,
   parseEventPinned,
   parseEventRegistrationCap,
+  parseEventRegistrationEnabled,
   parseEventStartAmPm,
   parseEventTimeOption,
   parseEventTitle,
@@ -71,14 +72,6 @@ export function applyRegistrationIntent(
 }
 
 /**
- * Whether the stored copy is a registration event. The notes' event type name
- * is the lookup key (the same read-time convention every per-type flag uses).
- */
-export function storedEventTypeName(copy: GcalEventItem): string | null {
-  return parseEventType(copy.description);
-}
-
-/**
  * Rebuild the wizard's form values from a stored copy so a registration action
  * can re-run the shared update pipeline without trusting client-supplied event
  * fields. All non-participant fields are preserved; the caller only toggles
@@ -112,6 +105,7 @@ export function eventFormValuesFromCopy(copy: GcalEventItem): EventFormValues | 
     creatorId: people.creatorId ?? "",
     inviteeUserIds: people.userIds,
     inviteeDepartments: people.departmentIds,
+    registrationEnabled: parseEventRegistrationEnabled(copy.description),
     registrationCap: parseEventRegistrationCap(copy.description),
     ownerOnlyEdits: parseEventOwnerOnlyEdits(copy.description),
     outOfCamp: parseEventOutOfCamp(copy.description),

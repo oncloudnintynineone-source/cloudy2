@@ -75,6 +75,7 @@ describe("eventFormValuesFromCopy", () => {
       creatorId: "creator-1",
       inviteeUserIds: ["u-2"],
       inviteeDepartments: [],
+      registrationEnabled: false,
       registrationCap: null,
       location: "Hall A",
     });
@@ -104,7 +105,7 @@ describe("eventFormValuesFromCopy", () => {
     });
   });
 
-  it("reads a stored registration cap", () => {
+  it("reads a stored registration flag and cap", () => {
     const values = eventFormValuesFromCopy(
       copy({
         description: encodeEventNotes({
@@ -113,10 +114,12 @@ describe("eventFormValuesFromCopy", () => {
           title: "Open day",
           createdBy: "creator-1",
           timeOption: "range",
+          registrationEnabled: true,
           registrationCap: 6,
         }),
       }),
     );
+    expect(values?.registrationEnabled).toBe(true);
     expect(values?.registrationCap).toBe(6);
   });
 

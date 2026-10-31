@@ -149,6 +149,7 @@ describe("buildEventSnapshot", () => {
       outOfCamp: true,
       overseas: true,
       pinned: true,
+      registrationEnabled: false,
       registrationCap: null,
       location: "Singapore",
       departmentIds: ["d-1", "d-2"],
@@ -164,6 +165,7 @@ describe("buildEventSnapshot", () => {
       outOfCamp: true,
       overseas: true,
       pinned: true,
+      registrationEnabled: false,
       registrationCap: null,
       location: "Singapore",
       departments: ["COU", "LOG"],
@@ -187,6 +189,7 @@ describe("buildEventSnapshot", () => {
       outOfCamp: false,
       overseas: false,
       pinned: false,
+      registrationEnabled: false,
       registrationCap: null,
       location: "  ",
       departmentIds: ["d-1", "unknown"],
@@ -226,6 +229,7 @@ const REF: EventRef = {
   inviteeUserIds: ["u-1", "u-2"],
   inviteeDepartmentIds: [],
   ownerOnlyEdits: false,
+  registrationEnabled: false,
 };
 
 function copy(description: string, location = ""): GcalEventItem {
@@ -274,6 +278,7 @@ describe("snapshotFromCopy", () => {
       outOfCamp: true,
       overseas: false,
       pinned: true,
+      registrationEnabled: false,
       registrationCap: null,
       location: "Singapore",
       departments: ["COU"],

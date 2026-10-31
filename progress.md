@@ -2272,6 +2272,14 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   × 3 months on each cold instance. CRUD + calendar-cache purge delete the row. Docs:
   `docs/pinned-events.md` §1.2, `docs/events-cache.md` §1.12/§1.13, `docs/neon-usage.md` §1.5.
 
+- 1.359 **Per-event registration**: registration is now configured by the event's
+  organizer in the wizard's Other settings step (notes `registrationEnabled`) and can
+  only be enabled together with the organizer-only edit lock. The admin-only
+  `event_types.registration_enabled` setting is removed (migration
+  `0063_curly_apocalypse.sql`); existing type-enabled events must be reopened by their
+  organizer to opt back in. Docs: `docs/registration-events.md`,
+  `docs/event-lifecycle.md` §1.14, `docs/event-mutations.md` §1.11.
+
 ## 1.4 Open items & next steps
 
 1. **`ADMIN_INITIAL_PASSWORD` + `ADMIN_PIN`** must be set on Vercel Preview, in the

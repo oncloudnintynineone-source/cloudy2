@@ -422,9 +422,10 @@ Two layers, both pure and unit-tested.
 | `modifyGuard(session, event, activeMembersByDepartment)` (`guards.ts`) | The single edit/delete/duplicate authorization (there is no "on behalf of" any more). Admins always pass, ignoring the owner lock. A creator-less event with no people (legacy/external) is admin-only. When the notes `ownerOnlyEdits` lock is set, only the organizer passes. Otherwise the organizer, every tagged attendee, and every **active member of each tagged department** (resolved from the active roster per action) pass. | "Only the organizer can edit this event" / "You can only edit or delete events you're on" / "You can only edit or delete events you created" |
 | `canChangeLock(session, creatorId)` (`guards.ts`)                      | Whether the actor may set/clear `ownerOnlyEdits`: the organizer or an admin.                                                                                                                                                                                                                                                                                                                                                             | —                                                                                                                                            |
 
-For **registration-enabled** event types there is an additional restriction: even
-tagged attendees and members of tagged departments may only register/deregister
-themselves; edit/delete/duplicate is organizer/admin-only (§1.14).
+For **registration events** (the per-event flag, only settable with the
+organizer-only lock) there is an additional restriction: even tagged attendees
+and members of tagged departments may only register/deregister themselves;
+edit/delete/duplicate is organizer/admin-only (§1.14).
 
 Server application: `createEvent` needs no guard (every signed-in user may create; the
 organizer is the acting session user). `updateEvent` and `deleteEvent` run
@@ -1019,21 +1020,22 @@ actions), `queries.ts` (DB + cache reads, `mapCalendarItem`), `appUrl.ts`
 
 ## 1.14 Registration events
 
-An event type may be marked **Open for registration** (`event_types.registration_enabled`).
-Events of such a type keep the ordinary event model — the organizer and admins
-set parameters and manage the participant list — but every other user may only
-add or remove themselves as a participant. Registration is therefore a narrow
-self-service toggle around the shared update pipeline, not a separate event
-store.
+The event's organizer may mark an individual event **Open for registration**
+in the wizard's Other settings step. It is a per-event flag stored in the notes
+block, not an event-type setting, and it can only be enabled together with the
+organizer-only edit lock. Events keep the ordinary event model — the organizer
+and admins set parameters and manage the participant list — but every other
+user may only add or remove themselves as a participant. Registration is
+therefore a narrow self-service toggle around the shared update pipeline, not a
+separate event store.
 
-Registration types force the Participants step on, may be created with zero
-participants (the organizer is not auto-added), keep the organizer's home
-department as a target so the event has a stable home, and hide the
-organizer-only lock switch in the wizard. A registration event may also carry
-an optional per-event cap on explicit registrants; the organizer sets it in the
-wizard, the detail modal shows `N / cap`, and self-registration is blocked once
-full (organizer/admin roster edits stay unlimited). Departments are not
-participants on registration events. The full permission matrix, cap rules,
+Registration events force the Participants step on, may be created with zero
+participants (the organizer is not auto-added), and keep the organizer's home
+department as a target so the event has a stable home. A registration event may
+also carry an optional per-event cap on explicit registrants; the organizer sets
+it in the wizard, the detail modal shows `N / cap`, and self-registration is
+blocked once full (organizer/admin roster edits stay unlimited). Departments are
+not participants on registration events. The full permission matrix, cap rules,
 storage semantics, target-calendar behavior, audit/webhook details and
 limitations live in [`registration-events.md`](registration-events.md).
 

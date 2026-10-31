@@ -168,6 +168,8 @@ interface EventFormProps {
 }
 
 interface EventFormState extends EventFormValues {
+  /** Always resolved in the form; the server field stays optional for legacy payloads. */
+  registrationEnabled: boolean;
   invitees: string[];
 }
 
@@ -194,8 +196,8 @@ interface StepDef {
  * to a single, disabled option while still offering an optional specific
  * location. Types with remarks or invitees disabled have neither step.
  * Everyone passes through the always-present "Other settings" step (Pin +
- * organizer-only edit lock) and ends on a read-only review of everything
- * entered so far.
+ * organizer-only edit lock + per-event registration) and ends on a read-only
+ * review of everything entered so far.
  */
 function buildSteps(
   showLocationStep: boolean,
@@ -327,13 +329,14 @@ export function EventForm({
         creatorId: event.payload.creatorId ?? currentUser,
         inviteeUserIds: [],
         inviteeDepartments: [],
-        registrationCap: selectedType?.registrationEnabled
+        registrationEnabled: event.payload.registrationEnabled,
+        registrationCap: event.payload.registrationEnabled
           ? (event.payload.registrationCap ?? null)
           : null,
         invitees:
-          selectedType && selectedType.showInvitees === false && !selectedType.registrationEnabled
+          selectedType && selectedType.showInvitees === false && !event.payload.registrationEnabled
             ? []
-            : selectedType?.registrationEnabled
+            : event.payload.registrationEnabled
               ? // Registration events never carry department tags.
                 event.payload.inviteeUserIds.map((id) => `user:${id}`)
               : [
@@ -345,7 +348,7 @@ export function EventForm({
         outOfCamp: clamped.outOfCamp,
         overseas: clamped.overseas,
         pinned: event.payload.pinned,
-        ownerOnlyEdits: event.payload.ownerOnlyEdits,
+        ownerOnlyEdits: event.payload.registrationEnabled ? true : event.payload.ownerOnlyEdits,
         location: clamped.location,
       };
     }
@@ -383,15 +386,17 @@ export function EventForm({
         creatorId: currentUser,
         inviteeUserIds: [],
         inviteeDepartments: [],
-        // A duplicate keeps the source event's cap (the cap is an event
-        // parameter), but its roster starts empty.
-        registrationCap: selectedType?.registrationEnabled
+        // A duplicate keeps the source event's registration choice and cap
+        // (both are event parameters), but its roster starts empty. Registration
+        // always carries the organizer-only lock.
+        registrationEnabled: src.payload.registrationEnabled,
+        registrationCap: src.payload.registrationEnabled
           ? (src.payload.registrationCap ?? null)
           : null,
         invitees:
           selectedType && selectedType.showInvitees === false
             ? []
-            : selectedType?.registrationEnabled
+            : src.payload.registrationEnabled
               ? []
               : [
                   ...src.payload.inviteeDepartmentIds.map((id) => `dept:${id}`),
@@ -400,7 +405,7 @@ export function EventForm({
         outOfCamp: clamped.outOfCamp,
         overseas: clamped.overseas,
         pinned: src.payload.pinned,
-        ownerOnlyEdits: false,
+        ownerOnlyEdits: src.payload.registrationEnabled ? true : false,
         location: clamped.location,
       };
     }
@@ -420,6 +425,7 @@ export function EventForm({
       creatorId: currentUser,
       inviteeUserIds: [],
       inviteeDepartments: [],
+      registrationEnabled: false,
       registrationCap: null,
       invitees: [`user:${currentUser}`],
       outOfCamp: false,
@@ -436,8 +442,8 @@ export function EventForm({
   );
 
   const selectedType = sortedEventTypes.find((type) => type.name === form.values.eventType) ?? null;
-  /** Whether the selected type is open for self-registration. */
-  const registrationType = selectedType?.registrationEnabled === true;
+  /** Whether this event is open for self-registration (per-event, wizard choice). */
+  const registrationType = form.values.registrationEnabled === true;
 
   // Badge picker user sections (one per department, No department last) for
   // the invitees picker (which prepends a Departments section). Badges show
@@ -611,8 +617,8 @@ export function EventForm({
   // review step, ...).
   const scrollRef = useRef<HTMLDivElement | null>(null);
   // True while the create form's initial self-participant is still untouched
-  // (edit/duplicate forms never auto-seed). Switching to a registration type
-  // clears that seed; a list the user edited is left alone.
+  // (edit/duplicate forms never auto-seed). Enabling registration clears that
+  // seed; a list the user edited is left alone.
   const autoSeededSelfRef = useRef(!isEdit && templateEvent === null);
 
   // On a step change: reset the body scroll and announce the arrival through
@@ -818,31 +824,9 @@ export function EventForm({
       form.setFieldValue("title", "");
     }
     // A type with invitees disabled carries no attendees beyond the creator.
-    // Registration types always show participants, even if a stale flag says
+    // Registration events always show participants, even if a stale flag says
     // otherwise.
-    if (type && type.showInvitees === false && !type.registrationEnabled) {
-      form.setFieldValue("invitees", []);
-    }
-    // Registration events are person-only: drop any selected departments when
-    // switching to one. Switching away clears the (now meaningless) cap.
-    if (type?.registrationEnabled) {
-      form.setFieldValue(
-        "invitees",
-        form.values.invitees.filter((value) => value.startsWith("user:")),
-      );
-    } else {
-      form.setFieldValue("registrationCap", null);
-    }
-    // The organizer is not registered automatically for a registration event.
-    // Drop the create form's untouched self seed when switching to such a type;
-    // a list the user has edited is left alone.
-    if (
-      type?.registrationEnabled &&
-      autoSeededSelfRef.current &&
-      form.values.invitees.length === 1 &&
-      form.values.invitees[0] === `user:${currentUser}`
-    ) {
-      autoSeededSelfRef.current = false;
+    if (type && type.showInvitees === false && !form.values.registrationEnabled) {
       form.setFieldValue("invitees", []);
     }
   }
@@ -1143,7 +1127,6 @@ export function EventForm({
         // that exact string, so the stand-in matches the authoritative chip.
         title: previewTitles.view,
         eventTypeColor: selectedType?.color ?? null,
-        registrationEnabled: registrationType,
       });
       onOptimistic(optimisticUpsert(optimisticId, optimisticEvent));
 
@@ -1784,10 +1767,11 @@ export function EventForm({
           </div>
         )}
 
-        {/* Other settings: pin + the organizer-only edit lock, grouped on their
-            own always-present step before the read-only review. The lock is
-            only relevant when the acting user is the organizer or an admin
-            (`canSetOwnerLock`); other editors never see it. */}
+        {/* Other settings: pin + the organizer-only edit lock + per-event
+            registration, grouped on their own always-present step before the
+            read-only review. The ownership controls are only relevant when the
+            acting user is the organizer or an admin (`canSetOwnerLock`); other
+            editors never see them. Registration requires the lock. */}
         {currentStep.id === "settings" && (
           <div
             key={currentStep.id}
@@ -1825,23 +1809,60 @@ export function EventForm({
                 }
                 {...form.getInputProps("pinned", { type: "checkbox" })}
               />
-              {registrationType ? (
-                <Text size="sm" c="dimmed">
-                  Registration event — only you and admins can edit it or manage participants.
-                  Everyone else can register or deregister themselves.
-                </Text>
-              ) : (
-                canSetOwnerLock && (
+              {canSetOwnerLock && (
+                <>
                   <Switch
                     label={
                       effectiveCreatorId === currentUser
                         ? "Only I can edit this event"
                         : "Only the organizer can edit this event"
                     }
-                    description="Participants and tagged department members lose edit rights; admins always keep them"
-                    {...form.getInputProps("ownerOnlyEdits", { type: "checkbox" })}
+                    description="Participants and tagged department members lose edit rights; admins always keep them. Required for registration events."
+                    checked={form.values.ownerOnlyEdits}
+                    onChange={(event) => {
+                      const checked = event.currentTarget.checked;
+                      form.setFieldValue("ownerOnlyEdits", checked);
+                      if (!checked) {
+                        form.setFieldValue("registrationEnabled", false);
+                        form.setFieldValue("registrationCap", null);
+                      }
+                    }}
                   />
-                )
+                  <Switch
+                    label="Open for registration"
+                    description={
+                      registrationType
+                        ? "Anyone who can see the event can register or deregister themselves. Only you and admins can edit the event or manage participants."
+                        : "Let people register or deregister themselves. Requires the organizer-only edit lock above."
+                    }
+                    disabled={!form.values.ownerOnlyEdits}
+                    checked={registrationType}
+                    onChange={(event) => {
+                      const checked = event.currentTarget.checked;
+                      form.setFieldValue("registrationEnabled", checked);
+                      if (checked) {
+                        form.setFieldValue("ownerOnlyEdits", true);
+                        // Registration events are person-only; departments are
+                        // not participants and never count toward the cap.
+                        form.setFieldValue(
+                          "invitees",
+                          form.values.invitees.filter((value) => value.startsWith("user:")),
+                        );
+                        // The organizer is not registered automatically.
+                        if (
+                          autoSeededSelfRef.current &&
+                          form.values.invitees.length === 1 &&
+                          form.values.invitees[0] === `user:${currentUser}`
+                        ) {
+                          autoSeededSelfRef.current = false;
+                          form.setFieldValue("invitees", []);
+                        }
+                      } else {
+                        form.setFieldValue("registrationCap", null);
+                      }
+                    }}
+                  />
+                </>
               )}
             </Stack>
           </div>

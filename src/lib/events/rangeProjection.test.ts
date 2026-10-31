@@ -61,19 +61,21 @@ describe("projectRangeEvents", () => {
     const empty: CalendarRangeData = {
       rows: [],
       typeColors: new Map(),
-      registrationTypeNames: new Set(),
       cached: { events: {}, allServed: true },
       months: [],
     };
     expect(projectRangeEvents(empty, { typeFilter: [], userFilter: [] })).toEqual([]);
   });
 
-  it("marks events whose type is open for registration", () => {
-    const description = encodeEventNotes({ eventType: "Training", eventId: "g-1" });
+  it("marks events explicitly open for registration", () => {
+    const description = encodeEventNotes({
+      eventType: "Training",
+      eventId: "g-1",
+      registrationEnabled: true,
+    });
     const data = {
       rows: [{ id: "cal-a", name: "Alpha", googleCalendarId: "gcal-a", color: null }],
       typeColors: new Map(),
-      registrationTypeNames: new Set(["Training"]),
       cached: {
         events: {
           "2026-09": {

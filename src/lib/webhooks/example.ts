@@ -35,6 +35,7 @@ function snapshot() {
     outOfCamp: true,
     overseas: true,
     pinned: true,
+    registrationEnabled: false,
     registrationCap: null,
     location: "Range North",
     departmentIds: ["dept"],

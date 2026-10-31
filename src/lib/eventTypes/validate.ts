@@ -18,12 +18,6 @@ export interface EventTypeFormValues {
   /** Whether the event form shows the Participants step. */
   showInvitees: boolean;
   /**
-   * Whether events of this type are open for self-registration. Registration
-   * types always show the Participants step and allow the organizer/admin to
-   * create an event with no registrants.
-   */
-  registrationEnabled?: boolean;
-  /**
    * Whether the event form shows the Location step. When off, the wizard
    * skips it and events save in the type's sole allowed category with no
    * specific location — only valid when `allowedLocations` has exactly one

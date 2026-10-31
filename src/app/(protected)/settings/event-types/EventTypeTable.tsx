@@ -164,11 +164,6 @@ export function EventTypeTable({ types, groups, reorderDrag }: EventTypeTablePro
                         No participants
                       </Badge>
                     )}
-                    {eventType.registrationEnabled === true && (
-                      <Badge size="sm" variant="light" color="accent">
-                        Registration
-                      </Badge>
-                    )}
                     {eventType.showLocation === false && (
                       <Badge size="sm" variant="light" color="gray">
                         No location
@@ -268,11 +263,6 @@ export function EventTypeTable({ types, groups, reorderDrag }: EventTypeTablePro
                         {eventType.showInvitees === false && (
                           <Badge size="sm" variant="light" color="gray">
                             No participants
-                          </Badge>
-                        )}
-                        {eventType.registrationEnabled === true && (
-                          <Badge size="sm" variant="light" color="accent">
-                            Registration
                           </Badge>
                         )}
                         {eventType.showLocation === false && (

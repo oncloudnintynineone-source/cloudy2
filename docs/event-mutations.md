@@ -315,11 +315,11 @@ live runtime, per the repo convention.
 
 ## 1.11 Registration mutations
 
-Registration-enabled event types add one server action,
+Registration events add one server action,
 `setEventRegistration(ref, "register" | "deregister")` (`actions.ts`). It:
 
 1. re-reads a stored copy through the uncached Google path;
-2. resolves the copy's type and rejects unless `registration_enabled` is on;
+2. rejects unless the copy's per-event `registrationEnabled` notes flag is on;
 3. rebuilds the form values from the stored notes (never from the client),
    rejects a `register` intent when the stored explicit roster is already at or
    above the event's optional `registrationCap`, then toggles **only** the

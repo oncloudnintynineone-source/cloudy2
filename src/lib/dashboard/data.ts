@@ -223,7 +223,6 @@ async function resolveDashboardConfig(session: Session): Promise<DashboardConfig
     allowedLocations: type.allowedLocations,
     showRemarks: type.showRemarks,
     showInvitees: type.showInvitees,
-    registrationEnabled: type.registrationEnabled,
     showLocation: type.showLocation,
     color: type.color,
   }));

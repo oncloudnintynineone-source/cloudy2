@@ -145,13 +145,15 @@ doc content here.
   (`activeMembershipsByDepartment`); the notes `ownerOnlyEdits` flag locks to the organizer
   (only organizer/admin may set/clear it). Creator-less, people-less events are admin-only.
   Design: [docs/event-lifecycle.md](docs/event-lifecycle.md), [docs/event-mutations.md](docs/event-mutations.md).
-- **Registration events:** an event type may be marked **Open for registration**
-  (`event_types.registration_enabled`). Events of that type are organizer/admin-only for
+- **Registration events:** the event's organizer marks an individual event **Open for
+  registration** in the wizard's Other settings step (notes `registrationEnabled`; there
+  is no event-type setting). It can only be enabled together with the organizer-only edit
+  lock and forces that lock on, so registration events are organizer/admin-only for
   parameters and roster management; everyone else may only register/deregister
   themselves as participants (a narrow `setEventRegistration` toggle around the shared
   update pipeline, never a full edit). The detail modal shows that same self-toggle to the
   organizer/admin below their action-icon row, so they need not open the wizard to
-  add/remove themselves. Registration types force participants on, may be
+  add/remove themselves. Registration events force participants on, may be
   created with zero registrants, and do not auto-add the organizer. An optional
   per-event registration cap (notes `registrationCap`, empty = unlimited) limits
   explicit registrants; the detail modal shows `N / cap`, disables Register when

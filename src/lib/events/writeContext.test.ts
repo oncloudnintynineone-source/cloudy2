@@ -44,6 +44,8 @@ describe("resolveEventFields", () => {
     const result = resolveEventFields(values, context());
     expect(result.inviteeDepartments).toEqual([]);
     expect(result.registrationCap).toBe(8);
+    expect(result.registrationEnabled).toBe(true);
+    expect(result.ownerOnlyEdits).toBe(true);
   });
 
   it("normalizes an invalid registration cap to unlimited", () => {
@@ -57,5 +59,6 @@ describe("resolveEventFields", () => {
       context({ registrationEnabled: false, eventType: { name: "Meeting", acronym: "MTG" } }),
     );
     expect(result.registrationCap).toBeNull();
+    expect(result.registrationEnabled).toBe(false);
   });
 });

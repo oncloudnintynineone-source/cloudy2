@@ -25,6 +25,8 @@ export interface EventRef {
   inviteeDepartmentIds: string[];
   /** Organizer-only modification lock (admins bypass); authorization reads it. */
   ownerOnlyEdits: boolean;
+  /** Per-event self-registration flag; preserved when a non-owner editor saves. */
+  registrationEnabled: boolean;
 }
 
 /** Order-preserving dedupe of non-null department ids. */
@@ -139,5 +141,6 @@ export function eventRefFromCalendarEvent(event: CalendarEvent): EventRef {
     inviteeUserIds: event.payload.inviteeUserIds,
     inviteeDepartmentIds: event.payload.inviteeDepartmentIds,
     ownerOnlyEdits: event.payload.ownerOnlyEdits,
+    registrationEnabled: event.payload.registrationEnabled,
   };
 }

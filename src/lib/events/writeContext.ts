@@ -57,7 +57,7 @@ export interface EventTitleContext {
   showRemarks: boolean;
   /** Whether the event type shows the Participants field. */
   showInvitees: boolean;
-  /** Whether events of this type are open for self-registration. */
+  /** Whether this event is open for self-registration (per-event flag). */
   registrationEnabled: boolean;
   /**
    * Whether the wizard shows the Location step for this type. When false, the
@@ -93,9 +93,9 @@ export async function buildEventTitleContext(input: EventFormValues): Promise<Ev
     getEventTypesByNames(eventTypeName ? [eventTypeName] : []),
   ]);
   const eventTypeRow = eventTypeName ? eventTypesByName.get(eventTypeName) : undefined;
-  // Registration types always carry a participant roster, even if the stored
-  // flag combination is inconsistent (the event-type form/action force it on).
-  const registrationEnabled = eventTypeRow ? eventTypeRow.registrationEnabled === true : false;
+  // Registration is a per-event choice (never an event-type flag). A
+  // registration event always carries a participant roster.
+  const registrationEnabled = input.registrationEnabled === true;
   const inviteesHidden =
     eventTypeRow && eventTypeRow.showInvitees === false && !registrationEnabled;
   // Types with invitees disabled carry no attendees beyond the creator, so the
@@ -296,13 +296,17 @@ export function resolveEventFields(
     // Registration events are person-only: department tags are not participants
     // and would make seat counting ambiguous. Clear any legacy tags on save;
     // the target resolver still keeps the creator's home department.
+    // Registration also requires the organizer-only edit lock, so self-service
+    // registrants can never rewrite the event.
     next = {
       ...next,
+      registrationEnabled: true,
       inviteeDepartments: [],
       registrationCap: normalizeRegistrationCap(next.registrationCap),
+      ownerOnlyEdits: true,
     };
   } else {
-    next = { ...next, registrationCap: null };
+    next = { ...next, registrationEnabled: false, registrationCap: null };
   }
   if (!context.showInvitees && !context.registrationEnabled) {
     next = {

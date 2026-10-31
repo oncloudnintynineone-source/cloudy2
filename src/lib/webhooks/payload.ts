@@ -63,6 +63,8 @@ export interface EventWebhookPayload {
     outOfCamp: boolean;
     overseas: boolean;
     pinned: boolean;
+    /** Whether the event is open for self-registration. */
+    registrationEnabled: boolean;
     /** Explicit registrant cap; null when uncapped or not a registration event. */
     registrationCap: number | null;
     location: string | null;
@@ -94,6 +96,7 @@ export function buildEventWebhookPayload(input: EventWebhookInput): EventWebhook
     outOfCamp: input.snapshot.outOfCamp,
     overseas: input.snapshot.overseas,
     pinned: input.snapshot.pinned,
+    registrationEnabled: input.snapshot.registrationEnabled,
     registrationCap: input.snapshot.registrationCap,
     location: input.snapshot.location,
     departments: [...input.snapshot.departments],

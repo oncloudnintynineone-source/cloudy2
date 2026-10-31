@@ -9754,3 +9754,22 @@ server read per user intent; it is gated by online/Save-Data/2G, deduped, and ab
   are unit-tested. New migration `drizzle/0062_natural_proemial_gods.sql` (with meta).
 - Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` (131 files / 1685 tests),
   `pnpm db:generate` (no drift).
+
+
+## 1.359 Per-event registration
+
+- Registration moved from an admin event-type flag (`event_types.registration_enabled`,
+  dropped) to a per-event notes flag (`registrationEnabled`) configured by the event's
+  organizer in the wizard's Other settings step.
+- The switch is only available with the organizer-only edit lock; enabling registration
+  forces the lock on and turning the lock off clears registration. This keeps
+  registration events organizer/admin-only without a separate permission path.
+- Reads resolve the flag from notes (payload, audit, webhook, optimistic stand-in);
+  update/delete still re-check the stored copy before writing; self-registration keeps
+  the existing narrow `setEventRegistration` toggle, cap enforcement and roster semantics.
+- Removed the event-type form control, table badge, validation/action/query fields,
+  dashboard type option, and audit label. New migration
+  `drizzle/0063_curly_apocalypse.sql`.
+- Existing events that relied on the old type flag read as ordinary events until their
+  organizer re-enables registration; no automatic notes backfill.
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm db:generate`.

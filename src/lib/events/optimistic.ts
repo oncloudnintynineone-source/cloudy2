@@ -202,8 +202,6 @@ export interface OptimisticBuildParams {
   title: string;
   /** Pinned color of the event's type; null falls back to the deterministic default. */
   eventTypeColor: string | null;
-  /** Whether the event's type is open for self-registration. */
-  registrationEnabled?: boolean;
 }
 
 /**
@@ -224,7 +222,7 @@ export interface OptimisticBuildParams {
  *   type's effective color).
  */
 export function buildOptimisticEvent(params: OptimisticBuildParams): CalendarEvent {
-  const { identity, values, actingUserId, title, eventTypeColor, registrationEnabled } = params;
+  const { identity, values, actingUserId, title, eventTypeColor } = params;
   const normalized = clampEventEnd({
     ...values,
     creatorId: values.creatorId.trim() || actingUserId,
@@ -254,8 +252,9 @@ export function buildOptimisticEvent(params: OptimisticBuildParams): CalendarEve
       inviteeUserIds: normalized.inviteeUserIds,
       inviteeDepartmentIds: normalized.inviteeDepartments,
       ownerOnlyEdits: normalized.ownerOnlyEdits,
-      registrationEnabled: registrationEnabled === true,
-      registrationCap: normalized.registrationCap ?? null,
+      registrationEnabled: normalized.registrationEnabled === true,
+      registrationCap:
+        normalized.registrationEnabled === true ? (normalized.registrationCap ?? null) : null,
       rawTitle: normalized.title,
       timeOption: normalized.timeOption,
       startAmPm: normalized.timeOption === "half" ? amPmOf(normalized.startAmPm) : null,

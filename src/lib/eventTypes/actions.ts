@@ -79,10 +79,7 @@ export async function createEventType(input: EventTypeFormValues): Promise<Event
   const timeOptions = normalizeTimeOptions(input.timeOptions);
   const allowedLocations = normalizeAllowedLocations(input.allowedLocations);
   const showRemarks = input.showRemarks !== false;
-  const registrationEnabled = input.registrationEnabled === true;
-  // Registration needs a participant roster, so the Participants step is
-  // always shown for these types.
-  const showInvitees = registrationEnabled ? true : input.showInvitees !== false;
+  const showInvitees = input.showInvitees !== false;
   const showLocation = input.showLocation !== false;
   const excludeFromClash = input.excludeFromClash === true;
   const color = normalizeEventColor(input.color);
@@ -101,7 +98,6 @@ export async function createEventType(input: EventTypeFormValues): Promise<Event
         allowedLocations,
         showRemarks,
         showInvitees,
-        registrationEnabled,
         showLocation,
         excludeFromClash,
         color,
@@ -124,7 +120,6 @@ export async function createEventType(input: EventTypeFormValues): Promise<Event
         allowedLocations: allowedLocationLabels(allowedLocations),
         showRemarks,
         showInvitees,
-        registrationEnabled,
         showLocation,
         excludeFromClash,
         color: formatColorLabel(color, name),
@@ -173,8 +168,7 @@ export async function renameEventType(
   const timeOptions = normalizeTimeOptions(input.timeOptions);
   const allowedLocations = normalizeAllowedLocations(input.allowedLocations);
   const showRemarks = input.showRemarks !== false;
-  const registrationEnabled = input.registrationEnabled === true;
-  const showInvitees = registrationEnabled ? true : input.showInvitees !== false;
+  const showInvitees = input.showInvitees !== false;
   const showLocation = input.showLocation !== false;
   const excludeFromClash = input.excludeFromClash === true;
   const color = normalizeEventColor(input.color);
@@ -194,7 +188,6 @@ export async function renameEventType(
         allowedLocations,
         showRemarks,
         showInvitees,
-        registrationEnabled,
         showLocation,
         excludeFromClash,
         color,
@@ -221,7 +214,6 @@ export async function renameEventType(
           ),
           showRemarks: existing.showRemarks,
           showInvitees: existing.showInvitees,
-          registrationEnabled: existing.registrationEnabled,
           showLocation: existing.showLocation,
           excludeFromClash: existing.excludeFromClash,
           color: formatColorLabel(existing.color, existing.name),
@@ -234,7 +226,6 @@ export async function renameEventType(
           allowedLocations: allowedLocationLabels(allowedLocations),
           showRemarks,
           showInvitees,
-          registrationEnabled,
           showLocation,
           excludeFromClash,
           color: formatColorLabel(color, name),
