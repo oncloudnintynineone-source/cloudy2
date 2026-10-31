@@ -145,9 +145,8 @@ Mechanics worth knowing:
   in `EventForm.tsx` (`WIZARD_BODY_HEIGHT_MOBILE` / `WIZARD_BODY_HEIGHT_DESKTOP` below):
   the active step's content in the middle on an **internal scroll** (`.c2-wizard-scroll`),
   and, pinned at the bottom above the **Back / Next / Create-Save bar**, the step strip —
-  rendered by `EventFormSteps` with the presentation picked by the
-  `wizardStepIndicator` feature flag (§1.4.1 and
-  [`feature-flags.md`](feature-flags.md)). Because the body
+  rendered by `EventFormSteps` with the locked **Labels + step list**
+  presentation (§1.4.1 and [`feature-flags.md`](feature-flags.md)). Because the body
   height is a pure function of the viewport — never of the active step's content — the
   modal never resizes between steps and the buttons never jump. The sizing is tiered so
   the modal actually uses the space a given screen has:
@@ -174,18 +173,18 @@ Mechanics worth knowing:
     Event Type, Organizer, Participants, Departments, Remarks) reflow into a two-column
     grid beneath the full-width calendar preview and clash check — the extra width reads
     as structure, not a stretched single column.
-  - **Step strip variants** (Settings → Feature Flags → **Event wizard step
-    indicator**), all rendered by `EventFormSteps`:
-    - **Labelled rail** (`rail`, default): every step is a tappable numbered pill with
-      its short name (Type · Time · Location · Participants · Remarks · Settings ·
-      Review). The pills wrap to a second row on phones; the fixed body height absorbs
-      the extra height by shrinking the scroll area, so the modal never resizes.
-    - **Labels + step list** (`guided`): wide desktops (≥800px) show numbered circles
-      with the names beneath; below that the compact Mantine **Stepper** keeps the
-      circles and the caption's `Steps · N/M` button opens a menu listing every full
-      step name, with the current one checked.
-    - **Numbered circles** (`classic`): the original non-wrapping Stepper with a caption
-      naming the current step and position (`Location` · `Step 3 of 6`).
+  - **Step strip (locked to Labels + step list)**, rendered by `EventFormSteps`;
+    the other implementations remain in code for a future experiment:
+    - **Labels + step list** (`guided`, locked): wide desktops (≥800px) show
+      numbered circles with the names beneath; below that the compact Mantine
+      **Stepper** keeps the circles and the caption's `Steps · N/M` button opens
+      a menu listing every full step name, with the current one checked.
+    - **Labelled rail** (`rail`, not selectable): every step as a tappable
+      numbered pill with its short name (Type · Time · Location · Participants ·
+      Remarks · Settings · Review), wrapping to a second row on phones.
+    - **Numbered circles** (`classic`, not selectable): the original
+      non-wrapping Stepper with a caption naming the current step and position
+      (`Location` · `Step 3 of 6`).
 
     In every variant passed steps are visually distinct from the current and future
     ones, and the full step name is available in the control's accessible name. The
@@ -854,9 +853,9 @@ flowchart LR
   alphabetical. `sort_order` is
   managed with up/down buttons there; a move re-ranks the
   whole list (position = rank), which also closes legacy gaps — the same convention as
-  the department order (`moveDepartment`, `roster/actions.ts`). With the
-  `reorderDrag` feature flag a **drag handle** can join or replace the arrows
-  depending on the mode (`reorderEventTypeGroups`) — see [`reorder.md`](reorder.md).
+  the department order (`moveDepartment`, `roster/actions.ts`). The shared
+  `reorderEventTypeGroups` drag handle follows the locked drag-only mode — see
+  [`reorder.md`](reorder.md).
 - **Ungrouped types** render in the "Ungrouped" section (`UNGROUPED_LABEL`) as an inline
   labeled row, after the inline groups. A type whose `group_id` doesn't resolve (stale
   prop) degrades to ungrouped rather than disappearing.

@@ -119,13 +119,13 @@ collapsed: { mobile: true } }}`: appears at `lg`
   ms + a `documentElement` observer), and adds the JS-detected
   `app-shell-standalone` class that gates the standalone CSS; see
   [docs/pwa-offline.md](pwa-offline.md) §1.19.
-  - **Scrolling rail (`bottomNavVariant` flag):** the mobile footer is always
+  - **Scrolling rail (locked `tight`):** the mobile footer is always
     the scrolling rail — every destination is a fixed-size tile in the bar
     itself (one tap to reach any page), in the fixed original nav order
-    (`RAIL_ORDER` in `src/lib/bottomNav.ts`). The flag now picks the
+    (`RAIL_ORDER` in `src/lib/bottomNav.ts`). The locked variant picks the
     **fixed tile width** (`RAIL_TILE_WIDTHS` in `src/lib/bottomNav.ts`):
-    `wide` 96px / `medium` 84px (default) / `tight` 72px — wider tiles show
-    labels in full, narrower tiles fit more destinations per screen. Tiles
+    `tight` = 72px (the other widths remain in code for a future experiment).
+    Tiles
     never grow or shrink (`flex: 0 0 Wpx`), so wider viewports simply reveal
     **more** tiles; the overflow scrolls behind edge gradient fades with
     decorative `RailEdgeControl` chevrons (`c2-rail-nudge` one-time hint): the

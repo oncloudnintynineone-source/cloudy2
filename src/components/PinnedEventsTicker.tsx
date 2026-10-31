@@ -9,8 +9,7 @@ import { MIN_SKELETON_HOLD_MS } from "@/lib/loading/minHoldLoading";
 import type { PinnedEvent } from "@/lib/events/pinned";
 import type { Rect } from "@/lib/motion/origin";
 import {
-  pinnedTickerIndicatorFlag,
-  resolveFlagValue,
+  LOCKED_VARIANTS,
   type PinnedTickerIndicator,
 } from "@/lib/settings/featureFlags";
 
@@ -35,9 +34,8 @@ function tickerTitleOf(event: PinnedEvent): string {
 
 /**
  * The header's pinned-events pill, anchored at the header's left edge (where
- * the logo used to sit). Renders the `pinnedTickerIndicator` feature-flag
- * variant (Settings → Feature Flags) — see the flow in §1 of
- * `docs/pinned-events.md`:
+ * the logo used to sit). Renders the locked `split` indicator variant — see
+ * the flow in §1 of `docs/pinned-events.md`:
  *
  * - `classic` — the original inline amber `1/N` count chip, the `5d` countdown
  *   chip and the rotating title.
@@ -80,8 +78,8 @@ export function PinnedEventsTicker({
   onOpen: (originRect: Rect) => void;
   /** Warm the panel chunk before the tap lands. */
   onIntent?: () => void;
-  /** Indicator style from the Feature Flags settings; defensively normalized
-   *  so a stale cached flag can never reach the renderer. */
+  /** Indicator style; defaults to the locked split variant. The other
+   *  implementations stay available in code for future experiments. */
   indicator?: PinnedTickerIndicator;
   /** Whether the first read has settled; selects the accessible name when no
    *  events are shown. */
@@ -101,9 +99,9 @@ export function PinnedEventsTicker({
   const safeIndex = count > 0 ? index % count : 0;
   const current = count > 0 ? list[safeIndex] : null;
   const daysUntil = current ? daysUntilDate(nowNaive, current.start) : 0;
-  // Defensive: a cached server list or a stale layout prop can briefly carry an
-  // unknown indicator — resolve against the registry's defaults.
-  const safeIndicator = resolveFlagValue(pinnedTickerIndicatorFlag, indicator);
+  // The locked-in split variant is the default; callers may still pass an
+  // explicit style (e.g. tests or a future experiment).
+  const safeIndicator = indicator ?? LOCKED_VARIANTS.pinnedTickerIndicator;
 
   const accessibleLabel =
     count > 0

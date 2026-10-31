@@ -9791,3 +9791,26 @@ server read per user intent; it is gated by online/Save-Data/2G, deduped, and ab
   `DashboardSharedConfig` (snapshot version 9) into `EventForm`.
 - New migration `drizzle/0064_heavy_vulcan.sql` (with meta).
 - Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm db:generate`.
+
+## 1.361 Locked-in feature-flag winners
+
+- Retired five completed A/B flags and promoted their winners to fixed constants in
+  `LOCKED_VARIANTS` (`src/lib/settings/featureFlags.ts`): `pinnedTickerIndicator` =
+  `split`, `translucencyLevel` = `subtle`, `reorderDrag` = `drag`,
+  `bottomNavVariant` = `tight` (72px), and `wizardStepIndicator` = `guided`
+  (labels + step list).
+- Settings → Feature Flags now renders only the two live flags — Saved-event
+  confirmation and Motion profile; the retired controls (and their pinned/translucency
+  previews) are gone. Consumers read `LOCKED_VARIANTS` instead of the settings row:
+  the `(protected)` layout (ticker/translucency/rail), `buildDashboardData`
+  (reorder/wizard), the four reorder settings pages, and `PinnedEventsTicker`.
+- Migration `drizzle/0065_chemical_killraven.sql` drops the five retired
+  `settings` columns (`pinned_ticker_indicator`, `translucency_level`,
+  `reorder_drag`, `bottom_nav_variant`, `wizard_step_indicator`); the other variant
+  implementations remain in code but are not selectable.
+- The PWA launch shell now mirrors the locked rail at 72px (was 84px), and
+  `DASHBOARD_SNAPSHOT_VERSION` bumped to 10 so older snapshots carrying retired values
+  are discarded.
+- Retired flags stay documented in `docs/feature-flags.md` §1.5; the related
+  flag references across the docs were updated to the fixed behavior.
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm db:generate`.

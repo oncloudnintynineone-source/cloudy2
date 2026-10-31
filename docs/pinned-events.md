@@ -2,10 +2,9 @@
 
 The header's left edge carries the **pinned-events ticker** — the brand pill (logo
 removed) that rotates through the upcoming pinned events' titles behind a
-days-remaining countdown chip and one of five **indicator styles** (the
-`pinnedTickerIndicator` feature flag, Settings → Feature Flags). Tapping it opens
-a centered Modal listing every explicitly-pinned upcoming event. Both stay fresh
-across mutations.
+days-remaining countdown chip and a locked **split-pill indicator**. Tapping it
+opens a centered Modal listing every explicitly-pinned upcoming event. Both stay
+fresh across mutations.
 
 ## Table of contents
 
@@ -126,11 +125,12 @@ so the ticker's own shape stays stable; the desktop "Search events" trigger sits
 one step taller (34px, `--c2-search-button-height`) to match the header's icon
 buttons.
 
-The **indicator style is a feature flag** (`pinnedTickerIndicator`, Settings →
-Feature Flags, org-wide, default `classic`) — admins switch it to compare the
-variants live and keep the winner:
+The indicator is **locked to the split pill** (`LOCKED_VARIANTS.pinnedTickerIndicator`
+in `src/lib/settings/featureFlags.ts`, formerly the `pinnedTickerIndicator` flag).
+The other variants remain implemented in the component for a future experiment,
+but no setting can select them:
 
-| Flag        | Indicator                                                                                                                                                                               | Title space |
+| Variant     | Indicator                                                                                                                                                                               | Title space |
 | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
 | `classic`   | inline amber **`1/N` chip** — position within the rotation plus how many events are pinned (replaced the floating amber `Indicator` badge)                                              | baseline    |
 | `split`     | the `1/N` and `5d` joined into one **two-tone pill** — amber left half (counter) + blue right half (countdown), content-sized so it reads as a single leading token                     | ~+5px       |
@@ -162,9 +162,8 @@ flowchart LR
   end
 ```
 
-The variant is resolved once by the `(protected)` layout through the registry and
-passed into `AppShellShell` as a prop (like `bannerConfig`), so a save on the
-Feature Flags page is visible after the next `router.refresh()` — no reload.
+The variant is resolved once by the `(protected)` layout from `LOCKED_VARIANTS` and
+passed into `AppShellShell` as a prop (like `bannerConfig`).
 
 Rotation (`PinnedEventsTicker.tsx`, client):
 
@@ -291,7 +290,7 @@ row until the navigation commits.
 | `src/lib/events/deepLink.ts`            | Shared deep-link builder + `deepLinkMonths` target-month window                         |
 | `src/lib/dashboard/deepLinkTarget.ts`   | Lean target resolver (own months, empty filters, shared title rendering)                |
 | `src/lib/dashboard/deepLinkActions.ts`  | `resolveDeepLinkTargetAction` server action called in parallel by `DashboardScreen`     |
-| `src/lib/settings/featureFlags.ts`      | The `pinnedTickerIndicator` flag registry entry                                         |
+| `src/lib/settings/featureFlags.ts`      | `LOCKED_VARIANTS.pinnedTickerIndicator` (the retired flag's winner)                    |
 | `src/lib/api/retry.ts`                  | `runWithRetry` — bounded backoff for the shell's background reads (§1.4.1, unit-tested) |
 | `src/lib/ui/pinnedPanel.ts`             | `PinnedPanelContext` + change event name                                                |
 | `src/components/PinnedEventsTicker.tsx` | The header pill: indicator + countdown chips + rotating titles                          |
@@ -304,6 +303,6 @@ Related docs:
 - [`events-cache.md`](events-cache.md) — the month reads behind the panel.
 - [`event-lifecycle.md`](event-lifecycle.md) — the title templates (incl. the
   `pinned` / `pinnedHeader` view assignments).
-- [`feature-flags.md`](feature-flags.md) — the `pinnedTickerIndicator` flag and
-  how to add more.
+- [`feature-flags.md`](feature-flags.md) — the locked-in variants (including the
+  split indicator) and how to add more flags.
 - [`ui-state.md`](ui-state.md) — pinned dashboard view tabs (a separate feature).

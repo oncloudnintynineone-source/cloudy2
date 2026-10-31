@@ -12,9 +12,10 @@ export const BOTTOM_NAV_HEIGHT = 56;
 /** Full bar height including the device safe-area inset. */
 export const BOTTOM_NAV_HEIGHT_CSS = `calc(${BOTTOM_NAV_HEIGHT}px + env(safe-area-inset-bottom))`;
 
-/** Fixed tile width per flag option: wider tiles show labels in full,
- *  narrower tiles fit more destinations per screen (no grow — wider
- *  viewports simply reveal more tiles). */
+/** Fixed tile width per variant: wider tiles show labels in full, narrower
+ *  tiles fit more destinations per screen (no grow — wider viewports simply
+ *  reveal more tiles). The app is locked to `tight` (72px); the other widths
+ *  stay available for future experiments. */
 export const RAIL_TILE_WIDTHS: Record<BottomNavVariant, number> = {
   wide: 96,
   medium: 84,

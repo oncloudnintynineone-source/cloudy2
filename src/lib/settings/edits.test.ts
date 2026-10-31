@@ -11,7 +11,7 @@ import {
   prepareRetentionEdit,
   type SettingsRow,
 } from "./edits";
-import { FEATURE_FLAGS } from "./featureFlags";
+import { savedEventToastVariantFlag } from "./featureFlags";
 import { DEFAULT_TITLE_RECIPE } from "./titleRecipe";
 
 function row(over: Partial<SettingsRow> = {}): SettingsRow {
@@ -181,7 +181,7 @@ describe("prepareBannerEdit", () => {
 });
 
 describe("prepareFeatureFlagsEdit", () => {
-  const def = FEATURE_FLAGS[0];
+  const def = savedEventToastVariantFlag;
 
   it("patches only the submitted flag, auditing the merged set", () => {
     const outcome = prepareFeatureFlagsEdit(row(), { [def.key]: def.defaultValue });

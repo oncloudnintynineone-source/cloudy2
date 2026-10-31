@@ -2,18 +2,15 @@ import { describe, expect, it } from "vitest";
 
 import {
   FEATURE_FLAGS,
+  LOCKED_VARIANTS,
   isFeatureFlagKey,
   isReorderArrowsEnabled,
   isReorderDragEnabled,
   normalizeFeatureFlags,
   resolveFlagValue,
   validateFeatureFlags,
-  translucencyLevelFlag,
-  pinnedTickerIndicatorFlag,
-  reorderDragFlag,
+  motionProfileFlag,
   savedEventToastVariantFlag,
-  bottomNavVariantFlag,
-  wizardStepIndicatorFlag,
 } from "./featureFlags";
 
 describe("feature flag registry", () => {
@@ -35,39 +32,37 @@ describe("feature flag registry", () => {
     const keys = FEATURE_FLAGS.map((def) => def.key);
     expect(new Set(keys).size).toBe(keys.length);
   });
+
+  it("only keeps the two live flags", () => {
+    expect(FEATURE_FLAGS.map((def) => def.key)).toEqual([
+      "savedEventToastVariant",
+      "motionProfile",
+    ]);
+  });
+});
+
+describe("LOCKED_VARIANTS", () => {
+  it("holds the retired flags' winning values", () => {
+    expect(LOCKED_VARIANTS).toEqual({
+      pinnedTickerIndicator: "split",
+      translucencyLevel: "subtle",
+      reorderDrag: "drag",
+      bottomNavVariant: "tight",
+      wizardStepIndicator: "guided",
+    });
+  });
 });
 
 describe("resolveFlagValue", () => {
   it("returns a valid stored value unchanged", () => {
-    expect(resolveFlagValue(pinnedTickerIndicatorFlag, "segmented")).toBe("segmented");
     expect(resolveFlagValue(savedEventToastVariantFlag, "toastPlain")).toBe("toastPlain");
-    expect(resolveFlagValue(translucencyLevelFlag, "strong")).toBe("strong");
-    expect(resolveFlagValue(reorderDragFlag, "arrowsDrag")).toBe("arrowsDrag");
-    expect(resolveFlagValue(bottomNavVariantFlag, "tight")).toBe("tight");
-    expect(resolveFlagValue(wizardStepIndicatorFlag, "guided")).toBe("guided");
+    expect(resolveFlagValue(motionProfileFlag, "playful")).toBe("playful");
   });
 
   it("falls back to the default for unknown values", () => {
-    for (const unknown of [
-      "fancy",
-      "",
-      42,
-      null,
-      undefined,
-      {},
-      "classic",
-      "roleAware",
-      "sheetExpand",
-      "scrollRail",
-    ]) {
-      expect(resolveFlagValue(pinnedTickerIndicatorFlag, unknown)).toBe("classic");
+    for (const unknown of ["fancy", "", 42, null, undefined, {}, "classic"]) {
       expect(resolveFlagValue(savedEventToastVariantFlag, unknown)).toBe("pill");
-      expect(resolveFlagValue(translucencyLevelFlag, unknown)).toBe("medium");
-      expect(resolveFlagValue(reorderDragFlag, unknown)).toBe("drag");
-      expect(resolveFlagValue(bottomNavVariantFlag, unknown)).toBe("medium");
-    }
-    for (const unknown of ["fancy", "", 42, null, undefined, {}]) {
-      expect(resolveFlagValue(wizardStepIndicatorFlag, unknown)).toBe("rail");
+      expect(resolveFlagValue(motionProfileFlag, unknown)).toBe("standard");
     }
   });
 });
@@ -75,43 +70,40 @@ describe("resolveFlagValue", () => {
 describe("normalizeFeatureFlags", () => {
   it("resolves each registered key from the raw row", () => {
     const flags = normalizeFeatureFlags({
-      pinnedTickerIndicator: "badge",
       savedEventToastVariant: "toastAction",
+      motionProfile: "snappy",
     });
     expect(flags).toEqual({
-      pinnedTickerIndicator: "badge",
       savedEventToastVariant: "toastAction",
-      translucencyLevel: "medium",
-      reorderDrag: "drag",
-      bottomNavVariant: "medium",
-      motionProfile: "standard",
-      wizardStepIndicator: "rail",
+      motionProfile: "snappy",
     });
   });
 
-  it("ignores unknown keys and falls back to defaults", () => {
-    const flags = normalizeFeatureFlags({ notAFlag: "x" });
+  it("ignores unknown keys and retired flags, falling back to defaults", () => {
+    const flags = normalizeFeatureFlags({
+      notAFlag: "x",
+      pinnedTickerIndicator: "badge",
+      translucencyLevel: "strong",
+      reorderDrag: "arrows",
+      bottomNavVariant: "wide",
+      wizardStepIndicator: "classic",
+    });
     expect(flags).toEqual({
-      pinnedTickerIndicator: "classic",
       savedEventToastVariant: "pill",
-      translucencyLevel: "medium",
-      reorderDrag: "drag",
-      bottomNavVariant: "medium",
       motionProfile: "standard",
-      wizardStepIndicator: "rail",
     });
   });
 });
 
 describe("isFeatureFlagKey", () => {
-  it("accepts a registered key and rejects others", () => {
-    expect(isFeatureFlagKey("pinnedTickerIndicator")).toBe(true);
+  it("accepts a live key and rejects retired or unknown keys", () => {
     expect(isFeatureFlagKey("savedEventToastVariant")).toBe(true);
-    expect(isFeatureFlagKey("translucencyLevel")).toBe(true);
-    expect(isFeatureFlagKey("reorderDrag")).toBe(true);
-    expect(isFeatureFlagKey("bottomNavVariant")).toBe(true);
     expect(isFeatureFlagKey("motionProfile")).toBe(true);
-    expect(isFeatureFlagKey("wizardStepIndicator")).toBe(true);
+    expect(isFeatureFlagKey("pinnedTickerIndicator")).toBe(false);
+    expect(isFeatureFlagKey("translucencyLevel")).toBe(false);
+    expect(isFeatureFlagKey("reorderDrag")).toBe(false);
+    expect(isFeatureFlagKey("bottomNavVariant")).toBe(false);
+    expect(isFeatureFlagKey("wizardStepIndicator")).toBe(false);
     expect(isFeatureFlagKey("notAFlag")).toBe(false);
   });
 });
@@ -138,23 +130,18 @@ describe("validateFeatureFlags", () => {
   it("accepts values within each flag's option set", () => {
     expect(
       validateFeatureFlags({
-        pinnedTickerIndicator: "segmented",
         savedEventToastVariant: "pillRestyle",
-        translucencyLevel: "strong",
-        reorderDrag: "arrowsDrag",
-        bottomNavVariant: "wide",
         motionProfile: "playful",
-        wizardStepIndicator: "guided",
       }),
     ).toEqual({});
   });
 
   it("flags values outside the option set", () => {
     const errors = validateFeatureFlags({
-      pinnedTickerIndicator: "fancy",
       savedEventToastVariant: "fancy",
+      motionProfile: "fancy",
     } as never);
-    expect(errors.pinnedTickerIndicator).toBeTruthy();
     expect(errors.savedEventToastVariant).toBeTruthy();
+    expect(errors.motionProfile).toBeTruthy();
   });
 });

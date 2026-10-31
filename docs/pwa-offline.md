@@ -198,16 +198,16 @@ same 16px content gutter, and the manual `mantine-color-scheme-value`
 localStorage override applied pre-paint (matching `defaultColorScheme="auto"`).
 Its chrome mirrors the live shell: the brand-blue header carries the
 pinned-events pill skeleton + refresh/profile placeholders, and the mobile
-footer is the fixed-width (84px default) scrolling rail with labels, not the old
-four-item bar. `launchShell.test.ts` guards the plain box, brand overlay,
-header/rail shapes, and the scheme override. Known gaps: a configured
+footer is the fixed-width (72px, locked `tight`) scrolling rail with labels, not
+the old four-item bar. `launchShell.test.ts` guards the plain box, brand
+overlay, header/rail shapes, and the scheme override. Known gaps: a configured
 announcement banner's height can't be mirrored in this static shell — the shell
 always draws the bare 56px bar, so a banner-configured deployment shifts by the
 banner height exactly at the shell→app handoff (the app itself is aligned from
 first paint, `announcement-banner.md` §1.3.1; warm launches served straight from
-the document cache skip the shell entirely); the rail always mirrors the default
-`medium` width and the non-admin tile count (role/`bottomNavVariant` are
-server-only), and the desktop sidebar/search trigger aren't mirrored
+the document cache skip the shell entirely); the rail always mirrors the
+fixed 72px width and the non-admin tile count (roles are server-only), and the
+desktop sidebar/search trigger aren't mirrored
 (mobile-first; desktop is unaffected by the splash path).
 
 **One caveat on "no server round trip":** `navigationPreload: true` is enabled

@@ -149,17 +149,11 @@ export async function getSettings(): Promise<SettingsView> {
 /**
  * Every registered flag's live value, resolved through the registry
  * (`src/lib/settings/featureFlags.ts`) from the cached singleton settings row.
- * Shared by the Feature Flags page and the app shell's header.
+ * The Feature Flags page reads the same values via `SettingsView.featureFlags`.
  */
 export async function getFeatureFlags(): Promise<Record<FeatureFlagKey, string>> {
   const row = await readSettingsRow();
   return normalizeFeatureFlags(row ?? {});
-}
-
-/** Convenience: one flag's resolved value (defaults when unset/unknown). */
-export async function getFeatureFlag(key: FeatureFlagKey): Promise<string> {
-  const flags = await getFeatureFlags();
-  return flags[key];
 }
 
 export async function listEventTitleTemplates(): Promise<EventTitleTemplateView[]> {

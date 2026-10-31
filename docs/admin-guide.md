@@ -79,7 +79,7 @@ service account; creating one creates the calendar and shares it.
   delete in one place.
 - **Hierarchy:** departments nest via the Parent select (self and own descendants
   are excluded; cycles are rejected server-side). The list shows tree order with
-  sibling-scoped up/down moves; deleting a parent promotes its children to top
+  sibling-scoped drag handles; deleting a parent promotes its children to top
   level and unassigns its users. Parade state and the attendance report aggregate
   down the subtree.
 - **Color:** optional; used only as the fallback color for untyped/external events.
@@ -164,7 +164,7 @@ Design: [`webhooks.md`](webhooks.md).
 Settings → Quick Links — shortcut links on the Calendar page.
 
 - **Fields:** Label, URL (**http/https only**), icon (curated icon picker), color,
-  Enabled. Reorder with up/down moves.
+  Enabled. Reorder by dragging the row handle.
 - The launcher — an amber link button beside **+** on mobile, a "Quick links" chip
   at `lg` — renders only while at least one link is enabled, and always opens the
   menu (items open in new tabs).

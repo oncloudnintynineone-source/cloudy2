@@ -343,14 +343,13 @@ flowchart TB
 - The list shows the tree: children indented under their parent (desktop
   table: indent + a Parent column; mobile cards: indent + an "In
   {parent}" line).
-- The up/down arrows move a department **among its siblings only**
-  (`moveDepartment` via `moveInTreeOrder`) — first/last child of a group is a
-  no-op, and a parent's whole subtree moves with it. For a flat list (no
-  parents) this is exactly the old global up/down swap.
-- With the `reorderDrag` feature flag a **drag handle** can join or replace the
-  arrows depending on the mode: the drop is normalized to the dragged node's
-  sibling group (`moveToSiblingIndex`; a descendant target climbs to its sibling,
-  an unrelated target is ignored) and persisted whole-list via
+- The department list follows the locked **drag-only** reorder mode: each row
+  carries a drag handle (the up/down-arrow path remains in code as
+  `moveDepartment` / `moveInTreeOrder`). A department moves **among its
+  siblings only** — first/last child of a group is a no-op, and a parent's whole
+  subtree moves with it. The drop is normalized to the dragged node's sibling
+  group (`moveToSiblingIndex`; a descendant target climbs to its sibling, an
+  unrelated target is ignored) and persisted whole-list via
   `reorderDepartments` — see [`reorder.md`](reorder.md) §1.5.
 
 **Pure helpers** (`src/lib/roster/hierarchy.ts`, unit-tested in
@@ -630,7 +629,7 @@ I/O-bound (not unit-tested, per the repo convention): `resolveGoogleCalendarId`,
 | `src/lib/events/eventColors.ts` | Event-color palette, normalization, deterministic defaults, labels (pure, §1.8) |
 | `src/components/ColorSwatchPicker.tsx` | Shared color swatch picker + `ColorDot` chip (event type & department forms, §1.8) |
 | `src/app/(protected)/settings/users/` | Users page: `UserTable`, `UserForm` (badge role/department fields + a "Department access" add/remove/role section per cross-department grant), deactivate |
-| `src/app/(protected)/settings/departments/` | Departments page: a tree list (name indented by depth + Parent column + external color) whose rows/cards open `DepartmentDetail` — one modal holding the name/parent/color form, the calendar ID, the Calendar-access management (owner, assigned-user role override, granted-access read-only group, external additional access) and the delete trigger (with sub-department promotion warning); sibling-scoped up/down moves; the swatch picker + chip come from the shared `ColorSwatchPicker` (§1.7) |
+| `src/app/(protected)/settings/departments/` | Departments page: a tree list (name indented by depth + Parent column + external color) whose rows/cards open `DepartmentDetail` — one modal holding the name/parent/color form, the calendar ID, the Calendar-access management (owner, assigned-user role override, granted-access read-only group, external additional access) and the delete trigger (with sub-department promotion warning); sibling-scoped drag handles; the swatch picker + chip come from the shared `ColorSwatchPicker` (§1.7) |
 | `src/app/(protected)/parade-state/` | Parade state: nested department sections with aggregated headcounts, attendance mode, the tree-ordered clipboard report (`attendanceReport.ts`, `headcount.ts`, both pure + tested, §1.7) |
 | `src/lib/google/` | The integration the ACL calls go through |
 

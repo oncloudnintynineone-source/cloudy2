@@ -510,12 +510,6 @@ html {
   transition: background-color var(--c2-dur-micro) var(--c2-ease-out);
 }
 
-/* Non-interactive mock used on the Feature Flags page's live preview; renders
-   with the same classes, just never looks clickable. */
-.c2-pinned-ticker-preview {
-  cursor: default;
-}
-
 .c2-pinned-ticker:hover {
   background: var(--mantine-color-brand-7);
 }
@@ -2100,50 +2094,6 @@ html {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
-}
-
-/* Live preview row for the `translucencyLevel` feature flag (Settings →
-   Feature Flags): representative surfaces over a two-tone checker so the
-   selected opacity is visible before saving. Illustrative only (aria-hidden). */
-.c2-glass-preview {
-  display: flex;
-  flex-direction: column;
-  gap: var(--mantine-spacing-sm);
-  padding: var(--mantine-spacing-sm);
-  border-radius: var(--mantine-radius-md);
-  background: repeating-linear-gradient(
-    45deg,
-    var(--mantine-color-brand-6) 0 14px,
-    var(--mantine-color-accent-5) 14px 28px
-  );
-}
-
-.c2-glass-preview-row {
-  display: flex;
-  align-items: center;
-  gap: var(--mantine-spacing-sm);
-  padding: var(--mantine-spacing-sm);
-  border-radius: var(--mantine-radius-md);
-}
-
-.c2-glass-preview-btn {
-  display: inline-block;
-  width: 34px;
-  height: 34px;
-  border-radius: var(--mantine-radius-md);
-}
-
-.c2-glass-preview-fabs {
-  display: flex;
-  align-items: center;
-  gap: var(--mantine-spacing-sm);
-}
-
-.c2-glass-preview-fab {
-  display: inline-block;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
 }
 
 /* Motion-profile preview: a badge pop, a chip settle and a pill reveal, all

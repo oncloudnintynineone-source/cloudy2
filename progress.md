@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.360 (Event wizard step indicators)** is shipped.
+- All work through changelog **1.361 (Locked-in feature-flag winners)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -2284,6 +2284,13 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   Participants · Remarks · Settings · Review), with optional desktop-labels/mobile-step-list
   and classic number-only variants. Migration `0064_heavy_vulcan.sql`. Docs:
   `docs/event-lifecycle.md` §1.4, `docs/feature-flags.md`.
+- 1.361 **Locked-in feature-flag winners**: retire five flags after their trials —
+  `pinnedTickerIndicator` → split pill, `translucencyLevel` → subtle,
+  `reorderDrag` → drag only, `bottomNavVariant` → tight (72px), and
+  `wizardStepIndicator` → labels + step list. `LOCKED_VARIANTS` is the single source of
+  truth; the controls are gone from Settings → Feature Flags (only Saved-event
+  confirmation and Motion profile remain) and migration `0065_chemical_killraven.sql`
+  drops the five settings columns. Snapshot version 10. Docs: `docs/feature-flags.md`.
 
 ## 1.4 Open items & next steps
 

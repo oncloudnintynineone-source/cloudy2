@@ -100,15 +100,10 @@ string maps to the first tab of that kind.
    line at all widths**: the **reorder** controls lead on the left, the kind
    icon + name fill the middle (truncating), and the **⋮ menu** is right-aligned
    on the row's right edge.
-   - **Reorder** (left): the **↑/↓** arrows reorder (commits
-     `reorderDashboardViews`, which renumbers every row in a transaction — the
-     clicked arrow shows an inline spinner while it works; the row's outward
-     arrow is disabled at the list's ends). They use `ReorderUpDown`'s
-     `variant="subtle"` here, so the dense row isn't a wall of bordered boxes.
-     With the `reorderDrag` feature flag a **drag handle** can join or replace
-     the arrows depending on the mode (`drag` default / `arrowsDrag` /
-     `arrows`); a drop commits `reorderDashboardViews` too — see
-     [`reorder.md`](reorder.md);
+   - **Reorder** (left): the shared `useReorderRows` control follows the locked
+     `reorderDrag` mode (**drag only**), so each row leads with its drag handle;
+     dropping commits `reorderDashboardViews` (renumbers every row in a
+     transaction) — see [`reorder.md`](reorder.md);
    - **⋮ menu** (right, a subtle `IconDotsVertical` `ActionIcon` on the row's
      right edge) opens a small dropdown headed by the row's name (truncated)
      holding the row's three actions — **Share**, **Edit** and **Delete** —
@@ -402,7 +397,7 @@ string maps to the first tab of that kind.
    hide while the user touches/scrolls the roster and return on settle; Parade
    State passes its attendance mode as the `resetKey`, so the bar never mounts
    in a hidden state.
-- **App-wide frosted glass (`translucencyLevel`).** Beyond the mobile cluster,
+- **App-wide frosted glass (locked `subtle`).** Beyond the mobile cluster,
   the surfaces that overlap page content are translucent: the
   bottom nav, the settings tab strip, the desktop sidebar,   the dashboard sticky
   chrome (view tabs + date nav + the mobile view-indicator line) and its inline
@@ -1263,7 +1258,7 @@ flowchart LR
 | `src/lib/userPrefs/queries.ts` + `actions.ts` | `user_preferences` row: parade filters (incl. `saveParadeFilters`) |
 | `src/app/(protected)/dashboard/DashboardView.tsx`  | Tab strip (+ trailing Add-view button, right-side Manage-views gear and All-views jump popover), optimistic tab switch + period rules + tab-URL prefetch, filter state, schedule zoom + month zoom state & widths |
 | `src/app/(protected)/dashboard/DashboardScreen.tsx` | Snapshot/warm-cache/preload owner; resolves the displayed context from `previewView ?? ?view=` so warm tab switches paint without waiting on the RSC |
-| `src/app/(protected)/dashboard/EditViewsModal.tsx` | Manage-views dialog: Add-view button + single-line card rows (subtle ↑/↓ reorder left, name middle, per-row **⋮ menu** right with Share/Edit/Delete; Edit dialog for name+type+filters, nested delete confirm) |
+| `src/app/(protected)/dashboard/EditViewsModal.tsx` | Manage-views dialog: Add-view button + single-line card rows (drag handle reorder left, name middle, per-row **⋮ menu** right with Share/Edit/Delete; Edit dialog for name+type+filters, nested delete confirm) |
 | `src/app/(protected)/dashboard/ViewTypePicker.tsx` | Shared seven-kind picker (Month & Agenda/Month/Week (H)/Week (D)/Week (Grid)/Day/Agenda): a **thumbnail grid** in the Add-view dialog and the Edit-view dialog's type chooser, a compact text list for other uses |
 | `src/app/(protected)/dashboard/DualPaneView.tsx` | Month & Agenda renderer: resizable Month + Agenda panes (§1.9) |
 | `src/app/(protected)/dashboard/MonthWeekdayStrip.tsx` | Pinned weekday-initials strip, shared by the Month view and the Month & Agenda view's Month pane |

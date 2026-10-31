@@ -164,7 +164,7 @@ const SIDEBAR_RAIL_WIDTH = 64;
 
 // The mobile footer is always the scrolling rail: tile order comes from the
 // fixed `RAIL_ORDER` and the tile width from `RAIL_TILE_WIDTHS`
-// (`src/lib/bottomNav.ts`), keyed by the `bottomNavVariant` feature flag —
+// (`src/lib/bottomNav.ts`), indexed by the locked `bottomNavVariant` value —
 // wider tiles show labels in full, narrower tiles fit more per screen. The
 // desktop sidebar always shows every entry.
 
@@ -488,19 +488,18 @@ export function AppShellShell({
    *  no reservation while a read is pending, and no post-hydration shift in
    *  either direction (the server already knows whether a banner exists). */
   bannerConfig: BannerConfig | null;
-  /** The pinned-events header pill's indicator style (Settings → Feature
-   *  Flags), resolved by the (protected) layout from the settings row and
-   *  passed as a prop like `bannerConfig`. */
+  /** The pinned-events header pill's indicator style, resolved by the
+   *  (protected) layout from the locked variant and passed as a prop like
+   *  `bannerConfig`. */
   pinnedTickerIndicator: PinnedTickerIndicator;
-  /** Frosted-glass translucency level (Settings → Feature Flags), resolved by
-   *  the (protected) layout. Applied to `<html>` as `data-c2-glass` so every
+  /** Frosted-glass translucency level, resolved by the (protected) layout from
+   *  the locked variant. Applied to `<html>` as `data-c2-glass` so every
    *  surface — including portaled menus/modals/FABs — inherits the level from
    *  the token cascade. */
   translucencyLevel: TranslucencyLevel;
-  /** Scrolling-rail tile width (Settings → Feature Flags), resolved by the
-   *  (protected) layout from the settings row and passed as a prop: `wide`
-   *  (96px) / `medium` (default, 84px) / `tight` (72px) — the fixed per-tile
-   *  width of the always-scrolling mobile footer rail (`RAIL_TILE_WIDTHS`). */
+  /** Scrolling-rail tile width, resolved by the (protected) layout from the
+   *  locked variant and passed as a prop: the fixed per-tile width of the
+   *  always-scrolling mobile footer rail (`RAIL_TILE_WIDTHS`). */
   bottomNavVariant: BottomNavVariant;
   /** Streamed KAH-status probe (a <Suspense> from the (protected) layout);
    *  reveals the KAH Status nav entry when the signed-in user belongs to a
@@ -1064,7 +1063,7 @@ export function AppShellShell({
   // fixed-size tile in the bar itself (one tap to reach any page), in the
   // original nav order (`RAIL_ORDER` — pure and unit-tested in
   // `src/lib/bottomNav.ts`; entries a user can't see simply aren't in the
-  // item list). The tile width is the `bottomNavVariant` flag's entry of
+  // item list). The tile width is the `bottomNavVariant` entry of
   // `RAIL_TILE_WIDTHS` — fixed (no grow), so wider viewports simply reveal
   // more tiles. The desktop sidebar always renders every entry.
   const railItems = navItems

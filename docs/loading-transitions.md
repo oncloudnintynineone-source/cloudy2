@@ -168,7 +168,7 @@ the same centered brand overlay as the route skeleton (precached app icon
 breathing over "Waking from Deep Sleep…"). Its chrome mirrors the current live
 shell too: the brand-blue header renders the pinned-events pill skeleton at the
 left with the refresh/profile placeholders at the right, and the mobile footer
-is a fixed-width (84px default) scrolling-rail skeleton rather than the old
+is a fixed-width (72px, locked `tight`) scrolling-rail skeleton rather than the old
 evenly-spaced bar. The handoff from the precached shell therefore reads as
 **one continuous loading surface** whatever page the launch resolves to (it
 cannot know the arriving dashboard tab's kind, and non-dashboard targets share

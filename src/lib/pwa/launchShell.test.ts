@@ -131,7 +131,7 @@ describe("PWA launch shell", () => {
     expect(
       (SHELL_HTML.match(/class="hdr-ctl"[\s\S]*?<\/div>/)?.[0].match(/sk sk-pulse/g) ?? []).length,
     ).toBe(2);
-    expect(SHELL_HTML).toContain("flex: 0 0 84px");
+    expect(SHELL_HTML).toContain("flex: 0 0 72px");
     expect(SHELL_HTML.match(/class="item"/g) ?? []).toHaveLength(5);
     expect(SHELL_HTML).not.toContain("<h1>Cloudy2</h1>");
   });

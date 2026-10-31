@@ -172,10 +172,8 @@ organizer; deleting asks for confirmation and removes every department copy.
 The pill at the header's left edge is the **pinned-events ticker**: it rotates
 through your pinned events' titles (one every few seconds) with a
 `5d` chip counting down the whole days until the current event starts (`0d` if it
-starts today), plus a position/count indicator in one of a few styles — an amber
-`1/N` chip, a two-tone pill joining the counter and countdown, a thin progress bar
-along the pill's bottom edge, a count badge on the corner, or a stacked
-two-line block (admins pick the style on **Settings → Feature Flags**). Tap it to open
+starts today), plus a position/count indicator — a two-tone pill joining the
+counter and countdown (the locked split style). Tap it to open
 a panel listing the explicitly-pinned upcoming events you can see (today → 3
 months out, across your department, ignoring your current filters). Tap
 one there to jump straight to it on the calendar and open its details.

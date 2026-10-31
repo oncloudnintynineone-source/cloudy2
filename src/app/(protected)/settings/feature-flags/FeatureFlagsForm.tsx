@@ -10,8 +10,6 @@ import {
   FEATURE_FLAGS,
   validateFeatureFlags,
   type FeatureFlagKey,
-  type PinnedTickerIndicator,
-  type TranslucencyLevel,
 } from "@/lib/settings/featureFlags";
 import {
   motionStyleVars,
@@ -21,78 +19,6 @@ import {
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { showValidationFailure } from "@/lib/ui/validationFeedback";
-
-/** A static mock of the real header pill (same classes) that switches with the
- *  selected variant, so an admin sees exactly what the header will render
- *  before saving. `aria-hidden`: the preview is illustrative, not interactive. */
-function TickerIndicatorPreview({ value }: { value: PinnedTickerIndicator }) {
-  return (
-    <div className="c2-pinned-ticker c2-pinned-ticker-preview" data-indicator={value} aria-hidden>
-      {value === "classic" ? <span className="c2-pinned-ticker-count">2/3</span> : null}
-      {value === "stacked" ? (
-        <span className="c2-pinned-ticker-stacked">
-          <span className="c2-pinned-ticker-stacked-count">2/3</span>
-          <span className="c2-pinned-ticker-stacked-countdown">5d</span>
-        </span>
-      ) : null}
-      {value === "split" ? (
-        <span className="c2-pinned-ticker-split">
-          <span className="c2-pinned-ticker-split-count">2/3</span>
-          <span className="c2-pinned-ticker-split-countdown">5d</span>
-        </span>
-      ) : null}
-      {value !== "stacked" && value !== "split" ? (
-        <span className="c2-pinned-ticker-countdown">5d</span>
-      ) : null}
-      <span className="c2-pinned-ticker-title">
-        <span className="c2-pinned-ticker-line">Water parade</span>
-      </span>
-      {value === "segmented" ? (
-        <span className="c2-pinned-ticker-progress" aria-hidden>
-          {[0, 1, 2].map((i) => (
-            <span
-              key={i}
-              className={
-                i === 1 ? "c2-pinned-ticker-progress-seg is-active" : "c2-pinned-ticker-progress-seg"
-              }
-            />
-          ))}
-        </span>
-      ) : null}
-      {value === "badge" ? <span className="c2-pinned-ticker-badge">3</span> : null}
-    </div>
-  );
-}
-
-/** A composite mock of the translucent surfaces — a frosted chrome row with the
- *  date-nav buttons and the mobile bottom cluster (`[<|>][LINK][CREATE]`) —
- *  over a two-tone checker, so the selected opacity is visible before saving.
- *  `aria-hidden`: the preview is illustrative, not interactive. */
-function TranslucencyPreview({ value }: { value: TranslucencyLevel }) {
-  return (
-    <div className="c2-glass-preview" aria-hidden>
-      <div className={`c2-glass-preview-row c2-glass-surface c2-glass--${value}`}>
-        <span className={`c2-glass-preview-btn c2-glass-btn c2-glass--${value}`} />
-        <span className={`c2-glass-preview-btn c2-glass-btn c2-glass--${value}`} />
-        <span
-          className={`c2-glass-preview-btn c2-glass-btn c2-glass--${value} c2-glass-fab--accent`}
-        />
-        <span
-          className={`c2-glass-preview-btn c2-glass-btn c2-glass--${value} c2-glass-fab--brand`}
-        />
-      </div>
-      <div className="c2-glass-preview-fabs">
-        <span className={`c2-glass-preview-fab c2-glass-fab c2-glass--${value}`} />
-        <span
-          className={`c2-glass-preview-fab c2-glass-fab c2-glass--${value} c2-glass-fab--accent`}
-        />
-        <span
-          className={`c2-glass-preview-fab c2-glass-fab c2-glass--${value} c2-glass-fab--brand`}
-        />
-      </div>
-    </div>
-  );
-}
 
 /** A small replayable set of animations (badge pop, chip settle, pill entrance)
  *  that re-runs whenever the selected profile changes, so the cadence, easing and
@@ -117,12 +43,6 @@ function MotionPreview({ value }: { value: MotionProfile }) {
 /** Feature-specific live preview; null for flags without one. The page/control
  *  rendering stays generic — a future flag adds its preview renderer here. */
 function previewFor(key: FeatureFlagKey, value: string) {
-  if (key === "pinnedTickerIndicator") {
-    return <TickerIndicatorPreview value={value as PinnedTickerIndicator} />;
-  }
-  if (key === "translucencyLevel") {
-    return <TranslucencyPreview value={value as TranslucencyLevel} />;
-  }
   if (key === "motionProfile") {
     return <MotionPreview value={value as MotionProfile} />;
   }

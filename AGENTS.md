@@ -132,8 +132,8 @@ doc content here.
   [docs/pwa-offline.md](docs/pwa-offline.md) §1.11/§1.18.
 - **Event lifecycle & mutations:** staged wizard → Google copies with notes-block
   round-trip; cross-department copies reconciled by `findCopies` (deliberately uncached).
-  Wizard body is a fixed-height column + bottom **step strip** (`EventFormSteps`, whose
-  variant comes from `wizardStepIndicator`; tap = jump), so the modal never resizes
+  Wizard body is a fixed-height column + bottom **step strip** (`EventFormSteps`, locked
+  to the `guided` labels + step list variant; tap = jump), so the modal never resizes
   between steps. The detail modal's
   **Share** action opens a self-contained `/share/event?e=&c=&d=` link (public landing
   route → login hop → the `?event=` details deep link) — the URL carries the whole
@@ -259,10 +259,11 @@ doc content here.
 - **Reorderable lists (views / event-type groups / departments / quick links / title-recipe
   segments):** one shared path — `useReorderRows` (chevrons via `move(id, ±1)` + FLIP;
   drag via `moveTo(id, toIndex)`) + `ReorderUpDown` + `SortableList`/`SortableRow`/`DragHandle`
-  (`@dnd-kit/react`). The interaction is the **`reorderDrag` feature flag** — `drag`
-  (default, handle only), `arrowsDrag` (both), or `arrows` (chevrons only); derive the two
-  booleans with `isReorderDragEnabled` / `isReorderArrowsEnabled`. In `drag` mode the
-  non-mouse path is dnd-kit's KeyboardSensor on the handle. Server-backed drag persists a
+  (`@dnd-kit/react`). The interaction is **locked to drag-only**
+  (`LOCKED_VARIANTS.reorderDrag`); the `arrowsDrag` / `arrows` implementations remain in
+  code but are not selectable. Derive the two booleans with `isReorderDragEnabled` /
+  `isReorderArrowsEnabled`. The non-mouse path is dnd-kit's KeyboardSensor on the handle.
+  Server-backed drag persists a
   whole-list `reorderX(orderedIds, movedId?)` (transaction renumber). Departments drag
   sibling-only (`moveToSiblingIndex`). Design: [docs/reorder.md](docs/reorder.md).
 - **Quick Links:** admin-managed Calendar-page shortcuts behind the amber `IconLink`
@@ -272,11 +273,9 @@ doc content here.
   v9, not an object). Design: [docs/announcement-banner.md](docs/announcement-banner.md).
 - **Pinned Events:** header-left ticker rotating upcoming pinned events' titles every 5s
   behind a days-remaining countdown chip (`5d`, `0d` for same-day; no pin icon); the
-  rotation-position indicator is the **`pinnedTickerIndicator` feature flag** (Settings →
-  Feature Flags, org-wide, default `classic`) — inline amber `1/N` chip, a two-tone
-  `1/N`+`5d` split pill, bottom segmented rotation bar, corner count badge, or a stacked
-  `1/N`-over-`5d` block (all keep the count
-  in the pill's `aria-label`); while the first read is in flight the pill shows a
+  rotation-position indicator is the locked **two-tone split pill** (`1/N` + `5d`, all keep
+  the count in the pill's `aria-label`; the other variants remain in code but are not
+  selectable); while the first read is in flight the pill shows a
   skeleton row inside its fixed height (settled empty/error keep the static label);
   tapping opens the pinned panel ("Pin this event" switch on
   the wizard's Other settings step). Titles render via the `pinnedHeader` template target
@@ -423,8 +422,8 @@ a compact tier via `NARROW_MEDIA_QUERY` (`src/lib/theme.ts`) + `useMediaQuery` `
 - **Global bottom nav** (`AppShell.Footer`): below `lg` the footer is always a
   **scrolling rail** — every destination is a full-size fixed tile in the bar
   (one tap to reach any page), in the fixed `RAIL_ORDER` order (`src/lib/bottomNav.ts`,
-  pure + unit-tested) with tile width from the `bottomNavVariant` flag
-  (`RAIL_TILE_WIDTHS`, fixed — wider viewports simply reveal more tiles). Tiles
+  pure + unit-tested) with the locked **`tight` (72px)** tile width from
+  `RAIL_TILE_WIDTHS` (fixed — wider viewports simply reveal more tiles). Tiles
   beyond the viewport hide behind a right-edge fade and come with a swipe; the
   edge **chevron** (`RailEdgeControl`) is a decorative hint only — `pointer-events:
 none` so taps pass through to the clipped tile, and it hides on a side once
@@ -443,23 +442,11 @@ none` so taps pass through to the clipped tile, and it hides on a side once
   feature-flag framework: add the typed `settings` column + one `FeatureFlagDef` entry in
   `src/lib/settings/featureFlags.ts` (the last Settings tab auto-renders its control), resolve
   the value server-side and pass it down as a prop. Flags are **global** (no per-user override);
-  every flip is audited. They default to today's behavior except `wizardStepIndicator`, whose
-  default is the user-requested labelled rail (`classic` remains selectable). Flags: `pinnedTickerIndicator`
-  ([`pinned-events.md`](docs/pinned-events.md) §1.4); `savedEventToastVariant` — the four
+  every flip is audited. They default to today's behavior. Two flags remain live:
+  `savedEventToastVariant` — the four
   post-save event-confirmation presentations (classic pill / restyled pill / toast + action /
   plain toast), resolved into `DashboardSharedConfig` → `EventForm`
-  ([`action-pill.md`](docs/action-pill.md)); and `translucencyLevel` — the app-wide frosted-glass
-  opacity (subtle / medium / strong) for the page's overlapping surfaces (sticky
-  calendar chrome, bottom nav, sidebar, floating controls; the header and overlays stay opaque,
-  and the standalone round FABs are solid while the dashboard's glass buttons stay frosted),
-  published on `<html>` as `data-c2-glass` by the shell
-  ([`dashboard-views.md`](docs/dashboard-views.md) §1.1); `reorderDrag` — the
-  reorder interaction for the manageable lists ([`reorder.md`](docs/reorder.md));
-  and `bottomNavVariant` — the mobile footer's always-scrolling rail tile
-  width (`wide` 96px / `medium` 84px default / `tight` 72px; fixed tiles,
-  wider screens reveal more), in the fixed original nav order (`RAIL_ORDER`
-  — `src/lib/bottomNav.ts`) in the shell
-  ([`desktop-responsive.md`](docs/desktop-responsive.md) §1.2); and
+  ([`action-pill.md`](docs/action-pill.md)); and
   `motionProfile` — the app-wide animation cadence (`calm` / `standard`
   default / `snappy` / `playful`) scaling every duration, distance and
   stagger and setting the easing family, published on `<html>` as `:root:root`
@@ -467,9 +454,15 @@ none` so taps pass through to the clipped tile, and it hides on a side once
   popover entrances use the profile's `pop` curve (so `playful` overshoots)
   while exits stay on `out`, plain dialogs render through the shared
   `MotionModal`, and Collapse/Accordion pass `transitionDuration`
-  ([`motion.md`](docs/motion.md)); and `wizardStepIndicator` — the create/edit
-  wizard's step strip (labelled rail default / labels + mobile step list /
-  numbered circles), resolved into `DashboardSharedConfig` → `EventForm`
+  ([`motion.md`](docs/motion.md)).
+  Five earlier flags are **retired and locked in `LOCKED_VARIANTS`**
+  (`src/lib/settings/featureFlags.ts`) — their controls/settings columns are gone:
+  `pinnedTickerIndicator` = split pill ([`pinned-events.md`](docs/pinned-events.md) §1.4);
+  `translucencyLevel` = subtle (the app-wide frosted-glass opacity, published on `<html>`
+  as `data-c2-glass` by the shell — [`dashboard-views.md`](docs/dashboard-views.md) §1.1);
+  `reorderDrag` = drag only ([`reorder.md`](docs/reorder.md)); `bottomNavVariant` = tight
+  (72px rail tiles — [`desktop-responsive.md`](docs/desktop-responsive.md) §1.2); and
+  `wizardStepIndicator` = labels + step list
   ([`event-lifecycle.md`](docs/event-lifecycle.md) §1.4). Design:
   [docs/feature-flags.md](docs/feature-flags.md).
 - **Templates:** display-name template + **structured recipes** (`src/lib/settings/titleRecipe.ts`,

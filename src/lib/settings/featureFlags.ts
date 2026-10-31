@@ -6,7 +6,11 @@
  * through the registry — so shipping a future flag is: add the column to
  * `src/db/schema.ts`, add one entry here, and nothing else changes.
  *
- * Kept free of I/O and types so it unit-tests without a database.
+ * Flags that have finished their live A/B trial are retired: their winning
+ * variant is locked in `LOCKED_VARIANTS`, their settings column/control is
+ * removed, and consumers read the constant instead. See `docs/feature-flags.md`.
+ *
+ * Kept free of I/O and framework code so it unit-tests without a database.
  */
 
 import { MOTION_PROFILE_OPTIONS, type MotionProfile } from "@/lib/motion/profile";
@@ -26,35 +30,38 @@ export interface FeatureFlagDef<TKey extends string = string, TOption extends st
   defaultValue: TOption;
 }
 
-export const PINNED_TICKER_INDICATOR_OPTIONS = [
-  "classic",
-  "split",
-  "segmented",
-  "badge",
-  "stacked",
-] as const;
-export type PinnedTickerIndicator = (typeof PINNED_TICKER_INDICATOR_OPTIONS)[number];
+// --- Locked-in variants ----------------------------------------------------
+//
+// The winners of the retired A/B flags. These are fixed in code (no settings
+// column, no admin control); components still implement the other variants,
+// but the app always resolves these values.
 
-export const pinnedTickerIndicatorFlag: FeatureFlagDef<
-  "pinnedTickerIndicator",
-  PinnedTickerIndicator
-> = {
-  key: "pinnedTickerIndicator",
-  label: "Pinned events indicator",
-  description:
-    "Style of the header's pinned-events pill: how it shows where you are in the " +
-    "rotation and how many events are pinned. Toggle to compare the variants live, " +
-    "then keep the one you want.",
-  options: PINNED_TICKER_INDICATOR_OPTIONS,
-  optionLabels: {
-    classic: "1/N chip",
-    split: "Split pill",
-    segmented: "Progress bar",
-    badge: "Count badge",
-    stacked: "Stacked",
-  },
-  defaultValue: "classic",
+export type PinnedTickerIndicator = "classic" | "split" | "segmented" | "badge" | "stacked";
+export type TranslucencyLevel = "subtle" | "medium" | "strong";
+export type ReorderDrag = "drag" | "arrowsDrag" | "arrows";
+export type BottomNavVariant = "wide" | "medium" | "tight";
+export type WizardStepIndicator = "rail" | "guided" | "classic";
+
+export const LOCKED_VARIANTS = {
+  /** Split pill — two-tone counter + countdown chip. */
+  pinnedTickerIndicator: "split",
+  /** Subtle — the most see-through frosted-glass level. */
+  translucencyLevel: "subtle",
+  /** Drag only — handle-based reorder, no up/down chevrons. */
+  reorderDrag: "drag",
+  /** Tight — 72px mobile scrolling-rail tiles. */
+  bottomNavVariant: "tight",
+  /** Labels + step list — desktop labels, mobile step list. */
+  wizardStepIndicator: "guided",
+} as const satisfies {
+  pinnedTickerIndicator: PinnedTickerIndicator;
+  translucencyLevel: TranslucencyLevel;
+  reorderDrag: ReorderDrag;
+  bottomNavVariant: BottomNavVariant;
+  wizardStepIndicator: WizardStepIndicator;
 };
+
+// --- Live flags ------------------------------------------------------------
 
 export const SAVED_EVENT_TOAST_OPTIONS = [
   "pill",
@@ -85,93 +92,6 @@ export const savedEventToastVariantFlag: FeatureFlagDef<
   defaultValue: "pill",
 };
 
-export const TRANSLUCENCY_LEVEL_OPTIONS = ["subtle", "medium", "strong"] as const;
-export type TranslucencyLevel = (typeof TRANSLUCENCY_LEVEL_OPTIONS)[number];
-
-export const translucencyLevelFlag: FeatureFlagDef<"translucencyLevel", TranslucencyLevel> = {
-  key: "translucencyLevel",
-  label: "Interface translucency",
-  description:
-    "Frosted-glass transparency of the page's overlapping surfaces — sticky " +
-    "calendar chrome, bottom navigation, sidebar, floating controls and buttons. " +
-    "Subtle is more see-through, Strong is nearly solid (each surface keeps its " +
-    "own colour). The header and overlays (modals, menus, tooltips, toasts) stay " +
-    "opaque. Low-end devices fall back to a tint without blur. Toggle to compare " +
-    "the levels live, then keep the one you want.",
-  options: TRANSLUCENCY_LEVEL_OPTIONS,
-  optionLabels: {
-    subtle: "Subtle",
-    medium: "Medium",
-    strong: "Strong",
-  },
-  defaultValue: "medium",
-};
-
-export const REORDER_DRAG_OPTIONS = ["drag", "arrowsDrag", "arrows"] as const;
-export type ReorderDrag = (typeof REORDER_DRAG_OPTIONS)[number];
-
-export const reorderDragFlag: FeatureFlagDef<"reorderDrag", ReorderDrag> = {
-  key: "reorderDrag",
-  label: "Reorder interaction",
-  description:
-    "How the manageable lists (dashboard views, event-type groups, departments, " +
-    "quick links, title recipes) are reordered. Drag only shows a drag handle " +
-    "per row (the keyboard path is the handle's Space/Enter + arrow keys); " +
-    "Arrows + drag adds the up/down chevrons beside the handle; Arrows only " +
-    "keeps just the chevrons.",
-  options: REORDER_DRAG_OPTIONS,
-  optionLabels: {
-    drag: "Drag only",
-    arrowsDrag: "Arrows + drag",
-    arrows: "Arrows only",
-  },
-  defaultValue: "drag",
-};
-
-export const BOTTOM_NAV_VARIANT_OPTIONS = ["wide", "medium", "tight"] as const;
-export type BottomNavVariant = (typeof BOTTOM_NAV_VARIANT_OPTIONS)[number];
-
-export const bottomNavVariantFlag: FeatureFlagDef<"bottomNavVariant", BottomNavVariant> = {
-  key: "bottomNavVariant",
-  label: "Scrolling rail tile width",
-  description:
-    "Fixed tile width of the mobile bottom navigation's scrolling rail — " +
-    "every destination is a full-size tile in the bar itself (one tap to " +
-    "reach any page; the rest sit behind the right-edge fade and come with " +
-    "a swipe or the edge chevrons). Wider tiles show labels in full but fit " +
-    "fewer per screen; narrower tiles show more destinations at a glance. " +
-    "The desktop sidebar always shows every entry. Toggle to compare the " +
-    "widths live, then keep the one you want.",
-  options: BOTTOM_NAV_VARIANT_OPTIONS,
-  optionLabels: {
-    wide: "Wide — 96px",
-    medium: "Medium — 84px",
-    tight: "Tight — 72px",
-  },
-  defaultValue: "medium",
-};
-
-export const WIZARD_STEP_INDICATOR_OPTIONS = ["rail", "guided", "classic"] as const;
-export type WizardStepIndicator = (typeof WIZARD_STEP_INDICATOR_OPTIONS)[number];
-
-export const wizardStepIndicatorFlag: FeatureFlagDef<"wizardStepIndicator", WizardStepIndicator> = {
-  key: "wizardStepIndicator",
-  label: "Event wizard step indicator",
-  description:
-    "How the create/edit event wizard names its steps. The labelled rail " +
-    "shows every step name up front (wrapping on narrow screens); Labels + " +
-    "step list keeps the circles and adds labels on wide desktops, with a " +
-    "tappable step list on smaller screens; Classic keeps the number-only " +
-    "circles. Toggle to compare the variants live, then keep the one you want.",
-  options: WIZARD_STEP_INDICATOR_OPTIONS,
-  optionLabels: {
-    rail: "Labelled rail",
-    guided: "Labels + step list",
-    classic: "Numbered circles",
-  },
-  defaultValue: "rail",
-};
-
 export const motionProfileFlag: FeatureFlagDef<"motionProfile", MotionProfile> = {
   key: "motionProfile",
   label: "Motion profile",
@@ -192,23 +112,15 @@ export const motionProfileFlag: FeatureFlagDef<"motionProfile", MotionProfile> =
   defaultValue: "standard",
 };
 
-export const FEATURE_FLAGS = [
-  pinnedTickerIndicatorFlag,
-  savedEventToastVariantFlag,
-  translucencyLevelFlag,
-  reorderDragFlag,
-  bottomNavVariantFlag,
-  motionProfileFlag,
-  wizardStepIndicatorFlag,
-] as const;
+export const FEATURE_FLAGS = [savedEventToastVariantFlag, motionProfileFlag] as const;
 export type FeatureFlagKey = (typeof FEATURE_FLAGS)[number]["key"];
 
-/** True when the `reorderDrag` flag shows the drag handle. */
+/** True when the locked reorder mode shows the drag handle. */
 export function isReorderDragEnabled(value: string | undefined): boolean {
   return value === "drag" || value === "arrowsDrag";
 }
 
-/** True when the `reorderDrag` flag shows the up/down chevrons. */
+/** True when the locked reorder mode shows the up/down chevrons. */
 export function isReorderArrowsEnabled(value: string | undefined): boolean {
   return value === "arrows" || value === "arrowsDrag";
 }

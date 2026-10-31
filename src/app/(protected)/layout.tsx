@@ -9,11 +9,9 @@ import { motionCssText, resolveMotion } from "@/lib/motion/profile";
 import { requireSession } from "@/lib/session";
 import { getBanner, getSettings } from "@/lib/settings/queries";
 import {
-  bottomNavVariantFlag,
+  LOCKED_VARIANTS,
   motionProfileFlag,
-  pinnedTickerIndicatorFlag,
   resolveFlagValue,
-  translucencyLevelFlag,
 } from "@/lib/settings/featureFlags";
 import { UI_STATE_COOKIE, decodeUiState } from "@/lib/ui/uiState";
 import { ShellKahNav } from "./shellStream";
@@ -55,18 +53,9 @@ export default async function ProtectedLayout({ children }: { children: React.Re
             googleConfigured={googleCalendarConfigured()}
             sidebarCollapsed={uiState?.sidebarCollapsed === true}
             bannerConfig={bannerConfig}
-            pinnedTickerIndicator={resolveFlagValue(
-              pinnedTickerIndicatorFlag,
-              settings.featureFlags.pinnedTickerIndicator,
-            )}
-            translucencyLevel={resolveFlagValue(
-              translucencyLevelFlag,
-              settings.featureFlags.translucencyLevel,
-            )}
-            bottomNavVariant={resolveFlagValue(
-              bottomNavVariantFlag,
-              settings.featureFlags.bottomNavVariant,
-            )}
+            pinnedTickerIndicator={LOCKED_VARIANTS.pinnedTickerIndicator}
+            translucencyLevel={LOCKED_VARIANTS.translucencyLevel}
+            bottomNavVariant={LOCKED_VARIANTS.bottomNavVariant}
             kahNavSlot={
               // Admins always see KAH Status (all groups) — skip the membership probe.
               isAdmin ? null : (

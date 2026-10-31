@@ -1,21 +1,16 @@
 import { PageTransition } from "@/components/PageTransition";
 import { listEventTypes, listEventTypeGroups } from "@/lib/eventTypes/queries";
-import { reorderDragFlag, resolveFlagValue } from "@/lib/settings/featureFlags";
-import { getFeatureFlag } from "@/lib/settings/queries";
+import { LOCKED_VARIANTS } from "@/lib/settings/featureFlags";
 import { EventTypeTable } from "./EventTypeTable";
 
 export default async function EventTypesPage() {
-  const [types, groups, reorderDrag] = await Promise.all([
-    listEventTypes(),
-    listEventTypeGroups(),
-    getFeatureFlag("reorderDrag"),
-  ]);
+  const [types, groups] = await Promise.all([listEventTypes(), listEventTypeGroups()]);
   return (
     <PageTransition>
       <EventTypeTable
         types={types}
         groups={groups}
-        reorderDrag={resolveFlagValue(reorderDragFlag, reorderDrag)}
+        reorderDrag={LOCKED_VARIANTS.reorderDrag}
       />
     </PageTransition>
   );

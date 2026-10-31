@@ -418,41 +418,12 @@ export const settings = pgTable(
     bannerText: text("banner_text").notNull().default(""),
     bannerColor: text("banner_color"),
     /**
-     * Pinned-events header ticker indicator style (Settings → Feature Flags).
-     * One of the keys in `FEATURE_FLAGS` (`src/lib/settings/featureFlags.ts`);
-     * the registry's default backs the column default.
-     */
-    pinnedTickerIndicator: text("pinned_ticker_indicator").notNull().default("classic"),
-    /**
      * Post-save event confirmation style (Settings → Feature Flags): how the
      * "Event created/updated" feedback presents. One of the keys in
      * `FEATURE_FLAGS` (`src/lib/settings/featureFlags.ts`); the registry's
      * default backs the column default.
      */
     savedEventToastVariant: text("saved_event_toast_variant").notNull().default("pill"),
-    /**
-     * Frosted-glass translucency of the app's overlapping surfaces — header,
-     * sticky calendar chrome, bottom nav, FABs, menus and modals (Settings →
-     * Feature Flags). One of the keys in `FEATURE_FLAGS`
-     * (`src/lib/settings/featureFlags.ts`); the registry's default backs the
-     * column default.
-     */
-    translucencyLevel: text("translucency_level").notNull().default("medium"),
-    /**
-     * Reorder interaction for the manageable lists (Settings → Feature Flags):
-     * `drag` (default) shows a drag handle per row, `arrowsDrag` adds the
-     * up/down chevrons beside it, `arrows` keeps the chevrons only. One of the
-     * keys in `FEATURE_FLAGS` (`src/lib/settings/featureFlags.ts`); the
-     * registry's default backs the column default.
-     */
-    reorderDrag: text("reorder_drag").notNull().default("drag"),
-    /**
-     * Mobile bottom navigation scrolling-rail tile width (Settings → Feature
-     * Flags): `wide` (96px), `medium` (default, 84px) or `tight` (72px). One
-     * of the keys in `FEATURE_FLAGS` (`src/lib/settings/featureFlags.ts`);
-     * the registry's default backs the column default.
-     */
-    bottomNavVariant: text("bottom_nav_variant").notNull().default("medium"),
     /**
      * App-wide motion profile (Settings → Feature Flags): `calm`, `standard`
      * (default), `snappy` or `playful`. Scales every animation's duration,
@@ -461,15 +432,6 @@ export const settings = pgTable(
      * registry's default backs the column default. See docs/motion.md.
      */
     motionProfile: text("motion_profile").notNull().default("standard"),
-    /**
-     * Event wizard step indicator (Settings → Feature Flags): how the staged
-     * create/edit form names its steps — `rail` (default, always-visible
-     * labelled pills), `guided` (circles with desktop labels + a mobile step
-     * list) or `classic` (numbered circles only). One of the keys in
-     * `FEATURE_FLAGS` (`src/lib/settings/featureFlags.ts`); the registry's
-     * default backs the column default. See docs/event-lifecycle.md §1.4.
-     */
-    wizardStepIndicator: text("wizard_step_indicator").notNull().default("rail"),
     /**
      * Daily parade-state email (Settings → Parade State Email): when enabled,
      * the selected roster users receive one snapshot on each configured weekday

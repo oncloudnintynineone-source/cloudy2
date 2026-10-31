@@ -44,10 +44,9 @@ import {
   type SettingsView,
 } from "@/lib/settings/queries";
 import {
-  reorderDragFlag,
+  LOCKED_VARIANTS,
   resolveFlagValue,
   savedEventToastVariantFlag,
-  wizardStepIndicatorFlag,
 } from "@/lib/settings/featureFlags";
 import { UI_STATE_COOKIE, decodeUiState } from "@/lib/ui/uiState";
 import { getUserPreferences } from "@/lib/userPrefs/queries";
@@ -394,11 +393,8 @@ async function resolveDashboardConfig(session: Session): Promise<DashboardConfig
       savedEventToastVariantFlag,
       settings.featureFlags.savedEventToastVariant,
     ),
-    reorderDrag: resolveFlagValue(reorderDragFlag, settings.featureFlags.reorderDrag),
-    wizardStepIndicator: resolveFlagValue(
-      wizardStepIndicatorFlag,
-      settings.featureFlags.wizardStepIndicator,
-    ),
+    reorderDrag: LOCKED_VARIANTS.reorderDrag,
+    wizardStepIndicator: LOCKED_VARIANTS.wizardStepIndicator,
     weekStartsOn: userPrefs?.weekStart ?? "monday",
     quickLinks: quickLinks
       .filter((link) => link.enabled)

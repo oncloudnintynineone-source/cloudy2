@@ -110,11 +110,11 @@ Icon-only controls across the app already carry `aria-label`s (the
 
 ## 1.5 Reorder controls
 
-Every manageable list carries a **drag handle** and/or the **↑/↓ chevrons**
-(`ReorderUpDown`), selected by the `reorderDrag` flag: `drag` (default) shows the
-handle only, `arrowsDrag` shows both, `arrows` shows the chevrons only. The
-chevrons are the explicit **single-pointer non-drag alternative** WCAG 2.5.7
-wants — when strict compliance matters, use `arrows` or `arrowsDrag`. In
+Every manageable list carries a **drag handle**; the app is locked to the
+**drag-only** reorder mode. The up/down chevrons (`ReorderUpDown`) remain in code
+(`arrows` / `arrowsDrag`) as the explicit **single-pointer non-drag alternative**
+WCAG 2.5.7 wants, but no setting selects them today — enabling them requires
+changing `LOCKED_VARIANTS.reorderDrag`. In the current
 `drag` mode the non-mouse path is dnd-kit's **KeyboardSensor**, bound to the
 handle: focus the grip, **Space/Enter** to start, **arrow keys** to move,
 **Space/Enter** to drop, **Escape** to cancel. The handle is a focusable

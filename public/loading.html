@@ -231,11 +231,11 @@
       }
 
       /* Bottom nav (AppShell.Footer): mobile-only, 56px + safe-area. The live
-         footer is an always-scrolling rail of fixed-width tiles (default
-         `medium` = 84px, labels shown), so the shell mirrors that geometry —
-         five default tiles with the same 84px width. Uses the edge-to-edge
-         fast-path pattern (max inset + `calc(live - max)`) so Chrome can
-         retract its chin and reach the device edge. */
+         footer is an always-scrolling rail of fixed-width tiles (locked
+         `tight` = 72px, labels shown), so the shell mirrors that geometry —
+         five tiles with the same 72px width. Uses the edge-to-edge fast-path
+         pattern (max inset + `calc(live - max)`) so Chrome can retract its
+         chin and reach the device edge. */
       .bnav {
         position: fixed;
         bottom: calc(env(safe-area-inset-bottom, 0px) - var(--c2-max-bottom));
@@ -260,7 +260,7 @@
         pointer-events: none;
       }
       .bnav .item {
-        flex: 0 0 84px;
+        flex: 0 0 72px;
         min-height: 56px;
         display: flex;
         flex-direction: column;

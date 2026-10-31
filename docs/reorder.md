@@ -2,14 +2,14 @@
 
 The shared reorder interaction behind every manageable list in the app:
 dashboard views, event-type groups, departments, quick links, and title-recipe
-segments. Each row can carry a **drag handle** and/or the **up/down chevron
-pair**, selected org-wide by the `reorderDrag` feature flag (default: drag
-handle only). Drag is additive where both are shown; the chevrons remain the
-explicit non-drag control in the `arrows` and `arrowsDrag` modes.
+segments. Each row carries a **drag handle**; the interaction is **locked to
+drag-only** (`LOCKED_VARIANTS.reorderDrag`). The up/down chevron implementations
+remain in code (the `arrows` / `arrowsDrag` modes) for a future experiment, but
+no setting can select them.
 
 ## Table of contents
 
-- [1.1 The flag](#11-the-flag)
+- [1.1 The locked mode](#11-the-locked-mode)
 - [1.2 Shared pieces](#12-shared-pieces)
 - [1.3 The drag → persist flow](#13-the-drag--persist-flow)
 - [1.4 Per-surface behavior](#14-per-surface-behavior)
@@ -17,23 +17,22 @@ explicit non-drag control in the `arrows` and `arrowsDrag` modes.
 - [1.6 Accessibility](#16-accessibility)
 - [1.7 File index & related docs](#17-file-index--related-docs)
 
-## 1.1 The flag
+## 1.1 The locked mode
 
-`reorderDrag` (Settings → Feature Flags, org-wide) has three options:
+The retired `reorderDrag` flag had three options; the winner is `drag`:
 
 | Option | Chevrons | Drag handle |
 | ------ | -------- | ----------- |
-| `drag` (**default**) | — | ✓ |
-| `arrowsDrag` | ✓ | ✓ |
-| `arrows` | ✓ | — |
+| `drag` (**locked**) | — | ✓ |
+| `arrowsDrag` (not selectable) | ✓ | ✓ |
+| `arrows` (not selectable) | ✓ | — |
 
-Resolution is server-side and threaded to each surface: the dashboard reads it
-from `DashboardSharedConfig.reorderDrag`, the settings pages call
-`getFeatureFlag("reorderDrag")` and pass the resolved mode. The pure helpers
+Resolution is server-side and threaded to each surface: the dashboard reads
+`DashboardSharedConfig.reorderDrag`, the settings pages pass
+`LOCKED_VARIANTS.reorderDrag` directly. The pure helpers
 `isReorderDragEnabled(value)` (handle shown) and `isReorderArrowsEnabled(value)`
-(chevrons shown) (`src/lib/settings/featureFlags.ts`) derive the two booleans —
-`drag` and `arrowsDrag` show the handle; `arrows` and `arrowsDrag` show the
-chevrons. Registry mechanics: [`feature-flags.md`](feature-flags.md).
+(chevrons shown) (`src/lib/settings/featureFlags.ts`) still derive the two
+booleans from the mode. Registry mechanics: [`feature-flags.md`](feature-flags.md).
 
 ## 1.2 Shared pieces
 
@@ -121,12 +120,12 @@ move.
 
 ## 1.6 Accessibility
 
-- **The chevrons remain available in `arrows` / `arrowsDrag`** — the explicit
-  single-pointer non-drag alternative WCAG 2.5.7 ("Dragging Movements") asks for.
-  The default `drag` mode shows the handle only; its non-mouse path is the
-  **KeyboardSensor** (see below), which is a keyboard path rather than a
-  single-pointer one — switch the flag to `arrowsDrag` if strict 2.5.7
-  compliance is wanted.
+- **The chevron implementations remain in code (`arrows` / `arrowsDrag`)** —
+  the explicit single-pointer non-drag alternative WCAG 2.5.7 ("Dragging
+  Movements") asks for. The app is currently locked to `drag`, so the UI shows
+  the handle only; its non-mouse path is the **KeyboardSensor** (see below),
+  which is a keyboard path rather than a single-pointer one. Enabling the
+  chevrons now requires changing `LOCKED_VARIANTS.reorderDrag`, not a setting.
 - `DragHandle` is a focusable button with an accessible name (`Drag <name> to
   reorder`); it stops click propagation so a tap never opens the row's
   edit/detail dialog.
@@ -148,12 +147,13 @@ See [`accessibility.md`](accessibility.md) for the app-wide conventions.
 | `src/lib/ui/reorderRows.ts` | Hook + pure order helpers (`swapAdjacent`, `moveToIndex`, `resolveDragMove`, reconcile) |
 | `src/lib/ui/flipReorder.ts` | FLIP animation (chevron path) |
 | `src/lib/roster/hierarchy.ts` | `moveInTreeOrder` (arrows), `moveToSiblingIndex` (drag) |
-| `src/lib/settings/featureFlags.ts` | `reorderDragFlag`, `isReorderDragEnabled`, `isReorderArrowsEnabled` |
-| `src/db/schema.ts` | `settings.reorder_drag` column |
+| `src/lib/settings/featureFlags.ts` | `LOCKED_VARIANTS.reorderDrag`, `isReorderDragEnabled`, `isReorderArrowsEnabled` |
+| `src/db/schema.ts` | (the retired `settings.reorder_drag` column was dropped in migration 0065) |
 
 Related docs:
 
-- [`feature-flags.md`](feature-flags.md) — the `reorderDrag` flag registry.
+- [`feature-flags.md`](feature-flags.md) — the locked-in variants, including
+  drag-only reordering.
 - [`dashboard-views.md`](dashboard-views.md) — the Manage-views tab strip.
 - [`quick-links.md`](quick-links.md) — the quick-links table.
 - [`roster-sharing.md`](roster-sharing.md) — the department hierarchy + `sortOrder`.
