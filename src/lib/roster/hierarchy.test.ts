@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  ancestorIds,
   buildDepartmentTree,
   departmentPathLabels,
   departmentTreeRows,
@@ -170,6 +171,22 @@ describe("descendantIds", () => {
     expect(descendantIds(tree, "log").has("stores")).toBe(true);
     expect(descendantIds(tree, "stores")).toEqual(new Set());
     expect(descendantIds(tree, "ghost")).toEqual(new Set());
+  });
+});
+
+describe("ancestorIds", () => {
+  it("collects the department itself plus every ancestor", () => {
+    expect([...ancestorIds(tree, "stores")].sort()).toEqual(["hq", "log", "stores"]);
+    expect([...ancestorIds(tree, "hq")]).toEqual(["hq"]);
+  });
+
+  it("degrades safely for unknown ids and cycles", () => {
+    expect([...ancestorIds(tree, "ghost")]).toEqual(["ghost"]);
+    const cyclic: HierarchyDepartment[] = [
+      { id: "x", name: "X", sortOrder: 0, parentId: "y" },
+      { id: "y", name: "Y", sortOrder: 1, parentId: "x" },
+    ];
+    expect([...ancestorIds(cyclic, "x")].sort()).toEqual(["x", "y"]);
   });
 });
 

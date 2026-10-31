@@ -581,7 +581,8 @@ html {
    indicator. In `classic` it follows the count chip and pulls half a flex-gap
    toward it so the two read as a pair; in the other variants it leads the pill
    at full gap. */
-.c2-pinned-ticker-countdown {
+.c2-pinned-ticker-countdown,
+.c2-pinned-countdown {
   flex-shrink: 0;
   padding-inline: calc(0.4375rem * var(--mantine-scale));
   border-radius: var(--mantine-radius-xl);

@@ -12,6 +12,30 @@ export function selectPinnedEvents(events: CalendarEvent[]): CalendarEvent[] {
 }
 
 /**
+ * Keep the pinned events visible to a viewer whose department membership maps
+ * to `visibleDepartmentIds` (the viewer's department plus its ancestors).
+ * A pin with no department targets is global, so it stays visible to everyone;
+ * a targeted pin is visible only when one of its departments is in the set.
+ * Pure — unit-tested without a DB or Google.
+ */
+export function selectPinnedEventsForDepartments(
+  events: CalendarEvent[],
+  visibleDepartmentIds: readonly string[],
+): CalendarEvent[] {
+  const visible = new Set(visibleDepartmentIds);
+  return events.filter((event) => {
+    if (!event.payload.pinned) {
+      return false;
+    }
+    const targets = event.payload.pinnedDepartments ?? [];
+    if (targets.length === 0) {
+      return true;
+    }
+    return targets.some((id) => visible.has(id));
+  });
+}
+
+/**
  * Keep explicitly-pinned events, drop any whose end time has already passed
  * (compare the full naive `YYYY-MM-DD HH:mm:ss` end against `nowNaive`), and
  * sort by start time ascending. Pure — unit-tested without a DB or Google.

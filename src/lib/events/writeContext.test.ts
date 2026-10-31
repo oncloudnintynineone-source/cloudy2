@@ -19,6 +19,7 @@ const values: EventFormValues = {
   outOfCamp: false,
   overseas: false,
   pinned: false,
+  pinnedDepartments: [],
   location: "",
 };
 

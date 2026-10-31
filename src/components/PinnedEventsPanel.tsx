@@ -8,16 +8,16 @@ import {
   Skeleton,
   Stack,
   Text,
-  ThemeIcon,
   UnstyledButton,
   useMantineTheme,
 } from "@mantine/core";
 import { useMediaQuery, useViewportSize } from "@mantine/hooks";
-import { IconCalendarEvent, IconPin } from "@tabler/icons-react";
+import { IconCalendarEvent } from "@tabler/icons-react";
 import dayjs from "dayjs";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
+import { daysUntilDate, formatInstantToNaive } from "@/lib/events/datetime";
 import { buildEventDeepLink } from "@/lib/events/deepLink";
 import { getJson } from "@/lib/api/client";
 import type { PinnedEvent } from "@/lib/events/pinned";
@@ -138,6 +138,7 @@ export function PinnedEventsPanel({ seedEvents = null, onLoaded }: PinnedEventsP
   // instantly, and `useContentEnter` fades the rows in on reveal.
   const visibleEvents = events ?? seedEvents;
   const loading = useMinSkeletonHold(open && visibleEvents === null && !failed);
+  const nowNaive = formatInstantToNaive(new Date());
 
   // The modal zooms out of / shrinks back into the header pin button — the
   // app's standard grow/shrink animation. It is `centered` with a fixed size,
@@ -210,20 +211,10 @@ export function PinnedEventsPanel({ seedEvents = null, onLoaded }: PinnedEventsP
       onClose={closePanel}
       centered
       size={isNarrow ? "xs" : isDesktop ? "lg" : "md"}
-      title={
-        <Group gap="xs">
-          <ThemeIcon variant="light" size="sm">
-            <IconPin size={14} />
-          </ThemeIcon>
-          <Text fw={600}>Pinned Events</Text>
-        </Group>
-      }
+      title={<Text fw={600}>Pinned Events</Text>}
       closeButtonProps={{ "aria-label": "Close pinned events" }}
       transitionProps={transitionProps}
     >
-      <Text size="xs" c="dimmed" mb="sm">
-        Shown to everyone on the header ticker · next 3 months
-      </Text>
       <ScrollArea.Autosize
         {...AUTOSIZE_VERTICAL_SCROLL_PROPS}
         mah="min(70dvh, 560px)"
@@ -302,6 +293,7 @@ export function PinnedEventsPanel({ seedEvents = null, onLoaded }: PinnedEventsP
                       key={event.id}
                       event={event}
                       first={index === 0}
+                      nowNaive={nowNaive}
                       onOpen={(e) => openEventDay(event, e)}
                     />
                   ))}
@@ -343,15 +335,18 @@ export function PinnedEventsPanel({ seedEvents = null, onLoaded }: PinnedEventsP
 function PinnedEventRow({
   event,
   first,
+  nowNaive,
   onOpen,
 }: {
   event: PinnedEvent;
   first: boolean;
+  nowNaive: string;
   onOpen: (e: React.MouseEvent<HTMLButtonElement>) => void;
 }) {
   const meta = [formatDisplay(event.start), event.departments.join(", ")]
     .filter(Boolean)
     .join(" \u00b7 ");
+  const daysUntil = daysUntilDate(nowNaive, event.start);
   return (
     <UnstyledButton
       onClick={onOpen}
@@ -375,9 +370,14 @@ function PinnedEventRow({
           }}
         />
         <Box style={{ minWidth: 0, flex: 1 }}>
-          <Text fw={600} size="sm" truncate>
-            {event.title}
-          </Text>
+          <Group justify="space-between" gap="xs" wrap="nowrap">
+            <Text fw={600} size="sm" truncate>
+              {event.title}
+            </Text>
+            <span className="c2-pinned-countdown" aria-hidden>
+              {daysUntil}d
+            </span>
+          </Group>
           <Text size="xs" c="dimmed" truncate>
             {meta}
           </Text>

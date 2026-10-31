@@ -25,6 +25,11 @@ function isNullableString(value: unknown): value is string | null {
   return value === null || typeof value === "string";
 }
 
+/** Optional field added after the durable cache shipped — old rows stay valid. */
+function isOptionalStringArray(value: unknown): value is string[] | undefined {
+  return value === undefined || isStringArray(value);
+}
+
 function isPinnedCalendarEvent(value: unknown): value is CalendarEvent {
   if (!isRecord(value)) {
     return false;
@@ -55,6 +60,7 @@ function isPinnedCalendarEvent(value: unknown): value is CalendarEvent {
     isNullableString(payload.startAmPm) &&
     isNullableString(payload.endAmPm) &&
     typeof payload.pinned === "boolean" &&
+    isOptionalStringArray(payload.pinnedDepartments) &&
     typeof payload.location === "string"
   );
 }

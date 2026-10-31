@@ -308,6 +308,7 @@ function formValues(overrides: Partial<EventFormValues> = {}): EventFormValues {
     outOfCamp: false,
     overseas: false,
     pinned: false,
+    pinnedDepartments: [],
     location: "",
     ...overrides,
   };

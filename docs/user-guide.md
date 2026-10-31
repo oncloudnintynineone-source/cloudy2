@@ -40,13 +40,13 @@ flowchart LR
 
 ## 1.2 Getting around
 
-| Page | What it's for |
-| ---- | ------------- |
-| **Calendar** | All events across departments — the main screen |
-| **Parade State** | Today's roll call by department, with attendance mode |
-| **Contacts** | Phone list with search and VCF export |
-| **KAH Status** | Past & future KAH breaches for your groups over ±3 months, with resolved/active/upcoming status; expand a breach to see the group roster (away vs in country) and the overseas events behind it (shown when you are in a KAH group; admins always see it with all groups) |
-| **Settings** | Admin only |
+| Page             | What it's for                                                                                                                                                                                                                                                             |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Calendar**     | All events across departments — the main screen                                                                                                                                                                                                                           |
+| **Parade State** | Today's roll call by department, with attendance mode                                                                                                                                                                                                                     |
+| **Contacts**     | Phone list with search and VCF export                                                                                                                                                                                                                                     |
+| **KAH Status**   | Past & future KAH breaches for your groups over ±3 months, with resolved/active/upcoming status; expand a breach to see the group roster (away vs in country) and the overseas events behind it (shown when you are in a KAH group; admins always see it with all groups) |
+| **Settings**     | Admin only                                                                                                                                                                                                                                                                |
 
 On phones the pages sit in the bottom navigation bar; on desktop they move to the
 left sidebar (which can collapse to an icon rail). The header carries the
@@ -61,13 +61,13 @@ that menu.
 Six views show the same calendar data; each view keeps its own filters. Switch
 them with the tabs above the grid:
 
-| View | Shows |
-| ---- | ----- |
-| **Month** | The whole month grid; bars span multiple days. By default the seven days fit the screen width; the round **+/−** controls zoom the day columns in and out |
-| **Week (H)** | One week, hour-by-hour, one row per person/department |
-| **Week (D)** | One week as day columns — events as spanning banners per row |
-| **Day** | A single day, hour-by-hour |
-| **Agenda** | A day-by-day list |
+| View               | Shows                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Month**          | The whole month grid; bars span multiple days. By default the seven days fit the screen width; the round **+/−** controls zoom the day columns in and out                                                                                                                                                                                                                                              |
+| **Week (H)**       | One week, hour-by-hour, one row per person/department                                                                                                                                                                                                                                                                                                                                                  |
+| **Week (D)**       | One week as day columns — events as spanning banners per row                                                                                                                                                                                                                                                                                                                                           |
+| **Day**            | A single day, hour-by-hour                                                                                                                                                                                                                                                                                                                                                                             |
+| **Agenda**         | A day-by-day list                                                                                                                                                                                                                                                                                                                                                                                      |
 | **Month & Agenda** | The Month grid and the Agenda list together — side by side on desktop (drag the divider between them to resize). Tapping a day in the grid shows that day in the agenda pane (event chips aren't clickable — every tap selects the day). On phones the agenda pane is hidden and the grid works like the Month tab: tap an event for its details, tap a day to see that day's events and add a new one |
 
 - **Zoom**: the Day and Week (H) views zoom their hour columns in and out; the
@@ -83,15 +83,15 @@ them with the tabs above the grid:
   On a phone the tab strip is a single **four-squares view button** in the top
   row — tap it, then choose **Add view**.
 - **Manage views**: use the **gear** beside the tab strip (tooltip "Manage
-   views"). Your views appear as a **list**; the active one is marked with an
-   amber bar. Each row is one line: **↑/↓** on the left reorder, and a **⋮ menu**
-   on the right holds **Share**, **Edit** (name, type — the type chooser shows
-   the same preview grid — and an **Edit filters…** button that switches to the
-   view and opens its filter dialog) and **Delete**. On a phone the gear lives
-   inside the four-squares view button as **Manage views**.
+  views"). Your views appear as a **list**; the active one is marked with an
+  amber bar. Each row is one line: **↑/↓** on the left reorder, and a **⋮ menu**
+  on the right holds **Share**, **Edit** (name, type — the type chooser shows
+  the same preview grid — and an **Edit filters…** button that switches to the
+  view and opens its filter dialog) and **Delete**. On a phone the gear lives
+  inside the four-squares view button as **Manage views**.
 - **Share a view**: choose **Share** from a Manage-views row's ⋮ menu (or
-   **Share view…** in the Edit-view dialog) and copy the link. Anyone signed in
-   can open it,
+  **Share view…** in the Edit-view dialog) and copy the link. Anyone signed in
+  can open it,
   review the view name/type/filters, and **Add view** — they get an independent
   copy at the end of their tab strip. The link carries only the view definition,
   never event access; it has no separate revoke button (new links stop working
@@ -110,7 +110,7 @@ them with the tabs above the grid:
   **Reset** clears them (back to your role default).
 - **Filters are per view** — each of Month / Week (H) / Week (D) / Day / Agenda /
   Month & Agenda remembers its own Calendars/Users/Event Types selection, and the dialog notes
-  *"These filters apply to {view} only"*. Setting a filter on one view never
+  _"These filters apply to {view} only"_. Setting a filter on one view never
   affects the others; clearing one view's filters never resets the rest.
   An untouched view shows your role default (admin: all departments). Filtering
   is not tied to access: everyone can always select **every** department
@@ -132,24 +132,24 @@ Tap the **+** button, then walk the wizard. You are the event's **organizer**
 attend:
 
 1. **Type** — the event type, listed under its category (types without a category
- appear at the bottom under "Ungrouped"); each type can restrict the steps below.
+   appear at the bottom under "Ungrouped"); each type can restrict the steps below.
 2. **Time** — Start & End date pickers plus tap-select time dropdowns (15-minute
- steps), or Full day / Half day (AM/PM) options.
+   steps), or Full day / Half day (AM/PM) options.
 3. **Location** — one category: **In camp**, **Out of camp**, or **Overseas**
- (the type decides which are allowed), plus an optional specific place. Overseas
- events are what KAH groups count as "away". Some event types **hide the Location
- step** (set by your admin, only for types restricted to one location) — for those
- this step is skipped and the event is saved in that single category automatically.
+   (the type decides which are allowed), plus an optional specific place. Overseas
+   events are what KAH groups count as "away". Some event types **hide the Location
+   step** (set by your admin, only for types restricted to one location) — for those
+   this step is skipped and the event is saved in that single category automatically.
 4. **Participants** — invite individual users and/or tag whole departments; the event
- appears on everyone's calendars. Participants (and members of a tagged department)
- can edit this event too. You're pre-selected by default — remove yourself only if you
- won't take part (an event must keep at least one participant or department). Your own
- badge carries an amber ring and a **(You)** marker wherever participants are listed —
- on this step, the review, and the event's details.
+   appears on everyone's calendars. Participants (and members of a tagged department)
+   can edit this event too. You're pre-selected by default — remove yourself only if you
+   won't take part (an event must keep at least one participant or department). Your own
+   badge carries an amber ring and a **(You)** marker wherever participants are listed —
+   on this step, the review, and the event's details.
 5. **Remarks** — the free-text description.
 6. **Other settings** — the **Pin this event** switch (puts the event in the Pinned
- Events panel, §1.5) and, when you're the organizer, "Only I can edit this event"
- (locks editing to you; admins always keep it).
+   Events panel, §1.5) and, when you're the organizer, "Only I can edit this event"
+   (locks editing to you; admins always keep it).
 7. **Review** — a summary with a live calendar-title preview, then Create.
 
 Tapping outside the wizard (or pressing **Esc**) minimizes it to a **draft bar** docked
@@ -176,12 +176,14 @@ starts today), plus a position/count indicator in one of a few styles — an amb
 `1/N` chip, a two-tone pill joining the counter and countdown, a thin progress bar
 along the pill's bottom edge, a count badge on the corner, or a stacked
 two-line block (admins pick the style on **Settings → Feature Flags**). Tap it to open
-a panel listing every explicitly-pinned upcoming
-event (today → 3 months out, all departments, ignoring your current filters). Tap
+a panel listing the explicitly-pinned upcoming events you can see (today → 3
+months out, across your department, ignoring your current filters). Tap
 one there to jump straight to it on the calendar and open its details.
 
 Events get pinned through the **Pin this event** switch on the wizard's Other
-settings step (§1.4.1).
+settings step (§1.4.1). When it is on, choose **Visible to** departments: leave it
+empty to show the pin to every department (including future ones), or pick one or
+more departments (their sub-departments see it too). Admins see every pinned event.
 The ticker and its count refresh after every create/update/delete; with nothing
 pinned the pill shows a plain "Pinned events" label.
 

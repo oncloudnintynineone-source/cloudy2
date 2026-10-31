@@ -45,11 +45,18 @@ export interface EventNotes {
    */
   ownerOnlyEdits?: boolean;
   /**
-   * Whether the event is explicitly marked as pinned (shown in the Pinned
-   * Events panel). Written only when true — absence (legacy events) or false
-   * means unpinned, so events are pinned on demand, not by tagging.
+   * Legacy/global pin flag. `true` without `pinnedDepartments` means the event
+   * is pinned for **every** department (including future ones). Written only
+   * when true — absence or false means unpinned unless `pinnedDepartments` is
+   * present.
    */
   pinned?: boolean;
+  /**
+   * Department (calendar) ids this event is pinned to. Written only when the
+   * organizer narrows the pin to specific departments; absent/empty alongside
+   * `pinned: true` means all departments.
+   */
+  pinnedDepartments?: string[];
   /** Datetime option used to create the event ("range" | "full"). */
   timeOption?: string;
   /** Start half-of-day indicator for "full" events. */
@@ -349,9 +356,21 @@ export function parseEventOverseas(description: string): boolean {
   return parseEventNotes(description)?.overseas === true;
 }
 
+/**
+ * Department ids the event is pinned to, or an empty array for "all
+ * departments" (including the legacy `pinned: true` flag) or unpinned.
+ */
+export function parseEventPinnedDepartments(description: string): string[] {
+  return uniqueStrings(parseEventNotes(description)?.pinnedDepartments);
+}
+
 /** Extract the pinned flag from the notes block; false when absent (legacy). */
 export function parseEventPinned(description: string): boolean {
-  return parseEventNotes(description)?.pinned === true;
+  const notes = parseEventNotes(description);
+  if (notes?.pinned === true) {
+    return true;
+  }
+  return uniqueStrings(notes?.pinnedDepartments).length > 0;
 }
 
 /** Extract the organizer-only edit lock from the notes block; false when absent. */

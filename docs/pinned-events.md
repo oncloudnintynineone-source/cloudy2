@@ -20,8 +20,18 @@ across mutations.
 ## 1.1 Pinning an event
 
 - The wizard's **Other settings** step carries a **"Pin this event" switch** (any
-  user) that sets the `pinned` notes flag. Tagging a whole department no longer pins
-  by itself.
+  user with edit rights). When on, a **Visible to** department picker scopes the pin:
+  - no departments selected = **all departments**, including ones created later;
+  - one or more departments selected = only those departments and their
+    sub-departments.
+- Pinning is **visibility only** — it never creates a calendar copy. The event's
+  copies stay driven by its participants.
+- Tagging a whole department no longer pins by itself. The notes store the legacy
+  global `pinned: true` for an all-department pin, or `pinnedDepartments: [ids]` for a
+  scoped pin; absent means unpinned. Existing `pinned: true` events remain global.
+- Each viewer sees only pins targeted at their own department or an ancestor; a user
+  with no department sees only global pins. Admins (including break-glass root) see
+  every pin.
 - The panel shows a **rolling today → 3-months window** (today through the end of the
   month two months out, matching the month-grid reads), **ignoring the dashboard's
   current filters**.
@@ -34,10 +44,16 @@ The expensive part (scanning **all** calendars over the rolling 3-month window) 
 in a **durable singleton cache**, not on the request path:
 
 - `pinnedCache.ts` (`readPinnedSelection`) reads one `pinned_event_cache` row holding
-  the raw, group-deduped `CalendarEvent[]` selected by the `pinned` notes flag. The
-  row is served directly while younger than 60 s; after that the current row is
-  served while `rebuildPinnedSelection` rescans in `after()` — the read never blocks
-  on a warm row. A missing/corrupt row (first ever, purge) rebuilds blocking.
+  the raw, group-deduped `CalendarEvent[]` selected by the pin notes
+  (`pinned`/`pinnedDepartments`). The row is served directly while younger than 60 s;
+  after that the current row is served while `rebuildPinnedSelection` rescans in
+  `after()` — the read never blocks on a warm row. A missing/corrupt row (first ever,
+  purge) rebuilds blocking.
+- `fetchPinnedEvents` scopes that global selection to the viewer **per request**:
+  admins/root get every pin; a roster user gets global pins plus pins targeted at
+  their direct department or any ancestor (so a parent-department pin reaches its
+  sub-departments); a user with no department gets only global pins. The durable row
+  stays user-independent, so this costs no extra DB/Google read.
 - The rebuild is the old all-calendar `fetchRangeEvents` scan (`pinnedWindowMonths` —
   today through the end of the month two months out, matching the month-grid reads),
   then `selectPinnedEvents`. It snapshots the events-cache epoch and refuses to
@@ -249,14 +265,15 @@ search (`EventSearchBody`): one bordered container (1px default border, `radius-
 `borderTop` — no per-row cards). Each row is an `UnstyledButton` with a 4×30px rounded
 accent bar in the event's read-time color (`--mantine-color-<color>-filled`), a
 truncated semibold `sm` title, and one dim `xs` meta line
-(`"Wed, Sep 10 · 8:00 AM · Fire Dept"`, departments omitted when empty). The list
+(`"Wed, Sep 10 · 8:00 AM · Fire Dept"`, departments omitted when empty). The title row
+carries the same `Nd` **days-remaining countdown pill** as the header ticker
+(`0d` for a same-day event) at its trailing edge. The modal title is plain text — no
+pin icon — and there is no orientation line under it. The list
 scroll area spreads the shared `AUTOSIZE_VERTICAL_SCROLL_PROPS`
 (`src/lib/ui/scrollArea.ts`: vertical-only scrollbars + `content.minWidth: 0`) because
 Mantine v9's `ScrollArea.Autosize` otherwise sets `min-width: min-content` on its
 content — a long title would widen the content past the viewport and force a horizontal
-scrollbar instead of truncating. A dim `xs`
-orientation line under the modal title ("Shown to everyone on the header ticker · next
-3 months") mirrors the fixed window from §1.2. Loading holds the skeleton for at least
+scrollbar instead of truncating. Loading holds the skeleton for at least
 150ms (`useMinSkeletonHold`) while mirroring the row geometry (accent bar + title +
 meta) inside the same bordered box, and the rows dissolve in on reveal
 (`CrossfadeSwap`, [`loading-transitions.md`](loading-transitions.md) §1.6.1). The empty
@@ -270,7 +287,7 @@ row until the navigation commits.
 | File                                    | Role                                                                                    |
 | --------------------------------------- | --------------------------------------------------------------------------------------- |
 | `src/lib/events/pinned.ts`              | `fetchPinnedEvents` (panel `title` + ticker `tickerTitle`)                              |
-| `src/lib/events/pinnedSelect.ts`        | Pure upcoming-window selection (unit-tested)                                            |
+| `src/lib/events/pinnedSelect.ts`        | Pure selection, department scoping, upcoming-window filter (unit-tested)                |
 | `src/lib/events/deepLink.ts`            | Shared deep-link builder + `deepLinkMonths` target-month window                         |
 | `src/lib/dashboard/deepLinkTarget.ts`   | Lean target resolver (own months, empty filters, shared title rendering)                |
 | `src/lib/dashboard/deepLinkActions.ts`  | `resolveDeepLinkTargetAction` server action called in parallel by `DashboardScreen`     |

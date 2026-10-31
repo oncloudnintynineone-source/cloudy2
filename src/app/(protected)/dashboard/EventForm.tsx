@@ -4,7 +4,6 @@ import "@mantine/dates/styles.css";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import {
   Badge,
-  Box,
   Button,
   Grid,
   Group,
@@ -28,7 +27,6 @@ import { notifications } from "@mantine/notifications";
 import {
   IconChevronLeft,
   IconChevronRight,
-  IconPin,
   IconUserMinus,
   IconUserPlus,
 } from "@tabler/icons-react";
@@ -348,6 +346,7 @@ export function EventForm({
         outOfCamp: clamped.outOfCamp,
         overseas: clamped.overseas,
         pinned: event.payload.pinned,
+        pinnedDepartments: event.payload.pinnedDepartments ?? [],
         ownerOnlyEdits: event.payload.registrationEnabled ? true : event.payload.ownerOnlyEdits,
         location: clamped.location,
       };
@@ -405,6 +404,7 @@ export function EventForm({
         outOfCamp: clamped.outOfCamp,
         overseas: clamped.overseas,
         pinned: src.payload.pinned,
+        pinnedDepartments: src.payload.pinnedDepartments ?? [],
         ownerOnlyEdits: src.payload.registrationEnabled ? true : false,
         location: clamped.location,
       };
@@ -431,6 +431,7 @@ export function EventForm({
       outOfCamp: false,
       overseas: false,
       pinned: false,
+      pinnedDepartments: [],
       ownerOnlyEdits: false,
       location: "",
     };
@@ -516,6 +517,38 @@ export function EventForm({
         PICKER_DEPARTMENTS_SECTION,
       ),
     );
+  }
+
+  // Pinned-event audience: the same department tree the participant picker
+  // uses, but without users. An empty selection means the pin is global (every
+  // department, including future ones); selecting every current department is
+  // normalized back to empty so "all" keeps that meaning.
+  const pinDepartmentGroups = useMemo(() => {
+    const rows = departmentTreeRows(
+      inviteeDepartments.map((dept) => ({
+        id: dept.id,
+        name: dept.name,
+        sortOrder: dept.sortOrder,
+        parentId: dept.parentId,
+      })),
+    );
+    const options = departmentPickerOptions(rows);
+    return options.length > 0 ? [{ label: PICKER_DEPARTMENTS_SECTION, options }] : [];
+  }, [inviteeDepartments]);
+  const pinDepartmentIds = useMemo(
+    () => pinDepartmentGroups.flatMap((group) => group.options.map((option) => option.id)),
+    [pinDepartmentGroups],
+  );
+  const pinPickerValues = useMemo(
+    () => selectionByGroup(pinDepartmentGroups, form.values.pinnedDepartments),
+    [pinDepartmentGroups, form.values.pinnedDepartments],
+  );
+
+  function applyPinPicker(values: Record<string, string[]>) {
+    const selected = Object.values(values).flat();
+    const normalized =
+      selected.length > 0 && selected.length === pinDepartmentIds.length ? [] : selected;
+    form.setFieldValue("pinnedDepartments", normalized);
   }
 
   // The type step's sections: inline groups (rendered as labeled rows) first,
@@ -604,6 +637,7 @@ export function EventForm({
   // globals.css). Defaults forward so the initial step enters from the right.
   const [direction, setDirection] = useState<"forward" | "backward">("forward");
   const [inviteePickerOpen, setInviteePickerOpen] = useState(false);
+  const [pinPickerOpen, setPinPickerOpen] = useState(false);
   // Tap-to-fill "recent locations" chips for the Location step. Fetched once,
   // best-effort, when the wizard mounts — empty on failure (chips just don't
   // render), so the TextInput always remains the custom fallback.
@@ -874,6 +908,18 @@ export function EventForm({
       return name ? [{ key: `dept:${id}`, label: name, color: "accent" }] : [];
     }),
   ];
+  // Pin-audience summary badges; an empty list renders the "All departments"
+  // badge in the settings step.
+  const pinSummaryItems: PickerBadgeItem[] = form.values.pinnedDepartments.flatMap((id) => {
+    const name = departmentNames[id];
+    return name ? [{ key: `pin:${id}`, label: name, color: "accent" }] : [];
+  });
+  const pinnedAudienceLabel =
+    pinSummaryItems.length === 0
+      ? "All departments"
+      : pinSummaryItems.length === 1
+        ? pinSummaryItems[0].label
+        : `${pinSummaryItems.length} departments`;
   // Quick self add/remove state for the Participants step's toggle button.
   const selfIncluded = selectedInvitees.userIds.includes(currentUser);
 
@@ -1012,6 +1058,7 @@ export function EventForm({
       endAmPm: effectiveTimeOption === "half" ? rest.endAmPm || "PM" : "",
       inviteeUserIds: userIds,
       inviteeDepartments: departmentIds,
+      pinnedDepartments: rest.pinned ? rest.pinnedDepartments : [],
     };
   }
 
@@ -1481,7 +1528,7 @@ export function EventForm({
               <Group gap={6} wrap="wrap">
                 {form.values.pinned && (
                   <Badge variant="light" color="accent">
-                    Pinned
+                    Pinned: {pinnedAudienceLabel}
                   </Badge>
                 )}
                 {registrationType && (
@@ -1781,34 +1828,35 @@ export function EventForm({
             <Stack gap="sm">
               <Switch
                 label="Pin this event"
-                description={
-                  <Stack gap={4} mt={2}>
-                    <Box
-                      component="span"
-                      px={8}
-                      py={3}
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 5,
-                        alignSelf: "flex-start",
-                        background: "var(--mantine-color-accent-1)",
-                        borderRadius: "var(--mantine-radius-sm)",
-                        color: "var(--mantine-color-accent-9)",
-                      }}
-                    >
-                      <IconPin size={14} />
-                      <Text component="span" size="sm" fw={700} inherit>
-                        Visible to everyone, in every department.
-                      </Text>
-                    </Box>
-                    <Text component="span" size="sm">
-                      Shows this event in the Pinned Events panel on every page.
-                    </Text>
-                  </Stack>
-                }
+                description="Show this event in the Pinned Events panel and header ticker for the departments you choose."
                 {...form.getInputProps("pinned", { type: "checkbox" })}
               />
+              {form.values.pinned && (
+                <>
+                  <PickerField
+                    label="Visible to"
+                    description="Leave empty to show it to every department, including ones created later. A pin also reaches sub-departments."
+                    items={pinSummaryItems}
+                    empty={
+                      <Badge variant="light" color="accent">
+                        All departments
+                      </Badge>
+                    }
+                    triggerLabel="Choose"
+                    onOpen={() => setPinPickerOpen(true)}
+                  />
+                  <UserSelectModal
+                    opened={pinPickerOpen}
+                    onClose={() => setPinPickerOpen(false)}
+                    groups={pinDepartmentGroups}
+                    values={pinPickerValues}
+                    onConfirm={applyPinPicker}
+                    title="Pin to departments"
+                    confirmLabel="Select"
+                    zIndex={300}
+                  />
+                </>
+              )}
               {canSetOwnerLock && (
                 <>
                   <Switch

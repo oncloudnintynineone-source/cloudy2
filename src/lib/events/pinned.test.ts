@@ -1,9 +1,19 @@
 import { describe, expect, it } from "vitest";
 
-import { selectPinnedEvents, selectUpcomingPinnedEvents } from "./pinnedSelect";
+import {
+  selectPinnedEvents,
+  selectPinnedEventsForDepartments,
+  selectUpcomingPinnedEvents,
+} from "./pinnedSelect";
 import type { CalendarEvent } from "./queries";
 
-function event(start: string, end: string, pinned: boolean, allDay = false): CalendarEvent {
+function event(
+  start: string,
+  end: string,
+  pinned: boolean,
+  allDay = false,
+  pinnedDepartments: string[] = [],
+): CalendarEvent {
   return {
     id: `cal:${start}`,
     title: "Title",
@@ -27,6 +37,7 @@ function event(start: string, end: string, pinned: boolean, allDay = false): Cal
       outOfCamp: false,
       overseas: false,
       pinned,
+      pinnedDepartments,
       ownerOnlyEdits: false,
       registrationEnabled: false,
       registrationCap: null,
@@ -43,6 +54,33 @@ describe("selectPinnedEvents", () => {
       event("2026-09-02 09:00:00", "2026-09-02 10:00:00", false),
     ]);
     expect(result.map((e) => e.start)).toEqual(["2026-08-01 09:00:00"]);
+  });
+});
+
+describe("selectPinnedEventsForDepartments", () => {
+  const globalPin = event("2026-09-01 09:00:00", "2026-09-01 10:00:00", true);
+  const deptAPin = event("2026-09-02 09:00:00", "2026-09-02 10:00:00", true, false, ["dept-a"]);
+  const deptBPin = event("2026-09-03 09:00:00", "2026-09-03 10:00:00", true, false, ["dept-b"]);
+
+  it("keeps global pins for everyone and scopes targeted pins to the viewer", () => {
+    const result = selectPinnedEventsForDepartments([globalPin, deptAPin, deptBPin], ["dept-a"]);
+    expect(result.map((e) => e.start)).toEqual([globalPin.start, deptAPin.start]);
+  });
+
+  it("matches a pin on an ancestor department", () => {
+    // The viewer's visible set includes their department plus its ancestors.
+    const result = selectPinnedEventsForDepartments([deptAPin], ["dept-child", "dept-a"]);
+    expect(result.map((e) => e.start)).toEqual([deptAPin.start]);
+  });
+
+  it("keeps only global pins for a viewer with no department", () => {
+    const result = selectPinnedEventsForDepartments([globalPin, deptAPin], []);
+    expect(result.map((e) => e.start)).toEqual([globalPin.start]);
+  });
+
+  it("drops unpinned events even when they carry a pin list", () => {
+    const unpinned = event("2026-09-04 09:00:00", "2026-09-04 10:00:00", false, false, ["dept-a"]);
+    expect(selectPinnedEventsForDepartments([unpinned], ["dept-a"])).toEqual([]);
   });
 });
 

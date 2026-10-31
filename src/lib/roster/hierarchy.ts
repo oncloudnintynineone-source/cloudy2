@@ -218,6 +218,26 @@ export function descendantIds(
 }
 
 /**
+ * Ids of `id` plus every transitive ancestor, walking the raw parent links.
+ * The returned set describes which department ids a membership in `id` counts
+ * toward (e.g. a parent-department pin reaches a child-department member).
+ * Cycle-safe; unknown ids produce just the id itself.
+ */
+export function ancestorIds(departments: readonly HierarchyDepartment[], id: string): Set<string> {
+  const parentLinks = new Map<string, string | null>(
+    departments.map((dept) => [dept.id, dept.parentId]),
+  );
+  const out = new Set<string>();
+  let current: string | null | undefined = id;
+  while (typeof current === "string") {
+    if (out.has(current)) break;
+    out.add(current);
+    current = parentLinks.get(current) ?? null;
+  }
+  return out;
+}
+
+/**
  * Parent-department options for `selfId`'s edit form: every department in
  * display order except the department itself and its descendants (choosing
  * one of those would create a cycle).

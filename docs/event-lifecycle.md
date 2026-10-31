@@ -122,15 +122,15 @@ its draft. It is a **staged walk** — one input group visible at a time, built 
 `buildSteps` (`EventForm.tsx`); every role walks the same steps
 (no admin-only extras — there is no "On behalf of" creator step):
 
-| #   | Step                        | Who | Gate before advancing                                             |
-| --- | --------------------------- | --- | ----------------------------------------------------------------- |
-| 1   | `type`                      | all | custom: a type must be selected                                   |
-| 2   | `time`                      | all | `start`, `end`, `startAmPm`, `endAmPm` validate cleanly           |
-| 3   | `location`                  | all | none (policy clamping is live, §1.9)                              |
-| 4   | `invitees` (Participants)   | all | none                                                              |
-| 5   | `remarks`                   | all | none                                                              |
-| 6   | `settings` (Other settings) | all | none — the "Pin this event" + organizer-only edit-lock switches   |
-| 7   | `review`                    | all | submit only (last step) — read-only summary of everything entered |
+| #   | Step                        | Who | Gate before advancing                                                                     |
+| --- | --------------------------- | --- | ----------------------------------------------------------------------------------------- |
+| 1   | `type`                      | all | custom: a type must be selected                                                           |
+| 2   | `time`                      | all | `start`, `end`, `startAmPm`, `endAmPm` validate cleanly                                   |
+| 3   | `location`                  | all | none (policy clamping is live, §1.9)                                                      |
+| 4   | `invitees` (Participants)   | all | none                                                                                      |
+| 5   | `remarks`                   | all | none                                                                                      |
+| 6   | `settings` (Other settings) | all | none — the "Pin this event" switch (+ its department picker) and organizer-only edit-lock |
+| 7   | `review`                    | all | submit only (last step) — read-only summary of everything entered                         |
 
 The `invitees`, `remarks`, and `location` steps drop out per the selected type's config
 (§1.9.1): `show_location` off removes the Location step entirely — otherwise it always
@@ -998,21 +998,21 @@ Every decision-making part of the pipeline is a pure, I/O-free function unit-tes
 Vitest without a DB or Google credentials; the I/O glue (DB lookups, the Google
 writes, headers) is thin and lives in `actions.ts` / `queries.ts`.
 
-| Helper                                                                                                                                                                                                                          | Module                                            | Tests                                       |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------- |
-| `encodeEventNotes`, `parseEventNotes` (v1/v2/v3 + gzip fallback), `encodeNotesBlock`, `withEditLink`, `withInternalMarker`, `isExternalEvent`, `eventDetailUrl`, all field parsers                                              | `events/notes.ts`                                 | `notes.test.ts`                             |
-| `renderEventTitle`, `renderTitleRecipe`                                                                                                                                                                                         | `events/eventTitle.ts`, `settings/titleRecipe.ts` | `eventAudit.test.ts`, `titleRecipe.test.ts` |
-| `sanitizeTitleRecipe`, recipe validation                                                                                                                                                                                        | `settings/titleRecipe.ts`                         | `titleRecipe.test.ts`                       |
-| `normalizeAssignments` (whitelist keys, drop empties), `validateAssignments` (unknown ids) (§1.8.5)                                                                                                                             | `settings/validate.ts`                            | `settings/validate.test.ts`                 |
-| `formatFullName`                                                                                                                                                                                                                | `settings/formatName.ts`                          | `formatName.test.ts`                        |
-| `clampOutOfCamp` (all allowed-location sets), `flagsFromCategory` / `categoryFromFlags`, `normalizeAllowedLocations`                                                                                                            | `events/locationPolicy.ts`                        | `locationPolicy.test.ts`                    |
-| `resolveTimeOption(s)`, `normalizeTimeOptions`, `naiveDatePart` / `naiveTimePart` / `joinDateTimeParts`                                                                                                                         | `events/timeOptions.ts`                           | `timeOptions.test.ts`                       |
-| `buildEventTypePickerSections` (groups in display order, empty-group skip, ungrouped last, dangling-id degrade), `sortEventTypeGroups`, `moveEventTypeGroupOrder` (§1.10) | `eventTypes/groups.ts`                            | `groups.test.ts`                            |
-| `absEventRange` (timed + all-day exclusive end), naive↔instant, `weekDays`, `monthsInRange`, `shiftMonth`, `monthRange`, `monthGridRows`                                                                                        | `events/datetime.ts`                              | `datetime.test.ts`                          |
-| `modifyGuard`, `canChangeLock`                                                                                                                                                                                                  | `events/guards.ts`                                | `guards.test.ts`                            |
-| `validateEventForm` (range time-part requirement, chronology), `resolveEventAuthor`                                                                                                                                             | `events/validate.ts`                              | `validate.test.ts`                          |
-| `deriveTargetCalendarIds`, `diffEventTargets`, `dedupeEventsByGroupId`, `eventRefFromCalendarEvent`                                                                                                                             | `events/targets.ts`                               | `targets.test.ts`                           |
-| `buildGoogleCalendarUrl`, `buildEventIcs`, `icsFileName` (§1.12)                                                                                                                                                                | `events/calendarExport.ts`                        | `calendarExport.test.ts`                    |
+| Helper                                                                                                                                                                             | Module                                            | Tests                                       |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------- |
+| `encodeEventNotes`, `parseEventNotes` (v1/v2/v3 + gzip fallback), `encodeNotesBlock`, `withEditLink`, `withInternalMarker`, `isExternalEvent`, `eventDetailUrl`, all field parsers | `events/notes.ts`                                 | `notes.test.ts`                             |
+| `renderEventTitle`, `renderTitleRecipe`                                                                                                                                            | `events/eventTitle.ts`, `settings/titleRecipe.ts` | `eventAudit.test.ts`, `titleRecipe.test.ts` |
+| `sanitizeTitleRecipe`, recipe validation                                                                                                                                           | `settings/titleRecipe.ts`                         | `titleRecipe.test.ts`                       |
+| `normalizeAssignments` (whitelist keys, drop empties), `validateAssignments` (unknown ids) (§1.8.5)                                                                                | `settings/validate.ts`                            | `settings/validate.test.ts`                 |
+| `formatFullName`                                                                                                                                                                   | `settings/formatName.ts`                          | `formatName.test.ts`                        |
+| `clampOutOfCamp` (all allowed-location sets), `flagsFromCategory` / `categoryFromFlags`, `normalizeAllowedLocations`                                                               | `events/locationPolicy.ts`                        | `locationPolicy.test.ts`                    |
+| `resolveTimeOption(s)`, `normalizeTimeOptions`, `naiveDatePart` / `naiveTimePart` / `joinDateTimeParts`                                                                            | `events/timeOptions.ts`                           | `timeOptions.test.ts`                       |
+| `buildEventTypePickerSections` (groups in display order, empty-group skip, ungrouped last, dangling-id degrade), `sortEventTypeGroups`, `moveEventTypeGroupOrder` (§1.10)          | `eventTypes/groups.ts`                            | `groups.test.ts`                            |
+| `absEventRange` (timed + all-day exclusive end), naive↔instant, `weekDays`, `monthsInRange`, `shiftMonth`, `monthRange`, `monthGridRows`                                           | `events/datetime.ts`                              | `datetime.test.ts`                          |
+| `modifyGuard`, `canChangeLock`                                                                                                                                                     | `events/guards.ts`                                | `guards.test.ts`                            |
+| `validateEventForm` (range time-part requirement, chronology), `resolveEventAuthor`                                                                                                | `events/validate.ts`                              | `validate.test.ts`                          |
+| `deriveTargetCalendarIds`, `diffEventTargets`, `dedupeEventsByGroupId`, `eventRefFromCalendarEvent`                                                                                | `events/targets.ts`                               | `targets.test.ts`                           |
+| `buildGoogleCalendarUrl`, `buildEventIcs`, `icsFileName` (§1.12)                                                                                                                   | `events/calendarExport.ts`                        | `calendarExport.test.ts`                    |
 
 I/O-bound (not unit-tested, per the repo convention): `actions.ts` (the server
 actions), `queries.ts` (DB + cache reads, `mapCalendarItem`), `appUrl.ts`

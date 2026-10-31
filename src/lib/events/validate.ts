@@ -56,6 +56,12 @@ export interface EventFormValues {
   overseas: boolean;
   /** Whether the event is explicitly marked as pinned (Pinned Events panel). No validation. */
   pinned: boolean;
+  /**
+   * Department (calendar) ids the pin is narrowed to. Empty means the pin is
+   * global (shown to every department, including future ones). Only meaningful
+   * when `pinned` is true. No validation.
+   */
+  pinnedDepartments: string[];
   /** Location of the event; an optional specific place even for in-camp events. */
   location: string;
 }

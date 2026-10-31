@@ -189,8 +189,11 @@ async function buildGcalEventInput(
       endAmPm: input.timeOption === "half" ? input.endAmPm : undefined,
       outOfCamp: input.outOfCamp || undefined,
       overseas: input.outOfCamp && input.overseas ? true : undefined,
-      pinned: input.pinned || undefined,
-      registrationEnabled: input.registrationEnabled || undefined,
+      // A pin with no specific departments is global (legacy `pinned: true`);
+      // a targeted pin writes the department ids instead.
+      pinned: input.pinned && input.pinnedDepartments.length === 0 ? true : undefined,
+      pinnedDepartments:
+        input.pinned && input.pinnedDepartments.length > 0 ? input.pinnedDepartments : undefined,
       registrationCap: input.registrationCap ?? undefined,
     }),
   );

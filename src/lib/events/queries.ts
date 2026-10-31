@@ -26,6 +26,7 @@ import {
   parseEventOwnerOnlyEdits,
   parseEventPeople,
   parseEventPinned,
+  parseEventPinnedDepartments,
   parseEventRegistrationCap,
   parseEventRegistrationEnabled,
   parseEventStartAmPm,
@@ -71,6 +72,11 @@ export interface CalendarEventPayload {
   overseas: boolean;
   /** True when the event is explicitly marked as pinned (Pinned Events panel). */
   pinned: boolean;
+  /**
+   * Department (calendar) ids the pin is scoped to; empty/absent means every
+   * department (legacy/global pin).
+   */
+  pinnedDepartments?: string[];
   /** The event's location (from Google); "" when unset. */
   location: string;
   /** True when the event was created directly in Google Calendar, not in the app. */
@@ -195,6 +201,7 @@ export function mapCalendarItem(
       outOfCamp: parseEventOutOfCamp(item.description),
       overseas: parseEventOverseas(item.description),
       pinned: parseEventPinned(item.description),
+      pinnedDepartments: parseEventPinnedDepartments(item.description),
       location: item.location ?? "",
       external: isExternalEvent(item.description),
     },
@@ -316,13 +323,7 @@ export function projectRangeEvents(
           continue;
         }
         seen.add(key);
-        const mapped = mapCalendarItem(
-          calendar,
-          item,
-          filters,
-          data.typeColors,
-          memberships,
-        );
+        const mapped = mapCalendarItem(calendar, item, filters, data.typeColors, memberships);
         if (mapped) {
           events.push(mapped);
         }

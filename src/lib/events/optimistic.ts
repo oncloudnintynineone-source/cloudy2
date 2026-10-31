@@ -262,6 +262,7 @@ export function buildOptimisticEvent(params: OptimisticBuildParams): CalendarEve
       outOfCamp: normalized.outOfCamp,
       overseas: normalized.overseas,
       pinned: normalized.pinned,
+      pinnedDepartments: normalized.pinned ? normalized.pinnedDepartments : [],
       location: normalized.location,
       external: false,
     },

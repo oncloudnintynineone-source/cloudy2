@@ -16,6 +16,7 @@ import {
   parseEventOwnerOnlyEdits,
   parseEventPeople,
   parseEventPinned,
+  parseEventPinnedDepartments,
   parseEventRegistrationCap,
   parseEventRegistrationEnabled,
   parseEventStartAmPm,
@@ -111,6 +112,7 @@ export function eventFormValuesFromCopy(copy: GcalEventItem): EventFormValues | 
     outOfCamp: parseEventOutOfCamp(copy.description),
     overseas: parseEventOverseas(copy.description),
     pinned: parseEventPinned(copy.description),
+    pinnedDepartments: parseEventPinnedDepartments(copy.description),
     location: copy.location ?? "",
   };
 }

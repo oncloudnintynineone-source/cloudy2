@@ -13,6 +13,7 @@ import {
   parseEventOutOfCamp,
   parseEventPeople,
   parseEventPinned,
+  parseEventPinnedDepartments,
   parseEventRegistrationCap,
   parseEventRegistrationEnabled,
   parseEventStartAmPm,
@@ -373,19 +374,43 @@ describe("parseEventOutOfCamp", () => {
 });
 
 describe("parseEventPinned", () => {
-  it("returns true only for an explicit true flag", () => {
+  it("returns true for an explicit true flag (global pin)", () => {
     expect(parseEventPinned('{"pinned":true}')).toBe(true);
     expect(parseEventPinned(withEditLink(encodeNotesBlock('{"pinned":true}'), "https://x"))).toBe(
       true,
     );
   });
 
-  it("returns false for absent, false, or malformed values (legacy events are unpinned)", () => {
+  it("returns true when a department-scoped pin list is present", () => {
+    expect(parseEventPinned('{"pinnedDepartments":["dept-a"]}')).toBe(true);
+    expect(parseEventPinned(encodeEventNotes({ pinnedDepartments: ["dept-a", "dept-b"] }))).toBe(
+      true,
+    );
+  });
+
+  it("returns false for absent, false, empty, or malformed values (legacy events are unpinned)", () => {
     expect(parseEventPinned("")).toBe(false);
     expect(parseEventPinned('{"eventType":"Leave"}')).toBe(false);
     expect(parseEventPinned('{"pinned":false}')).toBe(false);
     expect(parseEventPinned('{"pinned":"yes"}')).toBe(false);
+    expect(parseEventPinned('{"pinnedDepartments":[]}')).toBe(false);
+    expect(parseEventPinned('{"pinnedDepartments":"dept-a"}')).toBe(false);
     expect(parseEventPinned("not json")).toBe(false);
+  });
+});
+
+describe("parseEventPinnedDepartments", () => {
+  it("returns the unique, non-empty department ids", () => {
+    expect(
+      parseEventPinnedDepartments('{"pinnedDepartments":["dept-a","dept-a","","dept-b"]}'),
+    ).toEqual(["dept-a", "dept-b"]);
+  });
+
+  it("returns an empty list for a global legacy pin, no pin, or malformed data", () => {
+    expect(parseEventPinnedDepartments('{"pinned":true}')).toEqual([]);
+    expect(parseEventPinnedDepartments('{"pinnedDepartments":"dept-a"}')).toEqual([]);
+    expect(parseEventPinnedDepartments("")).toEqual([]);
+    expect(parseEventPinnedDepartments("not json")).toEqual([]);
   });
 });
 
@@ -429,9 +454,9 @@ describe("parseEventPeople", () => {
 
 describe("parseEventRegistrationEnabled", () => {
   it("reads the per-event registration flag", () => {
-    expect(
-      parseEventRegistrationEnabled(encodeEventNotes({ registrationEnabled: true })),
-    ).toBe(true);
+    expect(parseEventRegistrationEnabled(encodeEventNotes({ registrationEnabled: true }))).toBe(
+      true,
+    );
   });
 
   it("treats absent or false values as closed", () => {

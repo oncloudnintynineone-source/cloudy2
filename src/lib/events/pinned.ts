@@ -2,15 +2,20 @@
 
 import { formatInstantToNaive } from "@/lib/events/datetime";
 import { renderEventTitle } from "@/lib/events/eventTitle";
-import { listCalendars } from "@/lib/events/queries";
-import { selectUpcomingPinnedEvents } from "@/lib/events/pinnedSelect";
+import { getUserDepartmentId, listCalendars } from "@/lib/events/queries";
+import {
+  selectPinnedEventsForDepartments,
+  selectUpcomingPinnedEvents,
+} from "@/lib/events/pinnedSelect";
 import { naiveTimePart } from "@/lib/events/timeOptions";
 import { listEventTypes } from "@/lib/eventTypes/queries";
+import { ancestorIds } from "@/lib/roster/hierarchy";
 import { listUsers } from "@/lib/roster/queries";
 import { formatFullName } from "@/lib/settings/formatName";
 import { getSettings, getEventTitleTemplateMap } from "@/lib/settings/queries";
 import type { TitleRecipe } from "@/lib/settings/titleRecipe";
 import { requireSession } from "@/lib/session";
+import { isUuid } from "@/lib/uuid";
 
 import { invalidatePinnedSelectionCache, readPinnedSelection } from "./pinnedCache";
 
@@ -41,24 +46,38 @@ export async function invalidatePinnedCache(): Promise<void> {
 /**
  * Upcoming explicitly-pinned events behind the Pinned Events panel AND the
  * header ticker. The selection itself comes from the durable singleton cache
- * (`pinnedCache.ts`) — only the rolling time window and display shaping run
- * per request. Titles render through each consumer's template assignment and
- * department names resolve for display.
+ * (`pinnedCache.ts`) — only the viewer's department scoping, rolling time
+ * window and display shaping run per request. Titles render through each
+ * consumer's template assignment and department names resolve for display.
  */
 export async function fetchPinnedEvents(): Promise<PinnedEvent[]> {
-  await requireSession();
+  const session = await requireSession();
 
-  const selection = await readPinnedSelection();
+  const [selection, calendars, departmentId] = await Promise.all([
+    readPinnedSelection(),
+    listCalendars(),
+    isUuid(session.user.id) ? getUserDepartmentId(session.user.id) : Promise.resolve(null),
+  ]);
   if (selection.length === 0) {
     return [];
   }
 
-  const pinned = selectUpcomingPinnedEvents(selection, formatInstantToNaive(new Date()));
+  // Scope the selection to the viewer's department. Members see pins targeted at
+  // their own department or any ancestor (a parent-department pin reaches the
+  // whole subtree); a pin with no targets is global. Admins always see every
+  // pin, and a user without a department sees only the global ones.
+  const scoped =
+    session.user.role === "admin"
+      ? selection
+      : selectPinnedEventsForDepartments(
+          selection,
+          departmentId ? [...ancestorIds(calendars, departmentId)] : [],
+        );
+  const pinned = selectUpcomingPinnedEvents(scoped, formatInstantToNaive(new Date()));
   if (pinned.length === 0) {
     return [];
   }
 
-  const calendars = await listCalendars();
   const calendarById = new Map(calendars.map((c) => [c.id, c.name]));
 
   const [settings, users, eventTypes, templateMap] = await Promise.all([

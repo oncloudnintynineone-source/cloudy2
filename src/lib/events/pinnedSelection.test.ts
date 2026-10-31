@@ -65,6 +65,15 @@ describe("decodePinnedSelection", () => {
   it("accepts an empty selection (cached 'nothing pinned')", () => {
     expect(decodePinnedSelection([])).toEqual([]);
   });
+
+  it("accepts scoped pin lists and old rows without the field", () => {
+    const scoped = {
+      ...event(),
+      payload: { ...event().payload, pinnedDepartments: ["dept-a"] },
+    };
+    expect(decodePinnedSelection([scoped])).toEqual([scoped]);
+    expect(decodePinnedSelection([event()])).toEqual([event()]);
+  });
 });
 
 describe("pinnedCacheIsFresh", () => {
@@ -72,17 +81,15 @@ describe("pinnedCacheIsFresh", () => {
 
   it("is fresh inside the window", () => {
     expect(pinnedCacheIsFresh(new Date(now.getTime() - 1), now)).toBe(true);
-    expect(
-      pinnedCacheIsFresh(new Date(now.getTime() - (PINNED_CACHE_FRESH_MS - 1)), now),
-    ).toBe(true);
+    expect(pinnedCacheIsFresh(new Date(now.getTime() - (PINNED_CACHE_FRESH_MS - 1)), now)).toBe(
+      true,
+    );
   });
 
   it("is stale at and beyond the window", () => {
-    expect(
-      pinnedCacheIsFresh(new Date(now.getTime() - PINNED_CACHE_FRESH_MS), now),
-    ).toBe(false);
-    expect(
-      pinnedCacheIsFresh(new Date(now.getTime() - PINNED_CACHE_FRESH_MS - 1), now),
-    ).toBe(false);
+    expect(pinnedCacheIsFresh(new Date(now.getTime() - PINNED_CACHE_FRESH_MS), now)).toBe(false);
+    expect(pinnedCacheIsFresh(new Date(now.getTime() - PINNED_CACHE_FRESH_MS - 1), now)).toBe(
+      false,
+    );
   });
 });
