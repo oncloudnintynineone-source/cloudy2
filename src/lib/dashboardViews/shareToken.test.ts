@@ -19,6 +19,7 @@ function payload(overrides: Partial<DashboardViewSharePayload> = {}): DashboardV
     c: ["cal-a", "cal-b"],
     u: ["user-a"],
     t: ["Leave", "Duty"],
+    q: "",
     b: "Alex",
     ...overrides,
   };
@@ -35,6 +36,15 @@ describe("dashboard view share token", () => {
   it("round-trips the full view definition", () => {
     const token = encoded();
     expect(decodeDashboardViewShare(token, SECRET)).toEqual(payload());
+  });
+
+  it("round-trips an event-name text filter", () => {
+    const token = encoded({ q: "night duty" });
+    expect(decodeDashboardViewShare(token, SECRET)?.q).toBe("night duty");
+  });
+
+  it("decodes older links without a text filter as empty", () => {
+    expect(normalizeSharePayload({ ...payload(), q: undefined })?.q).toBe("");
   });
 
   it("produces a URL-safe token", () => {

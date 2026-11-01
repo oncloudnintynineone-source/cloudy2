@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.361 (Locked-in feature-flag winners)** is shipped.
+- All work through changelog **1.362 (Dashboard event-name text filter)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -34,7 +34,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
   a Double Booking page that scans an existing schedule for double-bookings over the next
   30 days, surfaced by a live count pill on its nav entry; an on-demand set of user-created
   dashboard **Views (tabs)** over the six renderer kinds (Month / Week (H) / Week (D) / Day /
-  Agenda / Month & Agenda; each tab has its own name, order and Cal/Users/Types filters, stored server-side) over
+  Agenda / Month & Agenda; each tab has its own name, order and Cal/Users/Types/Event-name filters, stored server-side) over
   a layered calendar cache; parade-state page with local attendance mode; contacts page;
   PWA installability with offline & instant open (SWR document + RSC, precached offline.html);
   mobile-first UI with a desktop layout at `lg`; remembered UI state across relaunch;
@@ -2291,6 +2291,14 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   truth; the controls are gone from Settings → Feature Flags (only Saved-event
   confirmation and Motion profile remain) and migration `0065_chemical_killraven.sql`
   drops the five settings columns. Snapshot version 10. Docs: `docs/feature-flags.md`.
+- 1.362 **Dashboard event-name text filter**: the per-tab filter set gains an optional
+  **Event name** field — a case-insensitive substring over the typed name
+  (`payload.rawTitle`) and rendered title, applied server-side in the tab projection
+  (`filterEventsByText`) and persisted in the new `user_dashboard_views.text_filter`
+  column (migration `0066_huge_fixer.sql`). The shared `FilterModal` takes an optional
+  `textFilter` prop (all other callers unchanged), sharing the same Apply/Clear path.
+  Share links carry an optional `q` field, backward-compatible with existing links.
+  `DASHBOARD_SNAPSHOT_VERSION` → 11. Docs: `docs/dashboard-views.md` §1.2.
 
 ## 1.4 Open items & next steps
 

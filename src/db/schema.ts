@@ -137,6 +137,8 @@ export const userCalendarAccess = pgTable(
  * department) — an explicit `[]` is a genuine empty selection, distinct from
  * NULL. Values are re-validated against live data on every dashboard read
  * (stale ids drop out), exactly like the URL params they replaced.
+ * `textFilter` is a case-insensitive event-name substring (raw typed name or
+ * rendered title); NULL/blank means no text filter.
  */
 export const userDashboardViews = pgTable(
   "user_dashboard_views",
@@ -151,6 +153,8 @@ export const userDashboardViews = pgTable(
     calFilter: jsonb("cal_filter"),
     usersFilter: jsonb("users_filter"),
     typesFilter: jsonb("types_filter"),
+    /** Case-insensitive event-name substring; NULL = no text filter. */
+    textFilter: text("text_filter"),
     ...timestamps,
   },
   (table) => [index("user_dashboard_views_user_sort_idx").on(table.userId, table.sortOrder)],

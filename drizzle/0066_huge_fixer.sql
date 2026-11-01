@@ -1,0 +1,1 @@
+ALTER TABLE "user_dashboard_views" ADD COLUMN "text_filter" text;

@@ -183,7 +183,7 @@ describe("tabLoadStates", () => {
       kind: "month",
       name: "A",
       sortOrder: 0,
-      filters: { cal: null, users: null, types: null },
+      filters: { cal: null, users: null, types: null, text: null },
       ...over,
     };
   }
@@ -264,6 +264,7 @@ describe("dashboardTabFiltersEqual", () => {
     cal: null,
     users: null,
     types: null,
+    text: null,
     ...over,
   });
 
@@ -281,6 +282,12 @@ describe("dashboardTabFiltersEqual", () => {
 
   it("detects a differing selection", () => {
     expect(dashboardTabFiltersEqual(f({ cal: ["a"] }), f({ cal: ["a", "b"] }))).toBe(false);
+  });
+
+  it("compares the text filter (null and empty are equivalent)", () => {
+    expect(dashboardTabFiltersEqual(f({ text: "duty" }), f({ text: "duty" }))).toBe(true);
+    expect(dashboardTabFiltersEqual(f({ text: "duty" }), f({ text: "leave" }))).toBe(false);
+    expect(dashboardTabFiltersEqual(f({ text: null }), f({ text: "" }))).toBe(true);
   });
 });
 
@@ -345,7 +352,7 @@ describe("assembleDashboardSnapshot", () => {
     kind: "month",
     name: "Month",
     sortOrder: 0,
-    filters: { cal: null, users: null, types: null },
+    filters: { cal: null, users: null, types: null, text: null },
   };
 
   it("recombines the shared config with one tab's delta", () => {
@@ -360,6 +367,7 @@ describe("assembleDashboardSnapshot", () => {
       selectedCalendarIds: ["cal-a"],
       selectedTypes: [],
       selectedUserIds: ["user-1"],
+      selectedText: null,
       viewEventTitleRecipe: { segments: [] } as unknown as DashboardTabDelta["viewEventTitleRecipe"],
       scheduleUsers: [],
       filterUsers: [],
@@ -380,7 +388,7 @@ describe("patchSnapshotTab", () => {
     kind: "month",
     name: "Month",
     sortOrder: 0,
-    filters: { cal: null, users: null, types: null },
+    filters: { cal: null, users: null, types: null, text: null },
     ...over,
   });
 

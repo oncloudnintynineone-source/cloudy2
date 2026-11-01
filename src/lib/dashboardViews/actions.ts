@@ -12,6 +12,7 @@ import { toDashboardViewTab } from "./queries";
 import {
   isDashboardViewKind,
   nameAfterKindChange,
+  normalizeTextFilter,
   sanitizeDashboardViewName,
   type DashboardTabFilters,
   type DashboardViewKind,
@@ -162,6 +163,7 @@ export async function saveDashboardViewFilters(
       calFilter: clean(filters.cal),
       usersFilter: clean(filters.users),
       typesFilter: clean(filters.types),
+      textFilter: normalizeTextFilter(filters.text),
       updatedAt: new Date(),
     })
     .where(eq(userDashboardViews.id, id));

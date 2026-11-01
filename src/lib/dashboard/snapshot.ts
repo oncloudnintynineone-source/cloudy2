@@ -38,7 +38,7 @@ import type { TitleRecipe } from "@/lib/settings/titleRecipe";
  * version differs is ignored (and overwritten on the next successful load), so
  * a deploy that changes the shape can never feed the new UI a stale record.
  */
-export const DASHBOARD_SNAPSHOT_VERSION = 10;
+export const DASHBOARD_SNAPSHOT_VERSION = 11;
 
 /** The one-shot `?refresh=` nonce is honored only within this window. */
 export const REFRESH_NONCE_TTL_MS = 5 * 60_000;
@@ -105,6 +105,8 @@ export interface DashboardSnapshot {
   selectedCalendarIds: string[];
   selectedTypes: string[];
   selectedUserIds: string[];
+  /** The tab's event-name text filter, or null when none is applied. */
+  selectedText: string | null;
   /** The role defaults this user's tab filters fall back to (admin: all
    *  calendars; non-admin: their own department; users/types: none). */
   defaultFilters: DashboardTabFilters;
@@ -153,6 +155,7 @@ export type DashboardSharedConfig = Omit<
   | "selectedCalendarIds"
   | "selectedTypes"
   | "selectedUserIds"
+  | "selectedText"
   | "viewEventTitleRecipe"
   | "scheduleUsers"
   | "filterUsers"
@@ -165,6 +168,7 @@ export interface DashboardTabDelta {
   selectedCalendarIds: string[];
   selectedTypes: string[];
   selectedUserIds: string[];
+  selectedText: string | null;
   viewEventTitleRecipe: DashboardSnapshot["viewEventTitleRecipe"];
   scheduleUsers: DashboardSnapshot["scheduleUsers"];
   filterUsers: DashboardSnapshot["filterUsers"];
@@ -369,7 +373,8 @@ export function dashboardTabFiltersEqual(a: DashboardTabFilters, b: DashboardTab
   return (
     filterArraysEqual(a.cal, b.cal) &&
     filterArraysEqual(a.users, b.users) &&
-    filterArraysEqual(a.types, b.types)
+    filterArraysEqual(a.types, b.types) &&
+    (a.text ?? "") === (b.text ?? "")
   );
 }
 

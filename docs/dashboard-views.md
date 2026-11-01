@@ -473,7 +473,19 @@ grids, now with department section counts, hierarchy indentation, per-section
 All/Clear, a global Select all/Clear, and an amber "(You)" badge for the acting
 user. A footer scope hint notes _"These filters apply to {view name} only."_ —
 filter scoping is **per tab**: each tab stores its own Calendars/Users/Event
-Types selection, and clearing one tab's filters never touches the others.
+Types/Event-name selection, and clearing one tab's filters never touches the
+others.
+
+An optional **Event name** text field (rendered above the groups; the dashboard
+is its only caller) is a case-insensitive **substring** match over the event's
+typed name (`payload.rawTitle`) and its rendered title (`title`, after the view's
+title recipe). Blank means "no filter"; it has no All/None and no role default.
+It is staged in the same draft as the groups and persisted/applied through the
+same Apply/Clear path, and it is applied **server-side while projecting the tab**
+(`filterEventsByText` in `src/lib/events/textFilter.ts`, after
+`resolveDisplayTitles`), so preloaded tabs and cold starts resolve it identically.
+Matching deliberately covers the typed name *and* the composed title: a name that
+the recipe wraps ("[AM] Logistics — HQ") still matches its plain text.
 
 Filter storage & resolution:
 
@@ -484,11 +496,14 @@ Filter storage & resolution:
   department they are an active member of (`eventMatchesUserFilter`, with the
   dept→active-member map from the roster), mirroring the clash occupancy model.
 - A tab's filter state lives **on the tab row** (`user_dashboard_views.cal_filter`
-  / `users_filter` / `types_filter`), each JSON array or SQL `NULL`. `NULL`
+  / `users_filter` / `types_filter`, each JSON array or SQL `NULL`; plus
+  `text_filter`, a nullable text substring). `NULL`
   means **role default** (admin: all calendars; non-admin: their own department;
   Users/Event Types: none) and is re-resolved on every render — a department
   added later shows up without touching the tab. An **explicit array** (including
-  `[]` = a genuine "cleared" selection) is stored verbatim.
+  `[]` = a genuine "cleared" selection) is stored verbatim. The text substring is
+  trimmed/capped and applied as typed — it has no role default and is not
+  validated against live data.
 - **Applying or clearing is a server action**, not a URL navigation: the client
   calls `saveDashboardViewFilters` (empty/role-default selections are stored as
   `NULL`), then re-renders from the server so the events refetch under the new

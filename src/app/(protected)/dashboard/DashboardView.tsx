@@ -1098,6 +1098,7 @@ function DashboardViewImpl({
   selectedCalendarIds,
   selectedTypes,
   selectedUserIds,
+  selectedText,
   defaultFilters,
   currentUser,
   isAdmin,
@@ -2570,7 +2571,8 @@ function DashboardViewImpl({
   const activeFilterCount =
     (selectedCalendarIds.length > 0 && selectedCalendarIds.length < calendars.length ? 1 : 0) +
     (selectedUserIds.length > 0 ? 1 : 0) +
-    (selectedTypes.length > 0 ? 1 : 0);
+    (selectedTypes.length > 0 ? 1 : 0) +
+    (selectedText ? 1 : 0);
 
   const scheduleDepartments = useMemo(
     () => calendars.filter((calendar) => selectedCalendarIds.includes(calendar.id)),
@@ -3340,13 +3342,19 @@ function DashboardViewImpl({
   );
 
   // Same group semantics as `activeFilterCount`: a partial Calendars
-  // selection, any Users selection and any Event Types selection each count
-  // as one active filter group.
-  function filterCountMessage(calCount: number, userCount: number, typeCount: number): string {
+  // selection, any Users selection, any Event Types selection and a text filter
+  // each count as one active filter group.
+  function filterCountMessage(
+    calCount: number,
+    userCount: number,
+    typeCount: number,
+    textActive: boolean,
+  ): string {
     const count =
       (calCount > 0 && calCount < calendars.length ? 1 : 0) +
       (userCount > 0 ? 1 : 0) +
-      (typeCount > 0 ? 1 : 0);
+      (typeCount > 0 ? 1 : 0) +
+      (textActive ? 1 : 0);
     if (count === 0) return "Filters cleared";
     return count === 1 ? "1 filter active" : `${count} filters active`;
   }
@@ -3357,7 +3365,10 @@ function DashboardViewImpl({
    * added later automatically appears — an explicit array (incl. a genuine
    * empty one) is stored verbatim.
    */
-  function overrideFor(key: keyof DashboardTabFilters, selected: string[]): string[] | null {
+  function overrideFor(
+    key: "cal" | "users" | "types",
+    selected: string[],
+  ): string[] | null {
     const def = defaultFilters[key] ?? [];
     return selected.length === def.length && selected.every((id) => def.includes(id))
       ? null
@@ -3384,12 +3395,13 @@ function DashboardViewImpl({
 
   async function handleApplyFilters(
     values: Record<string, string[]>,
-    { cleared }: { cleared: boolean },
+    { cleared, text: rawText }: { cleared: boolean; text?: string },
   ) {
     const cals = values.Calendars ?? [];
     const users = values.Users ?? [];
     const types = values["Event Types"] ?? [];
-    announce(filterCountMessage(cals.length, users.length, types.length));
+    const text = cleared ? null : (rawText?.trim() || null);
+    announce(filterCountMessage(cals.length, users.length, types.length, text !== null));
     // Await the server write so the dialog's Apply button keeps its spinner up
     // through it; the follow-up read runs fire-and-forget and is carried by the
     // active tab's loading bar (docs/loading-transitions.md §1.13.2).
@@ -3398,11 +3410,12 @@ function DashboardViewImpl({
     // an explicit Deselect All reaches the empty-array case below.
     await persistFilters(
       cleared
-        ? { cal: null, users: null, types: null }
+        ? { cal: null, users: null, types: null, text: null }
         : {
             cal: overrideFor("cal", cals),
             users: overrideFor("users", users),
             types: overrideFor("types", types),
+            text,
           },
     );
   }
@@ -3410,7 +3423,7 @@ function DashboardViewImpl({
   function clearFilters() {
     // Role-default overrides (null): non-admins fall back to their own
     // department's calendar.
-    void persistFilters({ cal: null, users: null, types: null });
+    void persistFilters({ cal: null, users: null, types: null, text: null });
     announce("Filters cleared");
   }
 
@@ -6030,6 +6043,11 @@ function DashboardViewImpl({
           title="Filters"
           groups={filterGroups}
           values={filterValues}
+          textFilter={{
+            label: "Event name",
+            value: selectedText ?? "",
+            placeholder: "Filter by event name…",
+          }}
           onApply={handleApplyFilters}
           collapsedGroupLabels={["Event Types"]}
           hint={`These filters apply to ${activeView.name} only.`}

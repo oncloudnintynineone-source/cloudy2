@@ -196,6 +196,9 @@ export function ShareImportDialog({ opened, token, onClose, onAdded }: ShareImpo
                 label="Event types"
                 value={namesOr(preview.eventTypeNames, "Any event type")}
               />
+              {preview.textFilter && (
+                <SummaryRow label="Event name" value={`“${preview.textFilter}”`} />
+              )}
             </Stack>
 
             {preview.missingFilterCount > 0 && (

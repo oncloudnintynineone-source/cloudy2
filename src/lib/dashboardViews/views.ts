@@ -12,7 +12,9 @@
  * default" (admin: all calendars; non-admin: their own department; users and
  * event types default to nothing) — or an explicit array of selections,
  * including an empty array (a genuine "cleared" selection). Stored ids/names
- * are re-validated against live data on every dashboard render.
+ * are re-validated against live data on every dashboard render. `text` is a
+ * free-text event-name substring (`null`/blank = no filter); it has no role
+ * default and is applied as typed.
  */
 
 /** The dashboard view renderer kinds a tab can be. Order is the display order
@@ -68,18 +70,23 @@ export const DASHBOARD_VIEW_NAME_MAX_LENGTH = 40;
 /** Soft per-user tab cap — sanity guard, not a hard product limit. */
 export const MAX_VIEWS_PER_USER = 20;
 
+/** Longest accepted free-text filter (keeps snapshots/share tokens small). */
+export const DASHBOARD_TEXT_FILTER_MAX_LENGTH = 120;
+
 /**
  * A tab's own filter overrides as stored: `null` = role default, an array
- * (including `[]` = cleared) = an explicit selection.
+ * (including `[]` = cleared) = an explicit selection. `text` is a
+ * case-insensitive event-name substring; `null` (or blank) = no text filter.
  */
 export interface DashboardTabFilters {
   cal: string[] | null;
   users: string[] | null;
   types: string[] | null;
+  text: string | null;
 }
 
 export function emptyTabFilters(): DashboardTabFilters {
-  return { cal: null, users: null, types: null };
+  return { cal: null, users: null, types: null, text: null };
 }
 
 /** A tab's filters resolved against live data (always explicit arrays). */
@@ -87,6 +94,7 @@ export interface ResolvedTabFilters {
   cal: string[];
   users: string[];
   types: string[];
+  text: string | null;
 }
 
 export interface TabFilterContext {
@@ -130,7 +138,25 @@ export function resolveTabFilters(
     cal: resolve(filters.cal, context.calendarIds, context.defaultCalendars),
     users: resolve(filters.users, context.userIds, []),
     types: resolve(filters.types, context.typeNames, []),
+    text: normalizeTextFilter(filters.text),
   };
+}
+
+/**
+ * Normalize a free-text filter override: trim surrounding whitespace, cap the
+ * length and decode anything that is not a string (or is blank after trimming)
+ * to `null` (no filter). Unlike the id/name arrays there is no role default and
+ * no live-data revalidation — the substring is applied as typed.
+ */
+export function normalizeTextFilter(raw: unknown): string | null {
+  if (typeof raw !== "string") {
+    return null;
+  }
+  const value = raw.trim();
+  if (value.length === 0) {
+    return null;
+  }
+  return value.slice(0, DASHBOARD_TEXT_FILTER_MAX_LENGTH);
 }
 
 /** Client/view shape of one tab (no timestamps, filters parsed). */

@@ -47,7 +47,7 @@ export async function appendDashboardView(
     .where(eq(userDashboardViews.userId, userId))
     .orderBy(asc(userDashboardViews.sortOrder));
   const nextOrder = rows.reduce((max, row) => Math.max(max, row.sortOrder), -1) + 1;
-  const filters = input.filters ?? { cal: null, users: null, types: null };
+  const filters = input.filters ?? { cal: null, users: null, types: null, text: null };
   const [created] = await db
     .insert(userDashboardViews)
     .values({
@@ -58,6 +58,7 @@ export async function appendDashboardView(
       calFilter: filters.cal,
       usersFilter: filters.users,
       typesFilter: filters.types,
+      textFilter: filters.text,
     })
     .returning();
   return { ok: true, id: created.id, tab: toDashboardViewTab(created) };

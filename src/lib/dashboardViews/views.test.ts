@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  DASHBOARD_TEXT_FILTER_MAX_LENGTH,
   DASHBOARD_VIEW_KINDS,
   DASHBOARD_VIEW_KIND_LABELS,
   isDashboardViewKind,
   nameAfterKindChange,
   normalizeFilterOverride,
+  normalizeTextFilter,
   periodSwitchDirection,
   resolveActiveTab,
   resolveTabFilters,
@@ -19,21 +21,21 @@ const month: DashboardViewTab = {
   kind: "month",
   name: "Month",
   sortOrder: 0,
-  filters: { cal: null, users: null, types: null },
+  filters: { cal: null, users: null, types: null, text: null },
 };
 const agendaA: DashboardViewTab = {
   id: "a1",
   kind: "agenda",
   name: "My Agenda",
   sortOrder: 1,
-  filters: { cal: ["c1"], users: null, types: ["Leave"] },
+  filters: { cal: ["c1"], users: null, types: ["Leave"], text: null },
 };
 const agendaB: DashboardViewTab = {
   id: "a2",
   kind: "agenda",
   name: "Ops Agenda",
   sortOrder: 2,
-  filters: { cal: [], users: ["u1"], types: null },
+  filters: { cal: [], users: ["u1"], types: null, text: null },
 };
 const tabs = [month, agendaA, agendaB];
 
@@ -175,6 +177,22 @@ describe("periodSwitchDirection", () => {
   });
 });
 
+describe("normalizeTextFilter", () => {
+  it("trims and keeps a real query", () => {
+    expect(normalizeTextFilter("  Logistics  ")).toBe("Logistics");
+  });
+  it("decodes blank/non-string to null", () => {
+    expect(normalizeTextFilter("   ")).toBeNull();
+    expect(normalizeTextFilter(null)).toBeNull();
+    expect(normalizeTextFilter(42)).toBeNull();
+  });
+  it("caps the stored length", () => {
+    expect(normalizeTextFilter("x".repeat(DASHBOARD_TEXT_FILTER_MAX_LENGTH + 20))).toHaveLength(
+      DASHBOARD_TEXT_FILTER_MAX_LENGTH,
+    );
+  });
+});
+
 describe("resolveTabFilters", () => {
   const context = {
     calendarIds: ["c1", "c2", "c3"],
@@ -184,31 +202,46 @@ describe("resolveTabFilters", () => {
   };
 
   it("uses the role default only for null overrides", () => {
-    expect(resolveTabFilters({ cal: null, users: null, types: null }, context)).toEqual({
+    expect(
+      resolveTabFilters({ cal: null, users: null, types: null, text: null }, context),
+    ).toEqual({
       cal: ["c1"],
       users: [],
       types: [],
+      text: null,
     });
   });
 
   it("keeps explicit selections, including an empty one", () => {
     expect(
-      resolveTabFilters({ cal: [], users: ["u2"], types: ["Duty"] }, context),
-    ).toEqual({ cal: [], users: ["u2"], types: ["Duty"] });
+      resolveTabFilters({ cal: [], users: ["u2"], types: ["Duty"], text: null }, context),
+    ).toEqual({ cal: [], users: ["u2"], types: ["Duty"], text: null });
   });
 
   it("drops stale ids from an otherwise valid selection", () => {
     expect(
-      resolveTabFilters({ cal: ["c2", "deleted"], users: ["u1", "gone"], types: ["Leave", "Old"] }, context),
-    ).toEqual({ cal: ["c2"], users: ["u1"], types: ["Leave"] });
+      resolveTabFilters(
+        { cal: ["c2", "deleted"], users: ["u1", "gone"], types: ["Leave", "Old"], text: null },
+        context,
+      ),
+    ).toEqual({ cal: ["c2"], users: ["u1"], types: ["Leave"], text: null });
   });
 
   it("falls back to the role default when every explicit value is stale", () => {
     expect(
       resolveTabFilters(
-        { cal: ["deleted"], users: ["gone"], types: ["Old"] },
+        { cal: ["deleted"], users: ["gone"], types: ["Old"], text: null },
         context,
       ),
-    ).toEqual({ cal: ["c1"], users: [], types: [] });
+    ).toEqual({ cal: ["c1"], users: [], types: [], text: null });
+  });
+
+  it("normalizes the text filter and never validates it against live data", () => {
+    expect(
+      resolveTabFilters(
+        { cal: null, users: null, types: null, text: "  night duty  " },
+        context,
+      ).text,
+    ).toBe("night duty");
   });
 });

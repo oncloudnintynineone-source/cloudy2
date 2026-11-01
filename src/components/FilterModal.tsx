@@ -2,15 +2,17 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import {
+  ActionIcon,
   Badge,
   Button,
   Group,
   Stack,
   Text,
+  TextInput,
   useMantineTheme,
 } from "@mantine/core";
 import { useMediaQuery, useViewportSize } from "@mantine/hooks";
-import { IconChevronDown, IconPlus } from "@tabler/icons-react";
+import { IconChevronDown, IconPlus, IconSearch, IconX } from "@tabler/icons-react";
 
 import { AllNoneControls } from "@/components/AllNoneControls";
 import { EventTypeGroupGrid } from "@/components/EventTypeGroupGrid";
@@ -29,6 +31,9 @@ import { modalZoomTransitionProps } from "@/lib/motion/transitions";
 import { useMotion } from "@/components/MotionProvider";
 import { NARROW_MEDIA_QUERY, BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { buildUserGroups, type PickerGroup } from "@/lib/users/userSelect";
+
+/** Fallback cap for an optional free-text filter (callers may override). */
+const DEFAULT_TEXT_FILTER_MAX_LENGTH = 120;
 
 export interface FilterOption {
   value: string;
@@ -150,6 +155,19 @@ function searchGroupPickerGroups(group: FilterGroup): PickerGroup[] {
   ];
 }
 
+/**
+ * Optional free-text filter rendered above the option groups. It is staged in
+ * the same draft as the groups and returned through `FilterApplyMeta.text` on
+ * Apply; a blank value means "no text filter".
+ */
+export interface FilterTextGroup {
+  label: string;
+  /** The currently applied value (empty when none). */
+  value: string;
+  placeholder?: string;
+  maxLength?: number;
+}
+
 /** Result of an Apply: the resolved values plus whether "Clear" produced them. */
 export interface FilterApplyMeta {
   /**
@@ -158,6 +176,11 @@ export interface FilterApplyMeta {
    * from a genuine empty selection (the dashboard) reads this flag instead.
    */
   cleared: boolean;
+  /**
+   * The trimmed free-text filter draft, present when the caller supplied a
+   * `textFilter`. Empty string = no text filter.
+   */
+  text?: string;
 }
 
 interface FilterModalProps {
@@ -167,6 +190,8 @@ interface FilterModalProps {
   groups: FilterGroup[];
   values: Record<string, string[]>;
   onApply: (values: Record<string, string[]>, meta: FilterApplyMeta) => void | Promise<void>;
+  /** Optional free-text filter rendered above the groups (e.g. event name). */
+  textFilter?: FilterTextGroup;
   /**
    * Viewport rect of the trigger button, captured on tap. Drives the modal's
    * standard grow/shrink-from-element zoom animation (see `lib/motion/origin`).
@@ -231,6 +256,7 @@ export function FilterModal({
   groups,
   values,
   onApply,
+  textFilter,
   collapsedGroupLabels,
   hint,
   originRect = null,
@@ -274,6 +300,7 @@ export function FilterModal({
         groups={groups}
         values={values}
         onApply={onApply}
+        textFilter={textFilter}
         onClose={onClose}
         collapsedGroupLabels={collapsedGroupLabels}
         hint={hint}
@@ -286,15 +313,19 @@ function FilterModalBody({
   groups,
   values,
   onApply,
+  textFilter,
   onClose,
   collapsedGroupLabels = [],
   hint,
 }: Pick<
   FilterModalProps,
-  "groups" | "values" | "onApply" | "onClose" | "collapsedGroupLabels" | "hint"
+  "groups" | "values" | "onApply" | "textFilter" | "onClose" | "collapsedGroupLabels" | "hint"
 >) {
   const motion = useMotion();
   const [draft, setDraft] = useState<Record<string, string[]>>(() => initialDraft(groups, values));
+  // Free-text filter draft; blank means "no text filter". Staged like the
+  // groups and only applied on Apply.
+  const [textDraft, setTextDraft] = useState<string>(() => textFilter?.value ?? "");
   // Collapsed groups start hidden and expand per-group; the toggle is local
   // to the dialog session (re-opening resets to the collapsed start).
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
@@ -355,6 +386,7 @@ function FilterModalBody({
     try {
       await onApply(resolveFilterApply(groups.map(toApplyGroup), draft, values, changed, cleared), {
         cleared,
+        text: textDraft.trim(),
       });
       onClose();
     } finally {
@@ -365,6 +397,7 @@ function FilterModalBody({
   function handleClear() {
     setDraft(initialDraft(groups, {}));
     setChanged(new Set());
+    setTextDraft("");
     setCleared(true);
   }
 
@@ -397,13 +430,42 @@ function FilterModalBody({
     );
   }
 
-  const hasActiveFilter = groups.some(
-    (group) => !isGroupUnfiltered(toApplyGroup(group), draft[group.label] ?? []),
-  );
+  const hasActiveFilter =
+    (textFilter !== undefined && textDraft.trim() !== "") ||
+    groups.some((group) => !isGroupUnfiltered(toApplyGroup(group), draft[group.label] ?? []));
 
   return (
     <Stack gap="md" style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
       <Stack gap="lg" style={{ flex: 1, minHeight: 0, overflowY: "auto", paddingRight: 2 }}>
+        {textFilter && (
+          <Stack gap={6}>
+            <Text fw={600} size="sm">
+              {textFilter.label}
+            </Text>
+            <TextInput
+              aria-label={textFilter.label}
+              value={textDraft}
+              onChange={(event) => setTextDraft(event.currentTarget.value)}
+              placeholder={textFilter.placeholder ?? "Type to match"}
+              maxLength={textFilter.maxLength ?? DEFAULT_TEXT_FILTER_MAX_LENGTH}
+              leftSection={<IconSearch size={16} />}
+              rightSectionPointerEvents="all"
+              rightSection={
+                textDraft.length > 0 ? (
+                  <ActionIcon
+                    variant="subtle"
+                    color="gray"
+                    size="sm"
+                    aria-label={`Clear ${textFilter.label}`}
+                    onClick={() => setTextDraft("")}
+                  >
+                    <IconX size={14} />
+                  </ActionIcon>
+                ) : undefined
+              }
+            />
+          </Stack>
+        )}
         {groups.map((group) => {
           const collapsible = collapsedGroupLabels.includes(group.label);
           const shown = !collapsible || expanded.has(group.label);

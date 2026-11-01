@@ -8,6 +8,7 @@ import {
   DASHBOARD_VIEW_KIND_LABELS,
   isDashboardViewKind,
   normalizeFilterOverride,
+  normalizeTextFilter,
   type DashboardViewTab,
 } from "./views";
 
@@ -61,6 +62,7 @@ export function toDashboardViewTab(row: UserDashboardView): DashboardViewTab {
       cal: normalizeFilterOverride(row.calFilter),
       users: normalizeFilterOverride(row.usersFilter),
       types: normalizeFilterOverride(row.typesFilter),
+      text: normalizeTextFilter(row.textFilter),
     },
   };
 }

@@ -9814,3 +9814,26 @@ server read per user intent; it is gated by online/Save-Data/2G, deduped, and ab
 - Retired flags stay documented in `docs/feature-flags.md` §1.5; the related
   flag references across the docs were updated to the fixed behavior.
 - Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm db:generate`.
+
+## 1.362 Dashboard event-name text filter
+
+- Added a per-tab **Event name** filter to the dashboard's filter set: a
+  case-insensitive substring over the event's typed name (`payload.rawTitle`) and
+  rendered title (`title`), matching only the name (not location/type/calendar/notes).
+- Persisted in the new nullable `user_dashboard_views.text_filter` column
+  (migration `drizzle/0066_huge_fixer.sql` + meta). `null`/blank means no text filter;
+  the value is trimmed and capped (`DASHBOARD_TEXT_FILTER_MAX_LENGTH = 120`) but, unlike
+  the id/name arrays, it has no role default and is not validated against live data.
+- Applied server-side after `resolveDisplayTitles` in `projectTab`, so preloads, cold
+  starts and tab switches resolve it identically (`filterEventsByText`, pure and
+  unit-tested in `src/lib/events/textFilter.ts`). `readCalendarRange` stays
+  filter-independent — no extra Google/Neon read, no DB text index.
+- `FilterModal` gained an optional `textFilter` prop + `FilterApplyMeta.text`; the
+  dashboard passes it, all other callers (Contacts/Parade/Audit/Users) are unchanged.
+  The field stages in the same draft and shares the Apply/Clear path.
+- Snapshot contract: `selectedText` added to `DashboardSnapshot`/`DashboardTabDelta`
+  and to filter equality (`dashboardTabFiltersEqual`); `DASHBOARD_SNAPSHOT_VERSION` → 11.
+- Share links carry an optional `q` field (missing = none, so older links still
+  decode); the shared-view preview shows an Event-name row and import restores it.
+- Docs: `docs/dashboard-views.md` §1.2, `AGENTS.md`.
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm db:generate`.

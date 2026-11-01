@@ -51,6 +51,8 @@ export interface SharedViewPreview {
   calendarNames: string[];
   userNames: string[];
   eventTypeNames: string[];
+  /** Event-name text filter (empty = none). */
+  textFilter: string;
   /** True when every live calendar is selected (the UI shows one summary). */
   allCalendars: boolean;
   /** How many shared selections no longer exist in the live config. */
@@ -118,6 +120,7 @@ export async function createDashboardViewShareLink(viewId: string): Promise<Shar
     c: filters.cal,
     u: filters.users,
     t: filters.types,
+    q: filters.text ?? "",
     b: (session.user.name ?? "").slice(0, 80),
   };
   return encodeDashboardViewShare(payload, secret);
@@ -173,6 +176,7 @@ export async function inspectSharedDashboardView(token: string): Promise<SharedV
       calendarNames,
       userNames,
       eventTypeNames,
+      textFilter: payload.q ?? "",
       allCalendars,
       missingFilterCount:
         payload.c.length - calendarNames.length +
@@ -214,6 +218,7 @@ export async function addSharedDashboardView(token: string): Promise<AddSharedVi
       cal: payload.c,
       users: payload.u,
       types: payload.t,
+      text: payload.q || null,
     },
   });
   if (!created.ok) {

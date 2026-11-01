@@ -21,7 +21,7 @@ function tab(over: Partial<DashboardViewTab> = {}): DashboardViewTab {
     kind: "month",
     name: "A",
     sortOrder: 0,
-    filters: { cal: null, users: null, types: null },
+    filters: { cal: null, users: null, types: null, text: null },
     ...over,
   };
 }

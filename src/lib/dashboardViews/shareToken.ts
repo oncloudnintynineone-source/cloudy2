@@ -55,6 +55,8 @@ export interface DashboardViewSharePayload {
   u: string[];
   /** Resolved event-type names (never null; empty = any). */
   t: string[];
+  /** Event-name text filter (empty = none). Optional for older links. */
+  q?: string;
   /** Sharer display name (best-effort, empty when unavailable). */
   b: string;
 }
@@ -114,6 +116,14 @@ export function normalizeSharePayload(raw: unknown): DashboardViewSharePayload |
   ) {
     return null;
   }
+  // `q` is optional so links created before text filters still decode; a
+  // present value must be a bounded string.
+  if (
+    value.q !== undefined &&
+    (typeof value.q !== "string" || value.q.length > MAX_FILTER_VALUE_LENGTH)
+  ) {
+    return null;
+  }
   return {
     v: SHARE_TOKEN_VERSION,
     n: name,
@@ -121,6 +131,7 @@ export function normalizeSharePayload(raw: unknown): DashboardViewSharePayload |
     c: value.c,
     u: value.u,
     t: value.t,
+    q: typeof value.q === "string" ? value.q.trim() : "",
     b: value.b,
   };
 }

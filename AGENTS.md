@@ -170,8 +170,11 @@ doc content here.
 - **Dashboard views (tabs) & filters:** per-account rows in `user_dashboard_views`
   (`src/lib/dashboardViews`), renderer kinds Month / Week (H) / Week (D) / Day / Agenda /
   Month & Agenda (Month + Agenda side by side, resizable; day-anchored, `src/lib/ui/dualSplit.ts`).
-  Per-tab Cal/Users/Types filters are stored server-side (no `cal/users/types` URL params);
-  the shared `FilterModal` renders every group with the same `SelectableBadge`s and an
+  Per-tab Cal/Users/Types/**Event-name** filters are stored server-side (no
+  `cal/users/types` URL params); the optional Event-name field is a case-insensitive
+  substring over the typed name + rendered title, applied server-side in the tab
+  projection (`filterEventsByText`, `src/lib/events/textFilter.ts`); the shared
+  `FilterModal` renders every group with the same `SelectableBadge`s and an
   All/None pair (search groups label it All/Clear); Event Types reuse the wizard's
   `buildEventTypePickerSections` rendered through the shared `EventTypeGroupGrid`
   (non-folder groups as name-only labeled rows, folder groups as chips → popup of

@@ -32,6 +32,7 @@ import {
   type DisplayTitleEventType,
   type DisplayTitleUser,
 } from "@/lib/events/eventTitleDisplay";
+import { filterEventsByText } from "@/lib/events/textFilter";
 import { filterUserOptionIds } from "@/lib/filters/filterUserOptions";
 import { googleCalendarConfigured } from "@/lib/google";
 import { listQuickLinks } from "@/lib/quickLinks/queries";
@@ -244,6 +245,7 @@ async function resolveDashboardConfig(session: Session): Promise<DashboardConfig
     cal: defaultCalendars,
     users: [],
     types: [],
+    text: null,
   };
 
   const activeUsers = allUsers.filter((user) => user.status === "active");
@@ -476,7 +478,10 @@ function projectTab(
     filters.cal,
     config.membershipsByDepartment,
   );
-  const events = resolveDisplayTitles(projected, config.displayOptionsFor(tab.kind));
+  const titled = resolveDisplayTitles(projected, config.displayOptionsFor(tab.kind));
+  // Name filtering runs after the title recipe so it matches what the user
+  // sees, falling back to the original typed name (payload.rawTitle).
+  const events = filterEventsByText(titled, filters.text);
   const months = requiredMonths(tab.kind, period.month, period.date, config.shared.weekStartsOn);
 
   const delta: DashboardTabDelta = {
@@ -485,6 +490,7 @@ function projectTab(
     selectedCalendarIds: filters.cal,
     selectedTypes: filters.types,
     selectedUserIds: filters.users,
+    selectedText: filters.text,
     viewEventTitleRecipe: config.viewRecipeFor(tab.kind),
     scheduleUsers: config.scheduleUsersFor(filters.cal),
     filterUsers: config.filterUsersFor(filters.cal),
