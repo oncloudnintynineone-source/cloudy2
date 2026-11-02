@@ -277,6 +277,15 @@ grid, modal/detail bodies, status pages, and search results. Rules:
   grid cell with the content owning the final size.
 - **`contentClassName`** styles the content wrapper (e.g. the search body's
   fill column).
+- **`animateHeight`** (opt-in, content-driven modal bodies): on the skeleton →
+  content edge the wrapper locks to the skeleton's layout height
+  (`offsetHeight`, so the modal's entrance scale cannot pollute it), then
+  transitions to the content's height on the same clock as the dissolve. This
+  keeps the dialog growing/shrinking smoothly instead of instantly adopting the
+  content's size and reading as a hard jump. Bounded/page surfaces leave it off
+  (their boxes must not animate), and reduced-motion / `c2-low-end` keep the
+  instant swap. `flex: 0 1 auto` is applied for the beat so the filter body's
+  `flex: 1` wrapper can be driven by the explicit height.
 
 Related CSS in `globals.css`: the agenda day's directional slide-in
 (`agenda-slide-next`/`agenda-slide-prev`) — the in-month day

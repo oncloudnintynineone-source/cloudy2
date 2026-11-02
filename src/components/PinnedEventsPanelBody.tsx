@@ -195,6 +195,7 @@ export function PinnedEventsPanelBody({ seedEvents = null, onLoaded }: PinnedEve
           <CrossfadeSwap
             loading={loading}
             mode="overlay"
+            animateHeight
             skeleton={<PinnedEventsSkeleton />}
           >
             {failed && visibleEvents === null ? (

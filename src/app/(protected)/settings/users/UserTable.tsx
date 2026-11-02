@@ -249,6 +249,7 @@ export function UserTable({ users, departments, accessByUser, nameTemplate }: Us
           loading={opened && !userFormReady}
           minHoldMs={MIN_SKELETON_HOLD_MS}
           mode="overlay"
+          animateHeight
           skeleton={<FormModalSkeleton rows={5} />}
         >
           <UserForm

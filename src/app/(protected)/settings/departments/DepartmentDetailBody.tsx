@@ -392,6 +392,7 @@ export function DepartmentDetailBody({
               loading={Boolean(calendarId) && !data}
               minHoldMs={MIN_SKELETON_HOLD_MS}
               mode="overlay"
+              animateHeight
               skeleton={
                 <Stack gap="sm">
                   <LoadingStatus label="Loading calendar access" />

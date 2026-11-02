@@ -60,6 +60,7 @@ export function DepartmentDetail({
         loading={opened && !bodyReady}
         minHoldMs={MIN_SKELETON_HOLD_MS}
         mode="overlay"
+        animateHeight
         skeleton={<FormModalSkeleton rows={5} />}
       >
         {/* Keyed per department: the body (form state + access data) is

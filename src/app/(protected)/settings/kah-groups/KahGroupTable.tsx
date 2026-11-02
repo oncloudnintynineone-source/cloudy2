@@ -285,6 +285,7 @@ export function KahGroupTable({
           loading={formOpened && !kahGroupFormReady}
           minHoldMs={MIN_SKELETON_HOLD_MS}
           mode="overlay"
+          animateHeight
           skeleton={<FormModalSkeleton rows={4} />}
         >
           <KahGroupForm

@@ -68,6 +68,7 @@ export function ShareViewDialog({ tab, onClose }: ShareViewDialogProps) {
         loading={loading}
         minHoldMs={MIN_SKELETON_HOLD_MS}
         mode="overlay"
+        animateHeight
         skeleton={
           <Stack gap="sm" aria-busy>
             <LoadingStatus label="Creating share link" />

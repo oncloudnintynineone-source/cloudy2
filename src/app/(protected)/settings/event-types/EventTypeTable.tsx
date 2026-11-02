@@ -216,6 +216,7 @@ export function EventTypeTable({ types, groups, reorderDrag }: EventTypeTablePro
           loading={formOpened && !eventTypeFormReady}
           minHoldMs={MIN_SKELETON_HOLD_MS}
           mode="overlay"
+          animateHeight
           skeleton={<FormModalSkeleton rows={5} />}
         >
           <EventTypeForm

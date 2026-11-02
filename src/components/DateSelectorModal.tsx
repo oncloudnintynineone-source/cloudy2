@@ -89,6 +89,7 @@ export function DateSelectorModal({
         loading={opened && !bodyReady}
         minHoldMs={MIN_SKELETON_HOLD_MS}
         mode="overlay"
+        animateHeight
         skeleton={<FormModalSkeleton rows={6} label="Loading date picker" />}
       >
         <DateSelectorModalBodyLazy

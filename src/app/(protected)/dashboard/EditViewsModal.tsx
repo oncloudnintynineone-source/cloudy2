@@ -81,6 +81,7 @@ export function EditViewsModal({
         loading={opened && !bodyReady}
         minHoldMs={MIN_SKELETON_HOLD_MS}
         mode="overlay"
+        animateHeight
         skeleton={<FormModalSkeleton rows={4} label="Loading views" />}
       >
         <EditViewsModalBody

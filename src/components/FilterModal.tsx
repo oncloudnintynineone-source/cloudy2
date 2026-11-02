@@ -236,6 +236,7 @@ export function FilterModal({
         loading={opened && !bodyReady}
         minHoldMs={MIN_SKELETON_HOLD_MS}
         mode="overlay"
+        animateHeight
         className="c2-filter-modal-swap"
         skeleton={<FormModalSkeleton rows={6} label="Loading filters" />}
       >

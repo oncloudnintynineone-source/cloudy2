@@ -436,6 +436,7 @@ export function TemplatesManager({
           loading={masterOpened && !recipeBuilderReady}
           minHoldMs={MIN_SKELETON_HOLD_MS}
           mode="overlay"
+          animateHeight
           skeleton={<FormModalSkeleton rows={5} />}
         >
           <TitleRecipeBuilder
@@ -462,6 +463,7 @@ export function TemplatesManager({
           loading={editOpened && !recipeBuilderReady}
           minHoldMs={MIN_SKELETON_HOLD_MS}
           mode="overlay"
+          animateHeight
           skeleton={<FormModalSkeleton rows={5} />}
         >
           <TitleRecipeBuilder

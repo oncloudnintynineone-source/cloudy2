@@ -36,6 +36,7 @@ export function ShareImportDialog({ opened, token, onClose, onAdded }: ShareImpo
         loading={opened && !bodyReady}
         minHoldMs={MIN_SKELETON_HOLD_MS}
         mode="overlay"
+        animateHeight
         skeleton={<ShareImportSkeleton />}
       >
         <ShareImportDialogBody token={token} onClose={onClose} onAdded={onAdded} />

@@ -93,6 +93,7 @@ export function EventDetail({
           loading={opened && !bodyReady}
           minHoldMs={MIN_SKELETON_HOLD_MS}
           mode="overlay"
+          animateHeight
           skeleton={<EventDetailSkeleton />}
         >
           <EventDetailBody

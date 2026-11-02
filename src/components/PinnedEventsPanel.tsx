@@ -78,6 +78,7 @@ export function PinnedEventsPanel({ seedEvents = null, onLoaded }: PinnedEventsP
         loading={open && !bodyReady}
         minHoldMs={MIN_SKELETON_HOLD_MS}
         mode="overlay"
+        animateHeight
         skeleton={<PinnedEventsSkeleton />}
       >
         <PinnedEventsPanelBody seedEvents={seedEvents} onLoaded={onLoaded} />

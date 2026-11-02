@@ -158,6 +158,7 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
         loading={opened && !searchBodyReady}
         minHoldMs={MIN_SKELETON_HOLD_MS}
         mode="overlay"
+        animateHeight
         skeleton={<EventSearchBodySkeleton />}
       >
         <EventSearchBody

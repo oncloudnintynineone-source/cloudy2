@@ -5876,6 +5876,7 @@ function DashboardViewImpl({
               loading={formIsOpen && !eventFormReady}
               minHoldMs={MIN_SKELETON_HOLD_MS}
               mode="overlay"
+              animateHeight
               skeleton={<EventFormSkeleton />}
             >
               {formState ? (

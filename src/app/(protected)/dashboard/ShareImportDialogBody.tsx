@@ -132,6 +132,7 @@ export function ShareImportDialogBody({ token, onClose, onAdded }: ShareImportDi
         loading={loading}
         minHoldMs={MIN_SKELETON_HOLD_MS}
         mode="overlay"
+        animateHeight
         skeleton={<ShareImportSkeleton />}
       >
         {loadingError !== null && (

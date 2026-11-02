@@ -198,6 +198,7 @@ export function EventHistoryModal({
             loading={eventId !== null && previewItems === null}
             minHoldMs={MIN_SKELETON_HOLD_MS}
             mode="overlay"
+            animateHeight
             skeleton={<EventHistorySkeleton />}
           >
             {previewItems !== null ? (

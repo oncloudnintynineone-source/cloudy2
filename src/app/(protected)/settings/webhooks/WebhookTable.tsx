@@ -156,6 +156,7 @@ export function WebhookTable({ webhooks }: WebhookTableProps) {
           loading={formOpened && !webhookFormReady}
           minHoldMs={MIN_SKELETON_HOLD_MS}
           mode="overlay"
+          animateHeight
           skeleton={<FormModalSkeleton rows={3} />}
         >
           <WebhookForm

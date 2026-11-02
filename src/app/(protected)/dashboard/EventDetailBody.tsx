@@ -274,7 +274,12 @@ export function EventDetailBody({
 
   return (
     <>
-      <CrossfadeSwap loading={loading} mode="overlay" skeleton={<EventDetailSkeleton />}>
+      <CrossfadeSwap
+        loading={loading}
+        mode="overlay"
+        animateHeight
+        skeleton={<EventDetailSkeleton />}
+      >
           {showEvent && payload ? (
             <Stack>
               <Text fw={600}>{showEvent.title}</Text>

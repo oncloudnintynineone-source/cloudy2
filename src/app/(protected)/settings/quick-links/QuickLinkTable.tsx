@@ -337,6 +337,7 @@ export function QuickLinkTable({ links, reorderDrag }: QuickLinkTableProps) {
           loading={formOpened && !quickLinkFormReady}
           minHoldMs={MIN_SKELETON_HOLD_MS}
           mode="overlay"
+          animateHeight
           skeleton={<FormModalSkeleton rows={4} />}
         >
           <QuickLinkForm
