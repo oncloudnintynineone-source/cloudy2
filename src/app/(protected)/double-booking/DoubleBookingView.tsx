@@ -44,7 +44,7 @@ import { buildUserGroups, selectionByGroup } from "@/lib/users/userSelect";
 
 type ClashOk = Extract<UserClashCheckResult, { ok: true }>;
 
-/** A roster user an admin can scan. */
+/** An active roster user the viewer can scan. */
 interface ScanTargetOption {
   id: string;
   name: string;
@@ -65,7 +65,7 @@ function plural(count: number, singular: string, pluralWord: string): string {
 /**
  * The "Double Booking" page: which of a user's *existing* events double-book
  * them over the next 30 days. Runs the read-only `checkUserClashes` action on
- * mount and whenever an admin switches the scan target. Advisory only — it
+ * mount and whenever the viewer switches the scan target. Advisory only — it
  * never writes or changes anything. See docs/user-clashes.md.
  */
 export function DoubleBookingView({
@@ -75,7 +75,7 @@ export function DoubleBookingView({
 }: {
   currentUserId: string;
   isAdmin: boolean;
-  /** Admin target options (active roster users). Empty for regular users. */
+  /** Scan target options (active roster users). Empty when the roster is empty. */
   users: ScanTargetOption[];
 }) {
   const router = useRouter();
@@ -105,9 +105,9 @@ export function DoubleBookingView({
     result: ClashOk | null;
   } | null>(null);
 
-  // Admin target picker (the shared UserSelectModal badge dialog, single
-  // select): options grouped by department with the shortname as a search
-  // term, seeded with the currently scanned person on every open.
+  // Target picker (the shared UserSelectModal badge dialog, single select):
+  // options grouped by department with the shortname as a search term, seeded
+  // with the currently scanned person on every open.
   const [targetPickerOpen, setTargetPickerOpen] = useState(false);
   const targetPickerGroups = useMemo(
     () =>
@@ -230,7 +230,7 @@ export function DoubleBookingView({
     view = { kind: "loading" };
   }
 
-  // The single summary badge for the admin picker (hidden while self-scanning).
+  // The single summary badge for the target picker (hidden while self-scanning).
   const selfScan = targetUserId === currentUserId;
   const targetOption = users.find((user) => user.id === targetUserId);
   const targetSummaryItem: PickerBadgeItem = {
@@ -245,9 +245,9 @@ export function DoubleBookingView({
 
   return (
     <Stack gap="md" pb="xl" className={CONTENT_ENTER_CLASS}>
-      {/* The pinned chrome: the head block (title + admin target picker, one
-          flex row at lg) stuck under the app header while the clash groups
-          scroll beneath it — the shared sticky-chrome recipe
+      {/* The pinned chrome: the head block (title + target picker, one flex
+          row at lg) stuck under the app header while the clash groups scroll
+          beneath it — the shared sticky-chrome recipe
           (docs/dashboard-views.md, SettingsTabs). */}
       <Box
         className="c2-glass-surface"
@@ -267,7 +267,7 @@ export function DoubleBookingView({
           <div className="c2-db-title">
             <PageHeader title="Double Booking" subtitle={subtitleFor(view)} />
           </div>
-          {isAdmin && (
+          {users.length > 0 && (
             <div className="c2-db-picker">
               <PickerField
                 label="Check another person"
@@ -304,7 +304,7 @@ export function DoubleBookingView({
         {view.kind === "loading" ? null : renderContent(view)}
       </CrossfadeSwap>
 
-      {isAdmin && (
+      {users.length > 0 && (
         <UserSelectModal
           opened={targetPickerOpen}
           onClose={() => setTargetPickerOpen(false)}

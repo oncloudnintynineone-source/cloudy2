@@ -392,8 +392,7 @@ export type UserClashCheckResult =
  * is the complete picture. No candidate exists here — it is not the wizard's
  * pre-submit advisory. Never writes, never audits, never invalidates a cache.
  *
- * Regular users may only scan themselves; admins may scan any active roster
- * user.
+ * Any signed-in user may scan themselves or any active roster user.
  */
 export async function checkUserClashes(request: {
   targetUserId?: string;
@@ -401,9 +400,6 @@ export async function checkUserClashes(request: {
   const session = await requireSession();
   try {
     const targetUserId = request.targetUserId ?? session.user.id;
-    if (targetUserId !== session.user.id && session.user.role !== "admin") {
-      return { ok: false, error: "You can only check your own schedule" };
-    }
 
     const users = await listUsers();
     const activeUserRows = users.filter((user) => user.status === "active");
@@ -540,9 +536,9 @@ export type ClashEventDetailResult =
 
 /**
  * Read-only fetch of one clashing event for the Double Booking page's in-place
- * detail modal. Mirrors `checkUserClashes`'s guard: regular users may only
- * resolve their own home department; admins may resolve the scanned target's.
- * Reads through the sanctioned month cache (never raw `listEvents`).
+ * detail modal. Mirrors `checkUserClashes`: any signed-in user may resolve the
+ * scanned target's home department. Reads through the sanctioned month cache
+ * (never raw `listEvents`).
  */
 export async function getClashEventDetail(request: {
   targetUserId?: string;
@@ -555,9 +551,6 @@ export async function getClashEventDetail(request: {
   const session = await requireSession();
   try {
     const targetUserId = request.targetUserId ?? session.user.id;
-    if (targetUserId !== session.user.id && session.user.role !== "admin") {
-      return { ok: false, error: "You can only view your own events" };
-    }
 
     const users = await listUsers();
     const activeUsers = users.filter((user) => user.status === "active");

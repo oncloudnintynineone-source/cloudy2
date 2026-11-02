@@ -9837,3 +9837,26 @@ server read per user intent; it is gated by online/Save-Data/2G, deduped, and ab
   decode); the shared-view preview shows an Event-name row and import restores it.
 - Docs: `docs/dashboard-views.md` §1.2, `AGENTS.md`.
 - Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm db:generate`.
+
+## 1.363 Double Booking open to all users + desktop header alignment
+
+- **Audience expanded.** `checkUserClashes` and `getClashEventDetail`
+  (`src/lib/events/clashActions.ts`) no longer reject a non-admin target: any
+  signed-in user may scan themselves or any active roster user. The target is still
+  resolved from the active roster, so inactive/unknown ids keep falling back to the
+  `no-active-user` notice, and the detail read still only resolves the scanned
+  target's own home department calendar.
+- The server page (`src/app/(protected)/double-booking/page.tsx`) always loads and
+  shapes the active roster for the picker (previously admin-only); the view renders
+  the "Check another person" `PickerField` + `UserSelectModal` for everyone when the
+  roster is non-empty. `isAdmin` remains only for the read-only `EventDetail`.
+- No new data exposure: dashboard reads already surface all department calendars
+  org-wide; this change only aggregates a chosen user's own calendar.
+- **Desktop header fix.** At `min-width: 40em` `.c2-db-head` switched to a row with
+  `align-items: flex-end`, so the title (shorter than the picker's label + Select +
+  chip stack) sank to the bottom of the header block. Changed to `flex-start`, keeping
+  the title anchored to the top of the row on desktop/wide layouts; mobile was already
+  a column.
+- Docs: `docs/user-clashes.md` §1.2/§1.4/§1.5/§1.7/§1.8/§1.9, `AGENTS.md` (§1.2
+  audience + picker + title alignment + scan-scope edge case).
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test`.

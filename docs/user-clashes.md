@@ -33,18 +33,18 @@ read-only: it never writes, never audits, and never blocks anything.
 `/double-booking` is a top-level protected route under the shell, added to the bottom
 nav and sidebar for **every** role (regular, KAH-group member, admin) via the shared
 `NavItem` list in `AppShellShell.tsx` (all three role arrays include it after
-Contacts). The server page only resolves the session identity and — for admins — the
-active roster; the scan itself runs client-side through the server action so an admin
-can switch targets without a navigation.
+Contacts). The server page resolves the session identity and the active roster; the
+scan itself runs client-side through the server action so any user can switch targets
+without a navigation.
 
-- **Regular users** always scan themselves.
-- **Admins** get the shared **`UserSelectModal` badge dialog in `single` mode** (a
-  `NoKeyboardSelect`-style dropdown would violate the large-option-list rule in
+- **Every signed-in user** can scan themselves or any active roster user.
+- The target control is the shared **`UserSelectModal` badge dialog in `single` mode**
+  (a `NoKeyboardSelect`-style dropdown would violate the large-option-list rule in
   `docs/user-picker.md`): roster grouped into per-department badge sections with the
   shortname as an extra search term. Picking one person (Confirm disabled until a
   pick) switches the scan target. Inactive users are not offered.
-- The acting user is emphasised as `You` only when the target **is** the actor, so an
-  admin scanning a colleague sees plain name chips.
+- The acting user is emphasised as `You` only when the target **is** the actor, so
+  scanning a colleague sees plain name chips.
 
 ### 1.2.1 The nav count badge
 
@@ -105,10 +105,10 @@ never touches another department.
 
 ```mermaid
 flowchart LR
- U["/double-booking page<br/>(session + roster for admin picker)"]
+ U["/double-booking page<br/>(session + active roster for target picker)"]
  V["DoubleBookingView (client)"]
  A["checkUserClashes (server action, read-only)"]
- S["requireSession + self/admin guard"]
+ S["requireSession guard"]
  R["active roster snapshot<br/>(listUsers)"]
  C["user's home department calendar id"]
  M["clashingEventsFor([home])<br/>window months via month cache"]
@@ -130,15 +130,16 @@ flowchart LR
 ## 1.5 Pipeline
 
 1. The page (`src/app/(protected)/double-booking/page.tsx`, a server component)
- resolves the session and, for admins, loads the active roster for the target
- picker, then renders `DoubleBookingView`.
+ resolves the session and loads the active roster for the target picker, then
+ renders `DoubleBookingView`.
 2. On mount (and on every target change / Retry) the view calls the server action
  `checkUserClashes({ targetUserId })` — the same cancelled-flag + `attempt` pattern
  `EventClashCheck` uses, with the loading/error views derived from the
  request/outcome pair (state is only set in the async callbacks, so the
  `react-hooks/set-state-in-effect` rule stays satisfied).
-3. The action guards: `requireSession()`; a non-admin requesting a user other than
- themselves is refused.
+3. The action guards with `requireSession()`; any signed-in user may scan any
+ active roster user (the target is resolved from the active roster, so unknown or
+ deactivated ids fall back to the specific notice).
 4. The scan window is **today → +30 days**, inclusive dates in the UTC+8 wall clock:
  `[parseNaiveToInstant(today + " 00:00:00"), +30 days)` — a half-open instant window
  (`USER_CLASH_SCAN_DAYS = 30`, exported from `clashQuery.ts`). An event that started
@@ -175,13 +176,13 @@ unit-tested (`clashes.test.ts`). Steps:
 `checkUserClashes(request: { targetUserId?: string })` in `clashActions.ts` (a
 `"use server"` module) returns a `UserClashCheckResult`:
 
-- `{ ok: false, error }` for failures (including a non-admin asking for someone else).
+- `{ ok: false, error }` for failures.
 - `{ ok: true, currentUserId, targetUserId, targetName, rangeStartDate,
 rangeEndDate, groups, skipReason }` where `skipReason` is:
   - `"no-department"` — the target belongs to no department calendar (e.g. an
  email-less bootstrap admin), so nothing can occupy them;
   - `"no-active-user"` — the requested target is not on the active roster (only
- reachable through a stale admin pick); or
+ reachable through a stale pick); or
   - `null` — a real scan ran (possibly with zero groups).
 
 Each `groups[]` entry is `{ events: EventClashEntry[] }` — the same `EventClashEntry`
@@ -197,14 +198,15 @@ half-day-aware occupancy window the timeline positions bars by (the stored
 
 ## 1.8 The page & view
 
-- **`page.tsx`** — server component: `requireSession()`; admins additionally load and
-  shape the active roster (`id`, `name`, `shortname`, department) for the picker.
-  Regular users get an empty list and never fetch the roster.
+- **`page.tsx`** — server component: `requireSession()`; loads and shapes the active
+  roster (`id`, `name`, `shortname`, department) for the picker.
 - **`DoubleBookingView.tsx`** — client component. The header is a responsive flex row
   (`.c2-db-head` in `globals.css`): title + a short target-aware subtitle on the left,
-  and the admin-only target control on the right — **full column width on mobile**,
+  and the target control on the right — **full column width on mobile**,
   content-sized from the 40em desktop band on (a pure-CSS switch, so there is no
-  `useMediaQuery` first-frame shift). The control follows the event form's Invited
+  `useMediaQuery` first-frame shift). On that row the title is **top-aligned** with
+  the picker, so it stays anchored to the top of the header block beside the taller
+  label + Select + chip stack. The control follows the event form's Invited
   Attendees pattern: a "Check another person" label + a light **Select** button that
   opens the `UserSelectModal` badge dialog (`single` mode; department sections,
   shortname search), plus a chip for the current target (`Name · Department`) or a
@@ -239,7 +241,7 @@ half-day-aware occupancy window the timeline positions bars by (the stored
   detail modal. The card heading leads with the episode's **time** (`9:00 AM – 5:00 PM`,
   `All day`, or a date range — `clashEpisodeTimeLabel`; a group mixing a whole-day and a
   timed event names both, e.g. `9:00 AM – 10:00 AM · All day`) and a muted `N events`
-  count (prefixed `{name} ·` for an admin scan). The 30-day strip cells are theme-aware
+  count (prefixed `{name} ·` for a colleague scan). The 30-day strip cells are theme-aware
   too (`light-dark()`). The same `ClashTimelineDays` powers the wizard's review-step
   advisory ([event-clashes.md](event-clashes.md) §1.6), with the candidate as a distinct
   `brand` "This event" bar (inert) and conflicting bars that open the same in-place
@@ -260,8 +262,8 @@ half-day-aware occupancy window the timeline positions bars by (the stored
   (`EventDetail`'s `loading` prop; no spinner, no dim — the skeleton-only rule) and
   zooms out of the tapped element (`originRect` captured from the bar/row), then
   `DoubleBookingView` lazily calls the read-only `getClashEventDetail` server action
-  (guarded like the scan — a non-admin may only resolve the target's own home
-  calendar), which reads the copy through the sanctioned month cache
+  (guarded like the scan — it only resolves the scanned target's own home calendar),
+  which reads the copy through the sanctioned month cache
   (`fetchRangeEvents`) and returns the full `CalendarEvent` plus the `peopleNames` /
   `calendarNames` / `myActiveDepartmentIds` the shared `EventDetail` needs. The
   details then fade in (`content-enter`, after a ~150 ms minimum skeleton hold). The
@@ -320,7 +322,8 @@ as a double booking — see [`kah.md`](kah.md) §1.7.
   rather than a misleading "no double bookings".
 - **Roster changes** (someone deactivated mid-scan) are handled by the active-only
   filter in the engine; the picker is rebuilt from the roster on each page load.
-- **Non-admin tampering** with the `targetUserId` is refused by the action — self-only.
+- **Scan scope** — every signed-in user may scan any active roster user; inactive or
+  unknown `targetUserId`s fall back to the `no-active-user` notice.
 
 ## 1.10 Related docs
 

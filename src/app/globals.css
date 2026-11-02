@@ -2584,9 +2584,11 @@ html {
   }
 }
 
-/* Double Booking page header (docs/user-clashes.md §1.8): the title + admin
-   target picker stack on mobile (picker full column width) and split into a
-   title-left / content-sized picker-right row from the 40em desktop band on. */
+/* Double Booking page header (docs/user-clashes.md §1.8): the title + target
+   picker stack on mobile (picker full column width) and split into a
+   title-left / content-sized picker-right row from the 40em desktop band on.
+   The row is top-aligned so the title stays anchored to the top of the header
+   block beside the taller picker (label + select + chip). */
 .c2-db-head {
   display: flex;
   flex-direction: column;
@@ -2605,7 +2607,7 @@ html {
   .c2-db-head {
     flex-direction: row;
     justify-content: space-between;
-    align-items: flex-end;
+    align-items: flex-start;
     gap: var(--mantine-spacing-md);
   }
 
@@ -2613,7 +2615,7 @@ html {
     flex: 1 1 auto;
   }
 
-  /* The admin target control is content-sized (a "Select" button + optional
+  /* The target control is content-sized (a "Select" button + optional
      current-target chip) — not a full-width input, so it no longer pins a
      rigid 340px field. */
   .c2-db-picker {

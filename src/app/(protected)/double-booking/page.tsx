@@ -7,11 +7,10 @@ import { requireSession } from "@/lib/session";
 import { DoubleBookingView } from "./DoubleBookingView";
 
 /**
- * The "Double Booking" page: which of the user's *existing* events double-book
- * them (or, for admins, any active roster user) over the next 30 days. The
- * scan itself is a read-only server action run from the client view; the page
- * only supplies the session identity and, for admins, the roster to pick a
- * target from. See docs/user-clashes.md.
+ * The "Double Booking" page: which of a user's *existing* events double-book
+ * them over the next 30 days. The scan itself is a read-only server action run
+ * from the client view; the page supplies the session identity and the active
+ * roster any user can pick a scan target from. See docs/user-clashes.md.
  */
 export default async function DoubleBookingPage() {
   const session = await requireSession();
@@ -22,21 +21,19 @@ export default async function DoubleBookingPage() {
     calendars.map((calendar) => [calendar.id, calendar.parentId ?? null]),
   );
 
-  const users = isAdmin
-    ? (await listUsers())
-        .filter((user) => user.status === "active")
-        .map((user) => ({
-          id: user.id,
-          name: user.name,
-          shortname: user.shortname,
-          departmentId: user.department?.id ?? null,
-          departmentName: user.department?.name ?? null,
-          departmentSort: user.department?.sortOrder ?? null,
-          departmentParentId: user.department?.id
-            ? (departmentParentById.get(user.department.id) ?? null)
-            : null,
-        }))
-    : [];
+  const users = (await listUsers())
+    .filter((user) => user.status === "active")
+    .map((user) => ({
+      id: user.id,
+      name: user.name,
+      shortname: user.shortname,
+      departmentId: user.department?.id ?? null,
+      departmentName: user.department?.name ?? null,
+      departmentSort: user.department?.sortOrder ?? null,
+      departmentParentId: user.department?.id
+        ? (departmentParentById.get(user.department.id) ?? null)
+        : null,
+    }));
 
   return (
     <PageTransition>

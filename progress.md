@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.362 (Dashboard event-name text filter)** is shipped.
+- All work through changelog **1.363 (Double Booking open to all users)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -31,8 +31,9 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
   calendars with cross-department copies, invitees, templates, time options and location
   policy, with outbound webhooks to any number of admin-registered external endpoints on
   create/update/delete and pre-submit event clash warnings on the wizard's review step;
-  a Double Booking page that scans an existing schedule for double-bookings over the next
-  30 days, surfaced by a live count pill on its nav entry; an on-demand set of user-created
+  a Double Booking page where any user can scan their own or a colleague's existing
+  schedule for double-bookings over the next 30 days, surfaced by a live count pill on
+  its nav entry; an on-demand set of user-created
   dashboard **Views (tabs)** over the six renderer kinds (Month / Week (H) / Week (D) / Day /
   Agenda / Month & Agenda; each tab has its own name, order and Cal/Users/Types/Event-name filters, stored server-side) over
   a layered calendar cache; parade-state page with local attendance mode; contacts page;
@@ -2299,6 +2300,13 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   `textFilter` prop (all other callers unchanged), sharing the same Apply/Clear path.
   Share links carry an optional `q` field, backward-compatible with existing links.
   `DASHBOARD_SNAPSHOT_VERSION` → 11. Docs: `docs/dashboard-views.md` §1.2.
+- 1.363 **Double Booking open to all users + desktop header fix**: every signed-in
+  user can now scan themselves or any active roster user (the page loads the roster
+  for everyone and both `checkUserClashes` / `getClashEventDetail` drop the
+  admin-only target guard); the desktop/wide header row is top-aligned
+  (`.c2-db-head` `align-items: flex-start`) so the title no longer sinks to the
+  picker's baseline. Docs: `docs/user-clashes.md` §1.2/§1.5/§1.7/§1.8/§1.9,
+  `AGENTS.md`.
 
 ## 1.4 Open items & next steps
 

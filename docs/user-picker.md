@@ -92,7 +92,7 @@ of toggleable badges with a search box on top:
   fall into an unranked trailing "Other" section. Grid groups (Calendars, departments,
   Event Types) render the same `SelectableBadge`s; labels carry the full ancestor chain
   for departments, and event-type groups use the wizard's section/folder split.
-- **Double Booking admin target** — a `single`-mode `UserSelectModal` (department
+- **Double Booking scan target** — a `single`-mode `UserSelectModal` (department
   sections nested by tree depth, shortname `search`) replacing the page's original
   `NoKeyboardSelect` dropdown, since the roster is a large option list.
 - **UserForm "Department access" add row** — a `single` `UserSelectModal` (Departments
@@ -146,7 +146,7 @@ separate role + Add commit:
 | -------- | ----- | ----- |
 | Event wizard (Participants step) | `PickerField` | departments `accent`, explanatory description (participants can edit; a fresh create pre-selects the acting user; an event must keep ≥1 participant/department) |
 | KAH group form | `PickerField` | `Members (N)` count, "Choose" trigger, "No members selected." empty; field error renders below |
-| Double Booking admin target | `PickerField` | single `brand` chip "Name · Department"; self-scan shows the empty text instead |
+| Double Booking scan target | `PickerField` | single `brand` chip "Name · Department"; self-scan shows the empty text instead |
 | Department create/edit (Parent department) | `PickerField` | summary always shows the current option incl. "No parent (top level)" |
 | UserForm (Department to grant) | trigger `Button` | stages the department; role select + Add commit it |
 | `FilterModal` search groups | `PickerBadges` only | `cap={5}` + `+N`, "All {label}" empty — the group's own heading/label row is FilterModal's |

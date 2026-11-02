@@ -304,12 +304,12 @@ doc content here.
   `listEvents`), and running pure `computeClashes` (`src/lib/events/clashes.ts`). The
   advisory is a collapsible amber `ClashCard`; warnings never block a save.
   Design: [docs/event-clashes.md](docs/event-clashes.md).
-- **Double Booking page (`/double-booking`):** a 30-day scan of the user's own department
+- **Double Booking page (`/double-booking`):** a 30-day scan of a user's home department
   calendar; pure `findUserClashGroups` (`src/lib/events/clashes.ts`) → collapsible
-  `ClashCard` groups. Admins can scan any active roster user via the shared
-  `UserSelectModal`; the nav entry carries a live amber count pill (`checkUserClashes({})`,
-  refreshed on `cloudy2:events-changed`). Advisory: never writes or audits.
-  Design: [docs/user-clashes.md](docs/user-clashes.md).
+  `ClashCard` groups. Any signed-in user can check themselves or any active roster
+  user via the shared `UserSelectModal`; the nav entry carries a live amber count pill
+  (`checkUserClashes({})`, refreshed on `cloudy2:events-changed`). Advisory: never
+  writes or audits. Design: [docs/user-clashes.md](docs/user-clashes.md).
 - **Event history & My Events (`/my-events`):** read-only views over the event audit rows.
   The per-event changelog is the shared **`EventHistoryModal`** (`src/components/EventHistoryModal.tsx`,
   entries in `EventHistoryEntries.tsx`) — opened by tapping a My Events row or the event modal's

@@ -71,7 +71,7 @@ export interface PickerFieldProps extends PickerBadgesProps {
  * A labelled user/department picker row: an optional header (label + count +
  * description) with the trigger button pinned right, then the PickerBadges
  * summary. Shared by the event wizard's invitees, KAH member fields, and the
- * Double Booking admin target; FilterModal composes PickerBadges directly for
+ * Double Booking scan target; FilterModal composes PickerBadges directly for
  * its search-group summaries.
  */
 export function PickerField({
