@@ -36,11 +36,11 @@ interface CrossfadeSwapProps {
   /** Extra class on the content layer (the skeleton layer stays bare). */
   contentClassName?: string;
   /**
-   * Morph the wrapper's height from the skeleton's layout height to the
-   * content's when the swap happens (content-driven modal bodies). Off by
-   * default: bounded surfaces (grids, page lists) must not animate their box.
-   * Runs on the same clock as the skeleton dissolve; skipped for reduced
-   * motion / the low-end tier.
+   * Resize the wrapper from the skeleton's layout height to the content's
+   * (content-driven modal bodies). Off by default: bounded surfaces (grids,
+   * page lists) must not animate their box. The dialog stays at the skeleton
+   * height through the dissolve, then animates to the content height once the
+   * skeleton is gone; skipped for reduced motion / the low-end tier.
    */
   animateHeight?: boolean;
   children: ReactNode;
@@ -77,7 +77,11 @@ export function CrossfadeSwap({
   // The wrapper's layout height while the skeleton is the only layer. Read via
   // `offsetHeight` so the modal's entrance scale transform cannot pollute it.
   const skeletonHeightRef = useRef<number | null>(null);
+  // The content height to resize to once the skeleton dissolve ends.
+  const pendingResizeRef = useRef<{ from: number; to: number } | null>(null);
+  const lockedRef = useRef(false);
   const prevHeldRef = useRef(held);
+  const prevLeavingRef = useRef(leaving);
 
   if (prevLoading !== held) {
     setPrevLoading(held);
@@ -95,9 +99,10 @@ export function CrossfadeSwap({
     }
   }, [animateHeight, held]);
 
-  // On skeleton -> content, lock the old height (before paint) and morph to the
-  // content's height while the skeleton dissolves. Without this the dialog
-  // instantly adopts the content's size and the crossfade reads as a hard jump.
+  // On skeleton -> content, lock the wrapper at the skeleton height (before
+  // paint) so the dissolve happens at a stable size; the queued resize runs
+  // only after the skeleton has faded out. Resizing while the skeleton is
+  // still visible made its boxes look detached from the content's layout.
   useLayoutEffect(() => {
     const changedToContent = prevHeldRef.current && !held;
     prevHeldRef.current = held;
@@ -122,24 +127,61 @@ export function CrossfadeSwap({
     el.style.height = `${from}px`;
     el.style.flex = "0 1 auto";
     el.style.overflow = "hidden";
-    void el.offsetHeight;
+    pendingResizeRef.current = { from, to };
+    lockedRef.current = true;
+  }, [held, animateHeight, motion.duration.standard]);
+
+  // Once the skeleton dissolve ends, animate the locked dialog to the content
+  // height. `offsetHeight` targets were captured at reveal, before the lock.
+  useLayoutEffect(() => {
+    const finished = prevLeavingRef.current && !leaving;
+    prevLeavingRef.current = leaving;
+    if (!finished || !animateHeight) {
+      return;
+    }
+    const el = sizeRef.current;
+    const pending = pendingResizeRef.current;
+    pendingResizeRef.current = null;
+    if (!el || !pending) {
+      lockedRef.current = false;
+      return;
+    }
+    const duration = motion.duration.standard;
+    if (duration <= 0 || prefersInstantSwap()) {
+      clearLockedHeight(el);
+      lockedRef.current = false;
+      return;
+    }
+
     el.style.transition = `height ${duration}ms ${motion.easing.out}`;
+    void el.offsetHeight;
     const frame = requestAnimationFrame(() => {
-      el.style.height = `${to}px`;
+      el.style.height = `${pending.to}px`;
     });
     const finish = () => {
       cancelAnimationFrame(frame);
-      el.style.transition = "";
-      el.style.height = "";
-      el.style.flex = "";
-      el.style.overflow = "";
+      clearLockedHeight(el);
+      lockedRef.current = false;
     };
     const timer = window.setTimeout(finish, duration + 40);
     return () => {
       window.clearTimeout(timer);
       finish();
     };
-  }, [held, animateHeight, motion.duration.standard, motion.easing.out]);
+  }, [leaving, animateHeight, motion.duration.standard, motion.easing.out]);
+
+  // A new load during the fade/resize supersedes the queued height change.
+  useLayoutEffect(() => {
+    if (!held || !lockedRef.current) {
+      return;
+    }
+    const el = sizeRef.current;
+    pendingResizeRef.current = null;
+    lockedRef.current = false;
+    if (el) {
+      clearLockedHeight(el);
+    }
+  }, [held]);
 
   useEffect(() => {
     if (!leaving || held) {
@@ -184,6 +226,13 @@ export function CrossfadeSwap({
       {held && label ? <LoadingStatus label={label} /> : null}
     </div>
   );
+}
+
+function clearLockedHeight(el: HTMLDivElement): void {
+  el.style.transition = "";
+  el.style.height = "";
+  el.style.flex = "";
+  el.style.overflow = "";
 }
 
 function prefersInstantSwap(): boolean {
