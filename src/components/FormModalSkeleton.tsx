@@ -10,10 +10,16 @@ import { LoadingStatus } from "./LoadingStatus";
  * covers the brief window before the chunk lands (usually never, since these
  * forms are opened by an explicit tap).
  */
-export function FormModalSkeleton({ rows = 4 }: { rows?: number }) {
+export function FormModalSkeleton({
+  rows = 4,
+  label = "Loading form",
+}: {
+  rows?: number;
+  label?: string;
+}) {
   return (
     <Stack gap="sm" py="xs">
-      <LoadingStatus label="Loading form" />
+      <LoadingStatus label={label} />
       {Array.from({ length: rows }).map((_, index) => (
         <Skeleton key={index} height={40} radius="sm" />
       ))}

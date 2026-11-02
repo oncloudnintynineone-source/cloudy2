@@ -93,8 +93,18 @@ import { formatWeekLabel } from "./clientDateTime";
 import { EventDraftBar, EventDraftChip } from "./EventDraftBar";
 import { EmptyState } from "@/components/EmptyState";
 import { FilterButton } from "@/components/FilterButton";
-import type { FilterGroup } from "@/components/FilterModal";
-import { FormModalSkeleton } from "@/components/FormModalSkeleton";
+import {
+  FilterModal,
+  preloadFilterModalBody as preloadFilterModal,
+  type FilterGroup,
+} from "@/components/FilterModal";
+import {
+  DateSelectorModal,
+  preloadDateSelectorBody,
+} from "@/components/DateSelectorModal";
+import { EditViewsModal, preloadEditViewsBody } from "./EditViewsModal";
+import { EventDetail, preloadEventDetailBody } from "./EventDetail";
+import { ShareImportDialog } from "./ShareImportDialog";
 import { GridNavControls } from "@/components/GridNavControls";
 import { FullscreenButton, FullscreenToggle } from "@/components/FullscreenToggle";
 import {
@@ -219,40 +229,12 @@ const WeekMatrixView = dynamic(() => import("./WeekMatrixView").then((mod) => mo
   loading: () => <WeekMatrixSkeleton rows={6} />,
 });
 
-// The event-details modal is the one modal worth warming after the active view
-// paints (opening an event is a core action). It stays mounted only after its
-// first open so its close animation is preserved.
-const EventDetail = dynamic(() => import("./EventDetail").then((mod) => mod.EventDetail), {
-  ssr: false,
-});
-
-// Manage views and the date picker are intent/open only. They are no longer
-// mounted while closed, so their chunks do not download on every dashboard.
-const EditViewsModal = dynamic(() => import("./EditViewsModal").then((mod) => mod.EditViewsModal), {
-  ssr: false,
-});
-
-const ShareImportDialog = dynamic(
-  () => import("./ShareImportDialog").then((mod) => mod.ShareImportDialog),
-  { ssr: false },
-);
-
-const DateSelectorModal = dynamic(
-  () => import("@/components/DateSelectorModal").then((mod) => mod.DateSelectorModal),
-  { ssr: false },
-);
-
 type Preloadable = { preload?: () => Promise<unknown> };
-
-/** Best-effort chunk fetch; a failed preload is invisible. */
-const preloadQuietly = (component: unknown) => {
-  void (component as Preloadable).preload?.().catch(() => {});
-};
 
 const preloadEventFormChunk = () => {
   void loadChunk(loadEventForm).catch(() => {});
 };
-const preloadEventDetailChunk = () => preloadQuietly(EventDetail);
+const preloadEventDetailChunk = () => preloadEventDetailBody();
 
 const warmWizardChunk = () => {
   if (canWarmRoutes()) {
@@ -266,12 +248,12 @@ const warmEventDetailChunk = () => {
 };
 const warmDatePickerChunk = () => {
   if (canWarmRoutes()) {
-    preloadQuietly(DateSelectorModal);
+    preloadDateSelectorBody();
   }
 };
 const warmEditViewsChunk = () => {
   if (canWarmRoutes()) {
-    preloadQuietly(EditViewsModal);
+    preloadEditViewsBody();
   }
 };
 
@@ -381,22 +363,6 @@ const withDetailWarm = (props: ChipProps): ChipProps => ({
     warmEventDetailChunk();
   },
 });
-
-const FilterModal = dynamic(
-  () => import("@/components/FilterModal").then((mod) => ({ default: mod.FilterModal })),
-  {
-    ssr: false,
-    loading: () => (
-      <MotionModal opened onClose={() => {}} title="Filters" centered>
-        <FormModalSkeleton rows={6} />
-      </MotionModal>
-    ),
-  },
-);
-
-const preloadFilterModal = () => {
-  void (FilterModal as { preload?: () => Promise<unknown> }).preload?.();
-};
 
 type ViewMode = DashboardViewKind;
 

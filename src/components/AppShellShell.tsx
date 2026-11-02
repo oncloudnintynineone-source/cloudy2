@@ -30,10 +30,10 @@ import {
 } from "@tabler/icons-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
 
 import { PinnedEventsTicker } from "@/components/PinnedEventsTicker";
+import { PinnedEventsPanel, preloadPinnedPanelBody } from "@/components/PinnedEventsPanel";
 import { NavRouteWarmer } from "@/components/NavRouteWarmer";
 import { NavIdlePreloader } from "@/components/NavIdlePreloader";
 import EventSearchModal, { preloadEventSearchBody } from "@/components/EventSearchModal";
@@ -93,16 +93,6 @@ import { runWithRetry } from "@/lib/api/retry";
 import type { UserClashCheckResult } from "@/lib/events/clashActions";
 import type { KahBreachCountResult } from "@/lib/kah/statusActions";
 import { withTimeout } from "@/lib/async";
-
-const PinnedEventsPanel = dynamic(
-  () =>
-    import("@/components/PinnedEventsPanel").then((mod) => ({ default: mod.PinnedEventsPanel })),
-  { ssr: false, loading: () => null },
-);
-
-const preloadPinnedPanel = () => {
-  void (PinnedEventsPanel as { preload?: () => Promise<unknown> }).preload?.();
-};
 
 /** GET /api/pinned's response. */
 type PinnedEventsResult = { ok: true; events: PinnedEvent[] } | { ok: false; error: string };
@@ -564,8 +554,8 @@ export function AppShellShell({
   const [searchOpen, setSearchOpen] = useState(false);
   // The search modal chrome is always mounted; only its body chunk is lazy.
   // The modal stays in the tree so the zoom-out and shrink-back animations
-  // always play. (PinnedEventsPanel, by contrast, is lazy-mounted after its
-  // first open and relies on MotionModal's first-open guard for the same feel.)
+  // always play. (PinnedEventsPanel has static chrome + a lazy body too, but
+  // the shell lazy-mounts the component after its first open.)
   // The search trigger's rect at open time; the modal zooms out of / shrinks into it.
   const [searchOriginRect, setSearchOriginRect] = useState<Rect | null>(null);
   const searchButtonRef = useRef<HTMLButtonElement>(null);
@@ -605,7 +595,7 @@ export function AppShellShell({
   const openPinnedPanel = useCallback(
     (originRect: Rect | null) => {
       setPinnedEverOpened(true);
-      preloadPinnedPanel();
+      preloadPinnedPanelBody();
       if (pathname !== "/dashboard") {
         router.push("/dashboard");
       }
@@ -1288,7 +1278,7 @@ export function AppShellShell({
                   events={pinnedEvents}
                   paused={pinnedOpen}
                   onOpen={openPinnedPanel}
-                  onIntent={preloadPinnedPanel}
+                  onIntent={preloadPinnedPanelBody}
                   status={pinnedEvents !== null ? "ready" : pinnedStatus}
                   indicator={pinnedTickerIndicator}
                 />

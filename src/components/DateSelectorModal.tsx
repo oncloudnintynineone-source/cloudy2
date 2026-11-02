@@ -1,22 +1,39 @@
 "use client";
 
-import "@mantine/dates/styles.css";
-import dayjs from "dayjs";
-import { useState } from "react";
-import { ActionIcon, Box, Button, Text, useMantineTheme } from "@mantine/core";
+import dynamic from "next/dynamic";
+import { useMantineTheme } from "@mantine/core";
 import { useMediaQuery, useViewportSize } from "@mantine/hooks";
-import { DatesProvider, MonthPicker } from "@mantine/dates";
-import { MobileMonthView } from "@mantine/schedule";
-import "@mantine/schedule/styles.css";
-import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
-import { NARROW_MEDIA_QUERY } from "@/lib/theme";
-import { firstDayOfWeek, weekDays, type WeekStart } from "@/lib/events/datetime";
-import { modalContentWidth, type Rect } from "@/lib/motion/origin";
-import { modalZoomTransitionProps } from "@/lib/motion/transitions";
+
+import { CrossfadeSwap } from "@/components/CrossfadeSwap";
+import { FormModalSkeleton } from "@/components/FormModalSkeleton";
 import { MotionModal } from "@/components/MotionModal";
 import { useMotion } from "@/components/MotionProvider";
+import type { WeekStart } from "@/lib/events/datetime";
+import { loadChunk, useChunkReady } from "@/lib/loading/chunkReady";
+import { MIN_SKELETON_HOLD_MS } from "@/lib/loading/minHoldLoading";
+import { modalContentWidth, type Rect } from "@/lib/motion/origin";
+import { modalZoomTransitionProps } from "@/lib/motion/transitions";
+import { NARROW_MEDIA_QUERY } from "@/lib/theme";
 
-export type DateSelectorKind = "month" | "week" | "day";
+import type { DateSelectorKind } from "./DateSelectorModalBody";
+
+export type { DateSelectorKind } from "./DateSelectorModalBody";
+
+// The picker content pulls in `@mantine/dates` + `@mantine/schedule` and is
+// only needed after a tap. The chrome stays static so the dialog zooms out of
+// the trigger immediately and the chunk skeleton dissolves inside it
+// (docs/loading-transitions.md §1.15.1).
+const loadDateSelectorBody = () =>
+  import("./DateSelectorModalBody").then((mod) => mod.DateSelectorModalBody);
+const DateSelectorModalBodyLazy = dynamic(loadDateSelectorBody, {
+  ssr: false,
+  loading: () => null,
+});
+
+/** Warm the picker body chunk on trigger intent or an idle pass. */
+export function preloadDateSelectorBody() {
+  void loadChunk(loadDateSelectorBody).catch(() => {});
+}
 
 interface DateSelectorModalProps {
   opened: boolean;
@@ -34,8 +51,6 @@ interface DateSelectorModalProps {
   weekStartsOn?: WeekStart;
 }
 
-const WEEK_TINT = "color-mix(in srgb, var(--mantine-primary-color-filled) 15%, transparent)";
-
 export function DateSelectorModal({
   opened,
   kind,
@@ -49,45 +64,9 @@ export function DateSelectorModal({
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
   const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY);
-  const [pickerDate, setPickerDate] = useState(date);
-  // Re-seed the displayed month every time the modal opens (render-phase
-  // reset, same pattern as the agenda date in DashboardView).
-  const [lastOpened, setLastOpened] = useState(opened);
-  if (lastOpened !== opened) {
-    setLastOpened(opened);
-    if (opened) {
-      setPickerDate(date);
-    }
-  }
+  const bodyReady = useChunkReady(loadDateSelectorBody, opened);
 
   const title = kind === "month" ? "Select month" : kind === "week" ? "Select week" : "Select date";
-
-  const shiftMonth = (delta: number) =>
-    setPickerDate(dayjs(pickerDate).add(delta, "month").format("YYYY-MM-DD"));
-
-  // Week picker: highlight the account's week (Monday- or Sunday-first)
-  // `selectedDate` already fills the anchor's circle; the other six days get a
-  // subtle brand tint (rounded on the leading/trailing ends) so the week reads
-  // as a continuous range.
-  const week = kind === "week" ? weekDays(date, weekStartsOn) : null;
-  const getDayProps = week
-    ? (day: string) => {
-        const idx = week.indexOf(day);
-        if (idx < 0 || day === date) {
-          return {};
-        }
-        const endRadius = "calc(0.5rem * var(--mantine-scale))";
-        return {
-          style: {
-            backgroundColor: WEEK_TINT,
-            borderTopLeftRadius: idx === 0 ? endRadius : undefined,
-            borderBottomLeftRadius: idx === 0 ? endRadius : undefined,
-            borderTopRightRadius: idx === 6 ? endRadius : undefined,
-            borderBottomRightRadius: idx === 6 ? endRadius : undefined,
-          },
-        };
-      }
-    : undefined;
 
   // The modal zooms out of / shrinks back into the trigger button (the app's
   // standard grow/shrink animation; mirror the filter dialog).
@@ -106,73 +85,21 @@ export function DateSelectorModal({
       size={isNarrow ? "xs" : isDesktop ? "md" : "sm"}
       transitionProps={transitionProps}
     >
-      {kind === "month" ? (
-        <Box style={{ display: "flex", justifyContent: "center" }}>
-          {/* MonthPicker reads `firstDayOfWeek` from the DatesProvider context
-              (it is not a direct prop). */}
-          <DatesProvider settings={{ firstDayOfWeek: firstDayOfWeek(weekStartsOn) }}>
-            <MonthPicker
-              defaultDate={`${date}-01`}
-              onChange={(value) => {
-                const picked = value ? dayjs(value) : null;
-                if (!picked) {
-                  return;
-                }
-                onPick(picked.format("YYYY-MM"));
-                onClose();
-              }}
-            />
-          </DatesProvider>
-        </Box>
-      ) : (
-        <MobileMonthView
-          date={pickerDate}
-          firstDayOfWeek={firstDayOfWeek(weekStartsOn)}
-          selectedDate={date}
-          getDayProps={getDayProps}
-          onDayClick={(picked) => {
-            onPick(picked);
-            onClose();
-          }}
-          renderHeader={({ date: displayedDate }) => (
-            <>
-              {/* 43px month chevrons: a roomier target inside the modal than the
-                  36px page date-nav chevrons. */}
-              <ActionIcon
-                variant="subtle"
-                size={43}
-                aria-label="Previous month"
-                onClick={() => shiftMonth(-1)}
-              >
-                <IconChevronLeft size={18} />
-              </ActionIcon>
-              <Text fw={600} size="sm">
-                {dayjs(displayedDate).format("MMMM YYYY")}
-              </Text>
-              <ActionIcon
-                variant="subtle"
-                size={43}
-                aria-label="Next month"
-                onClick={() => shiftMonth(1)}
-              >
-                <IconChevronRight size={18} />
-              </ActionIcon>
-            </>
-          )}
-          styles={{ mobileMonthViewEventsList: { display: "none" } }}
-        />
-      )}
-      <Button
-        variant="light"
-        fullWidth
-        mt="md"
-        onClick={() => {
-          onToday();
-          onClose();
-        }}
+      <CrossfadeSwap
+        loading={opened && !bodyReady}
+        minHoldMs={MIN_SKELETON_HOLD_MS}
+        mode="overlay"
+        skeleton={<FormModalSkeleton rows={6} label="Loading date picker" />}
       >
-        Today
-      </Button>
+        <DateSelectorModalBodyLazy
+          kind={kind}
+          date={date}
+          onPick={onPick}
+          onToday={onToday}
+          onClose={onClose}
+          weekStartsOn={weekStartsOn}
+        />
+      </CrossfadeSwap>
     </MotionModal>
   );
 }

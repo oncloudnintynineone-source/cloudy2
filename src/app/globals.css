@@ -161,6 +161,23 @@ html {
   overflow: hidden;
 }
 
+/* Filter modal: its body is an internal flex column (scrollable groups + pinned
+   Clear/Cancel/Apply row). Carry that flex chain through the crossfade wrapper
+   so the body still fills the modal and scrolls internally. */
+.c2-filter-modal-swap.c2-crossfade-stack--overlay {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.c2-filter-modal-swap .c2-crossfade-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
 @keyframes c2-crossfade-out {
   from {
     opacity: 1;

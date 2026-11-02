@@ -1,0 +1,535 @@
+"use client";
+
+import { type ReactNode, useState } from "react";
+import {
+  ActionIcon,
+  Button,
+  Group,
+  Menu,
+  Paper,
+  ScrollArea,
+  Stack,
+  Text,
+  TextInput,
+  useMantineTheme,
+} from "@mantine/core";
+import { MotionModal } from "@/components/MotionModal";
+import { useMotion } from "@/components/MotionProvider";
+import { useMediaQuery } from "@mantine/hooks";
+import { notifications } from "@mantine/notifications";
+import {
+  IconDotsVertical,
+  IconFilter,
+  IconPencil,
+  IconPlus,
+  IconShare,
+  IconTrash,
+} from "@tabler/icons-react";
+
+import {
+  changeDashboardViewKind,
+  deleteDashboardView,
+  renameDashboardView,
+  reorderDashboardViews,
+} from "@/lib/dashboardViews/actions";
+import {
+  DASHBOARD_VIEW_KIND_LABELS,
+  DASHBOARD_VIEW_NAME_MAX_LENGTH,
+  type DashboardViewTab,
+  type DashboardViewKind,
+} from "@/lib/dashboardViews/views";
+import { BUTTON_LOADER_PROPS, NARROW_MEDIA_QUERY } from "@/lib/theme";
+import {
+  isReorderArrowsEnabled,
+  isReorderDragEnabled,
+  type ReorderDrag,
+} from "@/lib/settings/featureFlags";
+import { moveToIndex, swapAdjacent, useReorderRows } from "@/lib/ui/reorderRows";
+import { AUTOSIZE_VERTICAL_SCROLL_PROPS } from "@/lib/ui/scrollArea";
+import {
+  ROW_ACTION_ICON_SIZE,
+  ROW_ACTION_SIZE,
+  ROW_CARD_GAP,
+  ReorderUpDown,
+} from "@/components/reorderUpDown";
+import { SortableList, SortableRow } from "@/components/SortableRow";
+import { VIEW_TAB_META } from "./viewMeta";
+import { ShareViewDialog } from "./ShareViewDialog";
+import { ViewTypePicker } from "./ViewTypePicker";
+
+export interface EditViewsModalBodyProps {
+  onClose: () => void;
+  /** The account's tabs in strip order. */
+  tabs: DashboardViewTab[];
+  /** The tab currently rendered behind the modal. */
+  activeView: DashboardViewTab;
+  /** A list mutation landed (rename/reorder/non-active delete) — refresh. */
+  onMutated: () => void;
+  /** Patch one tab's definition (name/type) in the held snapshot so the strip
+   *  and this list repaint instantly, before the follow-up re-read lands. */
+  onApplyViewTab: (tab: DashboardViewTab) => void;
+  /** Navigate to a tab (or the active tab's new kind after an edit). `force`
+   *  forces a server re-read for a CRUD navigation whose tab list changed. */
+  onNavigateToView: (
+    tab: Pick<DashboardViewTab, "id" | "kind">,
+    options?: { force?: boolean },
+  ) => void;
+  /** Switch to a tab and open its filter dialog (the Edit dialog's Filters). */
+  onEditFilters: (tab: DashboardViewTab) => void;
+  /** Open the quick "Add view" dialog (the strip's + flow). */
+  onAddView: () => void;
+  /** Reorder interaction (Settings → Feature Flags). */
+  reorderDrag: ReorderDrag;
+}
+
+export function EditViewsModalBody({
+  onClose,
+  tabs,
+  activeView,
+  onMutated,
+  onApplyViewTab,
+  onNavigateToView,
+  onEditFilters,
+  onAddView,
+  reorderDrag,
+}: EditViewsModalBodyProps) {
+  const theme = useMantineTheme();
+  const motion = useMotion();
+  const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
+  const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY);
+  const dragEnabled = isReorderDragEnabled(reorderDrag);
+  const arrowsEnabled = isReorderArrowsEnabled(reorderDrag);
+
+  // "Edit view" dialog draft (name + kind in one place).
+  const [editing, setEditing] = useState<DashboardViewTab | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editKind, setEditKind] = useState<DashboardViewKind>("month");
+  const [editBusy, setEditBusy] = useState(false);
+
+  const [deleting, setDeleting] = useState<DashboardViewTab | null>(null);
+  const [deletingBusy, setDeletingBusy] = useState(false);
+  const [sharing, setSharing] = useState<DashboardViewTab | null>(null);
+
+  const {
+    displayRows: displayTabs,
+    containerRef,
+    move: reorderView,
+    moveTo,
+    busy,
+  } = useReorderRows({
+    rows: tabs,
+    keyOf: (tab) => tab.id,
+    predict: (current, id, delta) => swapAdjacent(current, (tab) => tab.id, id, delta),
+    persist: async (next) => {
+      const result = await reorderDashboardViews(next.map((view) => view.id));
+      if (result.ok) {
+        onMutated();
+        return true;
+      }
+      notifications.show({ color: "red", message: result.error });
+      return false;
+    },
+    predictMove: (current, id, toIndex) => moveToIndex(current, (tab) => tab.id, id, toIndex),
+    persistOrder: async (next) => {
+      const result = await reorderDashboardViews(next.map((view) => view.id));
+      if (result.ok) {
+        onMutated();
+        return true;
+      }
+      notifications.show({ color: "red", message: result.error });
+      return false;
+    },
+  });
+
+  function close() {
+    setEditing(null);
+    setDeleting(null);
+    setSharing(null);
+    onClose();
+  }
+
+  function startEdit(tab: DashboardViewTab) {
+    setEditing(tab);
+    setEditName(tab.name);
+    setEditKind(tab.kind);
+  }
+
+  async function submitEdit() {
+    if (!editing || editBusy) {
+      return;
+    }
+    const name = editName.trim();
+    if (name.length === 0) {
+      return;
+    }
+    const target = editing;
+    const kindChanged = editKind !== target.kind;
+    const nameChanged = name !== target.name;
+    if (!kindChanged && !nameChanged) {
+      setEditing(null);
+      return;
+    }
+    setEditBusy(true);
+    try {
+      // Kind first: `changeDashboardViewKind` may adopt the new kind's default
+      // name when the tab still carries the old default, so a custom name typed
+      // here must be applied afterwards to win.
+      let updatedTab: DashboardViewTab | null = null;
+      if (kindChanged) {
+        const result = await changeDashboardViewKind(target.id, { kind: editKind });
+        if (!result.ok) {
+          notifications.show({ color: "red", message: result.error });
+          return;
+        }
+        if (result.tab) {
+          updatedTab = result.tab;
+        }
+      }
+      if (nameChanged) {
+        const result = await renameDashboardView(target.id, { name });
+        if (!result.ok) {
+          notifications.show({ color: "red", message: result.error });
+          return;
+        }
+        if (result.tab) {
+          updatedTab = result.tab;
+        }
+      }
+      notifications.show({ color: "green", message: "View updated" });
+      setEditing(null);
+      // Paint the new name/kind into the strip and this list immediately; the
+      // revalidate below reconciles against the server.
+      if (updatedTab) {
+        onApplyViewTab(updatedTab);
+      }
+      if (kindChanged && target.id === activeView.id) {
+        // A kind change on the active tab re-navigates to the same id under its
+        // new kind, so the dashboard re-renders through the usual tab-switch
+        // period rules (Month → anchored starts today, anchored → Month keeps
+        // the month…). `switchTab` also forces a server re-read, since the
+        // request key is definition-blind and the same id would otherwise look
+        // already covered. A name-only edit (or any inactive edit) just
+        // refreshes.
+        onNavigateToView({ id: target.id, kind: editKind });
+      } else {
+        onMutated();
+      }
+    } finally {
+      setEditBusy(false);
+    }
+  }
+
+  async function confirmDelete() {
+    if (!deleting || deletingBusy) {
+      return;
+    }
+    setDeletingBusy(true);
+    try {
+      const result = await deleteDashboardView(deleting.id);
+      if (!result.ok) {
+        notifications.show({ color: "red", message: result.error });
+        return;
+      }
+      notifications.show({ color: "green", message: "View deleted" });
+      const target = deleting;
+      setDeleting(null);
+      const remaining = tabs.filter((tab) => tab.id !== target.id);
+      if (target.id === activeView.id && remaining.length > 0) {
+        // Force a re-read: the held tab list still contains the deleted row, so
+        // a data-equivalent next tab would swap locally and leave it behind.
+        onNavigateToView(remaining[0], { force: true });
+      } else {
+        onMutated();
+      }
+    } finally {
+      setDeletingBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <Stack ref={containerRef}>
+        <Text size="sm" c="dimmed">
+          Reorder with the arrows; Edit handles a view&rsquo;s name, type and filters.
+        </Text>
+        <Group>
+          <Button
+            variant="default"
+            leftSection={<IconPlus size={16} />}
+            onClick={() => {
+              close();
+              onAddView();
+            }}
+          >
+            Add view
+          </Button>
+        </Group>
+
+        {displayTabs.length === 0 ? (
+          <Text size="sm" c="dimmed">
+            No views yet. Add one above.
+          </Text>
+        ) : (
+          <ScrollArea.Autosize
+            {...AUTOSIZE_VERTICAL_SCROLL_PROPS}
+            mah="min(60vh, 420px)"
+            mx="-sm"
+            px="sm"
+          >
+            <SortableList
+              keys={displayTabs.map((tab) => tab.id)}
+              onMove={(id, toIndex) => void moveTo(id, toIndex)}
+            >
+              <Stack gap={ROW_CARD_GAP} data-flip-container>
+                {displayTabs.map((tab, index) => {
+                  const meta = VIEW_TAB_META[tab.kind];
+                  const isActive = tab.id === activeView.id;
+                  // The kind label only adds information when the name is custom
+                  // — otherwise it just repeats the name ("Month / Month").
+                  const showKind = tab.name !== DASHBOARD_VIEW_KIND_LABELS[tab.kind];
+                  const chevrons = (handle: ReactNode) => (
+                    <Group gap={4} wrap="nowrap">
+                      {handle}
+                      {arrowsEnabled && (
+                        <ReorderUpDown
+                          name={tab.name}
+                          variant="subtle"
+                          upDisabled={busy || index === 0}
+                          downDisabled={busy || index === displayTabs.length - 1}
+                          onUp={() => void reorderView(tab.id, -1)}
+                          onDown={() => void reorderView(tab.id, 1)}
+                        />
+                      )}
+                    </Group>
+                  );
+                  const title = (
+                    <Group wrap="nowrap" gap="sm" align="center" style={{ minWidth: 0, flex: 1 }}>
+                      {meta.icon}
+                      <Stack gap={0} style={{ minWidth: 0, flex: 1 }}>
+                        <Text fw={600} size="md" truncate>
+                          {tab.name}
+                        </Text>
+                        {showKind && (
+                          <Text size="xs" c="dimmed" truncate>
+                            {meta.label}
+                          </Text>
+                        )}
+                      </Stack>
+                    </Group>
+                  );
+                  const menu = (
+                    <Menu
+                      shadow="md"
+                      width={200}
+                      position="bottom-end"
+                      transitionProps={{
+                        transition: "pop-top-right",
+                        duration: motion.duration.popover,
+                        timingFunction: motion.easing.out,
+                      }}
+                    >
+                      <Menu.Target>
+                        <ActionIcon
+                          variant="subtle"
+                          color="gray"
+                          size={ROW_ACTION_SIZE}
+                          aria-label={`Options for ${tab.name}`}
+                          style={{ flexShrink: 0 }}
+                        >
+                          <IconDotsVertical size={ROW_ACTION_ICON_SIZE} />
+                        </ActionIcon>
+                      </Menu.Target>
+                      <Menu.Dropdown>
+                        <Menu.Label
+                          style={{
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
+                        >
+                          {tab.name}
+                        </Menu.Label>
+                        <Menu.Item
+                          leftSection={<IconShare size={16} />}
+                          onClick={() => setSharing(tab)}
+                        >
+                          Share
+                        </Menu.Item>
+                        <Menu.Item
+                          leftSection={<IconPencil size={16} />}
+                          onClick={() => startEdit(tab)}
+                        >
+                          Edit
+                        </Menu.Item>
+                        <Menu.Item
+                          color="red"
+                          leftSection={<IconTrash size={16} />}
+                          disabled={tabs.length === 1}
+                          onClick={() => setDeleting(tab)}
+                        >
+                          Delete
+                        </Menu.Item>
+                      </Menu.Dropdown>
+                    </Menu>
+                  );
+                  return (
+                    <SortableRow
+                      key={tab.id}
+                      id={tab.id}
+                      index={index}
+                      name={tab.name}
+                      enabled={dragEnabled}
+                    >
+                      {({ ref, handle }) => (
+                        <Paper
+                          ref={ref}
+                          withBorder
+                          radius="md"
+                          p="sm"
+                          data-flip-id={tab.id}
+                          style={
+                            isActive
+                              ? { borderLeft: "3px solid var(--mantine-color-accent-6)" }
+                              : undefined
+                          }
+                        >
+                          <Group wrap="nowrap" gap="sm" align="center">
+                            {chevrons(handle)}
+                            {title}
+                            {menu}
+                          </Group>
+                        </Paper>
+                      )}
+                    </SortableRow>
+                  );
+                })}
+              </Stack>
+            </SortableList>
+          </ScrollArea.Autosize>
+        )}
+      </Stack>
+
+      <MotionModal
+        opened={editing !== null}
+        onClose={() => setEditing(null)}
+        title="Edit view"
+        centered
+        size={isNarrow ? "xs" : isDesktop ? "md" : "sm"}
+      >
+        <Stack>
+          <TextInput
+            label="Name"
+            value={editName}
+            maxLength={DASHBOARD_VIEW_NAME_MAX_LENGTH}
+            onChange={(event) => setEditName(event.currentTarget.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                void submitEdit();
+              }
+            }}
+            autoFocus
+          />
+          <div>
+            <Text fw={600} size="sm" mb={6}>
+              View type
+            </Text>
+            <ViewTypePicker
+              value={editKind}
+              disabledKind={editing?.kind}
+              onSelect={setEditKind}
+              variant="thumbnail"
+            />
+          </div>
+          <div>
+            <Text fw={600} size="sm" mb={6}>
+              Filters
+            </Text>
+            <Button
+              variant="default"
+              leftSection={<IconFilter size={16} />}
+              fullWidth
+              onClick={() => {
+                if (!editing) return;
+                const target = editing;
+                setEditing(null);
+                onEditFilters(target);
+              }}
+            >
+              Edit filters&hellip;
+            </Button>
+            <Text size="xs" c="dimmed" mt={6}>
+              Opens this view&rsquo;s filter dialog (switches to it first).
+            </Text>
+          </div>
+          <div>
+            <Button
+              variant="default"
+              leftSection={<IconShare size={16} />}
+              fullWidth
+              disabled={
+                !editing ||
+                editKind !== editing.kind ||
+                editName.trim() !== editing.name
+              }
+              onClick={() => {
+                if (!editing) return;
+                const target = editing;
+                setEditing(null);
+                setSharing(target);
+              }}
+            >
+              Share view&hellip;
+            </Button>
+            <Text size="xs" c="dimmed" mt={6}>
+              Shares the saved definition. Save changes first to share them.
+            </Text>
+          </div>
+          <Group justify="flex-end" mt="md">
+            <Button variant="default" onClick={() => setEditing(null)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={!editing || (editKind === editing.kind && editName.trim() === editing.name)}
+              loading={editBusy}
+              loaderProps={BUTTON_LOADER_PROPS}
+              onClick={() => void submitEdit()}
+            >
+              Save
+            </Button>
+          </Group>
+        </Stack>
+      </MotionModal>
+
+      <ShareViewDialog tab={sharing} onClose={() => setSharing(null)} />
+
+      <MotionModal
+        opened={deleting !== null}
+        onClose={() => setDeleting(null)}
+        title="Delete view"
+        centered
+        size="sm"
+      >
+        <Stack>
+          <Text>Delete &ldquo;{deleting?.name}&rdquo;?</Text>
+          <Text size="sm" c="dimmed">
+            This only removes the view — your events and their filters are untouched.
+          </Text>
+          <Group justify="flex-end" mt="md">
+            <Button variant="default" onClick={() => setDeleting(null)}>
+              Cancel
+            </Button>
+            <Button
+              color="red"
+              loading={deletingBusy}
+              loaderProps={BUTTON_LOADER_PROPS}
+              onClick={() => void confirmDelete()}
+            >
+              Delete
+            </Button>
+          </Group>
+        </Stack>
+      </MotionModal>
+    </>
+  );
+}

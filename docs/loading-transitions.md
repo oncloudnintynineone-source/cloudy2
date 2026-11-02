@@ -515,7 +515,7 @@ and the non-remounting container means `useContentEnter` never replays.
 | `ParadeStateView`                                                                                                                                                                                                  | `useMinSkeletonHold(initialMonth !== month)`        | `CrossfadeSwap`                                        | in-month changes are optimistic — no skeleton                                                                                                                                       |
 | `AuditLogView`                                                                                                                                                                                                     | `useMinSkeletonHold(isPending \|\| liveRefreshing)` | `CrossfadeSwap`                                        | filter navigations (no-op guard skips the transition) + the always-fresh live re-read (`useLiveRouteRefresh`, §1.13)                                                                |
 | `MyEventsView`, `DoubleBookingView`, `KahStatusView`, `EventDetail`, `EventHistoryModal`, `PinnedEventsPanel`, `EventSearchBody`, `CalendarAccessModal`, `EventClashCheck`, `ShareViewDialog`, `ShareImportDialog` | `useMinSkeletonHold` / held flag                    | `CrossfadeSwap` (`mode="overlay"` for modal bodies)    | in-place data swaps (§1.6.1)                                                                                                                                                        |
-| Lazy modal bodies (`EventForm`, settings forms, `TitleRecipeBuilder`, `EventSearchBody`, `DepartmentDetailBody`)                                                                                                   | `MIN_SKELETON_HOLD_MS` on the swap                  | `CrossfadeSwap` gated on `useChunkReady`               | chunk reveals (§1.15.1)                                                                                                                                                             |
+| Lazy modal bodies (`EventForm`, settings forms, `TitleRecipeBuilder`, `EventSearchBody`, `FilterModalBody`, `DateSelectorModalBody`, `EditViewsModalBody`, `ShareImportDialogBody`, `EventDetailBody`, `PinnedEventsPanelBody`, `DepartmentDetailBody`) | `MIN_SKELETON_HOLD_MS` on the swap                  | `CrossfadeSwap` gated on `useChunkReady`               | chunk reveals (§1.15.1)                                                                                                                                                             |
 | `PinnedEventsTicker` (header pill)                                                                                                                                                                                 | `MIN_SKELETON_HOLD_MS` on the swap                  | `CrossfadeSwap` (stack)                                | skeleton only for the first read (`status === "pending"`); settled empty/error fall back to the static label; no nested `LoadingStatus` (the button's aria-label announces loading) |
 | `SettingsForm`, `DepartmentTable`, `ContactList`, `UserTable`, `EventTypeTable`, `TemplatesForm`                                                                                                                   | —                                                   | static `CONTENT_ENTER_CLASS` on the content root       | server-rendered pages; the SSR fade plays on first paint                                                                                                                            |
 | all sixteen route segments                                                                                                                                                                                         | —                                                   | `loading.tsx` skeletons                                | §1.4 table                                                                                                                                                                          |
@@ -934,11 +934,15 @@ body (the wizard, the settings forms, the search body, the department detail):
 3. `mode="overlay"` + `minHoldMs={MIN_SKELETON_HOLD_MS}` so the skeleton sizes
    the dialog, holds its beat, and dissolves in place.
 
-`DepartmentDetail` is split into static chrome + a lazy `DepartmentDetailBody`
-so the dialog zooms out of the tapped row instantly while the body chunk is
-still downloading. A failed chunk load leaves the flag false (skeleton stays,
-next open retries). Whole-modal chunks that had no skeleton before (manage
-views, date picker, share import) keep their plain `dynamic()` behavior.
+Every modal follows the same split: a static `MotionModal` chrome plus a lazy
+`…Body` (the wizard, the settings forms, the search/filter dialogs, the date
+picker, manage views, share import, event detail, the pinned panel, and the
+department detail). The dialog therefore zooms out of its trigger instantly
+while the body chunk downloads; the chrome never unmounts/replays its entrance
+when the chunk lands. A failed chunk load leaves the flag false (skeleton
+stays, next open retries). Body-only imports (heavy pickers, actions, nested
+dialogs) stay in the lazy module so the page's initial chunk keeps only the
+chrome.
 
 **Viewport reads.** Modal "grow from tapped element" origin math reads the
 viewport through `useViewportSize` (resize-subscribed) rather than
