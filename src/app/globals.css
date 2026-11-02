@@ -1389,6 +1389,14 @@ html {
   padding-bottom: var(--settings-fab-bottom);
 }
 
+/* Settings list pages with the mobile floating control pill: the shell already
+   clears the fixed tab strip, and this adds the pill's height + gap so the
+   last card scrolls above it. At lg the pill is hidden and the page keeps the
+   regular xl bottom padding (see the 40em block). */
+.settings-pill-page-pad {
+  padding-bottom: calc(var(--settings-fab-bottom) + 58px + 12px);
+}
+
 /*
   Bottom clearance for pages whose mobile-only floating controls (the 65px FAB
   row sitting 16px above the bottom nav, or a page's control pill + the floating
@@ -2222,6 +2230,10 @@ html {
 
   .settings-page-pad {
     padding-bottom: 0;
+  }
+
+  .settings-pill-page-pad {
+    padding-bottom: var(--mantine-spacing-xl);
   }
 
   /* The FAB is mobile-only (hiddenFrom="lg"), so the pages keep only their

@@ -1,34 +1,22 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import {
-  Badge,
-  Button,
-  Group,
-  Paper,
-  Pill,
-  Stack,
-  Table,
-  Text,
-  TextInput,
-  useMantineTheme,
-  VisuallyHidden,
-} from "@mantine/core";
+import { useMemo, useRef, useState } from "react";
+import { Badge, Box, Group, Paper, Stack, Text } from "@mantine/core";
 import { MotionModal } from "@/components/MotionModal";
 import { useDisclosure, useMediaQuery } from "@mantine/hooks";
 import { IconPlus, IconSearchOff, IconUsers } from "@tabler/icons-react";
 
 import { EmptyState } from "@/components/EmptyState";
 import { useActivityRefresh } from "@/components/ActivityBar";
-import { FilterButton } from "@/components/FilterButton";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
-import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
+import { SettingsListChrome } from "@/components/SettingsListChrome";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { type Rect } from "@/lib/motion/origin";
 import type { RosterAccessGrant, RosterUser } from "@/lib/roster/queries";
 import { departmentPathLabels, departmentTreeRows } from "@/lib/roster/hierarchy";
 import { fuzzyFilter } from "@/lib/search/fuzzy";
 import { formatFullName } from "@/lib/settings/formatName";
+import { DESKTOP_MEDIA_QUERY } from "@/lib/theme";
 import { activatable } from "@/lib/ui/activatable";
 import dynamic from "next/dynamic";
 import { CrossfadeSwap } from "@/components/CrossfadeSwap";
@@ -55,8 +43,8 @@ interface UserTableProps {
 
 export function UserTable({ users, departments, accessByUser, nameTemplate }: UserTableProps) {
   const refreshAfterSave = useActivityRefresh("users:save");
-  const theme = useMantineTheme();
-  const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
+  const isDesktop = useMediaQuery(DESKTOP_MEDIA_QUERY);
+  const paneRef = useRef<HTMLDivElement>(null);
   const [opened, { open, close }] = useDisclosure(false);
   const [filterOpened, { open: openFilter, close: closeFilter }] = useDisclosure(false);
   const userFormReady = useChunkReady(loadUserForm, opened);
@@ -129,6 +117,8 @@ export function UserTable({ users, departments, accessByUser, nameTemplate }: Us
     ]);
   }, [users, search, statusFilter, departmentFilter]);
 
+  const isNarrowed = search.trim() !== "" || activeFilterCount > 0;
+
   function handleApplyFilters(values: Record<string, string[]>) {
     setStatusFilter(values.Status ?? []);
     setDepartmentFilter(values.Department ?? []);
@@ -137,6 +127,11 @@ export function UserTable({ users, departments, accessByUser, nameTemplate }: Us
   function clearAllFilters() {
     setStatusFilter([]);
     setDepartmentFilter([]);
+  }
+
+  function clearSearchAndFilters() {
+    setSearch("");
+    clearAllFilters();
   }
 
   function openCreate() {
@@ -150,80 +145,37 @@ export function UserTable({ users, departments, accessByUser, nameTemplate }: Us
   }
 
   return (
-    <Stack pb="xl" className={CONTENT_ENTER_CLASS}>
-      <Paper withBorder p="sm">
-        <Stack gap="xs">
-          <Group justify="space-between" wrap="nowrap">
-            <TextInput
-              aria-label="Search users by name or phone"
-              placeholder="Search by name or phone"
-              value={search}
-              onChange={(e) => setSearch(e.currentTarget.value)}
-              style={{ flex: 1 }}
-            />
-            <FilterButton
-              activeCount={activeFilterCount}
-              onClick={(e) => {
-                setFilterOriginRect(e.currentTarget.getBoundingClientRect());
-                openFilter();
-              }}
-            />
-            {/* Desktop: full-size create button instead of the FAB (like the
-                Calendar page's "New event" button); the FAB below is mobile-only. */}
-            <Button
-              visibleFrom="lg"
-              __vars={{ "--button-height": "43px" }}
-              leftSection={<IconPlus size={16} />}
-              onClick={openCreate}
-            >
-              Add user
-            </Button>
-          </Group>
-          {activeFilterCount > 0 ? (
-            <Group gap={6} wrap="wrap">
-              {statusFilter.map((value) => (
-                <Pill
-                  key={value}
-                  withRemoveButton
-                  onRemove={() =>
-                    setStatusFilter((values) => values.filter((entry) => entry !== value))
-                  }
-                >
-                  Status: {value === "active" ? "Active" : "Inactive"}
-                </Pill>
-              ))}
-              {departmentFilter.map((value) => {
-                const department = departments.find((d) => d.id === value);
-                return (
-                  <Pill
-                    key={value}
-                    withRemoveButton
-                    onRemove={() =>
-                      setDepartmentFilter((values) => values.filter((entry) => entry !== value))
-                    }
-                  >
-                    {department?.name ?? value}
-                  </Pill>
-                );
-              })}
-              <Button size="xs" variant="subtle" onClick={clearAllFilters}>
-                Clear all
-              </Button>
-            </Group>
-          ) : null}
-        </Stack>
-      </Paper>
+    <Stack ref={paneRef} gap="md" className={`${CONTENT_ENTER_CLASS} settings-pill-page-pad`}>
+      <SettingsListChrome
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search by name, shortname, or phone"
+        searchAriaLabel="Search users by name, shortname, or phone"
+        filter={{
+          activeCount: activeFilterCount,
+          onClick: (event) => {
+            setFilterOriginRect(event.currentTarget.getBoundingClientRect());
+            openFilter();
+          },
+        }}
+        actions={[
+          {
+            label: "Add user",
+            icon: <IconPlus size={18} />,
+            onClick: openCreate,
+            primary: true,
+          },
+        ]}
+        paneRef={paneRef}
+      />
 
       {filtered.length === 0 ? (
-        search.trim() !== "" || activeFilterCount > 0 ? (
+        isNarrowed ? (
           <EmptyState
             icon={<IconSearchOff size={18} />}
             description="No users match your search or filters."
             actionLabel="Clear search & filters"
-            onAction={() => {
-              setSearch("");
-              clearAllFilters();
-            }}
+            onAction={clearSearchAndFilters}
           />
         ) : (
           <EmptyState
@@ -234,143 +186,56 @@ export function UserTable({ users, departments, accessByUser, nameTemplate }: Us
           />
         )
       ) : (
-        <>
-          {/* Mobile: card list */}
-          <Stack gap="sm" hiddenFrom="lg">
-            {filtered.map((user) => (
-              <Paper
-                key={user.id}
-                withBorder
-                p="sm"
-                className="c2-defer-render"
-                onClick={() => openEdit(user)}
-                {...activatable(() => openEdit(user))}
-                style={{ cursor: "pointer" }}
-              >
-                <Group justify="space-between" wrap="nowrap" align="flex-start">
-                  <Stack gap={0}>
-                    <Text fw={600}>{user.name}</Text>
-                    <Text size="sm" c="dimmed">
-                      {formatFullName(
-                        { name: user.name, departmentName: user.department?.name ?? null },
-                        nameTemplate,
-                      )}
-                    </Text>
-                  </Stack>
-                  <Badge color={user.status === "active" ? "green" : "gray"}>
-                    {user.status === "active" ? "Active" : "Inactive"}
-                  </Badge>
-                </Group>
-                <Group gap={6} wrap="wrap" mt={4}>
-                  {user.shortname ? (
-                    <Badge variant="light" color="accent">
-                      {user.shortname}
-                    </Badge>
-                  ) : null}
+        <Box component="div" className="card-grid">
+          {filtered.map((user) => (
+            <Paper
+              key={user.id}
+              withBorder
+              p="sm"
+              className="c2-defer-render"
+              onClick={() => openEdit(user)}
+              {...activatable(() => openEdit(user))}
+              style={{ cursor: "pointer" }}
+            >
+              <Group justify="space-between" wrap="nowrap" align="flex-start">
+                <Stack gap={0}>
+                  <Text fw={600}>{user.name}</Text>
                   <Text size="sm" c="dimmed">
-                    {user.phone}
+                    {formatFullName(
+                      { name: user.name, departmentName: user.department?.name ?? null },
+                      nameTemplate,
+                    )}
                   </Text>
-                  <Badge color={user.role === "admin" ? "brand" : "gray"}>
-                    {user.role === "admin" ? "Admin" : "User"}
+                </Stack>
+                <Badge color={user.status === "active" ? "green" : "gray"}>
+                  {user.status === "active" ? "Active" : "Inactive"}
+                </Badge>
+              </Group>
+              <Group gap={6} wrap="wrap" mt={4}>
+                {user.shortname ? (
+                  <Badge variant="light" color="accent">
+                    {user.shortname}
                   </Badge>
-                  {user.department ? (
-                    <Badge variant="light" color="accent">
-                      {user.department.name}
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" color="gray">
-                      No department
-                    </Badge>
-                  )}
-                </Group>
-              </Paper>
-            ))}
-          </Stack>
-
-          {/* Desktop: data table */}
-          <Paper withBorder visibleFrom="lg">
-            <Table withRowBorders={false} highlightOnHover tabularNums>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Name</Table.Th>
-                  <Table.Th>Shortname</Table.Th>
-                  <Table.Th>Phone</Table.Th>
-                  <Table.Th>Role</Table.Th>
-                  <Table.Th>Department</Table.Th>
-                  <Table.Th>Status</Table.Th>
-                  <Table.Th ta="right">
-                    <VisuallyHidden>Actions</VisuallyHidden>
-                  </Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {filtered.map((user) => (
-                  <Table.Tr
-                    key={user.id}
-                    onClick={() => openEdit(user)}
-                    {...activatable(() => openEdit(user))}
-                    style={{ cursor: "pointer" }}
-                  >
-                    <Table.Td>
-                      <Stack gap={0}>
-                        <Text fw={600}>{user.name}</Text>
-                        <Text size="sm" c="dimmed">
-                          {formatFullName(
-                            { name: user.name, departmentName: user.department?.name ?? null },
-                            nameTemplate,
-                          )}
-                        </Text>
-                      </Stack>
-                    </Table.Td>
-                    <Table.Td>
-                      {user.shortname ? (
-                        <Badge variant="light" color="accent">
-                          {user.shortname}
-                        </Badge>
-                      ) : (
-                        <Text c="dimmed">—</Text>
-                      )}
-                    </Table.Td>
-                    <Table.Td>{user.phone}</Table.Td>
-                    <Table.Td>
-                      <Badge color={user.role === "admin" ? "brand" : "gray"}>
-                        {user.role === "admin" ? "Admin" : "User"}
-                      </Badge>
-                    </Table.Td>
-                    <Table.Td>
-                      {user.department ? (
-                        <Badge variant="light" color="accent">
-                          {user.department.name}
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" color="gray">
-                          No department
-                        </Badge>
-                      )}
-                    </Table.Td>
-                    <Table.Td>
-                      <Badge color={user.status === "active" ? "green" : "gray"}>
-                        {user.status === "active" ? "Active" : "Inactive"}
-                      </Badge>
-                    </Table.Td>
-                    <Table.Td ta="right">
-                      <Button
-                        size="xs"
-                        variant="subtle"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          openEdit(user);
-                        }}
-                      >
-                        Edit
-                      </Button>
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </Paper>
-        </>
+                ) : null}
+                <Text size="sm" c="dimmed">
+                  {user.phone}
+                </Text>
+                <Badge color={user.role === "admin" ? "brand" : "gray"}>
+                  {user.role === "admin" ? "Admin" : "User"}
+                </Badge>
+                {user.department ? (
+                  <Badge variant="light" color="accent">
+                    {user.department.name}
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" color="gray">
+                    No department
+                  </Badge>
+                )}
+              </Group>
+            </Paper>
+          ))}
+        </Box>
       )}
 
       <MotionModal
@@ -409,19 +274,6 @@ export function UserTable({ users, departments, accessByUser, nameTemplate }: Us
         onApply={handleApplyFilters}
         originRect={filterOriginRect}
       />
-
-      {/* Mobile-only: at lg the "Add user" button in the toolbar replaces the
-          FAB. hiddenFrom sits on the toolbar itself: its Affix portals to
-          <body>, so a wrapper element could not hide it. */}
-      <FloatingToolbar bottomOffset="var(--settings-fab-bottom)" hiddenFrom="lg">
-        <FloatingActionButton
-          aria-label="Add user"
-          className="c2-glass-fab--brand"
-          onClick={openCreate}
-        >
-          <IconPlus size={FAB_ICON_SIZE} />
-        </FloatingActionButton>
-      </FloatingToolbar>
     </Stack>
   );
 }

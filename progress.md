@@ -2307,6 +2307,16 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   (`.c2-db-head` `align-items: flex-start`) so the title no longer sinks to the
   picker's baseline. Docs: `docs/user-clashes.md` §1.2/§1.5/§1.7/§1.8/§1.9,
   `AGENTS.md`.
+- 1.364 **Settings list pages → Contacts layout**: Users, Departments and Event Types
+  now render one responsive `.card-grid` at every width (the desktop tables are gone)
+  under the shared `SettingsListChrome` — a frosted sticky search/action bar docked
+  directly beneath the settings tabs at `lg`+, and the floating bottom control pill
+  below `lg` (search + optional filter + action circles, keyboard lift and
+  hide-on-interaction). `SettingsShell` measures the desktop tab strip into
+  `--c2-settings-tabs-height`; Departments and Event Types gain fuzzy search (name +
+  hierarchy path / name + shortname + group), and Departments disables reorder while a
+  search is active. Docs: `docs/desktop-responsive.md` §1.5/§1.9,
+  `docs/loading-transitions.md` §1.4, `AGENTS.md`.
 
 ## 1.4 Open items & next steps
 

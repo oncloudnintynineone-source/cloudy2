@@ -1,23 +1,15 @@
-import { Group, Paper, Skeleton, Stack } from "@mantine/core";
+import { Box, Group, Paper, Skeleton, Stack } from "@mantine/core";
 
 import { LoadingStatus } from "@/components/LoadingStatus";
-
-import { SettingsTableSkeleton } from "../SettingsTableSkeleton";
+import { SettingsListChromeSkeleton } from "@/components/SettingsListChromeSkeleton";
 
 export default function UsersLoading() {
   return (
-    <Stack pb="xl">
+    <Stack gap="md" className="settings-pill-page-pad">
       <LoadingStatus label="Loading users" />
-      <Paper withBorder p="sm">
-        <Group justify="space-between" wrap="nowrap">
-          <Skeleton height={36} style={{ flex: 1 }} />
-          <Skeleton width={43} height={43} radius="50%" />
-          <Skeleton width={104} height={43} visibleFrom="lg" />
-        </Group>
-      </Paper>
+      <SettingsListChromeSkeleton showFilter actionWidths={[104]} />
 
-      {/* Mobile: card list */}
-      <Stack gap="sm" hiddenFrom="lg">
+      <Box component="div" className="card-grid">
         {Array.from({ length: 6 }).map((_, i) => (
           <Paper key={i} withBorder p="sm">
             <Stack gap="xs">
@@ -36,10 +28,7 @@ export default function UsersLoading() {
             </Stack>
           </Paper>
         ))}
-      </Stack>
-
-      {/* Desktop: data table (Name / Short Name / Phone / Role / Department / Status / Actions) */}
-      <SettingsTableSkeleton columns={[3, 1.5, 2, 1.5, 2, 1.5, 1.2]} visibleFrom="lg" />
+      </Box>
     </Stack>
   );
 }

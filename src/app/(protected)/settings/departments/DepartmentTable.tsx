@@ -1,34 +1,29 @@
 "use client";
 
 import { type KeyboardEvent, type ReactNode, useMemo, useState } from "react";
-import {
-  Box,
-  Button,
-  Group,
-  Paper,
-  Stack,
-  Table,
-  Text,
-  VisuallyHidden,
-} from "@mantine/core";
+import { Box, Button, Group, Paper, Stack, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { IconPlus, IconSitemap } from "@tabler/icons-react";
+import { IconPlus, IconSearchOff, IconSitemap } from "@tabler/icons-react";
 
 import { EmptyState } from "@/components/EmptyState";
 import { MotionModal } from "@/components/MotionModal";
 import { useMotion } from "@/components/MotionProvider";
+import { SettingsListChrome } from "@/components/SettingsListChrome";
 import type { Calendar } from "@/db/schema";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { fadeTransitionProps } from "@/lib/motion/transitions";
 import { deleteDepartment, moveDepartment, reorderDepartments } from "@/lib/roster/actions";
 import {
   buildDepartmentTree,
+  departmentPathLabels,
+  departmentTreeRows,
   moveAvailability,
   moveInTreeOrder,
   moveToSiblingIndex,
   type DepartmentTreeNode,
 } from "@/lib/roster/hierarchy";
+import { fuzzyFilter } from "@/lib/search/fuzzy";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import {
   isReorderArrowsEnabled,
@@ -36,7 +31,6 @@ import {
   type ReorderDrag,
 } from "@/lib/settings/featureFlags";
 import { useReorderRows } from "@/lib/ui/reorderRows";
-import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
 import { formatColorLabel } from "@/lib/events/eventColors";
 import { ColorDot } from "@/components/ColorSwatchPicker";
 import { ReorderUpDown } from "@/components/reorderUpDown";
@@ -59,6 +53,7 @@ export function DepartmentTable({ departments, reorderDrag }: DepartmentTablePro
   const refreshAfterSave = useActivityRefresh("departments:save");
   const dragEnabled = isReorderDragEnabled(reorderDrag);
   const arrowsEnabled = isReorderArrowsEnabled(reorderDrag);
+  const [search, setSearch] = useState("");
   const [detailOpened, { open: openDetail, close: closeDetail }] = useDisclosure(false);
   const [confirmOpened, { open: openConfirm, close: closeConfirm }] = useDisclosure(false);
   const [selected, setSelected] = useState<Calendar | null>(null);
@@ -157,6 +152,30 @@ export function DepartmentTable({ departments, reorderDrag }: DepartmentTablePro
     return rows;
   }, [displayDepartments]);
 
+  // Full ancestor path per department ("HQ › Logistics"), so searching a parent
+  // also surfaces its descendants.
+  const departmentLabels = useMemo(() => {
+    const rows = departmentTreeRows(
+      departments.map((department) => ({
+        id: department.id,
+        name: department.name,
+        sortOrder: department.sortOrder ?? 0,
+        parentId: department.parentId,
+      })),
+    );
+    return departmentPathLabels(rows);
+  }, [departments]);
+
+  const isSearching = search.trim() !== "";
+  const filteredRows = useMemo(
+    () =>
+      fuzzyFilter(displayRows, search, (row) => [
+        row.calendar.name,
+        departmentLabels.get(row.calendar.id) ?? "",
+      ]),
+    [displayRows, search, departmentLabels],
+  );
+
   const availability = useMemo(() => moveAvailability(departments), [departments]);
 
   function openCreate() {
@@ -200,7 +219,7 @@ export function DepartmentTable({ departments, reorderDrag }: DepartmentTablePro
     return (
       <Group gap={4} wrap="nowrap">
         {handle}
-        {arrowsEnabled && (
+        {arrowsEnabled && !isSearching && (
           <ReorderUpDown
             name={calendar.name}
             upDisabled={busy || !can.up}
@@ -229,21 +248,26 @@ export function DepartmentTable({ departments, reorderDrag }: DepartmentTablePro
   });
 
   return (
-    <Stack pb="xl" className={CONTENT_ENTER_CLASS} ref={containerRef}>
-      {/* Desktop: full-size create button instead of the FAB (like the
-          Calendar page's "New event" button); the FAB below is mobile-only.
-          Rendered above the list so it is still available when empty. */}
-      <Paper withBorder p="sm" visibleFrom="lg">
-        <Group justify="flex-end" wrap="nowrap">
-          <Button
-            __vars={{ "--button-height": "43px" }}
-            leftSection={<IconPlus size={16} />}
-            onClick={openCreate}
-          >
-            Add department
-          </Button>
-        </Group>
-      </Paper>
+    <Stack
+      ref={containerRef}
+      gap="md"
+      className={`${CONTENT_ENTER_CLASS} settings-pill-page-pad`}
+    >
+      <SettingsListChrome
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search departments by name or parent"
+        searchAriaLabel="Search departments by name or parent"
+        actions={[
+          {
+            label: "Add department",
+            icon: <IconPlus size={18} />,
+            onClick: openCreate,
+            primary: true,
+          },
+        ]}
+        paneRef={containerRef}
+      />
 
       {departments.length === 0 ? (
         <EmptyState
@@ -252,131 +276,80 @@ export function DepartmentTable({ departments, reorderDrag }: DepartmentTablePro
           actionLabel="Add department"
           onAction={openCreate}
         />
+      ) : filteredRows.length === 0 ? (
+        <EmptyState
+          icon={<IconSearchOff size={18} />}
+          description="No departments match your search."
+          actionLabel="Clear search"
+          onAction={() => setSearch("")}
+        />
       ) : (
-        <>
-          {/* Mobile: card list — tap a card to open the details modal.
-              Children are indented and name their parent on a second line.
-              Reorder arrows sit at the card's left edge. */}
-          <SortableList
-            keys={displayRows.map(({ calendar }) => calendar.id)}
-            onMove={(id, toIndex) => void moveTo(id, toIndex)}
-          >
-            <Stack gap="sm" hiddenFrom="lg" data-flip-container>
-              {displayRows.map(({ calendar, depth, parent }, index) => (
-                <SortableRow
-                  key={calendar.id}
-                  id={calendar.id}
-                  index={index}
-                  name={calendar.name}
-                  enabled={dragEnabled}
-                >
-                  {({ ref, handle }) => (
-                    <Paper
-                      ref={ref}
-                      withBorder
-                      p="sm"
-                      data-flip-id={calendar.id}
-                      {...openRow(calendar)}
-                    >
-                      <Group justify="space-between" wrap="nowrap" align="center">
-                        <Group
-                          wrap="nowrap"
-                          gap="sm"
-                          align="center"
-                          style={{ minWidth: 0, flex: 1 }}
-                        >
-                          {actionsFor(calendar, handle)}
-                          <Box style={{ minWidth: 0 }}>
-                            <Group wrap="nowrap" align="center" gap={6}>
-                              <ColorDot color={calendar.color} />
-                              <Text fw={600} truncate style={{ paddingLeft: depth * 12 }}>
-                                {calendar.name}
-                              </Text>
-                            </Group>
-                            {parent && (
-                              <Text
-                                size="xs"
-                                c="dimmed"
-                                truncate
-                                style={{ paddingLeft: 12 + depth * 12 }}
-                              >
-                                In {parent.name}
-                              </Text>
-                            )}
-                          </Box>
-                        </Group>
-                        <Text size="sm" c="dimmed" style={{ flexShrink: 0 }}>
-                          {formatColorLabel(calendar.color, calendar.id)}
-                        </Text>
-                      </Group>
-                    </Paper>
-                  )}
-                </SortableRow>
-              ))}
-            </Stack>
-          </SortableList>
-
-          {/* Desktop: data table — tap a row to open the details modal.
-              Hierarchy is carried by the indent depth + the Parent column. */}
-          <SortableList
-            keys={displayRows.map(({ calendar }) => calendar.id)}
-            onMove={(id, toIndex) => void moveTo(id, toIndex)}
-          >
-            <Paper withBorder visibleFrom="lg" data-flip-container>
-              <Table withRowBorders={false} highlightOnHover tabularNums>
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>Name</Table.Th>
-                    <Table.Th>Parent</Table.Th>
-                    <Table.Th>External color</Table.Th>
-                    <Table.Th ta="right">
-                      <VisuallyHidden>Actions</VisuallyHidden>
-                    </Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                  {displayRows.map(({ calendar, depth, parent }, index) => (
-                    <SortableRow
-                      key={calendar.id}
-                      id={calendar.id}
-                      index={index}
-                      name={calendar.name}
-                      enabled={dragEnabled}
-                    >
-                      {({ ref, handle }) => (
-                        <Table.Tr ref={ref} data-flip-id={calendar.id} {...openRow(calendar)}>
-                          <Table.Td>
-                            <Text fw={600} style={{ paddingLeft: depth * 16 }}>
+        <SortableList
+          keys={filteredRows.map(({ calendar }) => calendar.id)}
+          onMove={(id, toIndex) => {
+            // Reordering a filtered view would write indices that don't match
+            // the full tree; the drag handle and arrows are hidden while
+            // searching, so this only guards stale gestures.
+            if (!isSearching) {
+              void moveTo(id, toIndex);
+            }
+          }}
+        >
+          <Box component="div" className="card-grid" data-flip-container>
+            {filteredRows.map(({ calendar, depth, parent }, index) => (
+              <SortableRow
+                key={calendar.id}
+                id={calendar.id}
+                index={index}
+                name={calendar.name}
+                enabled={dragEnabled && !isSearching}
+              >
+                {({ ref, handle }) => (
+                  <Paper
+                    ref={ref}
+                    withBorder
+                    p="sm"
+                    data-flip-id={calendar.id}
+                    className="c2-defer-render"
+                    {...openRow(calendar)}
+                  >
+                    <Group justify="space-between" wrap="nowrap" align="center">
+                      <Group
+                        wrap="nowrap"
+                        gap="sm"
+                        align="center"
+                        style={{ minWidth: 0, flex: 1 }}
+                      >
+                        {actionsFor(calendar, handle)}
+                        <Box style={{ minWidth: 0 }}>
+                          <Group wrap="nowrap" align="center" gap={6}>
+                            <ColorDot color={calendar.color} />
+                            <Text fw={600} truncate style={{ paddingLeft: depth * 12 }}>
                               {calendar.name}
                             </Text>
-                          </Table.Td>
-                          <Table.Td>
-                            {parent ? (
-                              <Text size="sm" c="dimmed">
-                                {parent.name}
-                              </Text>
-                            ) : (
-                              <Text size="sm" c="dimmed">
-                                —
-                              </Text>
-                            )}
-                          </Table.Td>
-                          <Table.Td>
-                            <Group gap={6} wrap="nowrap">
-                              <ColorDot color={calendar.color} />
-                              <Text size="sm">{formatColorLabel(calendar.color, calendar.id)}</Text>
-                            </Group>
-                          </Table.Td>
-                          <Table.Td>{actionsFor(calendar, handle)}</Table.Td>
-                        </Table.Tr>
-                      )}
-                    </SortableRow>
-                  ))}
-                </Table.Tbody>
-              </Table>
-            </Paper>
-          </SortableList>
-        </>
+                          </Group>
+                          {parent && (
+                            <Text
+                              size="xs"
+                              c="dimmed"
+                              truncate
+                              style={{ paddingLeft: 12 + depth * 12 }}
+                            >
+                              In {parent.name}
+                            </Text>
+                          )}
+                        </Box>
+                      </Group>
+                      <Text size="sm" c="dimmed" style={{ flexShrink: 0 }}>
+                        {formatColorLabel(calendar.color, calendar.id)}
+                      </Text>
+                    </Group>
+                  </Paper>
+                )}
+              </SortableRow>
+            ))}
+          </Box>
+        </SortableList>
       )}
 
       <DepartmentDetail
@@ -427,19 +400,6 @@ export function DepartmentTable({ departments, reorderDrag }: DepartmentTablePro
           </Button>
         </Group>
       </MotionModal>
-
-      {/* Mobile-only: at lg the "Add department" button in the toolbar replaces
-          the FAB. hiddenFrom sits on the toolbar itself: its Affix portals to
-          <body>, so a wrapper element could not hide it. */}
-      <FloatingToolbar bottomOffset="var(--settings-fab-bottom)" hiddenFrom="lg">
-        <FloatingActionButton
-          aria-label="Add department"
-          className="c2-glass-fab--brand"
-          onClick={openCreate}
-        >
-          <IconPlus size={FAB_ICON_SIZE} />
-        </FloatingActionButton>
-      </FloatingToolbar>
     </Stack>
   );
 }

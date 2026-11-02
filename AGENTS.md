@@ -434,7 +434,10 @@ none` so taps pass through to the clipped tile, and it hides on a side once
   directly above the footer.
 - **Admin settings live under `/settings`** (admin-only): Users, Departments, Event Types,
   Templates, Webhooks, Quick Links, KAH Groups, Banner, General, Security, Audit Log,
-  Feature Flags tabs.
+  Feature Flags tabs. `SettingsShell` owns the tab strip + `PageContainer`; the three roster
+  list tabs (Users, Departments, Event Types) use the Contacts recipe — one `.card-grid` at
+  every width plus shared `SettingsListChrome` (sticky frosted search/action bar under the
+  tabs at `lg`+, floating control pill below `lg`); the other data lists keep the `lg`+ table.
   Event-type policy (shortname, display groups, allowed-locations matrix, `show_remarks`/
   `show_invitees`, per-type `show_location`): [docs/event-lifecycle.md](docs/event-lifecycle.md).
   Colors (event types + department fallback, applied at read time in `mapCalendarItem`,

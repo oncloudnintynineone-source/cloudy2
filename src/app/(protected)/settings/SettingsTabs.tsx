@@ -1,9 +1,9 @@
 "use client";
 
 import { Box, Tabs, useMantineTheme } from "@mantine/core";
-import { useMediaQuery } from "@mantine/hooks";
+import { useElementSize, useMediaQuery } from "@mantine/hooks";
 import { usePathname, useRouter } from "next/navigation";
-import { useTransition } from "react";
+import { useEffect, useTransition } from "react";
 
 import { useReportActivity } from "@/components/ActivityBar";
 import { BOTTOM_NAV_HEIGHT_CSS } from "@/lib/bottomNav";
@@ -24,11 +24,25 @@ const tabs = [
   { value: "/settings/feature-flags", label: "Feature Flags" },
 ];
 
-export function SettingsTabs() {
+interface SettingsTabsProps {
+  /**
+   * Desktop sticky strip height in px (0 below `lg`). Published by
+   * `SettingsShell` so list pages can dock their own sticky toolbar beneath
+   * the tabs.
+   */
+  onHeightChange?: (height: number) => void;
+}
+
+export function SettingsTabs({ onHeightChange }: SettingsTabsProps = {}) {
   const pathname = usePathname();
   const router = useRouter();
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
+  const { ref: stickyRef, height: stickyHeight } = useElementSize();
+
+  useEffect(() => {
+    onHeightChange?.(isDesktop ? Math.ceil(stickyHeight) : 0);
+  }, [isDesktop, stickyHeight, onHeightChange]);
   // Tab flips are server route navigations; on a slow network their request
   // rides the shared activity bar while the per-segment skeleton loads.
   const [isPending, startTransition] = useTransition();
@@ -98,6 +112,7 @@ export function SettingsTabs() {
   // view-tabs wrapper).
   return (
     <Box
+      ref={stickyRef}
       className="c2-glass-surface"
       style={{
         viewTransitionName: "c2-settings-tabs",

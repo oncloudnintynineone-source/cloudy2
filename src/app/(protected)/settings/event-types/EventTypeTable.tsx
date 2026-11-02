@@ -1,15 +1,21 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Badge, Button, Group, Paper, Stack, Table, Text, useMantineTheme } from "@mantine/core";
+import { useMemo, useRef, useState } from "react";
+import { Badge, Box, Group, Paper, Stack, Text } from "@mantine/core";
 import { MotionModal } from "@/components/MotionModal";
 
 import { useDisclosure, useMediaQuery } from "@mantine/hooks";
-import { IconCalendarEvent, IconCategory2, IconFolder, IconPlus } from "@tabler/icons-react";
+import {
+  IconCalendarEvent,
+  IconCategory2,
+  IconFolder,
+  IconPlus,
+  IconSearchOff,
+} from "@tabler/icons-react";
 
 import { EmptyState } from "@/components/EmptyState";
+import { SettingsListChrome } from "@/components/SettingsListChrome";
 import type { EventType } from "@/db/schema";
-import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
 import { formatColorLabel } from "@/lib/events/eventColors";
 import { ColorDot } from "@/components/ColorSwatchPicker";
 import { LOCATION_CATEGORY_LABELS, normalizeAllowedLocations } from "@/lib/events/locationPolicy";
@@ -19,6 +25,8 @@ import {
   resolveTimeOptions,
 } from "@/lib/events/timeOptions";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
+import { fuzzyFilter } from "@/lib/search/fuzzy";
+import { DESKTOP_MEDIA_QUERY } from "@/lib/theme";
 import { activatable } from "@/lib/ui/activatable";
 import dynamic from "next/dynamic";
 import { CrossfadeSwap } from "@/components/CrossfadeSwap";
@@ -43,8 +51,9 @@ interface EventTypeTableProps {
 
 export function EventTypeTable({ types, groups, reorderDrag }: EventTypeTableProps) {
   const refreshAfterSave = useActivityRefresh("event-types:save");
-  const theme = useMantineTheme();
-  const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
+  const isDesktop = useMediaQuery(DESKTOP_MEDIA_QUERY);
+  const paneRef = useRef<HTMLDivElement>(null);
+  const [search, setSearch] = useState("");
   const [formOpened, { open: openForm, close: closeForm }] = useDisclosure(false);
   const [editing, setEditing] = useState<EventType | null>(null);
   const [groupsOpened, { open: openGroups, close: closeGroups }] = useDisclosure(false);
@@ -62,6 +71,16 @@ export function EventTypeTable({ types, groups, reorderDrag }: EventTypeTablePro
     return counts;
   }, [types]);
 
+  const filteredTypes = useMemo(
+    () =>
+      fuzzyFilter(types, search, (eventType) => [
+        eventType.name,
+        eventType.shortname,
+        groupById.get(eventType.groupId ?? "")?.name ?? "",
+      ]),
+    [types, search, groupById],
+  );
+
   function openCreate() {
     setEditing(null);
     openForm();
@@ -73,29 +92,27 @@ export function EventTypeTable({ types, groups, reorderDrag }: EventTypeTablePro
   }
 
   return (
-    <Stack pb="xl" className={CONTENT_ENTER_CLASS}>
-      {/* Desktop: full-size create button instead of the FAB (like the
-          Calendar page's "New event" button); the FAB below is mobile-only.
-          Rendered above the list so it is still available when empty. */}
-      <Paper withBorder p="sm" visibleFrom="lg">
-        <Group justify="space-between" wrap="nowrap">
-          <Button
-            __vars={{ "--button-height": "43px" }}
-            variant="default"
-            leftSection={<IconCategory2 size={16} />}
-            onClick={openGroups}
-          >
-            Manage groups
-          </Button>
-          <Button
-            __vars={{ "--button-height": "43px" }}
-            leftSection={<IconPlus size={16} />}
-            onClick={openCreate}
-          >
-            Add event type
-          </Button>
-        </Group>
-      </Paper>
+    <Stack ref={paneRef} gap="md" className={`${CONTENT_ENTER_CLASS} settings-pill-page-pad`}>
+      <SettingsListChrome
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search by name, shortname, or group"
+        searchAriaLabel="Search event types by name, shortname, or group"
+        actions={[
+          {
+            label: "Manage groups",
+            icon: <IconCategory2 size={18} />,
+            onClick: openGroups,
+          },
+          {
+            label: "Add event type",
+            icon: <IconPlus size={18} />,
+            onClick: openCreate,
+            primary: true,
+          },
+        ]}
+        paneRef={paneRef}
+      />
 
       {types.length === 0 ? (
         <EmptyState
@@ -104,185 +121,88 @@ export function EventTypeTable({ types, groups, reorderDrag }: EventTypeTablePro
           actionLabel="Add event type"
           onAction={openCreate}
         />
+      ) : filteredTypes.length === 0 ? (
+        <EmptyState
+          icon={<IconSearchOff size={18} />}
+          description="No event types match your search."
+          actionLabel="Clear search"
+          onAction={() => setSearch("")}
+        />
       ) : (
-        <>
-          {/* Mobile: card list */}
-          <Stack gap="sm" hiddenFrom="lg">
-            {types.map((eventType) => (
-              <Paper
-                key={eventType.id}
-                withBorder
-                p="sm"
-                onClick={() => openEdit(eventType)}
-                {...activatable(() => openEdit(eventType))}
-                style={{ cursor: "pointer" }}
-              >
-                <Stack gap={0}>
-                  <Group wrap="nowrap" align="center" gap={6}>
-                    <ColorDot color={eventType.color} />
-                    <Text fw={600}>{eventType.name}</Text>
-                  </Group>
-                  <Group gap="xs" wrap="wrap">
-                    {eventType.groupId && groupById.has(eventType.groupId) ? (
-                      <Badge
-                        size="sm"
-                        variant="light"
-                        color="blue"
-                        leftSection={
-                          groupById.get(eventType.groupId)?.collapsible ? (
-                            <IconFolder size={12} />
-                          ) : undefined
-                        }
-                      >
-                        {groupById.get(eventType.groupId)?.name}
-                      </Badge>
-                    ) : null}
-                    {eventType.shortname ? (
-                      <Badge size="sm" variant="light" color="accent">
-                        {eventType.shortname}
-                      </Badge>
-                    ) : null}
-                    {resolveTimeOptions(normalizeTimeOptions(eventType.timeOptions)).map(
-                      (option) => (
-                        <Badge key={option} size="sm" variant="light" color="gray">
-                          {TIME_OPTION_LABELS[option]}
-                        </Badge>
-                      ),
-                    )}
-                    {normalizeAllowedLocations(eventType.allowedLocations).map((category) => (
-                      <Badge key={category} size="sm" variant="light" color="accent">
-                        {LOCATION_CATEGORY_LABELS[category]}
-                      </Badge>
-                    ))}
-                    {eventType.showRemarks === false && (
-                      <Badge size="sm" variant="light" color="gray">
-                        No remarks
-                      </Badge>
-                    )}
-                    {eventType.showInvitees === false && (
-                      <Badge size="sm" variant="light" color="gray">
-                        No participants
-                      </Badge>
-                    )}
-                    {eventType.showLocation === false && (
-                      <Badge size="sm" variant="light" color="gray">
-                        No location
-                      </Badge>
-                    )}
-                    {eventType.excludeFromClash === true && (
-                      <Badge size="sm" variant="light" color="red">
-                        Info only
-                      </Badge>
-                    )}
-                  </Group>
-                </Stack>
-              </Paper>
-            ))}
-          </Stack>
-
-          {/* Desktop: data table */}
-          <Paper withBorder visibleFrom="lg">
-            <Table withRowBorders={false} highlightOnHover>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Name</Table.Th>
-                  <Table.Th>Group</Table.Th>
-                  <Table.Th>Shortname</Table.Th>
-                  <Table.Th>Color</Table.Th>
-                  <Table.Th>Time options</Table.Th>
-                  <Table.Th>Allowed locations</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {types.map((eventType) => (
-                  <Table.Tr
-                    key={eventType.id}
-                    onClick={() => openEdit(eventType)}
-                    {...activatable(() => openEdit(eventType))}
-                    style={{ cursor: "pointer" }}
-                  >
-                    <Table.Td>
-                      <Text fw={600}>{eventType.name}</Text>
-                    </Table.Td>
-                    <Table.Td>
-                      {eventType.groupId && groupById.has(eventType.groupId) ? (
-                        <Badge
-                          size="sm"
-                          variant="light"
-                          color="blue"
-                          leftSection={
-                            groupById.get(eventType.groupId)?.collapsible ? (
-                              <IconFolder size={12} />
-                            ) : undefined
-                          }
-                        >
-                          {groupById.get(eventType.groupId)?.name}
-                        </Badge>
-                      ) : (
-                        <Text c="dimmed">—</Text>
-                      )}
-                    </Table.Td>
-                    <Table.Td>
-                      {eventType.shortname ? (
-                        <Badge size="sm" variant="light" color="accent">
-                          {eventType.shortname}
-                        </Badge>
-                      ) : (
-                        <Text c="dimmed">—</Text>
-                      )}
-                    </Table.Td>
-                    <Table.Td>
-                      <Group gap={6} wrap="nowrap">
-                        <ColorDot color={eventType.color} />
-                        <Text size="sm">{formatColorLabel(eventType.color, eventType.name)}</Text>
-                      </Group>
-                    </Table.Td>
-                    <Table.Td>
-                      <Group gap="xs" wrap="wrap">
-                        {resolveTimeOptions(normalizeTimeOptions(eventType.timeOptions)).map(
-                          (option) => (
-                            <Badge key={option} size="sm" variant="light" color="gray">
-                              {TIME_OPTION_LABELS[option]}
-                            </Badge>
-                          ),
-                        )}
-                      </Group>
-                    </Table.Td>
-                    <Table.Td>
-                      <Group gap="xs" wrap="wrap">
-                        {normalizeAllowedLocations(eventType.allowedLocations).map((category) => (
-                          <Badge key={category} size="sm" variant="light" color="accent">
-                            {LOCATION_CATEGORY_LABELS[category]}
-                          </Badge>
-                        ))}
-                        {eventType.showRemarks === false && (
-                          <Badge size="sm" variant="light" color="gray">
-                            No remarks
-                          </Badge>
-                        )}
-                        {eventType.showInvitees === false && (
-                          <Badge size="sm" variant="light" color="gray">
-                            No participants
-                          </Badge>
-                        )}
-                        {eventType.showLocation === false && (
-                          <Badge size="sm" variant="light" color="gray">
-                            No location
-                          </Badge>
-                        )}
-                        {eventType.excludeFromClash === true && (
-                          <Badge size="sm" variant="light" color="red">
-                            Info only
-                          </Badge>
-                        )}
-                      </Group>
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </Paper>
-        </>
+        <Box component="div" className="card-grid">
+          {filteredTypes.map((eventType) => (
+            <Paper
+              key={eventType.id}
+              withBorder
+              p="sm"
+              className="c2-defer-render"
+              onClick={() => openEdit(eventType)}
+              {...activatable(() => openEdit(eventType))}
+              style={{ cursor: "pointer" }}
+            >
+              <Stack gap={0}>
+                <Group wrap="nowrap" align="center" gap={6}>
+                  <ColorDot color={eventType.color} />
+                  <Text fw={600}>{eventType.name}</Text>
+                </Group>
+                <Group gap="xs" wrap="wrap">
+                  {eventType.groupId && groupById.has(eventType.groupId) ? (
+                    <Badge
+                      size="sm"
+                      variant="light"
+                      color="blue"
+                      leftSection={
+                        groupById.get(eventType.groupId)?.collapsible ? (
+                          <IconFolder size={12} />
+                        ) : undefined
+                      }
+                    >
+                      {groupById.get(eventType.groupId)?.name}
+                    </Badge>
+                  ) : null}
+                  {eventType.shortname ? (
+                    <Badge size="sm" variant="light" color="accent">
+                      {eventType.shortname}
+                    </Badge>
+                  ) : null}
+                  {resolveTimeOptions(normalizeTimeOptions(eventType.timeOptions)).map((option) => (
+                    <Badge key={option} size="sm" variant="light" color="gray">
+                      {TIME_OPTION_LABELS[option]}
+                    </Badge>
+                  ))}
+                  {normalizeAllowedLocations(eventType.allowedLocations).map((category) => (
+                    <Badge key={category} size="sm" variant="light" color="accent">
+                      {LOCATION_CATEGORY_LABELS[category]}
+                    </Badge>
+                  ))}
+                  {eventType.showRemarks === false && (
+                    <Badge size="sm" variant="light" color="gray">
+                      No remarks
+                    </Badge>
+                  )}
+                  {eventType.showInvitees === false && (
+                    <Badge size="sm" variant="light" color="gray">
+                      No participants
+                    </Badge>
+                  )}
+                  {eventType.showLocation === false && (
+                    <Badge size="sm" variant="light" color="gray">
+                      No location
+                    </Badge>
+                  )}
+                  {eventType.excludeFromClash === true && (
+                    <Badge size="sm" variant="light" color="red">
+                      Info only
+                    </Badge>
+                  )}
+                  <Badge size="sm" variant="light" color="gray">
+                    {formatColorLabel(eventType.color, eventType.name)}
+                  </Badge>
+                </Group>
+              </Stack>
+            </Paper>
+          ))}
+        </Box>
       )}
 
       <MotionModal
@@ -321,26 +241,6 @@ export function EventTypeTable({ types, groups, reorderDrag }: EventTypeTablePro
           refreshAfterSave();
         }}
       />
-
-      {/* Mobile-only: at lg the "Add event type" button in the toolbar replaces
-          the FAB. hiddenFrom sits on the toolbar itself: its Affix portals to
-          <body>, so a wrapper element could not hide it. */}
-      <FloatingToolbar bottomOffset="var(--settings-fab-bottom)" hiddenFrom="lg">
-        <FloatingActionButton
-          aria-label="Manage event type groups"
-          className="c2-glass-fab--brand"
-          onClick={openGroups}
-        >
-          <IconCategory2 size={FAB_ICON_SIZE} />
-        </FloatingActionButton>
-        <FloatingActionButton
-          aria-label="Add event type"
-          className="c2-glass-fab--brand"
-          onClick={openCreate}
-        >
-          <IconPlus size={FAB_ICON_SIZE} />
-        </FloatingActionButton>
-      </FloatingToolbar>
     </Stack>
   );
 }

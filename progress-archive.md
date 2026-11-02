@@ -9860,3 +9860,32 @@ server read per user intent; it is gated by online/Save-Data/2G, deduped, and ab
 - Docs: `docs/user-clashes.md` §1.2/§1.4/§1.5/§1.7/§1.8/§1.9, `AGENTS.md` (§1.2
   audience + picker + title alignment + scan-scope edge case).
 - Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test`.
+
+## 1.364 Settings list pages to the Contacts layout
+
+- **Shared shell.** The settings layout is now `SettingsShell` (a client wrapper):
+  it keeps `.settings-page-pad`, renders `SettingsTabs` + `PageContainer`, and
+  measures the desktop sticky tab strip (via `useElementSize` in `SettingsTabs`)
+  into `--c2-settings-tabs-height`. Each list page's own sticky chrome can therefore
+  dock directly beneath the tabs instead of overlapping them.
+- **Shared chrome.** `SettingsListChrome` renders the Contacts search/action recipe:
+  at `lg`+ a frosted sticky bar (search field + optional filter + 43px action
+  buttons) under the tabs; below `lg` the floating bottom control pill
+  (search field + optional 44px filter circle + 44px action circles), using
+  `useKeyboardInset` for the keyboard lift and `useChromeHide` for hide-on-
+  interaction. Create/manage actions moved into the pill, so the three pages no
+  longer render a mobile FAB. Added `.settings-pill-page-pad` to clear the pill
+  above the fixed settings tab bar.
+- **Users** (`UserTable`) keeps its search + status/department filters and
+  `FilterModal`, drops the inline active-filter chips (the filter-button badge
+  carries the count), and renders one responsive card grid at every width.
+- **Departments** (`DepartmentTable`) gains fuzzy search over the department name
+  and its full hierarchy path (so a parent search surfaces descendants), keeps the
+  preorder indentation/parent line plus drag/arrow reorder, and disables reorder
+  controls while a search is active (a filtered drag would write wrong indices).
+- **Event Types** (`EventTypeTable`) gains fuzzy search over name, shortname and
+  group name, and renders the existing badge-rich card in one responsive grid.
+- Route `loading.tsx` files now mirror `SettingsListChromeSkeleton` + card grids;
+  `docs/desktop-responsive.md` §1.5/§1.9 and `docs/loading-transitions.md` §1.4
+  updated; `APP_VERSION` → `2026.11.02-1`.
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`.

@@ -1,15 +1,15 @@
-import { Group, Paper, Skeleton, Stack } from "@mantine/core";
+import { Box, Group, Paper, Skeleton, Stack } from "@mantine/core";
 
 import { LoadingStatus } from "@/components/LoadingStatus";
-
-import { SettingsTableSkeleton } from "../SettingsTableSkeleton";
+import { SettingsListChromeSkeleton } from "@/components/SettingsListChromeSkeleton";
 
 export default function EventTypesLoading() {
   return (
-    <Stack pb="xl" gap="sm">
+    <Stack gap="md" className="settings-pill-page-pad">
       <LoadingStatus label="Loading event types" />
-      {/* Mobile: card list */}
-      <Stack gap="sm" hiddenFrom="lg">
+      <SettingsListChromeSkeleton actionWidths={[130, 140]} />
+
+      <Box component="div" className="card-grid">
         {Array.from({ length: 4 }).map((_, i) => (
           <Paper key={i} withBorder p="sm">
             <Stack gap="xs">
@@ -22,17 +22,7 @@ export default function EventTypesLoading() {
             </Stack>
           </Paper>
         ))}
-      </Stack>
-
-      {/* Desktop: toolbar row with the "Add event type" button */}
-      <Paper withBorder p="sm" visibleFrom="lg">
-        <Group justify="flex-end" wrap="nowrap">
-          <Skeleton width={150} height={43} />
-        </Group>
-      </Paper>
-
-      {/* Desktop: data table (Name / Acronym / Time options / Allowed locations) */}
-      <SettingsTableSkeleton columns={[3, 1.5, 2.5, 2]} rows={4} visibleFrom="lg" />
+      </Box>
     </Stack>
   );
 }
