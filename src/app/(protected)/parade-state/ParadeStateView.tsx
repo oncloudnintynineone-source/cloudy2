@@ -337,10 +337,13 @@ export function ParadeStateView({
     [searchParams, pathname],
   );
 
+  // Param-only updates (day, attendance mode, legacy `types` strip) are
+  // in-place: the App Router's default scroll-to-top on every navigation
+  // would yank the roster back up on every day flip, so opt out explicitly.
   const navigate = useCallback(
     (updates: Record<string, string | null>) => {
       startTransition(() => {
-        router.push(buildHref(updates));
+        router.push(buildHref(updates), { scroll: false });
       });
     },
     [buildHref, router, startTransition],
