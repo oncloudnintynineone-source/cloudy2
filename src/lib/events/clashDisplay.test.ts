@@ -11,6 +11,7 @@ import {
   clashTimeLabel,
   clashTypeLabel,
   clashWhenLabel,
+  clipClashEffectiveWindow,
   formatAxisMinute,
   type ClashEntryDisplay,
   type ClashWindowLike,
@@ -66,6 +67,80 @@ describe("clashCoveredDayKeys", () => {
         occupiesFullDay: true,
       }),
     ).toEqual(["2026-09-15", "2026-09-16"]);
+  });
+});
+
+describe("clipClashEffectiveWindow", () => {
+  const bounds = {
+    effectiveStartNaive: "2026-09-15 09:00:00",
+    effectiveEndNaive: "2026-09-15 11:00:00",
+  };
+
+  it("clips an event wider than the candidate to the candidate window", () => {
+    const clipped = clipClashEffectiveWindow(
+      entry({
+        effectiveStartNaive: "2026-09-15 08:00:00",
+        effectiveEndNaive: "2026-09-15 18:00:00",
+      }),
+      bounds,
+    );
+    expect(clipped.effectiveStartNaive).toBe("2026-09-15 09:00:00");
+    expect(clipped.effectiveEndNaive).toBe("2026-09-15 11:00:00");
+  });
+
+  it("leaves an event fully inside the candidate unchanged", () => {
+    const clipped = clipClashEffectiveWindow(
+      entry({
+        effectiveStartNaive: "2026-09-15 09:30:00",
+        effectiveEndNaive: "2026-09-15 10:30:00",
+      }),
+      bounds,
+    );
+    expect(clipped.effectiveStartNaive).toBe("2026-09-15 09:30:00");
+    expect(clipped.effectiveEndNaive).toBe("2026-09-15 10:30:00");
+  });
+
+  it("keeps a whole-day conflict whole-day when the clip stays midnight-aligned", () => {
+    const clipped = clipClashEffectiveWindow(
+      entry({
+        occupiesFullDay: true,
+        effectiveStartNaive: "2026-09-01 00:00:00",
+        effectiveEndNaive: "2026-10-01 00:00:00",
+      }),
+      {
+        effectiveStartNaive: "2026-09-14 00:00:00",
+        effectiveEndNaive: "2026-09-17 00:00:00",
+      },
+    );
+    expect(clipped.effectiveStartNaive).toBe("2026-09-14 00:00:00");
+    expect(clipped.effectiveEndNaive).toBe("2026-09-17 00:00:00");
+    expect(clipped.occupiesFullDay).toBe(true);
+  });
+
+  it("demotes a whole-day conflict clipped to a timed candidate", () => {
+    const clipped = clipClashEffectiveWindow(
+      entry({
+        occupiesFullDay: true,
+        effectiveStartNaive: "2026-09-15 00:00:00",
+        effectiveEndNaive: "2026-09-16 00:00:00",
+      }),
+      bounds,
+    );
+    expect(clipped.effectiveStartNaive).toBe("2026-09-15 09:00:00");
+    expect(clipped.effectiveEndNaive).toBe("2026-09-15 11:00:00");
+    expect(clipped.occupiesFullDay).toBe(false);
+  });
+
+  it("never widens an event narrower than the candidate", () => {
+    const clipped = clipClashEffectiveWindow(
+      entry({
+        effectiveStartNaive: "2026-09-15 09:15:00",
+        effectiveEndNaive: "2026-09-15 10:00:00",
+      }),
+      bounds,
+    );
+    expect(clipped.effectiveStartNaive).toBe("2026-09-15 09:15:00");
+    expect(clipped.effectiveEndNaive).toBe("2026-09-15 10:00:00");
   });
 });
 
@@ -247,11 +322,9 @@ describe("clashEntryTimeLabel", () => {
   });
 
   it("renders the half-of-day for a half-day event", () => {
-    expect(
-      clashEntryTimeLabel(
-        entry({ timeOption: "half", startAmPm: "PM", endAmPm: "PM" }),
-      ),
-    ).toBe("PM");
+    expect(clashEntryTimeLabel(entry({ timeOption: "half", startAmPm: "PM", endAmPm: "PM" }))).toBe(
+      "PM",
+    );
   });
 
   it("qualifies the dates when the effective window crosses days", () => {
@@ -270,8 +343,14 @@ describe("clashEpisodeTimeLabel", () => {
   it("spans the earliest start to the latest end", () => {
     expect(
       clashEpisodeTimeLabel([
-        entry({ effectiveStartNaive: "2026-09-15 09:00:00", effectiveEndNaive: "2026-09-15 10:00:00" }),
-        entry({ effectiveStartNaive: "2026-09-15 09:30:00", effectiveEndNaive: "2026-09-15 11:30:00" }),
+        entry({
+          effectiveStartNaive: "2026-09-15 09:00:00",
+          effectiveEndNaive: "2026-09-15 10:00:00",
+        }),
+        entry({
+          effectiveStartNaive: "2026-09-15 09:30:00",
+          effectiveEndNaive: "2026-09-15 11:30:00",
+        }),
       ]),
     ).toBe("9:00 AM – 11:30 AM");
   });
@@ -313,7 +392,10 @@ describe("clashEpisodeTimeLabel", () => {
           effectiveStartNaive: "2026-09-15 00:00:00",
           effectiveEndNaive: "2026-09-16 00:00:00",
         }),
-        entry({ effectiveStartNaive: "2026-09-15 09:00:00", effectiveEndNaive: "2026-09-15 10:00:00" }),
+        entry({
+          effectiveStartNaive: "2026-09-15 09:00:00",
+          effectiveEndNaive: "2026-09-15 10:00:00",
+        }),
       ]),
     ).toBe("9:00 AM – 10:00 AM · All day");
   });

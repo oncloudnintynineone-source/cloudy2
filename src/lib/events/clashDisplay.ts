@@ -100,10 +100,7 @@ export function clashTypeLabel(
   entry: Pick<ClashEntryDisplay, "typeShortname" | "typeName" | "rawTitle" | "title">,
 ): string {
   return (
-    entry.typeShortname?.trim() ||
-    entry.typeName?.trim() ||
-    entry.rawTitle?.trim() ||
-    entry.title
+    entry.typeShortname?.trim() || entry.typeName?.trim() || entry.rawTitle?.trim() || entry.title
   );
 }
 
@@ -179,6 +176,39 @@ export interface ClashEffectiveWindow {
   effectiveStartNaive: string;
   effectiveEndNaive: string;
   occupiesFullDay: boolean;
+}
+
+/**
+ * Clip an entry's effective occupancy window to a bounds window (naive UTC+8
+ * `YYYY-MM-DD HH:mm:ss`, lexicographically comparable). The wizard uses this
+ * to show only the portion of a conflicting event that overlaps the event being
+ * created/edited, rather than the conflict's own (possibly much wider) range.
+ *
+ * A whole-day entry stays whole-day only when the clipped bounds are still
+ * midnight-aligned; clipping a full-day conflict to a timed candidate turns it
+ * into a timed entry (so `clashCoveredDayKeys` does not subtract a day from a
+ * non-midnight exclusive end). Pure; never widens the entry. Callers pass an
+ * already-overlapping window, but the helper is safe either way.
+ */
+export function clipClashEffectiveWindow<T extends ClashEffectiveWindow>(
+  entry: T,
+  bounds: Pick<ClashEffectiveWindow, "effectiveStartNaive" | "effectiveEndNaive">,
+): T {
+  const start =
+    entry.effectiveStartNaive < bounds.effectiveStartNaive
+      ? bounds.effectiveStartNaive
+      : entry.effectiveStartNaive;
+  const end =
+    entry.effectiveEndNaive > bounds.effectiveEndNaive
+      ? bounds.effectiveEndNaive
+      : entry.effectiveEndNaive;
+  const midnightAligned = start.slice(11) === "00:00:00" && end.slice(11) === "00:00:00";
+  return {
+    ...entry,
+    effectiveStartNaive: start,
+    effectiveEndNaive: end,
+    occupiesFullDay: entry.occupiesFullDay && midnightAligned,
+  };
 }
 
 /**
@@ -276,9 +306,9 @@ export function clashTimeLabel(window: ClashWindowLike): string {
     }
     return `${startTime} – ${endTime}`;
   }
-  return `${dayjs(window.startNaive).format("MMM D, h:mm A")} – ${dayjs(
-    window.endNaive,
-  ).format("MMM D, h:mm A")}`;
+  return `${dayjs(window.startNaive).format("MMM D, h:mm A")} – ${dayjs(window.endNaive).format(
+    "MMM D, h:mm A",
+  )}`;
 }
 
 /**
@@ -304,7 +334,7 @@ export function clashWhenLabel(entry: ClashWindowLike): string {
   if (!entry.endNaive || startDay === endDay) {
     return `${dayjs(startDay).format("MMM D, YYYY")} ${startTime} – ${endTime}`;
   }
-  return `${dayjs(entry.startNaive).format("MMM D, YYYY h:mm A")} – ${dayjs(
-    entry.endNaive,
-  ).format("MMM D, YYYY h:mm A")}`;
+  return `${dayjs(entry.startNaive).format("MMM D, YYYY h:mm A")} – ${dayjs(entry.endNaive).format(
+    "MMM D, YYYY h:mm A",
+  )}`;
 }

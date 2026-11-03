@@ -19,7 +19,7 @@ import {
   type EventClashCheckResult,
   type EventClashEntry,
 } from "@/lib/events/clashActions";
-import { clashTypeLabel } from "@/lib/events/clashDisplay";
+import { clipClashEffectiveWindow, clashTypeLabel } from "@/lib/events/clashDisplay";
 import { formatInstantToNaive } from "@/lib/events/datetime";
 import { MIN_SKELETON_HOLD_MS, useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
 import type { Rect } from "@/lib/motion/origin";
@@ -215,31 +215,41 @@ export function EventClashCheck({
         result.clashes.flatMap((clash) => clash.affected.map((person) => person.userId)),
       ).size;
 
+      // The advisory is about the event being created/edited, so each conflict
+      // is displayed only over the candidate's effective window. A conflicting
+      // event that runs past the candidate must not stretch the timeline or
+      // print its own range. The original entry (full window) still feeds the
+      // in-place detail fetch.
+      const candidateWindow = result.candidate;
+      const displayClashes = candidateWindow
+        ? result.clashes.map((entry) => clipClashEffectiveWindow(entry, candidateWindow))
+        : result.clashes;
+
       // One timeline per clash day: the candidate ("This event", inert) plus each
       // conflicting event, which opens its in-place details on tap. Days the
       // candidate merely spans with no conflict are dropped (`minEntriesPerDay`).
       // Labels come from the title-template engine.
       const entries: ClashTimelineEntry[] = [
-        ...(result.candidate
+        ...(candidateWindow
           ? [
               {
-                startNaive: result.candidate.effectiveStartNaive,
-                endNaive: result.candidate.effectiveEndNaive,
-                occupiesFullDay: result.candidate.occupiesFullDay,
+                startNaive: candidateWindow.effectiveStartNaive,
+                endNaive: candidateWindow.effectiveEndNaive,
+                occupiesFullDay: candidateWindow.occupiesFullDay,
                 label: "This event",
                 title: "This event",
                 color: "brand",
               },
             ]
           : []),
-        ...result.clashes.map((entry) => ({
+        ...displayClashes.map((entry, index) => ({
           startNaive: entry.effectiveStartNaive,
           endNaive: entry.effectiveEndNaive,
           occupiesFullDay: entry.occupiesFullDay,
           label: entry.displayLabel ?? clashTypeLabel(entry),
           title: entry.title,
           color: entry.color,
-          onSelect: (rect: Rect) => void openDetail(entry, rect),
+          onSelect: (rect: Rect) => void openDetail(result.clashes[index], rect),
         })),
       ];
       const todayKey = formatInstantToNaive(new Date()).slice(0, 10);
@@ -253,12 +263,12 @@ export function EventClashCheck({
             heading={`Double booking: ${affectedCount} ${affectedCount === 1 ? "person" : "people"}`}
             visual={visual}
           >
-            {result.clashes.map((entry) => (
+            {displayClashes.map((entry, index) => (
               <ClashEventRow
                 key={`${entry.calendarName}:${entry.startNaive}:${entry.title}`}
                 entry={entry}
                 typeFirst
-                onOpen={(rect) => void openDetail(entry, rect)}
+                onOpen={(rect) => void openDetail(result.clashes[index], rect)}
                 chips={
                   <ClashAffectedChips
                     affected={entry.affected}

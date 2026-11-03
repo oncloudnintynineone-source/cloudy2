@@ -187,7 +187,12 @@ shows one of:
   window comes back from `checkEventClashes` (`candidate`); days are bucketed by
   `clashDayBuckets` and capped at five, and a day carrying only the candidate (no
   conflict) is dropped (`minEntriesPerDay={2}`), so a multi-day candidate reports only
-  the days it actually clashes on. The
+  the days it actually clashes on. Each conflicting window is also **clipped to the
+  candidate's effective window** (`clipClashEffectiveWindow`) before display, so a
+  conflict that runs past the event being created/edited never stretches a day's axis
+  or prints its own wider range — the timeline and rows show only the overlapping
+  portion (a whole-day conflict clipped to a timed candidate renders as a timed
+  window). The detail fetch still uses the conflict's original window. The
   candidate's "This event" bar is inert; **every conflicting bar and row is
   tappable** and opens that event's details **in place** — the read-only
   `EventDetail` modal (shaped skeleton, zoom-from-origin, the same modal the Double

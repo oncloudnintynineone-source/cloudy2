@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.363 (Double Booking open to all users)** is shipped.
+- All work through changelog **1.365 (Wizard double-booking display clipped to the candidate)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -2317,6 +2317,13 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   hierarchy path / name + shortname + group), and Departments disables reorder while a
   search is active. Docs: `docs/desktop-responsive.md` §1.5/§1.9,
   `docs/loading-transitions.md` §1.4, `AGENTS.md`.
+- 1.365 **Wizard double-booking display clipped to the candidate**: each conflicting
+  event's effective window is intersected with the event being created/edited
+  (new pure `clipClashEffectiveWindow`, `clashDisplay.ts`) before the review-step
+  timeline and rows render, so a conflict that runs past the candidate no longer
+  stretches a day's axis or prints its own wider range; a whole-day conflict clipped
+  to a timed candidate renders as a timed window, and the in-place detail fetch still
+  uses the conflict's original window. Docs: `docs/event-clashes.md` §1.6.
 
 ## 1.4 Open items & next steps
 

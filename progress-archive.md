@@ -9889,3 +9889,27 @@ server read per user intent; it is gated by online/Save-Data/2G, deduped, and ab
   `docs/desktop-responsive.md` §1.5/§1.9 and `docs/loading-transitions.md` §1.4
   updated; `APP_VERSION` → `2026.11.02-1`.
 - Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`.
+
+## 1.365 Wizard double-booking display clipped to the candidate
+
+- **Problem.** The wizard's review-step advisory fed each conflicting event's full
+  effective window into the shared timeline and rows. A conflict running past the event
+  being created/edited (e.g. candidate `09:00–10:00`, conflict `08:00–18:00`, or a
+  multi-day event) stretched the per-day axis and printed the conflict's own wider
+  range — even though the advisory is about the candidate.
+- **Fix.** New pure `clipClashEffectiveWindow(entry, bounds)` (`clashDisplay.ts`)
+  intersects a conflict's effective window with the candidate's. It keeps a whole-day
+  conflict whole-day only when the clipped bounds stay midnight-aligned (so
+  `clashCoveredDayKeys` never subtracts a day from a non-midnight exclusive end); a
+  full-day conflict clipped to a timed candidate becomes a timed entry. The helper never
+  widens a conflict.
+- **Wiring.** `EventClashCheck` computes `displayClashes` from the returned `candidate`
+  and uses them for both the `ClashTimelineDays` entries and the expanded
+  `ClashEventRow`s. The in-place detail fetch still receives the **original** entry, so
+  `getWizardClashEventDetail` reads the conflict's real window. The Double Booking page
+  and the server check are unchanged (no candidate exists there).
+- **Tests.** `clashDisplay.test.ts` covers wider/full-day/narrow conflict clipping and
+  the whole-day demotion rule.
+- Docs: `docs/event-clashes.md` §1.6; `APP_VERSION` → `2026.11.03-1`.
+- Verification: `pnpm vitest run src/lib/events/clashDisplay.test.ts`, `pnpm lint`,
+  `pnpm typecheck`, `pnpm test`.
