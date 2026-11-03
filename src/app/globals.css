@@ -265,6 +265,111 @@ html {
   }
 }
 
+/*
+  Period-change grid slide (docs/loading-transitions.md §1.14.1). The dashboard
+  grid box becomes its own view-transition group ONLY while a step is in
+  flight: the step handler adds one of the classes below (which carries the
+  `view-transition-name`), and the real View Transition cross-slides the old
+  grid out opposite the direction of travel while the new one (warm data or
+  the skeleton) slides in from the tapped side. The class is removed when the
+  transition finishes, so route transitions and every other update keep
+  painting through the root group. The pinned strips/rulers sit outside the
+  group and stay static.
+*/
+.c2-grid-slide-next {
+  view-transition-name: c2-grid-next;
+}
+
+.c2-grid-slide-prev {
+  view-transition-name: c2-grid-prev;
+}
+
+@keyframes c2-grid-out-next {
+  to {
+    transform: translateX(-100%);
+  }
+}
+
+@keyframes c2-grid-in-next {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes c2-grid-out-prev {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes c2-grid-in-prev {
+  from {
+    transform: translateX(-100%);
+  }
+}
+
+::view-transition-old(c2-grid-next) {
+  animation: c2-grid-out-next var(--c2-dur-standard) var(--c2-ease-in) both;
+}
+
+::view-transition-new(c2-grid-next) {
+  animation: c2-grid-in-next var(--c2-dur-emphasized) var(--c2-ease-out) both;
+}
+
+::view-transition-old(c2-grid-prev) {
+  animation: c2-grid-out-prev var(--c2-dur-standard) var(--c2-ease-in) both;
+}
+
+::view-transition-new(c2-grid-prev) {
+  animation: c2-grid-in-prev var(--c2-dur-emphasized) var(--c2-ease-out) both;
+}
+
+/* The group box (4–6 grid rows can differ between months) resizes on the same
+   clock as the slides, so the two grids never squash against a stale box. */
+::view-transition-group(c2-grid-next),
+::view-transition-group(c2-grid-prev) {
+  animation-duration: var(--c2-dur-emphasized);
+  animation-timing-function: var(--c2-ease-out);
+}
+
+/*
+  Parade State day-change slide (docs/loading-transitions.md §1.14.1): the
+  roster region becomes its own view-transition group only while a day step
+  runs (same manual `document.startViewTransition` recipe as the dashboard
+  grid above) and cross-slides in the direction of travel. In-month steps slide
+  the rosters directly (the events are already local); month edges slide the
+  roster out and the skeleton in, then the fresh month dissolves in place.
+*/
+.c2-parade-slide-next {
+  view-transition-name: c2-parade-next;
+}
+
+.c2-parade-slide-prev {
+  view-transition-name: c2-parade-prev;
+}
+
+::view-transition-old(c2-parade-next) {
+  animation: c2-grid-out-next calc(var(--c2-dur-standard) * 0.6) var(--c2-ease-in) both;
+}
+
+::view-transition-new(c2-parade-next) {
+  animation: c2-grid-in-next var(--c2-dur-emphasized) var(--c2-ease-out) both;
+}
+
+::view-transition-old(c2-parade-prev) {
+  animation: c2-grid-out-prev calc(var(--c2-dur-standard) * 0.6) var(--c2-ease-in) both;
+}
+
+::view-transition-new(c2-parade-prev) {
+  animation: c2-grid-in-prev var(--c2-dur-emphasized) var(--c2-ease-out) both;
+}
+
+::view-transition-group(c2-parade-next),
+::view-transition-group(c2-parade-prev) {
+  animation-duration: var(--c2-dur-emphasized);
+  animation-timing-function: var(--c2-ease-out);
+}
+
 /* Wizard step directional slide: the new step slides in from the direction of
    travel (forward = from the right, backward = from the left). The offset
    direction is controlled by the --slide-dir custom property (1 or -1). */

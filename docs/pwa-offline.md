@@ -634,23 +634,23 @@ sequenceDiagram
   `?month`/`?date` win, then the device cookie's remembered month, and the tab is
   the URL `?view=` or — with a silent URL — the **first tab** in strip order, so
   the last-viewed tab is never resurrected. This matters because the preload
-  batch (current + next two months) is written _after_ the viewed month, so a
-  plain "newest record" pick would land the calendar two months ahead on every
-  cold open. When no cached context answers the anchor nothing is painted and the
+  batch (previous + current + next two months) is written _after_ the viewed
+  month, so a plain "newest record" pick would land the calendar two months
+  ahead on every cold open. When no cached context answers the anchor nothing is painted and the
   fetch reads it (the server applies the same anchor rule).
   Every successful read writes its context (keyed by the account id
-  - `requestKey`), capped at `MAX_SNAPSHOTS_PER_USER` (24) by LRU
+  -   `requestKey`), capped at `MAX_SNAPSHOTS_PER_USER` (30) by LRU
     (`selectSnapshotsToEvict`), which bounds disk, the cold-start hydration parse
     and the IndexedDB quota (write failures are swallowed, so an unbounded store
-    would silently stop caching); 24 covers the preloaded contexts for a typical
-    account (every tab for the current anchor plus the active tab's next two
-    months, with LRU headroom). Switching back to a previously loaded context
+    would silently stop caching); 30 covers the preloaded contexts for a typical
+    account (every tab for the current anchor, the active tab's previous month
+    and next two, plus the tab-switch adjacent-only set, with LRU headroom). Switching back to a previously loaded context
     paints it instantly from the map and revalidates only when the cached record is
     older than `WARM_SNAPSHOT_FRESH_MS` (60s, aligned with the server events-cache
     window) — a warm paint shows no skeleton. A mutation / filter apply / tab CRUD
     (`revalidate()`) and a force refresh drop every cached context before
     re-reading, so no stale record survives a write.
-- **Every tab is preloaded for instant switches (plus the next two months).** After
+- **Every tab is preloaded for instant switches (plus the previous and next two months).** After
   the active context is
   fresh and idle, `DashboardScreen` calls `/api/dashboard/preload` once per
   signature (the tab set + the months those tabs need; the active view is
@@ -661,10 +661,12 @@ sequenceDiagram
   `readCalendarRange` over the union of every tab's calendars/months for the
   current anchor, then projects each tab (`projectRangeEvents` +
   `resolveDisplayTitles`) into a delta. It then warms the **active tab** for the
-  next two months (`PRELOAD_MONTHS_AHEAD` in `snapshot.ts`, day-of-month clamped
-  via `preloadAnchors`) with a **second** `readCalendarRange` scoped to just that
-  tab's calendars, so a forward month navigation paints from the warm cache with
-  no round-trip. `assembleDashboardSnapshot` (`snapshot.ts`) recombines the shared
+  previous month and the next two (`PRELOAD_MONTHS_BEHIND` /
+  `PRELOAD_MONTHS_AHEAD` in `snapshot.ts`, day-of-month clamped via
+  `preloadAnchors`) with a **second** `readCalendarRange` scoped to just that
+  tab's calendars, so a month navigation in either direction paints from the
+  warm cache with no round-trip (and slides in real data — docs/loading-transitions.md
+  §1.14.1). `assembleDashboardSnapshot` (`snapshot.ts`) recombines the shared
   config with each delta and the client writes all of them to the warm map +
   IndexedDB. A tab switch then paints from the warm cache with no server round-trip
   (revalidating only past `WARM_SNAPSHOT_FRESH_MS`). The read never forces a
@@ -674,6 +676,15 @@ sequenceDiagram
   a generation ref, aborts an in-flight preload and clears the warm map, so it
   can't repopulate stale records — but it deliberately does **not** schedule
   another full pass (that would make the user wait on a warm-up).
+- **Adjacent-only warm after a tab switch.** The full pass warms the neighbours
+  of the tab that was active when it ran; switching tabs deliberately doesn't
+  re-run it (the signature excludes the active view), so the newly active tab's
+  previous/next periods would stay cold — most visible when switching to an
+  Agenda tab and crossing a month edge. `DashboardScreen` therefore runs one
+  extra idle `POST /api/dashboard/preload` with `adjacentOnly: true` per
+  active-tab/anchor (`buildDashboardPreload` then does just the active tab's
+  adjacent-anchor read, no all-tabs projection) and writes those records into
+  the same warm map/IndexedDB. It no-ops when those keys are already warm.
 - **Intent prefetch.** Once a record is held, a tab hover/focus/press or a
   period-chevron hover warms the target context through the existing
   `/api/dashboard/load` (120 ms hover delay; immediate on press/focus). A

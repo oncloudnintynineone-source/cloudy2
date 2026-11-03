@@ -114,13 +114,18 @@ doc content here.
   Next serializes server actions client-side, so a background warm-up would otherwise
   delay the user's next save/read; the load is also abortable and debounced. After the
   active context is fresh, the client **preloads every tab** for the current anchor **and
-  the active tab for the next two months** (`/api/dashboard/preload` →
+  the active tab for the previous month and the next two** (`/api/dashboard/preload` →
   `buildDashboardPreload`: one union `readCalendarRange` for the anchor + a second read
-  scoped to the active tab's calendars for the future months, each projected by
+  scoped to the active tab's calendars for the adjacent months, each projected by
   `projectRangeEvents` and reassembled by `assembleDashboardSnapshot`) so tab switches and
-  forward month navigations paint from the warm cache with no round-trip. It runs once per
-  signature (tab set + required months — **not** the active view) and is not re-run after
-  a mutation or force refresh. **Code**
+  month navigations (either direction) paint from the warm cache with no round-trip and
+  cross-slide with real data (`docs/loading-transitions.md` §1.14.1). The step also sets an
+  optimistic **period preview** (like the tab preview), so a warm target paints in the same
+  commit as the slide — no skeleton. After a **tab switch**, a follow-up idle
+  `POST /api/dashboard/preload` with `adjacentOnly: true` warms the newly active tab's
+  previous/next periods (the full pass only warms the previously active tab's neighbours).
+  The full pass runs once per signature (tab set + required months — **not** the active
+  view) and is not re-run after a mutation or force refresh. **Code**
   warming is narrower: only the active renderer + the renderer kinds the account has
   tabs for, plus event details, warm at idle; the wizard waits 5 s on capable devices;
   Parade State, Contacts and Double Booking get one idle route-prefetch + chunk pass

@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.365 (Wizard double-booking display clipped to the candidate)** is shipped.
+- All work through changelog **1.366 (Real view-transition period slides)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -2324,6 +2324,29 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   stretches a day's axis or prints its own wider range; a whole-day conflict clipped
   to a timed candidate renders as a timed window, and the in-place detail fetch still
   uses the conflict's original window. Docs: `docs/event-clashes.md` §1.6.
+- 1.366 **Real view-transition period slides (calendar grid + Parade State)**: a
+  period step on the dashboard (Month, Dual Pane and the Week/Day kinds — chevrons,
+  Today, the date/month picker) now plays a **real directional cross-slide** via
+  `document.startViewTransition` (shared `slideViewTransition` in
+  `src/lib/ui/viewTransition.ts`, `flushSync`-committed optimistic chrome, direction
+  classes carrying the grid box's `view-transition-name`); Parade State's day steps
+  (chevrons, picker, swipe) slide the same way, including month edges (roster out,
+  crossfade skeleton in). Tab switches keep the WAAPI nudge (the nudge now stands down
+  while a real slide class is present, so nothing double-animates); unsupported
+  browsers / reduced motion keep the old passive animations. The idle preload now
+  warms the active tab for the **previous** month as well as the next two
+  (`PRELOAD_MONTHS_BEHIND`, `preloadAnchors(behind)`, `MAX_SNAPSHOTS_PER_USER` 25) so
+  both directions enter with real data, and Parade State chevrons intent-prefetch the
+  adjacent day's RSC payload. Follow-up: a period step now sets an optimistic **period
+  preview** (mirroring the tab preview) so a warm target paints the real next period in
+  the same commit as the slide — the skeleton no longer flashes for preloaded months
+  (and the cold skeleton was realigned with the grid: no in-box weekday row, the pinned
+  strip renders during loading, fit-var cell heights). The Agenda tab uses the shared
+  slide too, and month-edge day steps paint the preloaded adjacent month without the old
+  fade/skeleton; a tab-switch **adjacent-only preload** (`adjacentOnly: true`,
+  `MAX_SNAPSHOTS_PER_USER` 30) warms the newly active tab's neighbours. Docs:
+  `docs/loading-transitions.md` §1.14.1, `docs/pwa-offline.md` §1.18,
+  `docs/dashboard-views.md` §1.1, `AGENTS.md`.
 
 ## 1.4 Open items & next steps
 

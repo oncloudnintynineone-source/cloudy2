@@ -23,40 +23,74 @@ export function WeekdayRow() {
   );
 }
 
-export function MonthGridSkeleton({ rows, fill = false }: { rows: number; fill?: boolean }) {
+export function MonthGridSkeleton({
+  rows,
+  fill = false,
+  withWeekdayRow = true,
+  style,
+}: {
+  rows: number;
+  fill?: boolean;
+  /**
+   * Draw Mantine's weekday-initials row inside the box. The real standalone
+   * Month view replaces it with the pinned `MonthWeekdayStrip` (outside the
+   * grid box), so its in-page skeleton passes `false`; the route/dual skeletons
+   * have no strip and keep it (default `true`).
+   */
+  withWeekdayRow?: boolean;
+  /** Extra container style — the in-page Month skeleton passes `monthFitStyle`
+   *  so the fitted chip/row vars match the real grid (`--month-view-max-events`). */
+  style?: React.CSSProperties;
+}) {
   return (
-    <Paper
-      withBorder
-      radius="md"
-      p="sm"
-      style={fill ? { height: "100%", display: "flex", flexDirection: "column" } : undefined}
+    <Box
+      style={{
+        border: "1px solid var(--mantine-color-default-border)",
+        borderRadius: "var(--mantine-radius-md)",
+        overflow: "hidden",
+        ...(fill ? { height: "100%", display: "flex", flexDirection: "column" } : null),
+        ...style,
+      }}
     >
-      <WeekdayRow />
-      <Box style={fill ? { ...gridStyle, flex: "1 1 auto", gridAutoRows: "1fr" } : gridStyle}>
+      {withWeekdayRow ? <WeekdayRow /> : null}
+      <Box
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(7, 1fr)",
+          ...(fill ? { flex: "1 1 auto", minHeight: 0, gridAutoRows: "1fr" } : null),
+        }}
+      >
         {Array.from({ length: rows * 7 }).map((_, i) => {
           const chips = (Math.floor(i / 7) * 3 + (i % 7) * 5 + 2) % 4;
           return (
-            <Paper
+            <Box
               key={i}
-              withBorder
-              radius="sm"
-              p={4}
               style={{
-                minHeight: 124,
+                // Mirrors the library's month day cell
+                // (`calc(52px + --month-view-max-events * 24px)`); in the
+                // fit-to-height column the shared grid rows own the height.
+                height: fill
+                  ? undefined
+                  : "calc(52px + var(--month-view-max-events, 3) * 24px)",
+                minHeight: fill ? 0 : undefined,
+                padding: "calc(0.25rem * var(--mantine-scale))",
                 display: "flex",
                 flexDirection: "column",
                 gap: 3,
+                borderTop: i < 7 ? undefined : "1px solid var(--mantine-color-default-border)",
+                borderLeft:
+                  i % 7 === 0 ? undefined : "1px solid var(--mantine-color-default-border)",
               }}
             >
               <Skeleton height={12} width={16} style={{ alignSelf: "flex-end" }} />
               {Array.from({ length: chips }).map((_, c) => (
                 <Skeleton key={c} height={20} radius={2} />
               ))}
-            </Paper>
+            </Box>
           );
         })}
       </Box>
-    </Paper>
+    </Box>
   );
 }
 

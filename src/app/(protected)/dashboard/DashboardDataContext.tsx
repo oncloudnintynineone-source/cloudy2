@@ -2,6 +2,7 @@
 
 import { createContext, useContext } from "react";
 
+import type { PeriodPreview } from "@/lib/dashboard/navigation";
 import type { TabLoadState } from "@/lib/dashboard/snapshot";
 import type { DashboardViewTab } from "@/lib/dashboardViews/views";
 
@@ -40,6 +41,14 @@ export interface DashboardDataValue {
    * of waiting on the RSC round-trip. Null once the URL catches up.
    */
   setPreviewView: (viewId: string | null) => void;
+  /**
+   * The optimistically stepped period (month / dual / agenda-edge data
+   * navigation), set in the same commit as the cross-slide. `DashboardScreen`
+   * resolves the displayed record from `previewPeriod ?? searchParams`, so a
+   * preloaded adjacent period paints instantly (no skeleton) instead of waiting
+   * on the RSC round-trip. Null once the URL catches up.
+   */
+  setPreviewPeriod: (period: PeriodPreview | null) => void;
   /**
    * Tell the data layer whether a dashboard router transition is currently in
    * flight. The optimistic tab preview stays while a navigation is pending and

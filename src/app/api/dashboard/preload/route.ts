@@ -22,6 +22,7 @@ interface PreloadBody {
   view?: unknown;
   month?: unknown;
   date?: unknown;
+  adjacentOnly?: unknown;
 }
 
 export async function POST(request: Request) {
@@ -45,6 +46,7 @@ export async function POST(request: Request) {
     view: optionalString(body.view),
     month: optionalString(body.month),
     date: optionalString(body.date),
+    adjacentOnly: body.adjacentOnly === true,
   });
   return NextResponse.json(result, { headers: API_NO_STORE });
 }

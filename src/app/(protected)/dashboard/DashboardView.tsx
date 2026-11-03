@@ -195,6 +195,11 @@ import {
   type DashboardViewTab,
 } from "@/lib/dashboardViews/views";
 import { gridMonthsCovered, planDashboardSwitch } from "@/lib/dashboard/navigation";
+import {
+  GRID_SLIDE_NEXT,
+  GRID_SLIDE_PREV,
+  slideViewTransition,
+} from "@/lib/ui/viewTransition";
 import { WIZARD_WARM_DELAY_MS, tabWarmKinds } from "@/lib/dashboard/warmup";
 import { EventFormSkeleton } from "./EventFormSkeleton";
 import { ViewTypePicker } from "./ViewTypePicker";
@@ -1094,6 +1099,7 @@ function DashboardViewImpl({
     revalidate,
     isNavigating,
     setPreviewView,
+    setPreviewPeriod,
     reportNavigationPending,
     applyViewTab,
     prefetchContext,
@@ -2159,6 +2165,18 @@ function DashboardViewImpl({
     if (dir === 0) return;
     const el = gridSlideRef.current;
     if (!el) return;
+    // A real View Transition already slid this exact period change: the step
+    // handler keeps its direction class on the grid box for the transition's
+    // whole duration, and this effect runs inside that commit — seeing the
+    // class means the cross-slide owns the change, so the nudge stands down
+    // (docs/loading-transitions.md §1.14.1). Tab switches and external
+    // navigations never carry the class and keep the nudge.
+    if (
+      !tabSwitch &&
+      (el.classList.contains(GRID_SLIDE_NEXT) || el.classList.contains(GRID_SLIDE_PREV))
+    ) {
+      return;
+    }
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     // Web Animations API instead of a CSS-class toggle: restarting a CSS keyframe
     // requires forcing a synchronous reflow (`void el.offsetWidth`) of the whole
@@ -3030,27 +3048,68 @@ function DashboardViewImpl({
     router.push(buildHref({ event: null, _eventCal: null }));
   }, [buildHref, initialDetailEventId, deepLinkSettled, router]);
 
+  /**
+   * Applies an optimistic period change inside a real View Transition: the
+   * grid box cross-slides from the old period to the new one (or its skeleton)
+   * in the direction of travel (docs/loading-transitions.md §1.14.1). While
+   * the transition runs, the slide class sits on the grid box — the WAAPI
+   * nudge effect below stands down when it sees it, so the two never stack;
+   * tab switches and external navigations (back/forward, deep links) never
+   * carry the class and keep the nudge. Unsupported browsers / reduced motion
+   * fall back to the plain update + the nudge.
+   */
+  const slidePeriod = useCallback((dir: 1 | -1, mutate: (vt: boolean) => void) => {
+    if (!slideViewTransition(gridSlideRef.current, dir, () => mutate(true))) {
+      mutate(false);
+    }
+  }, []);
+
+  /** `slidePeriod` keyed on the period change: no slide when nothing moves. */
+  const slidePeriodTo = useCallback(
+    (current: string, next: string, mutate: (vt: boolean) => void) => {
+      if (next === current) {
+        mutate(false);
+        return;
+      }
+      slidePeriod(next > current ? 1 : -1, mutate);
+    },
+    [slidePeriod],
+  );
+
   // Shifts compose on the optimistic chrome values (not the committed props),
   // so rapid taps during a pending navigation accumulate instead of being
   // eaten by navigate()'s no-op guard.
   function shiftMonth(delta: number) {
     const next = dayjs(`${shownMonth}-01`).add(delta, "month").format("YYYY-MM");
-    setShownMonth(next);
+    slidePeriod(delta > 0 ? 1 : -1, () => {
+      setShownMonth(next);
+      // Paint the warm target in the same commit as the slide (no skeleton when
+      // the adjacent month is preloaded).
+      setPreviewPeriod({ month: next, date: null });
+    });
     navigate({ month: next, date: null });
   }
 
   function shiftDay(delta: number) {
     const next = dayjs(shownDate).add(delta, "day");
-    setShownDate(next.format("YYYY-MM-DD"));
-    setShownMonth(next.format("YYYY-MM"));
-    navigateLocal({ date: next.format("YYYY-MM-DD"), month: next.format("YYYY-MM") });
+    const nextDate = next.format("YYYY-MM-DD");
+    const nextMonth = next.format("YYYY-MM");
+    slidePeriod(delta > 0 ? 1 : -1, () => {
+      setShownDate(nextDate);
+      setShownMonth(nextMonth);
+    });
+    navigateLocal({ date: nextDate, month: nextMonth });
   }
 
   function shiftWeek(delta: number) {
     const next = dayjs(shownDate).add(delta, "week");
-    setShownDate(next.format("YYYY-MM-DD"));
-    setShownMonth(next.format("YYYY-MM"));
-    navigateLocal({ date: next.format("YYYY-MM-DD"), month: next.format("YYYY-MM") });
+    const nextDate = next.format("YYYY-MM-DD");
+    const nextMonth = next.format("YYYY-MM");
+    slidePeriod(delta > 0 ? 1 : -1, () => {
+      setShownDate(nextDate);
+      setShownMonth(nextMonth);
+    });
+    navigateLocal({ date: nextDate, month: nextMonth });
   }
 
   /**
@@ -3063,8 +3122,11 @@ function DashboardViewImpl({
     const next = dayjs(shownDate).add(delta, "month");
     const nextDate = next.format("YYYY-MM-DD");
     const nextMonth = next.format("YYYY-MM");
-    setShownDate(nextDate);
-    setShownMonth(nextMonth);
+    slidePeriod(delta > 0 ? 1 : -1, () => {
+      setShownDate(nextDate);
+      setShownMonth(nextMonth);
+      setPreviewPeriod({ month: nextMonth, date: nextDate });
+    });
     navigate({ date: nextDate, month: nextMonth });
   }
 
@@ -3193,51 +3255,76 @@ function DashboardViewImpl({
       return;
     }
     if (isAnchoredView) {
-      setShownDate(today);
-      setShownMonth(todayMonth);
+      slidePeriodTo(shownDate, today, () => {
+        setShownDate(today);
+        setShownMonth(todayMonth);
+      });
       navigateLocal({ date: today, month: todayMonth });
     } else {
-      setShownMonth(todayMonth);
+      slidePeriodTo(shownMonth, todayMonth, () => {
+        setShownMonth(todayMonth);
+        setPreviewPeriod({ month: todayMonth, date: null });
+      });
       navigate({ month: todayMonth, date: null });
     }
   }
 
   function pickDate(picked: string) {
-    setShownDate(picked);
-    setShownMonth(picked.slice(0, 7));
-    navigateLocal({ date: picked, month: picked.slice(0, 7) });
+    const pickedMonth = picked.slice(0, 7);
+    // Dual Pane's period key is the month (a same-month day tap moves the
+    // agenda pane silently, mirroring the nudge effect's key); the other
+    // anchored kinds key on the day.
+    slidePeriodTo(
+      shownIsDual ? shownMonth : shownDate,
+      shownIsDual ? pickedMonth : picked,
+      () => {
+        setShownDate(picked);
+        setShownMonth(pickedMonth);
+      },
+    );
+    navigateLocal({ date: picked, month: pickedMonth });
   }
 
   function pickMonth(picked: string) {
-    setShownMonth(picked);
+    slidePeriodTo(shownMonth, picked, () => {
+      setShownMonth(picked);
+      setPreviewPeriod({ month: picked, date: null });
+    });
     navigate({ month: picked, date: null });
   }
 
   /**
-   * Applies a day change in the Agenda tab. The viewed day and the slide
-   * direction update locally and immediately; `?date=` is kept in sync — with
-   * a plain no-transition push in-month (no new fetch identity, so the page
-   * re-renders silently behind the slide) or a data navigation across a month
-   * edge (skeleton + reveal fade, no slide). External URL changes
-   * (back/forward, deep links) reach the tab through the URL-first `date`
-   * prop, which the render-phase sync above follows.
+   * Applies a day change in the Agenda tab. The viewed day updates locally and
+   * the change plays the real cross-slide (§1.14.1) — `?date=` is kept in sync
+   * with a plain no-transition push in-month (no new fetch identity, so the
+   * page re-renders silently behind the slide) or a data navigation across a
+   * month edge (the optimistic period preview paints the preloaded adjacent
+   * month, so no skeleton flashes either). The keyed `agenda-slide-*` CSS slide
+   * remains as the fallback for unsupported browsers / reduced motion. External
+   * URL changes (back/forward, deep links) reach the tab through the URL-first
+   * `date` prop, which the render-phase sync above follows.
    */
   function applyAgendaDay(next: string) {
     const current = viewedDay ?? date;
     if (next === current) {
       return; // No-op (e.g. Today while already on it): no skeleton, no slide.
     }
-    setViewedDay(next);
-    setAgendaUrlBase(date);
     const nextMonth = next.slice(0, 7);
-    if (nextMonth !== month) {
-      // The server must fetch the new month; the skeleton + reveal fade
-      // replace the directional slide, so clear it.
-      setAgendaSlideDir(0);
+    const crossesMonth = nextMonth !== month;
+    slidePeriod(next > current ? 1 : -1, (vt) => {
+      setViewedDay(next);
+      setAgendaUrlBase(date);
+      // The keyed CSS slide is the fallback only (a month edge keeps the reveal
+      // fade there, as it always did); the real transition owns the slide.
+      setAgendaSlideDir(vt || crossesMonth ? 0 : next > current ? 1 : -1);
+      if (crossesMonth) {
+        setPreviewPeriod({ month: nextMonth, date: next });
+      }
+    });
+    if (crossesMonth) {
       navigate({ date: next, month: nextMonth });
       return;
     }
-    setAgendaSlideDir(dayjs(next).isAfter(dayjs(current)) ? 1 : -1);
     // Plain push outside startTransition: it never sets the pending flag
     // (same pattern as the ?edit=/?event= URL strips), so no skeleton.
     router.push(buildHref({ date: next }));
@@ -4885,7 +4972,10 @@ function DashboardViewImpl({
           {/* Pinned weekday-initials strip for the Month view (replaces Mantine's
             own row, which scrolls away inside the grid's ScrollArea). Its track
             is sized to the zoomed grid so the initials stay over their columns. */}
-          {!gridLoading && view === "month" && (
+          {/* Rendered during the month skeleton too: it is the real grid's
+              header and lives outside the animated/view-transition box, so the
+              header never disappears or jumps mid-step. */}
+          {shownView === "month" && (
             <MonthWeekdayStrip
               chromeOffset={topChromeHeight}
               innerRef={monthWeekdayTrackRef}
@@ -4923,6 +5013,12 @@ function DashboardViewImpl({
                     <MonthGridSkeleton
                       rows={monthGridRows(shownMonth, weekStartsOn)}
                       fill={monthFitActive}
+                      // The pinned weekday strip below is the real header and
+                      // sits outside the animated box, so the skeleton must not
+                      // draw its own (that offset was the "blob" on the slide).
+                      withWeekdayRow={false}
+                      // Match the real grid's fitted chip/row variables.
+                      style={monthFitStyle}
                     />
                   ) : shownIsDual ? (
                     <DualPaneSkeleton

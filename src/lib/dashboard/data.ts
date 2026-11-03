@@ -93,6 +93,13 @@ export interface BuildDashboardDataInput {
   date: string | null;
   /** Bypass the events cache freshness window and block on fresh Google reads. */
   force: boolean;
+  /**
+   * Preload mode: return only the active tab's adjacent-anchor contexts
+   * (previous month + next two), not every tab at the current anchor. Used
+   * after a tab switch, when the full pass warmed the *previous* active tab's
+   * neighbours (docs/pwa-offline.md §1.18).
+   */
+  adjacentOnly?: boolean;
 }
 
 export interface BuiltDashboardData {
@@ -559,9 +566,10 @@ export interface BuiltDashboardPreload {
 
 /**
  * Resolve the warmed contexts off a single cache read per anchor set, so the
- * client can paint a tab switch or a forward month navigation with no server
+ * client can paint a tab switch or a month navigation with no server
  * round-trip (docs/pwa-offline.md). Every tab is warmed for the current anchor;
- * the active tab is additionally warmed for the next two months. The config
+ * the active tab is additionally warmed for the previous month and the next
+ * two. The config
  * pass is shared, the calendars/months are unioned per read, and each record's
  * events are projected from the raw read. Never forces a Google refresh — it
  * warms what the active context already read plus the genuinely cold future
@@ -574,6 +582,48 @@ export async function buildDashboardPreload(
   const config = await resolveDashboardConfig(session);
   const activeTab = resolveRequestedTab(config, input);
   const period = resolvePeriod(config, activeTab.kind, input);
+
+  // Adjacent anchors (one month back, two forward) warm only the active tab,
+  // so their read is scoped to that tab's calendars — not every tab's — keeping
+  // the extra Google/DB work bounded to what the user is actually looking at.
+  // The previous month is included so stepping back paints from the warm cache
+  // (the directional cross-slide, docs/loading-transitions.md §1.14.1).
+  const adjacentAnchors = preloadAnchors(period).filter((anchor) => anchor.month !== period.month);
+  const activeCalendars = config.resolveSelectedFilters(activeTab).cal;
+  const adjacentMonths = [
+    ...new Set(
+      adjacentAnchors.flatMap((anchor) =>
+        requiredMonths(activeTab.kind, anchor.month, anchor.date, config.shared.weekStartsOn),
+      ),
+    ),
+  ];
+
+  // Adjacent-only mode (docs/pwa-offline.md §1.18): after a tab switch the full
+  // pass already warmed every tab at this anchor, so only the newly active
+  // tab's neighbours are missing. One read, no all-tabs projection.
+  if (input.adjacentOnly) {
+    const adjacentRange =
+      adjacentMonths.length > 0 && activeCalendars.length > 0
+        ? await readCalendarRange({ months: adjacentMonths, calendarIds: activeCalendars })
+        : null;
+    const records: BuiltDashboardPreload["records"] = [];
+    if (adjacentRange) {
+      for (const anchor of adjacentAnchors) {
+        const months = requiredMonths(
+          activeTab.kind,
+          anchor.month,
+          anchor.date,
+          config.shared.weekStartsOn,
+        );
+        const { delta, context } = projectTab(config, activeTab, anchor, {
+          ...adjacentRange,
+          months,
+        });
+        records.push({ context, delta });
+      }
+    }
+    return { shared: config.shared, records };
+  }
 
   const resolved = config.tabs.map((tab) => ({
     tab,
@@ -588,23 +638,10 @@ export async function buildDashboardPreload(
     ),
   ];
 
-  // Future anchors warm only the active tab, so the second read is scoped to
-  // that tab's calendars — not every tab's — keeping the extra Google/DB work
-  // bounded to what the user is actually looking at.
-  const futureAnchors = preloadAnchors(period).slice(1);
-  const activeCalendars = config.resolveSelectedFilters(activeTab).cal;
-  const futureMonths = [
-    ...new Set(
-      futureAnchors.flatMap((anchor) =>
-        requiredMonths(activeTab.kind, anchor.month, anchor.date, config.shared.weekStartsOn),
-      ),
-    ),
-  ];
-
-  const [currentRange, futureRange] = await Promise.all([
+  const [currentRange, adjacentRange] = await Promise.all([
     readCalendarRange({ months: unionMonths, calendarIds: unionCalendars }),
-    futureMonths.length > 0 && activeCalendars.length > 0
-      ? readCalendarRange({ months: futureMonths, calendarIds: activeCalendars })
+    adjacentMonths.length > 0 && activeCalendars.length > 0
+      ? readCalendarRange({ months: adjacentMonths, calendarIds: activeCalendars })
       : Promise.resolve(null),
   ]);
 
@@ -613,17 +650,17 @@ export async function buildDashboardPreload(
     return { context, delta };
   });
 
-  if (futureRange) {
-    for (const anchor of futureAnchors) {
+  if (adjacentRange) {
+    for (const anchor of adjacentAnchors) {
       const months = requiredMonths(
         activeTab.kind,
         anchor.month,
         anchor.date,
         config.shared.weekStartsOn,
       );
-      // Restrict the projection to this anchor's own months so a future-month
+      // Restrict the projection to this anchor's own months so an adjacent-month
       // snapshot carries only the events its grid renders, not the whole union.
-      const { delta, context } = projectTab(config, activeTab, anchor, { ...futureRange, months });
+      const { delta, context } = projectTab(config, activeTab, anchor, { ...adjacentRange, months });
       records.push({ context, delta });
     }
   }

@@ -1,4 +1,4 @@
-﻿# 1. Cloudy2 â€” Progress Archive
+# 1. Cloudy2 â€” Progress Archive
 
 Internal tool for managing company personnel, leave/event records, and Key Appointment
 Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
@@ -9913,3 +9913,91 @@ server read per user intent; it is gated by online/Save-Data/2G, deduped, and ab
 - Docs: `docs/event-clashes.md` §1.6; `APP_VERSION` → `2026.11.03-1`.
 - Verification: `pnpm vitest run src/lib/events/clashDisplay.test.ts`, `pnpm lint`,
   `pnpm typecheck`, `pnpm test`.
+
+## 1.366 Real view-transition period slides (calendar grid + Parade State)
+
+- **Problem.** A period step (month/week/day) and a Parade State day step played at
+  best a short "nudge" (a 10% WAAPI shift-and-return on the dashboard grid, a keyed
+  CSS slide-in on Parade State). Neither showed the real transition — the outgoing
+  period never slid out, so the change read as a jump rather than a move.
+- **Dashboard.** New `src/lib/ui/viewTransition.ts` =
+  `slideViewTransition(el, dir, mutate, classes)`: adds a direction class that carries
+  the element's `view-transition-name`, calls `document.startViewTransition`, commits
+  the optimistic chrome update inside it with `flushSync` (the documented React
+  recipe), and removes the class when the transition finishes **or is skipped** (a
+  held chevron supersedes the running transition). Returns `false` under missing API
+  support or `prefers-reduced-motion`, so the caller applies the mutation itself.
+  `shiftMonth`/`shiftDay`/`shiftWeek`/`shiftDualMonth`, `goToday`, `pickDate`,
+  `pickMonth` route their chrome update through `slidePeriod`/`slidePeriodTo` (the
+  latter skips no-op jumps). The grid box (`gridSlideRef`/`monthFitRef`) is the named
+  group; pinned strips/rulers/pan controls stay outside it.
+- **No double animation.** The old WAAPI nudge effect stands down whenever the grid box
+  still carries a slide class — it executes inside the transition's `flushSync`
+  commit, so the class is always present then. Tab switches and external navigations
+  (back/forward, deep links) never carry the class and keep the nudge (below `lg`,
+  tab switches keep the fade + rise).
+- **Parade State.** `shiftDay`/`goToday`/`pickDate` use `slideDay` (same helper,
+  `PARADE_SLIDE_*` classes on the unkeyed `contentRef` wrapper). In-month steps slide
+  the rosters directly (the month's events are already local); month edges slide the
+  roster out and the `CrossfadeSwap` skeleton in, then the fresh month dissolves in
+  place. The keyed `agenda-slide-*` CSS slide stays as the fallback and is cleared
+  (`slideDir === 0`) when the real transition ran. Chevrons intent-prefetch the
+  adjacent day's RSC payload (hover/focus/press).
+- **CSS.** `globals.css`: `.c2-grid-slide-next|prev` / `.c2-parade-slide-next|prev`
+  set the names; shared `c2-grid-out/in-next|prev` keyframes translate ±100% on
+  `--c2-dur-standard`/`--c2-dur-emphasized` with the motion-profile easings; the group
+  box animates on the same clock (month grids range 4–6 rows). The existing
+  reduced-motion block zeroes every view-transition animation.
+- **Preload.** `preloadAnchors(anchor, ahead, behind)` now also returns the previous
+  month (`PRELOAD_MONTHS_BEHIND = 1`), and `buildDashboardPreload` warms the active
+  tab for previous + next two months (adjacent anchors only);
+  `MAX_SNAPSHOTS_PER_USER` 24 → 25, the in-memory cap comment updated. The
+  `/api/dashboard/preload` response was verified to carry the 2026-11 anchor while
+  viewing 2026-12.
+- **Tests.** `snapshot.test.ts` covers the previous anchor, both-direction year
+  rollover, back/forward day clamping, and custom ahead/behind counts; all 1,720 unit
+  tests pass.
+- **Browser verification (Chrome DevTools).** Month next/prev fired
+  `startViewTransition` with the correct armed class and a mid-slide screenshot
+  showed the cross-slide; the class was cleaned up afterwards (no stray named group).
+  Week (D), Dual Pane, the Today jump and the mobile (below-`lg`) pill all fired the
+  slide. Tab switches fired 0 view transitions + 1 WAAPI nudge; period steps fired 1
+  transition + 0 nudges (no double animation). Rapid triple-clicks produced 2 completed
+  transitions with no leaked classes. Back navigation fired no transition (nudge
+  fallback). Parade State next/prev and the Nov 30 → Dec 1 month edge fired the parade
+  slide; reduced motion fired no transition and used the `agenda-slide-*` fallback
+  instead. Console showed only pre-existing errors (AppShellShell SSR `window`
+  reference + React's dev-only script-tag warning).
+- Docs: `docs/loading-transitions.md` §1.14/§1.14.1/§1.16,
+  `docs/pwa-offline.md` §1.18, `docs/dashboard-views.md` §1.1, `AGENTS.md`;
+  `APP_VERSION` → `2026.11.04-2`.
+- Verification: `pnpm lint`, `pnpm typecheck` (only the pre-existing Windows
+  EventForm/eventFormSteps casing resolution error), `pnpm test`, dev-server browser
+  sweep above.
+- **Follow-up (same change set).**
+  - **Warm paint.** `DashboardScreen` gained `previewPeriod` (mirroring `previewView`);
+    `resolveDashboardNavigation` treats it as the preview-effective month/date, and the
+    period handlers set it inside the same `flushSync` commit as the slide, so a warm
+    adjacent period paints the real grid into the transition's snapshot (no skeleton,
+    no post-slide blob). New pure `periodPreviewMatchesUrl` / `periodPreviewRevertDelayMs`
+    (+ tests) drive the URL catch-up clear and the failed-navigation revert.
+  - **Skeleton realignment.** `MonthGridSkeleton` gained `withWeekdayRow`/`style`. The
+    in-page Month skeleton passes `false` (the pinned `MonthWeekdayStrip` is the real
+    header and now renders during loading) plus `monthFitStyle`; its cells mirror
+    `calc(52px + --month-view-max-events * 24px)` and flex to `1fr` in the fit box. The
+    old in-box weekday row plus `minHeight: 124` overflowed the fit box — the "blob".
+  - **Agenda.** `applyAgendaDay` runs through `slidePeriod` (the keyed CSS slide is the
+    fallback) and sets the period preview on month edges, so the preloaded adjacent month
+    paints instead of the old fade + skeleton. Chevrons, swipe, Today and the picker all
+    flow through it.
+  - **Adjacent-only preload.** `buildDashboardPreload({ adjacentOnly: true })` returns
+    only the active tab's previous/next contexts (one read, no all-tabs projection);
+    `/api/dashboard/preload` accepts the flag and `DashboardScreen` fires one idle pass
+    per active-tab/anchor when those keys aren't warm. `MAX_SNAPSHOTS_PER_USER` 25 → 30.
+  - **Verification.** Warm month steps: 1 transition + 0 skeletons in both directions.
+    A cold month-picker jump: aligned skeleton (no weekday row; fills the 635px fit box,
+    no overflow) then a data dissolve. Agenda in-month and month-edge steps: transition
+    fired, no skeleton; the adjacent-only response carried exactly the agenda tab's
+    previous/next/next+1 contexts. Reduced motion skipped the transition and used the
+    keyed agenda slide. No stray slide classes afterwards.
+  - Docs updated; `APP_VERSION` → `2026.11.04-3`.

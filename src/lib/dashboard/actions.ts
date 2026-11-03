@@ -34,6 +34,8 @@ export interface LoadDashboardDataInput {
   month?: string | null;
   date?: string | null;
   refresh?: string | null;
+  /** Preload only the active tab's adjacent-anchor contexts (tab-switch warm). */
+  adjacentOnly?: boolean;
 }
 
 export type LoadDashboardDataResult =
@@ -93,10 +95,13 @@ export type PreloadDashboardTabsResult =
 /**
  * Background preload (docs/pwa-offline.md §1.18). After the active context
  * paints, the client calls this to warm every tab for the current anchor plus
- * the active tab for the next two months, off a single cache read per anchor
- * set, so a tab switch or a forward month navigation paints from the device
- * cache with no round-trip. Never forces a Google refresh; failures are
- * returned, not thrown, so a failed preload never disturbs the painted calendar.
+ * the active tab for the previous month and the next two, off a single cache
+ * read per anchor set, so a tab switch or a month navigation paints from the
+ * device cache with no round-trip. `adjacentOnly` narrows the pass to just the
+ * active tab's adjacent anchors — the follow-up after a tab switch, whose
+ * neighbours the previous pass didn't warm. Never forces a Google refresh;
+ * failures are returned, not thrown, so a failed preload never disturbs the
+ * painted calendar.
  */
 export async function preloadDashboardTabs(
   input: LoadDashboardDataInput,
@@ -111,6 +116,7 @@ export async function preloadDashboardTabs(
         date: asString(input.date),
         // Preload warms what the active read already fetched; never force.
         force: false,
+        adjacentOnly: input.adjacentOnly === true,
       },
       session,
     );

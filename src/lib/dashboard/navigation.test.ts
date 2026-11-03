@@ -5,6 +5,8 @@ import {
   classifyDashboardFetch,
   gridMonthsCovered,
   pickColdPaintRecord,
+  periodPreviewMatchesUrl,
+  periodPreviewRevertDelayMs,
   planDashboardSwitch,
   PREVIEW_STALL_MS,
   previewRevertDelayMs,
@@ -52,6 +54,7 @@ function navInput(over: Partial<DashboardNavigationInput> = {}): DashboardNaviga
     record: null,
     warmRecords: new Map(),
     previewView: null,
+    previewPeriod: null,
     url: { view: null, month: null, date: null },
     failedKey: null,
     ...over,
@@ -116,6 +119,83 @@ describe("previewRevertDelayMs", () => {
         previewView: "tab-b",
         urlView: "tab-b",
         navigationPending: true,
+      }),
+    ).toBeNull();
+  });
+});
+
+describe("periodPreviewMatchesUrl", () => {
+  it("matches a month preview only when the URL carries that month and no day", () => {
+    expect(
+      periodPreviewMatchesUrl({ month: "2026-10", date: null }, { month: "2026-10", date: null }),
+    ).toBe(true);
+    expect(
+      periodPreviewMatchesUrl(
+        { month: "2026-10", date: null },
+        { month: "2026-10", date: "2026-10-12" },
+      ),
+    ).toBe(false);
+    expect(
+      periodPreviewMatchesUrl({ month: "2026-10", date: null }, { month: "2026-09", date: null }),
+    ).toBe(false);
+  });
+
+  it("matches a day preview by its date", () => {
+    expect(
+      periodPreviewMatchesUrl(
+        { month: "2026-10", date: "2026-10-12" },
+        { month: "2026-10", date: "2026-10-12" },
+      ),
+    ).toBe(true);
+    expect(
+      periodPreviewMatchesUrl(
+        { month: "2026-10", date: "2026-10-12" },
+        { month: "2026-10", date: "2026-10-13" },
+      ),
+    ).toBe(false);
+  });
+});
+
+describe("periodPreviewRevertDelayMs", () => {
+  const preview = { month: "2026-10", date: null };
+
+  it("keeps the preview while a router transition is pending", () => {
+    expect(
+      periodPreviewRevertDelayMs({
+        previewPeriod: preview,
+        urlMonth: "2026-09",
+        urlDate: null,
+        navigationPending: true,
+      }),
+    ).toBe(PREVIEW_STALL_MS);
+  });
+
+  it("reverts immediately once the transition ended without the URL catching up", () => {
+    expect(
+      periodPreviewRevertDelayMs({
+        previewPeriod: preview,
+        urlMonth: "2026-09",
+        urlDate: null,
+        navigationPending: false,
+      }),
+    ).toBe(0);
+  });
+
+  it("holds while the URL matches, and with no preview", () => {
+    expect(
+      periodPreviewRevertDelayMs({
+        previewPeriod: preview,
+        urlMonth: "2026-10",
+        urlDate: null,
+        navigationPending: true,
+      }),
+    ).toBeNull();
+    expect(
+      periodPreviewRevertDelayMs({
+        previewPeriod: null,
+        urlMonth: "2026-09",
+        urlDate: null,
+        navigationPending: false,
       }),
     ).toBeNull();
   });
@@ -317,6 +397,54 @@ describe("resolveDashboardNavigation", () => {
     expect(nav.isNavigating).toBe(false);
   });
 
+  it("paints a warm period preview in place without a skeleton", () => {
+    const a = tab({ id: "tab-a", kind: "month" });
+    const record = recordFor(a, [a], { month: "2026-09", date: "2026-09-12" });
+    const warm = recordFor(a, [a], { month: "2026-10", date: "2026-10-12" });
+    const nav = resolveDashboardNavigation(
+      navInput({
+        record,
+        warmRecords: new Map([[warm.context.requestKey, warm]]),
+        previewView: null,
+        previewPeriod: { month: "2026-10", date: null },
+        url: { view: "tab-a", month: "2026-09", date: null },
+      }),
+    );
+    expect(nav.displayRecord).toBe(warm);
+    expect(nav.isNavigating).toBe(false);
+    expect(nav.month).toBe("2026-10");
+  });
+
+  it("still navigates when the previewed period is cold", () => {
+    const a = tab({ id: "tab-a", kind: "month" });
+    const record = recordFor(a, [a], { month: "2026-09", date: "2026-09-12" });
+    const nav = resolveDashboardNavigation(
+      navInput({
+        record,
+        previewView: null,
+        previewPeriod: { month: "2026-10", date: null },
+        url: { view: "tab-a", month: "2026-09", date: null },
+      }),
+    );
+    expect(nav.displayRecord).toBe(record);
+    expect(nav.isNavigating).toBe(true);
+  });
+
+  it("takes the displayed day from a period preview", () => {
+    const a = tab({ id: "tab-a", kind: "schedule" });
+    const record = recordFor(a, [a], { month: "2026-09", date: "2026-09-12" });
+    const nav = resolveDashboardNavigation(
+      navInput({
+        record,
+        previewView: null,
+        previewPeriod: { month: "2026-09", date: "2026-09-20" },
+        url: { view: "tab-a", month: null, date: "2026-09-12" },
+      }),
+    );
+    expect(nav.date).toBe("2026-09-20");
+    expect(nav.isNavigating).toBe(false);
+  });
+
   it("heals to the held tab after a failed fetch for the context", () => {
     const a = tab({ id: "tab-a" });
     const b = tab({ id: "tab-b", kind: "agenda" });
@@ -479,8 +607,8 @@ describe("pickColdPaintRecord", () => {
   const silent = { urlView: null, urlMonth: null, urlDate: null };
 
   it("paints the remembered anchor month, not the newer preload anchors", () => {
-    // The preload batch (current + next two months) is written after the viewed
-    // month, so "newest" alone lands two months ahead.
+    // The preload batch (previous + current + next two months) is written
+    // after the viewed month, so "newest" alone lands two months ahead.
     const cached = [
       anchor(monthTab, "2026-10", 100),
       anchor(monthTab, "2026-11", 200),

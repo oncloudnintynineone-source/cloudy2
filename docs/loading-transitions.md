@@ -31,6 +31,7 @@ where it is wired.
 - [1.13.1 Cold-start readiness](#1131-cold-start-readiness)
 - [1.13.2 Per-view tab load indicator](#1132-per-view-tab-load-indicator)
 - [1.14 Route-change page transition](#114-route-change-page-transition)
+  - [1.14.1 In-page period & day cross-slide](#1141-in-page-period--day-cross-slide)
 - [1.15 Code-splitting & low-end device tier](#115-code-splitting--low-end-device-tier)
   - [1.15.1 Chunk reveals crossfade too](#1151-chunk-reveals-crossfade-too)
 - [1.16 File index & related docs](#116-file-index--related-docs)
@@ -835,8 +836,9 @@ never signs in and stays unwrapped).
 
 **Search-param-only navigations do not animate.** The dashboard's `?date=`,
 `?view=`, `?event=` and the parade page's `?date=` change search params without
-changing the pathname, so the page does not remount and no transition runs —
-in-place updates (and their own `content-enter` reveal, §1.6) are untouched.
+changing the pathname, so the page does not remount and no route transition
+runs — in-place updates (and their own `content-enter` reveal, §1.6) are
+untouched. Period/day steps get their own real cross-slide instead (§1.14.1).
 
 **CSS.** The `enter`/`exit` classes map to `::view-transition-old`/`-new` rules
 in `globals.css`: the outgoing page fades out over 60% of `--c2-dur-standard`
@@ -859,6 +861,103 @@ fades, so the overlap reads as one gentle reveal.
 
 **Browser support.** Chromium 125+ and recent Safari/Firefox. Without support
 the navigation simply happens with no animation — the app is unaffected.
+
+### 1.14.1 In-page period & day cross-slide
+
+The dashboard grid (Month, Dual Pane and the Week/Day kinds) and the Parade
+State roster play a **real directional cross-slide** on a period step: the old
+period slides out opposite the direction of travel while the new one slides in
+from the tapped side. Forward (next month/week/day, Today, a later date) slides
+left; backward slides right. It uses the browser's View Transitions API directly
+(`document.startViewTransition`), with the shared helpers in
+`src/lib/ui/viewTransition.ts`.
+
+**Why not `<ViewTransition>`.** A route-change transition is a single React
+Transition commit, but a period step commits twice: the optimistic chrome
+(`shownMonth`/`shownDate`) on the tap, then the warm snapshot or the fetched
+data when it lands. Wrapping the subtree in React's `<ViewTransition>` would
+animate whichever commit happens to change the DOM — and the data-fill commit
+would re-slide the grid. The period slide is therefore started manually on the
+tap: the helper adds a direction class to the grid box, calls
+`startViewTransition`, and commits the chrome update inside it with
+`flushSync` (the documented React recipe). Later data fills paint in place (the
+shared `CrossfadeSwap` skeleton→content dissolve), never as a second slide.
+Parade State's in-month day steps are pure client state (the month's events are
+already loaded), so they slide the same way and need no flushSync gap.
+
+**Where it lives.**
+
+- `src/lib/ui/viewTransition.ts` — `slideViewTransition(el, dir, mutate, classes)`:
+  adds the direction class (`view-transition-name`), runs the mutation inside
+  `flushSync` in the transition callback, returns `false` (caller applies the
+  mutation itself) when the API is missing or reduced motion is on, and removes
+  the class when the transition finishes or is skipped. `GRID_SLIDE_*` and
+  `PARADE_SLIDE_*` are the two class pairs.
+- `DashboardView` — `shiftMonth`/`shiftDay`/`shiftWeek`/`shiftDualMonth`,
+  `goToday`, `pickDate`, `pickMonth`, and the Agenda tab's `applyAgendaDay`
+  run their chrome update through `slidePeriod`/`slidePeriodTo`
+  (`slidePeriodTo` skips a no-op jump); the data-bearing ones also set the
+  period preview. The grid box (`gridSlideRef`/`monthFitRef`) is the named
+  group; the pinned weekday strip, rulers and pan controls sit outside it and
+  stay still.
+- `ParadeStateView` — `shiftDay`, `goToday`, `pickDate` use
+  `slideDay`; the roster wrapper (`contentRef`) is the named group. Month
+  edges slide the roster out and the crossfade skeleton in; the fresh month
+  then dissolves in place.
+- `globals.css` — `.c2-grid-slide-next|prev` / `.c2-parade-slide-next|prev`
+  carry the `view-transition-name`s; the `c2-grid-out/in-next|prev` keyframes
+  (shared by both groups) cross-slide at `--c2-dur-standard`/`-emphasized` with
+  the motion-profile easings. The named group animates its box on the same
+  clock (month grids range 4–6 rows).
+
+**No double animation.** The dashboard's existing WAAPI nudge effect ("a 10%
+shift and back") now stands down whenever the grid box still carries a slide
+class — it is present exactly while the real transition runs, because the
+effect executes inside the transition's `flushSync` commit. Tab switches and
+external navigations (browser back/forward, deep links) never carry the class,
+so they keep the nudge; below `lg`, tab switches keep their fade + rise.
+Parade State's keyed `agenda-slide-*` CSS slide likewise remains as the
+fallback and is cleared (`slideDir === 0`) when the real transition ran.
+
+**Warm targets paint in the same commit.** The preload warms the active tab for
+the **previous month and the next two** (docs/pwa-offline.md §1.18), and a
+tab-switch follow-up warms any newly active tab's neighbours. A period step
+also publishes an optimistic **period preview** (`setPreviewPeriod`, mirroring
+the tab `previewView`): `DashboardScreen` resolves the warm record for the
+tapped period and paints it *inside the transition's commit*, so the incoming
+snapshot is the real next month — the skeleton never flashes for data the
+device already holds. The preview is dropped when the URL catches up and
+reverted when the transition ends without it (the same rule as the tab
+preview). Cold/offline targets still slide the skeleton in (see below), then
+dissolve the data in place.
+
+**Agenda uses the same slide.** `applyAgendaDay` (chevrons, swipe, Today, the
+date picker) runs through `slidePeriod` like the grid kinds; the agenda's own
+keyed `agenda-slide-*` CSS slide remains only as the unsupported-browser /
+reduced-motion fallback. A month-edge day step sets the period preview too, so
+the preloaded adjacent month paints instantly instead of the old fade +
+skeleton.
+
+**The cold skeleton matches the grid.** `MonthGridSkeleton` no longer draws its
+own weekday row inside the animated box (the pinned `MonthWeekdayStrip` is the
+real header and now renders during loading too, outside the group), and its day
+cells mirror the library's `calc(52px + --month-view-max-events * 24px)` with
+the same `monthFitStyle` vars — so the skeleton fills the fit-to-height box
+instead of overflowing it. (Below `lg` the month is document-height, so adjacent
+months can differ by a row and the group's box animates that small height
+change during the slide.)
+
+**Class hygiene.** The direction class is removed when the transition finishes
+and when it is skipped (a held chevron starts a new transition that supersedes
+the old one). A stray `view-transition-name` would otherwise be captured as an
+extra named group by a later route transition; the browser test asserts none
+remains.
+
+**Browser support / fallbacks.** Without the API (or under
+`prefers-reduced-motion: reduce`) the update runs directly and the existing
+passive animation takes over (the nudge on the dashboard, the keyed CSS slide
+on Parade State). The reduced-motion block in `globals.css` additionally
+zeroes every view-transition animation.
 
 ## 1.15 Code-splitting & low-end device tier
 
@@ -975,8 +1074,9 @@ at hydration.
 | `src/lib/loading/chunkReady.ts`                                  | `loadChunk`/`useChunkReady` — lazy modal-chunk loads as a boolean so the chunk skeleton dissolves through `CrossfadeSwap` (§1.15.1)                                                                                                                                                                                           |
 | `src/components/CrossfadeSwap.tsx`                               | The shared skeleton → content swap (retains the outgoing skeleton for one motion beat; `minHoldMs`, `mode="stack"/"overlay"`) — §1.6.1                                                                                                                                                                                        |
 | `src/components/LoadingStatus.tsx`                               | Sr-only `role="status"` announcement included with every skeleton block (§1.4, [`accessibility.md`](accessibility.md) §1.3)                                                                                                                                                                                                   |
-| `src/app/globals.css`                                            | `content-enter` / `c2-crossfade-*` / `agenda-slide-*` / `c2-page-in`/`c2-page-out` keyframes, `::view-transition-*` page rules, reduced-motion guard                                                                                                                                                                          |
+| `src/app/globals.css`                                            | `content-enter` / `c2-crossfade-*` / `agenda-slide-*` / `c2-page-in`/`c2-page-out` / `c2-grid-*` period-slide keyframes, `::view-transition-*` page + named-group rules, reduced-motion guard                                                                                                                                |
 | `src/components/PageTransition.tsx`                              | Per-page `<ViewTransition>` wrapper (fade + rise on route change) — §1.14                                                                                                                                                                                                                                                     |
+| `src/lib/ui/viewTransition.ts`                                   | Manual View-Transitions helper (`slideViewTransition`, `GRID_SLIDE_*`, `PARADE_SLIDE_*`, capability/reduced-motion probes) — §1.14.1                                                                                                                                                                                           |
 | `src/app/(protected)/**/page.tsx`                                | Each protected page renders its content through `PageTransition` (§1.14)                                                                                                                                                                                                                                                      |
 | `src/app/(protected)/*/loading.tsx`                              | Route-level skeletons (16 segments)                                                                                                                                                                                                                                                                                           |
 | `src/app/(protected)/dashboard/calendarSkeleton.tsx`             | The view grid skeletons (shared by route + in-page): `MonthGridSkeleton`, `WeekMatrixSkeleton`, `WeekGridSkeleton`, `AgendaListSkeleton`, `ScheduleGridSkeleton`, `DualPaneSkeleton`                                                                                                                                          |
@@ -989,8 +1089,8 @@ at hydration.
 | `src/lib/ui/uiState.ts`                                          | `resolveDashboardView` — shared view resolution for page + route fallback                                                                                                                                                                                                                                                     |
 | `src/app/(protected)/parade-state/paradeStateSkeleton.tsx`       | Parade row skeletons (shared)                                                                                                                                                                                                                                                                                                 |
 | `src/app/(protected)/settings/audit-log/AuditLogRowSkeleton.tsx` | Audit row skeleton (shared)                                                                                                                                                                                                                                                                                                   |
-| `src/app/(protected)/dashboard/DashboardView.tsx`                | Held loading, reveal fade, one-shot strips (`event`/`edit`/`refresh`/`share`), agenda slide, optimistic date-nav chrome (`shown*`, §1.9.2), per-tab load styling incl. the mobile name-line spinner (§1.13.2), optimistic tab switch + tab-URL prefetch (§1.10/§1.13.2), WAAPI grid swipe (no forced reflow)                  |
-| `src/app/(protected)/parade-state/ParadeStateView.tsx`           | Month-gated hold                                                                                                                                                                                                                                                                                                              |
+| `src/app/(protected)/dashboard/DashboardView.tsx`                | Held loading, reveal fade, one-shot strips (`event`/`edit`/`refresh`/`share`), agenda slide, optimistic date-nav chrome (`shown*`, §1.9.2), per-tab load styling incl. the mobile name-line spinner (§1.13.2), optimistic tab switch + tab-URL prefetch (§1.10/§1.13.2), period cross-slide via `slidePeriod` (§1.14.1) with the WAAPI nudge as fallback/tab-switch animation (no forced reflow) |
+| `src/app/(protected)/parade-state/ParadeStateView.tsx`           | Month-gated hold; day cross-slide via `slideDay` (§1.14.1); chevron intent prefetch of the adjacent day's RSC payload                                                                                                                                                                                                          |
 | `src/components/AppShellShell.tsx`                               | Optimistic nav highlight (`tappedHref`) + `PendingDim`/`useLinkStatus` (§1.9.1); own-handler `HeaderRefreshButton` whose glyph spins while the header strip is up (§1.13)                                                                                                                                                     |
 | `src/components/ActivityBar.tsx`                                 | `ActivityProvider` + split `useActivityControls` (stable `begin`/`end`) / `useActivityState` (`anyBusy`/`stripVisible`) contexts, `useReportActivity`, `useActivityRefresh`, `ActivityBar` (provider-owned 300 ms show delay + min hold, indeterminate strip, suppresses itself during the cold-start phases) — §1.13/§1.13.1 |
 | `src/lib/ui/activity.ts`                                         | Pure activity refcount (`beginActivity`/`endActivity`/`isActivityBusy`), unit-tested; backs the provider so an unmounting reporter can't leak a key — §1.13                                                                                                                                                                   |

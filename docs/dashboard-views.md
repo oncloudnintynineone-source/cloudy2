@@ -235,13 +235,25 @@ string maps to the first tab of that kind.
    deliberately does **not** surface per-tab load state (see
   [`loading-transitions.md`](loading-transitions.md) §1.13.2, a `lg`-only
   affordance).
-- **Mobile tab-switch entrance (below `lg`).** The grid swipe (WAAPI on
-  `gridSlideRef`, `DashboardView.tsx`) normally slides the incoming grid in from
-  the side the target sits on — but below `lg` the tab strip is gone, so the
-  strip-order side metaphor has nothing on screen to match. A **tab switch**
-  there instead plays the app's reveal entrance (fade + 8px rise, like
-  `c2-page-in`); **date moves keep the horizontal swipe** at every width (the
-  chevrons carry the direction on mobile too).
+- **Period cross-slide.** A period step (month/week/day chevrons, Today, the
+  date/month picker, and the Agenda tab's day changes) plays a **real view
+  transition** — the old grid slides out opposite the direction of travel and
+  the new one slides in from the tapped side. It runs through
+  `slideViewTransition` (`src/lib/ui/viewTransition.ts`) in the step handlers
+  and is documented in [`loading-transitions.md`](loading-transitions.md)
+  §1.14.1. The preload warms the previous and next two months (plus a
+  tab-switch follow-up for the newly active tab), and the step publishes an
+  optimistic period preview, so a warm target paints the **real** next period in
+  the same commit — no skeleton flash. Only genuinely cold targets slide the
+  skeleton in (the skeleton now matches the grid's header/row geometry).
+- **Mobile tab-switch entrance (below `lg`).** The fallback grid swipe (WAAPI
+  on `gridSlideRef`, `DashboardView.tsx` — used when the View Transitions API
+  is unavailable or reduced motion is on, and always for tab switches) slides
+  the incoming grid in from the side the target sits on — but below `lg` the
+  tab strip is gone, so the strip-order side metaphor has nothing on screen to
+  match. A **tab switch** there instead plays the app's reveal entrance (fade +
+  8px rise, like `c2-page-in`); period steps carry the direction on mobile too
+  (the chevrons).
 - **Floating control pill (below `lg`).** The sticky chrome **splits** below
   `lg`: a **thin view-name strip stays pinned at the top** under the app
   header (see the mobile-view-indicator bullet), and the date controls move to

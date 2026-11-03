@@ -252,12 +252,27 @@ export function gridMonthsCovered(
   return monthGridMonths(targetMonth, weekStartsOn).every((month) => held.has(month));
 }
 
+/**
+ * An optimistic period step (a month/week/day chevron or picker change) made
+ * before the URL navigation commits. `DashboardScreen` resolves the displayed
+ * record from these values, so a preloaded adjacent period paints in the same
+ * commit as the cross-slide instead of waiting on the RSC round-trip (and never
+ * flashes the skeleton for data the device already has).
+ */
+export interface PeriodPreview {
+  month: string;
+  /** The target day for anchored kinds; null for month-kind steps. */
+  date: string | null;
+}
+
 /** The URL + held state a navigation is resolved from. */
 export interface DashboardNavigationInput {
   record: DashboardSnapshotRecord | null;
   warmRecords: ReadonlyMap<string, DashboardSnapshotRecord>;
   /** The optimistic tab tap while one is pending, else null. */
   previewView: string | null;
+  /** The optimistic period step while one is pending, else null. */
+  previewPeriod: PeriodPreview | null;
   url: { view: string | null; month: string | null; date: string | null };
   /** The candidate key whose fetch last failed (heals back to the held tab). */
   failedKey: string | null;
@@ -292,9 +307,11 @@ export interface DashboardNavigation {
  * `DashboardScreen`, so the grid need not re-read.
  */
 export function resolveDashboardNavigation(input: DashboardNavigationInput): DashboardNavigation {
-  const { record, warmRecords, previewView, url, failedKey } = input;
+  const { record, warmRecords, previewView, previewPeriod, url, failedKey } = input;
   const effectiveView = previewView ?? url.view;
-  const candidateKey = candidateRequestKey(record, effectiveView, url.month, url.date);
+  const effectiveMonth = previewPeriod?.month ?? url.month;
+  const effectiveDate = previewPeriod ? previewPeriod.date : url.date;
+  const candidateKey = candidateRequestKey(record, effectiveView, effectiveMonth, effectiveDate);
   if (!record) {
     return {
       candidateKey,
@@ -310,13 +327,19 @@ export function resolveDashboardNavigation(input: DashboardNavigationInput): Das
   const displayRecord =
     warm && warm.context.requestKey !== record.context.requestKey ? warm : record;
   const cached = displayRecord !== record;
-  const presentation = resolvePresentation(displayRecord, effectiveView, url.month, url.date, {
-    // Only a genuinely warm candidate record (a different record than the held
-    // one) suppresses the skeleton. A warm context stays visible even if its
-    // background read fails — don't heal back to the previous tab.
-    cached,
-    failedKey: cached ? null : failedKey,
-  });
+  const presentation = resolvePresentation(
+    displayRecord,
+    effectiveView,
+    effectiveMonth,
+    effectiveDate,
+    {
+      // Only a genuinely warm candidate record (a different record than the held
+      // one) suppresses the skeleton. A warm context stays visible even if its
+      // background read fails — don't heal back to the previous tab.
+      cached,
+      failedKey: cached ? null : failedKey,
+    },
+  );
 
   return {
     candidateKey,
@@ -325,7 +348,7 @@ export function resolveDashboardNavigation(input: DashboardNavigationInput): Das
     covered: presentation.covered,
     isNavigating: presentation.isNavigating,
     month: displayRecord.context.month,
-    date: url.date ?? displayRecord.context.date,
+    date: effectiveDate ?? displayRecord.context.date,
   };
 }
 
@@ -396,6 +419,37 @@ export function previewRevertDelayMs({
   navigationPending: boolean;
 }): number | null {
   if (previewView === null || urlView === previewView) return null;
+  return navigationPending ? PREVIEW_STALL_MS : 0;
+}
+
+/** Whether the committed URL has caught up to an optimistic period preview. */
+export function periodPreviewMatchesUrl(
+  preview: PeriodPreview,
+  url: { month: string | null; date: string | null },
+): boolean {
+  if (preview.date !== null) return url.date === preview.date;
+  return url.month === preview.month && url.date === null;
+}
+
+/**
+ * Pure revert rule for the optimistic period preview (mirrors
+ * `previewRevertDelayMs`): a pending router transition keeps it; once the
+ * transition ends without the URL catching up, drop it immediately so the view
+ * heals back to the committed period.
+ */
+export function periodPreviewRevertDelayMs({
+  previewPeriod,
+  urlMonth,
+  urlDate,
+  navigationPending,
+}: {
+  previewPeriod: PeriodPreview | null;
+  urlMonth: string | null;
+  urlDate: string | null;
+  navigationPending: boolean;
+}): number | null {
+  if (previewPeriod === null) return null;
+  if (periodPreviewMatchesUrl(previewPeriod, { month: urlMonth, date: urlDate })) return null;
   return navigationPending ? PREVIEW_STALL_MS : 0;
 }
 

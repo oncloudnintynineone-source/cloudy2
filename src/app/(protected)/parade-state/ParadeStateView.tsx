@@ -80,6 +80,12 @@ import {
   subscribeAgendaSwipeHint,
 } from "@/lib/ui/agendaSwipeHint";
 import { useChromeHide } from "@/lib/ui/chromeHide";
+import {
+  PARADE_SLIDE_NEXT,
+  PARADE_SLIDE_PREV,
+  slideViewTransition,
+  type SlideClasses,
+} from "@/lib/ui/viewTransition";
 import { COARSE_POINTER_MEDIA_QUERY, DESKTOP_MEDIA_QUERY } from "@/lib/theme";
 import { saveParadeFilters } from "@/lib/userPrefs/actions";
 import { invalidateCurrentPathCaches } from "@/lib/pwa/client";
@@ -101,6 +107,9 @@ import { ParadeStateDepartmentSkeleton } from "./paradeStateSkeleton";
 /** Horizontal drag distance (px) before a swipe flips the day (same as the
  *  dashboard's agenda swipe). */
 const DAY_SWIPE_THRESHOLD = 48;
+
+/** The roster's view-transition slide classes (globals.css, §1.14.1). */
+const PARADE_SLIDES: SlideClasses = { next: PARADE_SLIDE_NEXT, prev: PARADE_SLIDE_PREV };
 
 interface ParadeStateUser {
   id: string;
@@ -349,33 +358,67 @@ export function ParadeStateView({
     [buildHref, router, startTransition],
   );
 
+  // Day changes run through a real View Transition (docs/loading-transitions.md
+  // §1.14.1): the roster cross-slides in the direction of travel — in-month
+  // steps slide the rosters directly (the month's events are already local),
+  // month edges slide the roster out and the skeleton in, then the fresh month
+  // dissolves in place. `mutate` receives whether the transition ran: the
+  // keyed CSS slide (`agenda-slide-*`) stays as the fallback for unsupported
+  // browsers and reduced motion, and must not double-animate under the VT.
+  const slideDay = useCallback(
+    (dir: 1 | -1, mutate: (vt: boolean) => void) => {
+      if (!slideViewTransition(contentRef.current, dir, () => mutate(true), PARADE_SLIDES)) {
+        mutate(false);
+      }
+    },
+    [contentRef],
+  );
+
   function shiftDay(delta: number) {
     const next = dayjs(date).add(delta, "day");
     const nextDate = next.format("YYYY-MM-DD");
     const nextMonth = next.format("YYYY-MM");
-    setDate(nextDate);
-    pendingDateRef.current = nextDate;
-    if (nextMonth !== month) {
-      // Month edges refetch from the server; the skeleton + reveal fade
-      // replace the directional slide, so clear it.
-      setSlideDir(0);
-      setMonth(nextMonth);
-      pendingMonthRef.current = nextMonth;
+    const crossesMonth = nextMonth !== month;
+    slideDay(delta > 0 ? 1 : -1, (vt) => {
+      setDate(nextDate);
+      pendingDateRef.current = nextDate;
+      if (crossesMonth) {
+        // Month edges refetch from the server; the skeleton rides the slide
+        // (VT) or the reveal fade (fallback).
+        setMonth(nextMonth);
+        pendingMonthRef.current = nextMonth;
+        setSlideDir(0);
+      } else {
+        setSlideDir(vt ? 0 : delta > 0 ? 1 : -1);
+      }
+    });
+    if (crossesMonth) {
       navigate({ date: nextDate, month: nextMonth });
     } else {
-      setSlideDir(delta > 0 ? 1 : -1);
       navigate({ date: nextDate });
     }
   }
 
   function goToday() {
     const todayMonth = dayjs().format("YYYY-MM");
-    setDate(today);
-    pendingDateRef.current = today;
-    setSlideDir(0);
-    if (todayMonth !== month) {
-      setMonth(todayMonth);
-      pendingMonthRef.current = todayMonth;
+    const crossesMonth = todayMonth !== month;
+    // Jumps keep the reveal fade in the fallback; the VT slides them (a
+    // same-day "Today" has nothing to slide, so it stays a plain update).
+    const apply = () => {
+      setDate(today);
+      pendingDateRef.current = today;
+      if (crossesMonth) {
+        setMonth(todayMonth);
+        pendingMonthRef.current = todayMonth;
+      }
+      setSlideDir(0);
+    };
+    if (today === date) {
+      apply();
+    } else {
+      slideDay(today > date ? 1 : -1, apply);
+    }
+    if (crossesMonth) {
       navigate({ date: today, month: todayMonth });
     } else {
       navigate({ date: today });
@@ -385,17 +428,36 @@ export function ParadeStateView({
   function pickDate(picked: string) {
     if (picked === date) return;
     const nextMonth = picked.slice(0, 7);
-    setDate(picked);
-    pendingDateRef.current = picked;
-    setSlideDir(0);
-    if (nextMonth !== month) {
-      setMonth(nextMonth);
-      pendingMonthRef.current = nextMonth;
+    const crossesMonth = nextMonth !== month;
+    slideDay(picked > date ? 1 : -1, () => {
+      setDate(picked);
+      pendingDateRef.current = picked;
+      if (crossesMonth) {
+        setMonth(nextMonth);
+        pendingMonthRef.current = nextMonth;
+      }
+      setSlideDir(0);
+    });
+    if (crossesMonth) {
       navigate({ date: picked, month: nextMonth });
     } else {
       navigate({ date: picked });
     }
   }
+
+  // Warm the adjacent day's RSC payload on chevron intent (hover/focus/press)
+  // so the day step's URL commit lands instantly behind the slide.
+  const prefetchDay = useCallback(
+    (delta: number) => {
+      const next = dayjs(date).add(delta, "day");
+      const nextDate = next.format("YYYY-MM-DD");
+      const nextMonth = next.format("YYYY-MM");
+      router.prefetch(
+        nextMonth !== month ? buildHref({ date: nextDate, month: nextMonth }) : buildHref({ date: nextDate }),
+      );
+    },
+    [date, month, router, buildHref],
+  );
 
   // Strip the legacy `types` param (the Event Types filter used to write it)
   // so stale history entries and deep links don't carry it around.
@@ -869,6 +931,10 @@ export function ParadeStateView({
             className="c2-glass-btn"
             aria-label="Previous day"
             onClick={() => shiftDay(-1)}
+            onPointerEnter={() => prefetchDay(-1)}
+            onFocus={() => prefetchDay(-1)}
+            onPointerDown={() => prefetchDay(-1)}
+            onTouchStart={() => prefetchDay(-1)}
           >
             <IconChevronLeft size={18} />
           </ActionIcon>
@@ -879,6 +945,10 @@ export function ParadeStateView({
             className="c2-glass-btn"
             aria-label="Next day"
             onClick={() => shiftDay(1)}
+            onPointerEnter={() => prefetchDay(1)}
+            onFocus={() => prefetchDay(1)}
+            onPointerDown={() => prefetchDay(1)}
+            onTouchStart={() => prefetchDay(1)}
           >
             <IconChevronRight size={18} />
           </ActionIcon>
@@ -1028,6 +1098,10 @@ export function ParadeStateView({
               variant="default"
               aria-label="Previous day"
               onClick={() => shiftDay(-1)}
+              onPointerEnter={() => prefetchDay(-1)}
+              onFocus={() => prefetchDay(-1)}
+              onPointerDown={() => prefetchDay(-1)}
+              onTouchStart={() => prefetchDay(-1)}
             >
               <IconChevronLeft size={18} />
             </ActionIcon>
@@ -1036,6 +1110,10 @@ export function ParadeStateView({
               variant="default"
               aria-label="Next day"
               onClick={() => shiftDay(1)}
+              onPointerEnter={() => prefetchDay(1)}
+              onFocus={() => prefetchDay(1)}
+              onPointerDown={() => prefetchDay(1)}
+              onTouchStart={() => prefetchDay(1)}
             >
               <IconChevronRight size={18} />
             </ActionIcon>

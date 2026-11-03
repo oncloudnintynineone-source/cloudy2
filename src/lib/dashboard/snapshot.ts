@@ -269,6 +269,14 @@ export function requiredMonths(
  */
 export const PRELOAD_MONTHS_AHEAD = 2;
 
+/**
+ * How many months before the viewed anchor the preload also warms for the
+ * active tab. One back covers the common "step to the previous month" case so
+ * the directional grid slide (docs/loading-transitions.md §1.14.1) paints from
+ * the warm cache instead of sliding a skeleton in.
+ */
+export const PRELOAD_MONTHS_BEHIND = 1;
+
 /** A resolved dashboard anchor: the month being viewed plus its day. */
 export interface DashboardAnchor {
   month: string;
@@ -276,22 +284,27 @@ export interface DashboardAnchor {
 }
 
 /**
- * The anchors the preload warms: the viewed one plus `ahead` months forward.
- * Each future anchor keeps the same day-of-month, clamped to that month's
- * length (Jan 31 → Feb 28/29), so an anchored view's `requiredMonths` stays
- * consistent across the shift. Pure and client-safe so the server builder and
- * the tests agree on the same anchors.
+ * The anchors the preload warms, in chronological order: `behind` months back,
+ * the viewed one, then `ahead` months forward. Each shifted anchor keeps the
+ * same day-of-month, clamped to that month's length (Jan 31 → Feb 28/29, or
+ * Dec 31 for the month back from Jan 31), so an anchored view's
+ * `requiredMonths` stays consistent across the shift. Pure and client-safe so
+ * the server builder and the tests agree on the same anchors.
  */
 export function preloadAnchors(
   anchor: DashboardAnchor,
   ahead: number = PRELOAD_MONTHS_AHEAD,
+  behind: number = PRELOAD_MONTHS_BEHIND,
 ): DashboardAnchor[] {
-  const anchors: DashboardAnchor[] = [anchor];
   const day = Number(anchor.date.slice(8, 10));
-  for (let offset = 1; offset <= ahead; offset += 1) {
+  const shifted = (offset: number): DashboardAnchor => {
     const month = shiftMonth(anchor.month, offset);
     const lastDay = Number(lastDayOfMonth(month).slice(8, 10));
-    anchors.push({ month, date: `${month}-${String(Math.min(day, lastDay)).padStart(2, "0")}` });
+    return { month, date: `${month}-${String(Math.min(day, lastDay)).padStart(2, "0")}` };
+  };
+  const anchors: DashboardAnchor[] = [];
+  for (let offset = -behind; offset <= ahead; offset += 1) {
+    anchors.push(offset === 0 ? anchor : shifted(offset));
   }
   return anchors;
 }
@@ -419,11 +432,13 @@ export const WARM_SNAPSHOT_FRESH_MS = 60_000;
  * the cold-start hydration parse, and the risk of silently hitting the
  * IndexedDB quota (`localStore` swallows write failures). Set to cover the
  * preloaded contexts for a typical account — every tab for the current anchor
- * plus the active tab for the next two months — with LRU headroom for a couple
- * of older visited periods; the 20-view tab cap (`MAX_VIEWS_PER_USER`) plus the
- * two future anchors is the floor. The oldest contexts evict first by LRU.
+ * plus the active tab for the previous month and the next two — with LRU
+ * headroom for a couple of older visited periods and the adjacent-only warm
+ * that follows a tab switch (three more contexts on top of the full pass); the
+ * 20-view tab cap (`MAX_VIEWS_PER_USER`) plus the three adjacent anchors and a
+ * tab-switch set is the floor. The oldest contexts evict first by LRU.
  */
-export const MAX_SNAPSHOTS_PER_USER = 24;
+export const MAX_SNAPSHOTS_PER_USER = 30;
 
 /** The IndexedDB key for one account's cached context. */
 export function snapshotStorageKey(userId: string, requestKey: string): string {
@@ -538,8 +553,8 @@ export function selectSnapshotsToEvict(
 /**
  * Bound the in-memory warm map to the same cap as the on-disk store, evicting
  * the oldest contexts first. The preload can warm every tab plus the active
- * tab's future months (up to 22), so without this the map — each record a full
- * snapshot — grows unbounded. The displayed record is held separately, so
+ * tab's adjacent months (up to 23), so without this the map — each record a
+ * full snapshot — grows unbounded. The displayed record is held separately, so
  * evicting it here only drops it as a warm *cache* entry, never from the screen.
  */
 export function capSnapshotMap(

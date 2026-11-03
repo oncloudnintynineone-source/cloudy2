@@ -28,6 +28,7 @@ import {
   isRefreshNonceFresh,
   patchSnapshotTab,
   pickColdPaintKey,
+  preloadAnchors,
   requiredMonths,
   tabLoadStates,
   type DashboardSnapshotRecord,
@@ -35,9 +36,12 @@ import {
 import {
   candidateKeyForUrl,
   classifyDashboardFetch,
+  periodPreviewMatchesUrl,
+  periodPreviewRevertDelayMs,
   pickColdPaintRecord,
   previewRevertDelayMs,
   resolveDashboardNavigation,
+  type PeriodPreview,
 } from "@/lib/dashboard/navigation";
 import { isUuid } from "@/lib/uuid";
 import { dashboardBootSignature } from "@/lib/dashboard/prefetch";
@@ -194,6 +198,7 @@ export function DashboardScreen({
   // action cannot be, and a backlog of them used to stall the calendar.
   const loadAbortRef = useRef<AbortController | null>(null);
   const preloadAbortRef = useRef<AbortController | null>(null);
+  const adjacentAbortRef = useRef<AbortController | null>(null);
   const deepLinkAbortRef = useRef<AbortController | null>(null);
   const contextFetchTimerRef = useRef<number | null>(null);
   const speculativeRef = useRef<{
@@ -213,6 +218,7 @@ export function DashboardScreen({
     return () => {
       loadAbortRef.current?.abort();
       preloadAbortRef.current?.abort();
+      adjacentAbortRef.current?.abort();
       deepLinkAbortRef.current?.abort();
       prefetchGenerationRef.current += 1;
       speculativeRef.current?.controller.abort();
@@ -248,6 +254,12 @@ export function DashboardScreen({
   // `useSearchParams`. Cleared when the URL catches up (see the sync below), or
   // when the router transition ends without the URL matching.
   const [previewView, setPreviewView] = useState<string | null>(null);
+  // Optimistic period step (a month/dual/agenda data navigation): the tapped
+  // period paints its warm snapshot in the same commit as the cross-slide, so a
+  // preloaded adjacent month never flashes the skeleton
+  // (docs/loading-transitions.md §1.14.1). Cleared when the URL catches up (or
+  // reverted when the transition ends without it).
+  const [previewPeriod, setPreviewPeriod] = useState<PeriodPreview | null>(null);
   // Whether `DashboardView` is currently running a dashboard router transition.
   // The preview may legitimately lead the URL while this is true.
   const navigationPendingRef = useRef(false);
@@ -278,10 +290,11 @@ export function DashboardScreen({
         record,
         warmRecords,
         previewView,
+        previewPeriod,
         url: { view, month, date },
         failedKey: failedContextKey,
       }),
-    [record, warmRecords, previewView, view, month, date, failedContextKey],
+    [record, warmRecords, previewView, previewPeriod, view, month, date, failedContextKey],
   );
   const candidateKey = navigation.candidateKey;
   const isNavigating = navigation.isNavigating;
@@ -293,6 +306,11 @@ export function DashboardScreen({
   // state during render", the codebase's derived-state pattern).
   if (previewView !== null && view === previewView) {
     setPreviewView(null);
+  }
+  // Same rule for the optimistic period: once the URL names the previewed
+  // period, the URL is authoritative again.
+  if (previewPeriod !== null && periodPreviewMatchesUrl(previewPeriod, { month, date })) {
+    setPreviewPeriod(null);
   }
   // Revert rule: a tap whose navigation never lands must not strand the
   // displayed view away from the URL, or a later action (which builds its href
@@ -310,6 +328,20 @@ export function DashboardScreen({
     const timer = window.setTimeout(() => setPreviewView(null), delay);
     return () => window.clearTimeout(timer);
   }, [previewView, view, navigationPending]);
+  // The period preview's revert rule (a failed month/agenda-edge navigation must
+  // not strand the grid on a period the URL never adopted).
+  useEffect(() => {
+    const delay = periodPreviewRevertDelayMs({
+      previewPeriod,
+      urlMonth: month,
+      urlDate: date,
+      navigationPending,
+    });
+    if (delay === null) return;
+
+    const timer = window.setTimeout(() => setPreviewPeriod(null), delay);
+    return () => window.clearTimeout(timer);
+  }, [previewPeriod, month, date, navigationPending]);
 
   useReportActivity(refreshing, "dashboard:refresh");
 
@@ -509,9 +541,11 @@ export function DashboardScreen({
   );
 
   // Background-preload every tab for the current anchor (docs/pwa-offline.md
-  // §1.18), so a tab switch paints from the warm cache with no round-trip. The
-  // result is discarded if a mutation/force refresh bumped the generation or a
-  // newer anchor superseded the signature.
+  // §1.18), so a tab switch paints from the warm cache with no round-trip.
+  // The server pass also warms the active tab for the previous month and the
+  // next two, so a month step slides in warm data (docs/loading-transitions.md
+  // §1.14.1). The result is discarded if a mutation/force refresh bumped the
+  // generation or a newer anchor superseded the signature.
   const preloadTabs = useCallback(
     async (signature: string, generation: number) => {
       const current = recordRef.current;
@@ -687,10 +721,10 @@ export function DashboardScreen({
       // fetches immediately on tap instead of waiting for the URL to commit.
       url: {
         view: previewView ?? paramsRef.current.get("view"),
-        month: paramsRef.current.get("month"),
-        date: paramsRef.current.get("date"),
+        month: previewPeriod?.month ?? paramsRef.current.get("month"),
+        date: previewPeriod ? previewPeriod.date : paramsRef.current.get("date"),
       },
-      previewPending: previewView !== null,
+      previewPending: previewView !== null || previewPeriod !== null,
       hasFresh: hasFreshRef.current,
       busy: busyRef.current,
       now: Date.now(),
@@ -733,7 +767,7 @@ export function DashboardScreen({
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [urlKey, previewView]);
+  }, [urlKey, previewView, previewPeriod]);
 
   // A fresh `?refresh=` nonce (header Force refresh reload, or the inactivity
   // refresh's soft navigation) forces a read even though the data key is
@@ -762,13 +796,14 @@ export function DashboardScreen({
   }, [refreshParam, fetchFresh, userId, setWarmRecords]);
 
   // Preload once the active context is fresh and idle: every tab for the
-  // current anchor, plus the active tab for the next two months, so a tab
-  // switch or a forward month navigation paints instantly (docs/pwa-offline.md
-  // §1.18). Runs once per anchor signature (committed tab + tab set + the months
-  // those tabs need), deferred to idle so it never delays first paint, and
-  // skipped offline. Also skipped on weak devices / constrained connections —
-  // it costs a server read plus a write per record, and the active tab is always
-  // loaded, so a skipped preload only means a later context fetches on demand.
+  // current anchor, plus the active tab for the previous month and the next
+  // two, so a tab switch or a month navigation paints instantly
+  // (docs/pwa-offline.md §1.18). Runs once per anchor signature (committed tab
+  // + tab set + the months those tabs need), deferred to idle so it never
+  // delays first paint, and skipped offline. Also skipped on weak devices /
+  // constrained connections — it costs a server read plus a write per record,
+  // and the active tab is always loaded, so a skipped preload only means a
+  // later context fetches on demand.
   useEffect(() => {
     if (!record || source !== "fresh" || busy) return;
     if (typeof navigator !== "undefined" && navigator.onLine === false) return;
@@ -816,6 +851,114 @@ export function DashboardScreen({
       }
     };
   }, [record, source, busy, preloadTabs]);
+
+  // Adjacent-only warm after a tab change (docs/pwa-offline.md §1.18). The full
+  // pass warms the tab that was active when it ran; switching tabs deliberately
+  // doesn't re-run it (the signature excludes the active view), so the newly
+  // active tab's previous/next periods stay cold — the Agenda tab crossing a
+  // month edge was the visible symptom. One extra idle request per
+  // active-tab/anchor fills exactly those three contexts; it no-ops when the
+  // full pass already covered them.
+  const adjacentWarmRef = useRef<string | null>(null);
+  // The displayed (URL-first) tab/period — never the held record's, which lags a
+  // tab switch to a warm tab (the record isn't swapped in that case).
+  const adjacentTabId = navigation.activeView?.id ?? null;
+  const adjacentTabKind = navigation.activeView?.kind ?? null;
+  const adjacentMonth = navigation.month;
+  const adjacentDate = navigation.date;
+  const adjacentKey = navigation.candidateKey;
+  const weekStartsOn = record?.data.weekStartsOn ?? "monday";
+  useEffect(() => {
+    if (!record || !adjacentTabId || !adjacentTabKind || !adjacentMonth) return;
+    if (source !== "fresh" || busy) return;
+    if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+    if (!canPreloadTabs()) return;
+    const anchors = preloadAnchors({ month: adjacentMonth, date: adjacentDate }).filter(
+      (anchor) => anchor.month !== adjacentMonth,
+    );
+    const keys = anchors.map((anchor) =>
+      dashboardRequestKey({
+        viewId: adjacentTabId,
+        months: requiredMonths(adjacentTabKind, anchor.month, anchor.date, weekStartsOn),
+      }),
+    );
+    const warm = warmRecordsRef.current;
+    if (keys.every((key) => key === adjacentKey || warm.has(key))) {
+      return;
+    }
+    const signature = `${adjacentTabId}|${adjacentMonth}|${adjacentDate}`;
+    if (adjacentWarmRef.current === signature) return;
+    const generation = preloadGenerationRef.current;
+    const run = () => {
+      if (preloadGenerationRef.current !== generation) return;
+      adjacentWarmRef.current = signature;
+      adjacentAbortRef.current?.abort();
+      const controller = new AbortController();
+      adjacentAbortRef.current = controller;
+      void postJson<PreloadDashboardTabsResult>(
+        "/api/dashboard/preload",
+        {
+          view: adjacentTabId,
+          month: adjacentMonth,
+          date: adjacentDate,
+          adjacentOnly: true,
+        },
+        { signal: controller.signal, priority: "low" },
+      )
+        .then((result) => {
+          if (preloadGenerationRef.current !== generation) return;
+          if (!result.ok || result.records.length === 0) return;
+          const records: DashboardSnapshotRecord[] = result.records.map((entry) => ({
+            version: DASHBOARD_SNAPSHOT_VERSION,
+            savedAt: Date.now(),
+            context: entry.context,
+            data: assembleDashboardSnapshot(result.shared, entry.delta),
+          }));
+          setWarmRecords((current) => {
+            const next = new Map(current);
+            for (const entry of records) {
+              next.set(entry.context.requestKey, entry);
+            }
+            return next;
+          });
+          void writeDashboardSnapshots(
+            userId,
+            records.map((entry) => ({ data: entry.data, context: entry.context })),
+          );
+        })
+        .catch(() => {
+          // Best-effort: an aborted/offline/failed warm leaves the target to
+          // fetch on tap (or slide its skeleton in).
+        })
+        .finally(() => {
+          if (adjacentAbortRef.current === controller) adjacentAbortRef.current = null;
+        });
+    };
+    const handle =
+      typeof requestIdleCallback === "function"
+        ? requestIdleCallback(run, { timeout: 2000 })
+        : window.setTimeout(run, 0);
+    return () => {
+      if (typeof cancelIdleCallback === "function") {
+        cancelIdleCallback(handle);
+      } else {
+        window.clearTimeout(handle);
+      }
+    };
+  }, [
+    record,
+    source,
+    busy,
+    warmRecords,
+    setWarmRecords,
+    userId,
+    adjacentTabId,
+    adjacentTabKind,
+    adjacentMonth,
+    adjacentDate,
+    adjacentKey,
+    weekStartsOn,
+  ]);
 
   // Post-mutation / filter-change refresh: drop every cached context (the write
   // may affect any of them), then re-read the current one. `report: false`
@@ -929,6 +1072,7 @@ export function DashboardScreen({
       // around the data fetch.
       isNavigating,
       setPreviewView,
+      setPreviewPeriod,
       reportNavigationPending,
       applyViewTab,
       prefetchContext,
@@ -937,6 +1081,7 @@ export function DashboardScreen({
       revalidate,
       isNavigating,
       setPreviewView,
+      setPreviewPeriod,
       reportNavigationPending,
       applyViewTab,
       prefetchContext,
