@@ -10000,4 +10000,13 @@ server read per user intent; it is gated by online/Save-Data/2G, deduped, and ab
     fired, no skeleton; the adjacent-only response carried exactly the agenda tab's
     previous/next/next+1 contexts. Reduced motion skipped the transition and used the
     keyed agenda slide. No stray slide classes afterwards.
-  - Docs updated; `APP_VERSION` → `2026.11.04-3`.
+  - **Slide timing fix ("two overlapping panes").** The old rules mixed a
+    220 ms ease-in exit with a 260 ms ease-out entry, so the two snapshots were at
+    different offsets on almost every frame; the UA's `plus-lighter` snapshot blend
+    then ghosted the overlap. Both halves now share one clock (emphasized 260 ms +
+    `--c2-ease-emphasized`), `mix-blend-mode: normal` lets the incoming pane occlude
+    the outgoing one, `object-fit: fill` tiles them exactly, and the group's default
+    size morph is disabled (`animation: none`) so a 4-vs-6-row month can't scale the
+    panes mid-slide. Verified with 6 s slow-motion screenshots in both directions
+    (clean seam, no ghosting) and for Parade State.
+  - Docs updated; `APP_VERSION` → `2026.11.04-4`.

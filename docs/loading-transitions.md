@@ -906,9 +906,17 @@ already loaded), so they slide the same way and need no flushSync gap.
   then dissolves in place.
 - `globals.css` — `.c2-grid-slide-next|prev` / `.c2-parade-slide-next|prev`
   carry the `view-transition-name`s; the `c2-grid-out/in-next|prev` keyframes
-  (shared by both groups) cross-slide at `--c2-dur-standard`/`-emphasized` with
-  the motion-profile easings. The named group animates its box on the same
-  clock (month grids range 4–6 rows).
+  (shared by both groups) translate ±100%. **Both halves run on one clock** —
+  the same `--c2-dur-emphasized` *and* the same `--c2-ease-emphasized`, so the
+  outgoing pane's trailing edge and the incoming pane's leading edge coincide
+  every frame (a true push). Two details make it read as one surface rather
+  than two panes: `mix-blend-mode: normal` overrides the UA's `plus-lighter`
+  snapshot blend (which ghosts any overlap), and `object-fit: fill` makes both
+  snapshots fill the group box. The group's own UA size animation is disabled
+  (`animation: none`) so a month that differs by a row (4–6) can't scale the
+  snapshots mid-slide; the group simply snaps to the new box. (Earlier versions
+  mixed a 220 ms ease-in exit with a 260 ms ease-out entry — the desync plus
+  `plus-lighter` was the "two overlapping panes" artifact.)
 
 **No double animation.** The dashboard's existing WAAPI nudge effect ("a 10%
 shift and back") now stands down whenever the grid box still carries a slide

@@ -308,28 +308,60 @@ html {
   }
 }
 
+/*
+  Both halves share ONE clock (same duration and easing), so the outgoing
+  pane's trailing edge and the incoming pane's leading edge stay aligned on
+  every frame — a true push. Different timings (an exit on `standard`/ease-in
+  and an entry on `emphasized`/ease-out) left the two snapshots at different
+  offsets, which read as two overlapping panes.
+*/
+::view-transition-old(c2-grid-next),
+::view-transition-new(c2-grid-next),
+::view-transition-old(c2-grid-prev),
+::view-transition-new(c2-grid-prev),
+::view-transition-old(c2-parade-next),
+::view-transition-new(c2-parade-next),
+::view-transition-old(c2-parade-prev),
+::view-transition-new(c2-parade-prev) {
+  animation-duration: var(--c2-dur-emphasized);
+  animation-timing-function: var(--c2-ease-emphasized);
+  animation-fill-mode: both;
+  /* The UA stylesheet blends snapshots with `plus-lighter` (right for a
+     cross-fade); on a slide it ghosts whatever overlaps. Let the incoming
+     pane occlude the outgoing one instead. */
+  mix-blend-mode: normal;
+  /* Fill the snapped group box exactly, so the two panes tile with no gap and
+     no vertical offset. */
+  object-fit: fill;
+  object-position: top left;
+}
+
 ::view-transition-old(c2-grid-next) {
-  animation: c2-grid-out-next var(--c2-dur-standard) var(--c2-ease-in) both;
+  animation-name: c2-grid-out-next;
 }
 
 ::view-transition-new(c2-grid-next) {
-  animation: c2-grid-in-next var(--c2-dur-emphasized) var(--c2-ease-out) both;
+  animation-name: c2-grid-in-next;
 }
 
 ::view-transition-old(c2-grid-prev) {
-  animation: c2-grid-out-prev var(--c2-dur-standard) var(--c2-ease-in) both;
+  animation-name: c2-grid-out-prev;
 }
 
 ::view-transition-new(c2-grid-prev) {
-  animation: c2-grid-in-prev var(--c2-dur-emphasized) var(--c2-ease-out) both;
+  animation-name: c2-grid-in-prev;
 }
 
-/* The group box (4–6 grid rows can differ between months) resizes on the same
-   clock as the slides, so the two grids never squash against a stale box. */
+/*
+  Snap the group box to the new size instead of the UA's size morph: adjacent
+  months can differ by a row (4–6), and the default width/height animation
+  scaled the two snapshots independently mid-slide.
+*/
 ::view-transition-group(c2-grid-next),
-::view-transition-group(c2-grid-prev) {
-  animation-duration: var(--c2-dur-emphasized);
-  animation-timing-function: var(--c2-ease-out);
+::view-transition-group(c2-grid-prev),
+::view-transition-group(c2-parade-next),
+::view-transition-group(c2-parade-prev) {
+  animation: none;
 }
 
 /*
@@ -348,26 +380,21 @@ html {
   view-transition-name: c2-parade-prev;
 }
 
+/* Timing, blend and fill come from the shared slide rule above. */
 ::view-transition-old(c2-parade-next) {
-  animation: c2-grid-out-next calc(var(--c2-dur-standard) * 0.6) var(--c2-ease-in) both;
+  animation-name: c2-grid-out-next;
 }
 
 ::view-transition-new(c2-parade-next) {
-  animation: c2-grid-in-next var(--c2-dur-emphasized) var(--c2-ease-out) both;
+  animation-name: c2-grid-in-next;
 }
 
 ::view-transition-old(c2-parade-prev) {
-  animation: c2-grid-out-prev calc(var(--c2-dur-standard) * 0.6) var(--c2-ease-in) both;
+  animation-name: c2-grid-out-prev;
 }
 
 ::view-transition-new(c2-parade-prev) {
-  animation: c2-grid-in-prev var(--c2-dur-emphasized) var(--c2-ease-out) both;
-}
-
-::view-transition-group(c2-parade-next),
-::view-transition-group(c2-parade-prev) {
-  animation-duration: var(--c2-dur-emphasized);
-  animation-timing-function: var(--c2-ease-out);
+  animation-name: c2-grid-in-prev;
 }
 
 /* Wizard step directional slide: the new step slides in from the direction of
