@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   advanceChromeHide,
   initialChromeHideState,
+  pointInAnyRect,
+  pointInRect,
   type ChromeHideEvent,
   type ChromeHideState,
 } from "./chromeHide";
@@ -105,6 +107,23 @@ describe("advanceChromeHide", () => {
     expect(s.hidden).toBe(false);
   });
 
+  it("a programmatic scroll does not hide a visible chrome", () => {
+    // Dialog scroll lock / focus `scrollIntoView` / a grid reset after a period
+    // change: no pane press or wheel behind it, so it must not start a hide.
+    const s = fresh();
+    expect(advanceChromeHide(s, { type: "scroll", fromUser: false })).toBe(s);
+  });
+
+  it("a programmatic scroll still keeps an already-hidden chrome hidden until settle", () => {
+    const s = apply(fresh(), { type: "touch-down" }, { type: "touch-count", count: 1 });
+    const scrolled = advanceChromeHide(s, { type: "scroll", fromUser: false });
+    expect(scrolled.hidden).toBe(true);
+    expect(scrolled.scrolling).toBe(true);
+    const settled = advanceChromeHide(scrolled, { type: "scroll-settled" });
+    expect(settled.hidden).toBe(true); // finger is still down
+    expect(advanceChromeHide(settled, { type: "touch-count", count: 0 }).hidden).toBe(false);
+  });
+
   it("a redundant scroll frame while already hidden+scrolling is a no-op", () => {
     const s = advanceChromeHide(fresh(), { type: "scroll" });
     expect(advanceChromeHide(s, { type: "scroll" })).toBe(s);
@@ -132,5 +151,28 @@ describe("advanceChromeHide", () => {
   it("a no-op reset while already idle returns the same reference", () => {
     const s = fresh();
     expect(advanceChromeHide(s, { type: "reset" })).toBe(s);
+  });
+});
+
+describe("pointInRect / pointInAnyRect", () => {
+  const rect = { left: 10, top: 20, right: 110, bottom: 70 };
+
+  it("includes the edges of the rect", () => {
+    expect(pointInRect(10, 20, rect)).toBe(true);
+    expect(pointInRect(110, 70, rect)).toBe(true);
+  });
+
+  it("rejects points outside the rect", () => {
+    expect(pointInRect(9, 20, rect)).toBe(false);
+    expect(pointInRect(10, 19, rect)).toBe(false);
+    expect(pointInRect(111, 70, rect)).toBe(false);
+    expect(pointInRect(110, 71, rect)).toBe(false);
+  });
+
+  it("matches any rect in the set", () => {
+    expect(pointInAnyRect(50, 50, [rect])).toBe(true);
+    expect(pointInAnyRect(5, 5, [rect, { left: 0, top: 0, right: 20, bottom: 20 }])).toBe(true);
+    expect(pointInAnyRect(5, 5, [rect])).toBe(false);
+    expect(pointInAnyRect(5, 5, [])).toBe(false);
   });
 });

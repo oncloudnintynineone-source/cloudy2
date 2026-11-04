@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.366 (Real view-transition period slides)** is shipped.
+- All work through changelog **1.367 (floating-chrome tap/scroll flash fix)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -2346,6 +2346,19 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   fade/skeleton; a tab-switch **adjacent-only preload** (`adjacentOnly: true`,
   `MAX_SNAPSHOTS_PER_USER` 30) warms the newly active tab's neighbours. Docs:
   `docs/loading-transitions.md` §1.14.1, `docs/pwa-offline.md` §1.18,
+  `docs/dashboard-views.md` §1.1, `AGENTS.md`.
+- 1.367 **Floating-chrome tap/scroll flash fix**: tapping the mobile floating rows
+  (Calendar / Parade State / Contacts / settings list pills, FAB row) no longer flashes
+  them away. The pill surface and FAB-row wrapper deliberately pass taps through
+  (`pointer-events: none`), so presses on their label/padding/gap areas reach the
+  content pane; `useChromeHide` now hit-tests the press point against every
+  `.c2-chrome-hide-able` rect and ignores it (`pointInRect`/`pointInAnyRect`, pure +
+  unit-tested). Only a user gesture may start a hide: a pane touch/press or a pane
+  `wheel` scroll. A `scroll` with no pane press/wheel behind it (dialog scroll-lock,
+  focus `scrollIntoView`, a grid reset after a period change, keyboard page scroll) is
+  ignored while the chrome is visible — those were the brief hide/reveal flashes when
+  opening filters/dates/search or stepping periods. Once hidden, every scroll still
+  counts, so momentum keeps it hidden until settle. Docs:
   `docs/dashboard-views.md` §1.1, `AGENTS.md`.
 
 ## 1.4 Open items & next steps

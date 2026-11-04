@@ -227,7 +227,13 @@ doc content here.
     **auto-hide while the user touches the calendar pane** (touch alone, or any
     scroll, either axis) and slide back only when the last finger/pointer is
     lifted AND the scroll has settled — they stay hidden through the scroll,
-    momentum and any hold-still. Touch contact is tracked via `touchend` /
+    momentum and any hold-still. A press that lands **over the floating chrome
+    itself** — including the pill's tap-through label/padding and the FAB row's
+    empty stretch — is hit-tested against every `.c2-chrome-hide-able` rect and
+    never starts a hide, and non-gesture scrolls (dialog scroll-lock, focus
+    `scrollIntoView`, a grid reset after a period change) are ignored while the
+    chrome is visible; only a pane press or a wheel scroll may start one. Touch
+    contact is tracked via `touchend` /
     `touches.length`, **never** `pointercancel` (that fires mid-scroll while the
     finger is down). The same behavior extends to the **Contacts + Parade State
     mobile pills** (Parade State also hides its attendance mode bar; an

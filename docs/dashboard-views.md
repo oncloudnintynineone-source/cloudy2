@@ -328,11 +328,24 @@ string maps to the first tab of that kind.
    internal ScrollArea viewports (it bubbles) and on the `document` capture
    phase for document scrolling — with a 150 ms debounce after the last
    `scroll` event as the fallback where `scrollend` doesn't exist.
+   The floating rows pass taps through their label/padding/gap areas
+   (`pointer-events: none`), so a press that lands *over* the chrome reaches the
+   pane beneath; the pane handler hit-tests the press point against every
+   `.c2-chrome-hide-able` rect and ignores it, so tapping the chrome (visible
+   controls or its tap-through areas) never flashes it away. Only a **user
+   gesture** may *start* a hide: a pane touch/press or a wheel scroll. A
+   `scroll` with no pane press or wheel behind it is a programmatic side effect
+   (a dialog's scroll lock, a focus `scrollIntoView`, a grid scroll reset after
+   a period change) and is ignored while the chrome is visible — it cannot
+   flash it. Once hidden, every scroll still counts, so momentum keeps the
+   chrome hidden until it settles.
     The visibility transition is the pure, unit-tested `advanceChromeHide` state
     machine in `src/lib/ui/chromeHide.ts`; `useChromeHide` only
     wires the DOM events into it: a `touchstart` + `pointerdown` capture on the
-    pane (the triggers), the touch/pointer **contact** listeners on `document`,
-    `scroll` capture on the pane + `window`, and the two `scrollend` sites; a
+    pane (the triggers, after the chrome-rect hit test), the touch/pointer
+    **contact** listeners on `document`,
+    `scroll` capture on the pane + `window`, a pane `wheel` trigger, and the two
+    `scrollend` sites; a
      context switch (the dashboard's `shownTabId` tab switch or a wizard
      minimize/restore — its `resetKey` is `${shownTabId}:${formMinimized}`, so
      minimizing always puts the chrome and the docked draft chip back; Parade
@@ -340,7 +353,7 @@ string maps to the first tab of that kind.
    ```mermaid
    stateDiagram-v2
      [*] --> Visible
-     Visible --> Hidden : touch/press in the pane / any scroll
+     Visible --> Hidden : pane touch/press / wheel scroll
      Hidden --> Hidden : a finger or pointer still down / scroll unsettled
       Hidden --> Visible : last finger/pointer lifted AND scroll settled
       Hidden --> Visible : context switch (reset)
@@ -348,9 +361,11 @@ string maps to the first tab of that kind.
     "**The pane**" is the page's content element: the dashboard's `weekBoxRef`
     content box (every grid + the pinned day/hour strips), the Contacts page
     column, the Parade State content wrapper. The floating rows are
-    `Affix`-portaled to `<body>` and the pan/zoom + fullscreen clusters are
-    **siblings** of the box, so the pane-scoped **trigger** can never
-    self-fire: tapping a pill button (or the zoom cluster) keeps the chrome up.
+     `Affix`-portaled to `<body>` and the pan/zoom + fullscreen clusters are
+     **siblings** of the box, so the pane-scoped **trigger** can never
+     self-fire: tapping a pill button (or the zoom cluster) keeps the chrome up,
+     and the chrome-rect hit test extends that to the pill/FAB-row areas that
+     pass taps through to the pane.
     **Contact tracking, by contrast,
    is screen-wide** (on `document`): once hidden, the chrome stays hidden while
    *any* finger/pointer is down, even if it slides off the pane onto the bottom

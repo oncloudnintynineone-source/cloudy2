@@ -10010,3 +10010,44 @@ server read per user intent; it is gated by online/Save-Data/2G, deduped, and ab
     panes mid-slide. Verified with 6 s slow-motion screenshots in both directions
     (clean seam, no ghosting) and for Parade State.
   - Docs updated; `APP_VERSION` → `2026.11.04-4`.
+
+## 1.367 Floating-chrome tap/scroll flash fix
+
+**Problem.** On mobile, tapping the floating rows (Calendar control pill + FAB row,
+Parade State pill + attendance bar, Contacts and settings-list pills) briefly hid and
+revealed them. Two causes, both in `useChromeHide`:
+
+1. The pill surface and FAB-row wrapper are `pointer-events: none` on purpose (only
+   their buttons/inputs re-enable it) so taps on the grid/roster beneath stay usable. A
+   tap on their label/padding/empty-stretch therefore reached the content pane, whose
+   capture `touchstart` hid the chrome immediately; on finger lift it settled back — a
+   visible flash. The hook only knew the pane, not the chrome visually covering it.
+2. Any `scroll` event hid a visible chrome. Opening filter/date/search or stepping a
+   period triggers programmatic scrolls (Mantine/`react-remove-scroll` scroll lock, focus
+   `scrollIntoView`, a grid scroll reset, keyboard page scroll), which read as content
+   scrolling and produced the same brief hide/reveal.
+
+**Fix.** `src/lib/ui/chromeHide.ts`:
+
+- Added pure `pointInRect` / `pointInAnyRect` and hit-test every
+  `.c2-chrome-hide-able` rect in the pane `touchstart`/`pointerdown` triggers. A press
+  that lands over the (tap-through) chrome is ignored and never marks a pane press.
+- Added a `panePressRef` (true only when a gesture actually starts on pane content;
+  cleared on full touch/pointer release and on `reset`).
+- `ChromeHideEvent["scroll"]` gained `fromUser?: boolean`; `advanceChromeHide` ignores a
+  `scroll` that would *start* a hide when `fromUser === false`. The hook passes
+  `panePressRef.current || touchPoints > 0 || otherPointers > 0`, so a scroll only starts
+  a hide during a pane gesture; once hidden, every scroll is processed so momentum keeps
+  it hidden until settle. A pane `wheel` listener keeps wheel/trackpad auto-hide working
+  on the narrow-desktop tier.
+- Unit tests (`chromeHide.test.ts`): programmatic scroll on a visible chrome is a no-op;
+  programmatic scroll on a hidden chrome keeps it hidden until settle; point-in-rect
+  edge/inside/outside and any-rect cases. 19 tests pass.
+- Behaviour preserved: pane touch/press hides immediately; the chrome only returns once
+  the last finger/pointer is lifted AND scrolling settled; tab/view/attendance-mode
+  `reset` still forces it back. Pass-through tap targets still work as before.
+
+**Verification.** `pnpm vitest run src/lib/ui/chromeHide.test.ts` (19 passed); `pnpm
+lint` clean. `pnpm typecheck` still reports only the pre-existing Windows
+`EventFormSteps.tsx` / `eventFormSteps.ts` case-collision error (unrelated). Docs:
+`docs/dashboard-views.md` §1.1, `AGENTS.md`; `APP_VERSION` → `2026.11.04-5`.

@@ -14,7 +14,12 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from "react"
  * `weekBoxRef` content box with every grid + pinned strips; the Contacts /
  * Parade State page columns). The floating rows are `Affix`-portaled to
  * `<body>` outside the pane, so a pane-scoped trigger can never be triggered
- * by the chrome itself — tapping a pill button keeps the pill up. Contact
+ * by the chrome itself — tapping a pill button keeps the pill up. The rows are
+ * also deliberately `pointer-events: none` (only their buttons/inputs opt back
+ * in) so taps on their label/padding/gap areas reach the content beneath; those
+ * taps still *land over* the chrome, so the pane handler hit-tests the press
+ * point against every `.c2-chrome-hide-able` rect and ignores it — a tap that
+ * looks like chrome interaction must never flash the chrome away. Contact
  * tracking, by contrast, is screen-wide (document): once hidden, the chrome
  * stays hidden while *any* finger/pointer is down, even if it slides off the
  * pane (e.g. onto the bottom nav).
@@ -43,12 +48,45 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from "react"
  * browsers — a short debounce after the last `scroll` event settles it there
  * (the rail-chevron pattern in `AppShellShell.tsx` is the in-repo precedent).
  *
+ * Only a **user-driven** scroll may *start* a hide. A visible chrome is hidden
+ * by a press on the pane (which happens first on any touch drag) or a wheel
+ * scroll; a `scroll` with no pane press behind it is a programmatic side effect
+ * — a dialog's scroll lock, a focus `scrollIntoView`, or a grid scroll reset
+ * after a period change — and must not flash the chrome. Once hidden, every
+ * scroll is processed so momentum keeps it hidden until it settles.
+ *
  * The visibility transition is the pure `advanceChromeHide` below (unit-
  * tested); the hook only wires DOM events into it.
  */
 
 /** Debounce that settles scrolling on browsers without `scrollend`. */
 export const SCROLL_SETTLE_FALLBACK_MS = 150;
+
+/** Every element that rides the mobile floating-chrome hide state. */
+export const CHROME_HIDE_SELECTOR = ".c2-chrome-hide-able";
+
+/** The part of a `DOMRect` a hit test needs. */
+export interface RectLike {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+/** Whether a viewport point lies inside a rect. */
+export function pointInRect(x: number, y: number, rect: RectLike): boolean {
+  return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+}
+
+/** Whether a viewport point lies inside any of the rects. */
+export function pointInAnyRect(x: number, y: number, rects: Iterable<RectLike>): boolean {
+  for (const rect of rects) {
+    if (pointInRect(x, y, rect)) {
+      return true;
+    }
+  }
+  return false;
+}
 
 export interface ChromeHideState {
   /** Fingers currently down, from `TouchEvent.touches.length`. */
@@ -70,7 +108,12 @@ export type ChromeHideEvent =
   | { type: "pointer-down" }
   /** A mouse/pen pointer released (anywhere). */
   | { type: "pointer-up" }
-  | { type: "scroll" }
+  /**
+   * A scroll event. `fromUser: false` (default `true`) marks a scroll with no
+   * pane press or wheel behind it — a dialog scroll lock, a focus
+   * `scrollIntoView`, or a layout reset: it never *starts* a hide.
+   */
+  | { type: "scroll"; fromUser?: boolean }
   | { type: "scroll-settled" }
   | { type: "reset" };
 
@@ -104,6 +147,11 @@ export function advanceChromeHide(state: ChromeHideState, event: ChromeHideEvent
     case "pointer-up":
       return settle({ ...state, otherPointers: Math.max(0, state.otherPointers - 1) });
     case "scroll":
+      // A visible chrome is only hidden by a real user gesture; a programmatic
+      // scroll (dialog lock / focus / layout reset) would otherwise flash it.
+      if (!state.hidden && event.fromUser === false) {
+        return state;
+      }
       return state.hidden && state.scrolling ? state : { ...state, scrolling: true, hidden: true };
     case "scroll-settled":
       return settle({ ...state, scrolling: false });
@@ -130,6 +178,9 @@ export function useChromeHide({
   const hiddenRef = useRef(false);
   const stateRef = useRef<ChromeHideState>(initialChromeHideState());
   const settleTimerRef = useRef<number | null>(null);
+  // Whether the current gesture started on the content pane (as opposed to on
+  // the floating chrome). Only a pane gesture can *start* a hide via `scroll`.
+  const panePressRef = useRef(false);
 
   const dispatch = useCallback((event: ChromeHideEvent) => {
     const next = advanceChromeHide(stateRef.current, event);
@@ -143,7 +194,7 @@ export function useChromeHide({
   // `scroll` → mark scrolling (and hide) → arm the settle fallback. The
   // fallback only matters where `scrollend` never fires; a real `scrollend`
   // settles earlier and the stray timer then no-ops (already settled).
-  const onScroll = useCallback(() => {
+  const armSettle = useCallback(() => {
     if (settleTimerRef.current !== null) {
       window.clearTimeout(settleTimerRef.current);
     }
@@ -151,8 +202,27 @@ export function useChromeHide({
       settleTimerRef.current = null;
       dispatch({ type: "scroll-settled" });
     }, SCROLL_SETTLE_FALLBACK_MS);
-    dispatch({ type: "scroll" });
   }, [dispatch]);
+
+  const onScroll = useCallback(() => {
+    const state = stateRef.current;
+    // A scroll with no pane press or active pointer behind it is a programmatic
+    // side effect (dialog scroll lock, focus `scrollIntoView`, a grid reset
+    // after a period change). Hiding on it would flash a visible chrome.
+    const fromUser = panePressRef.current || state.touchPoints > 0 || state.otherPointers > 0;
+    if (!state.hidden && !fromUser) {
+      return;
+    }
+    armSettle();
+    dispatch({ type: "scroll", fromUser });
+  }, [armSettle, dispatch]);
+
+  // Wheel/trackpad scrolling (the narrow-desktop tier of the mobile layout) is
+  // user-driven even without a pointer pressed on the pane.
+  const onWheel = useCallback(() => {
+    armSettle();
+    dispatch({ type: "scroll", fromUser: true });
+  }, [armSettle, dispatch]);
 
   const onScrollEnd = useCallback(() => {
     if (settleTimerRef.current !== null) {
@@ -175,11 +245,35 @@ export function useChromeHide({
     // (the pointer-events `pointerdown` for a touch is *not* used here: it is
     // superseded by `pointercancel` mid-scroll, which must not read as a
     // release). Mouse/pen use `pointerdown` directly.
-    const onPaneTouchStart = () => dispatch({ type: "touch-down" });
-    const onPanePointerDown = (event: PointerEvent) => {
-      if (event.pointerType !== "touch") {
-        dispatch({ type: "pointer-down" });
+    //
+    // The floating rows pass taps through their label/padding/gap areas
+    // (`pointer-events: none`), so those presses reach the pane even though the
+    // user is tapping the chrome. Hit-test the press point against every chrome
+    // rect and ignore it — interacting with the chrome must never hide it.
+    const isOverChrome = (x: number, y: number) => {
+      const rects: RectLike[] = [];
+      for (const node of document.querySelectorAll<HTMLElement>(CHROME_HIDE_SELECTOR)) {
+        rects.push(node.getBoundingClientRect());
       }
+      return pointInAnyRect(x, y, rects);
+    };
+    const onPaneTouchStart = (event: TouchEvent) => {
+      const touch = event.touches[0];
+      if (touch && isOverChrome(touch.clientX, touch.clientY)) {
+        return;
+      }
+      panePressRef.current = true;
+      dispatch({ type: "touch-down" });
+    };
+    const onPanePointerDown = (event: PointerEvent) => {
+      if (event.pointerType === "touch") {
+        return;
+      }
+      if (isOverChrome(event.clientX, event.clientY)) {
+        return;
+      }
+      panePressRef.current = true;
+      dispatch({ type: "pointer-down" });
     };
     pane.addEventListener("touchstart", onPaneTouchStart, true);
     pane.addEventListener("pointerdown", onPanePointerDown, true);
@@ -191,10 +285,15 @@ export function useChromeHide({
     // the count. Mouse/pen: the `pointerdown`/`pointerup` pair; a non-touch
     // `pointercancel` is a real release, a touch one is ignored (the touch
     // events own that gesture).
-    const onTouchCount = (event: TouchEvent) =>
+    const onTouchCount = (event: TouchEvent) => {
+      if (event.touches.length === 0) {
+        panePressRef.current = false;
+      }
       dispatch({ type: "touch-count", count: event.touches.length });
+    };
     const onPointerRelease = (event: PointerEvent) => {
       if (event.pointerType !== "touch") {
+        panePressRef.current = false;
         dispatch({ type: "pointer-up" });
       }
     };
@@ -209,6 +308,8 @@ export function useChromeHide({
     // ScrollArea viewports (the dashboard's month/week/day pan, Week (Grid)
     // rows, dual panes).
     pane.addEventListener("scroll", onScroll, true);
+    // …wheel/trackpad scrolling (no pressed pointer) is still user-driven.
+    pane.addEventListener("wheel", onWheel, { passive: true });
     // `scrollend` bubbles — the pane catches the internal viewports…
     pane.addEventListener("scrollend", onScrollEnd);
     // …and document scrolling settles on the document capture phase (the
@@ -225,15 +326,17 @@ export function useChromeHide({
       document.removeEventListener("pointerup", onPointerRelease);
       document.removeEventListener("pointercancel", onPointerRelease);
       pane.removeEventListener("scroll", onScroll, true);
+      pane.removeEventListener("wheel", onWheel);
       pane.removeEventListener("scrollend", onScrollEnd);
       document.removeEventListener("scrollend", onScrollEnd, true);
       window.removeEventListener("scroll", onScroll);
+      panePressRef.current = false;
       if (settleTimerRef.current !== null) {
         window.clearTimeout(settleTimerRef.current);
         settleTimerRef.current = null;
       }
     };
-  }, [enabled, paneRef, dispatch, onScroll, onScrollEnd]);
+  }, [enabled, paneRef, dispatch, onScroll, onScrollEnd, onWheel]);
 
   // A tab/view switch, context change (or re-enabling) puts the chrome back
   // immediately: the user is then interacting with the chrome, not the pane.
@@ -241,6 +344,7 @@ export function useChromeHide({
     if (!enabled) {
       return;
     }
+    panePressRef.current = false;
     dispatch({ type: "reset" });
   }, [enabled, resetKey, dispatch]);
 
