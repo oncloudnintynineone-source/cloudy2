@@ -48,7 +48,7 @@ import { dashboardBootSignature } from "@/lib/dashboard/prefetch";
 import { takeDashboardBoot } from "@/lib/dashboard/boot";
 import { mark } from "@/lib/perf/marks";
 import { canPreloadTabs, canWarmRoutes } from "@/lib/pwa/warmup";
-import type { DashboardViewTab } from "@/lib/dashboardViews/views";
+import { resolveActiveTab, type DashboardViewTab } from "@/lib/dashboardViews/views";
 import type { MonthZoom } from "@/lib/ui/monthZoom";
 import type { SlotZoom } from "@/lib/ui/slotZoom";
 
@@ -539,6 +539,29 @@ export function DashboardScreen({
     },
     [setWarmRecords, userId],
   );
+
+  // Publish an optimistic period preview only when the device already holds the
+  // target context (docs/loading-transitions.md §1.14.1). A cold target shows
+  // the grid skeleton regardless, so setting the preview would only add a
+  // synchronous DashboardScreen render to the step without painting data.
+  const previewPeriodIfWarm = useCallback((period: PeriodPreview) => {
+    const current = recordRef.current;
+    if (!current) return;
+    const tab =
+      resolveActiveTab(
+        paramsRef.current.get("view"),
+        current.data.activeView.id,
+        current.data.tabs,
+      ) ?? current.data.activeView;
+    const date = period.date ?? current.context.date;
+    const key = dashboardRequestKey({
+      viewId: tab.id,
+      months: requiredMonths(tab.kind, period.month, date, current.data.weekStartsOn),
+    });
+    if (warmRecordsRef.current.has(key)) {
+      setPreviewPeriod(period);
+    }
+  }, []);
 
   // Background-preload every tab for the current anchor (docs/pwa-offline.md
   // §1.18), so a tab switch paints from the warm cache with no round-trip.
@@ -1072,7 +1095,7 @@ export function DashboardScreen({
       // around the data fetch.
       isNavigating,
       setPreviewView,
-      setPreviewPeriod,
+      previewPeriodIfWarm,
       reportNavigationPending,
       applyViewTab,
       prefetchContext,
@@ -1081,7 +1104,7 @@ export function DashboardScreen({
       revalidate,
       isNavigating,
       setPreviewView,
-      setPreviewPeriod,
+      previewPeriodIfWarm,
       reportNavigationPending,
       applyViewTab,
       prefetchContext,

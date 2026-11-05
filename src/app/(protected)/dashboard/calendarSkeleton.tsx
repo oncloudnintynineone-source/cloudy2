@@ -7,6 +7,16 @@ import { monthGridRows } from "@/lib/events/datetime";
 
 export { monthGridRows };
 
+/*
+ * The in-page grid skeletons are deliberately **static** (`animate={false}`):
+ * a Month placeholder renders ~100–170 blocks, and Mantine's pulse animates
+ * every block on its own compositor layer. While the grid loads beneath the
+ * frosted sticky chrome, that forces a full-width `backdrop-filter` recompute
+ * every frame and drops frames on mid-range devices. The single-block route
+ * skeleton (`DashboardShellSkeleton`) keeps its pulse; loading is still
+ * announced by `LoadingStatus` and the tab-strip spinner.
+ */
+
 const gridStyle = {
   display: "grid",
   gridTemplateColumns: "repeat(7, 1fr)",
@@ -17,7 +27,13 @@ export function WeekdayRow() {
   return (
     <Box style={gridStyle} mb={4}>
       {Array.from({ length: 7 }).map((_, i) => (
-        <Skeleton key={i} height={12} radius={3} style={{ width: "55%", margin: "0 auto" }} />
+        <Skeleton
+          animate={false}
+          key={i}
+          height={12}
+          radius={3}
+          style={{ width: "55%", margin: "0 auto" }}
+        />
       ))}
     </Box>
   );
@@ -69,9 +85,7 @@ export function MonthGridSkeleton({
                 // Mirrors the library's month day cell
                 // (`calc(52px + --month-view-max-events * 24px)`); in the
                 // fit-to-height column the shared grid rows own the height.
-                height: fill
-                  ? undefined
-                  : "calc(52px + var(--month-view-max-events, 3) * 24px)",
+                height: fill ? undefined : "calc(52px + var(--month-view-max-events, 3) * 24px)",
                 minHeight: fill ? 0 : undefined,
                 padding: "calc(0.25rem * var(--mantine-scale))",
                 display: "flex",
@@ -82,9 +96,9 @@ export function MonthGridSkeleton({
                   i % 7 === 0 ? undefined : "1px solid var(--mantine-color-default-border)",
               }}
             >
-              <Skeleton height={12} width={16} style={{ alignSelf: "flex-end" }} />
+              <Skeleton animate={false} height={12} width={16} style={{ alignSelf: "flex-end" }} />
               {Array.from({ length: chips }).map((_, c) => (
-                <Skeleton key={c} height={20} radius={2} />
+                <Skeleton animate={false} key={c} height={20} radius={2} />
               ))}
             </Box>
           );
@@ -103,12 +117,18 @@ export function ScheduleGridSkeleton({ rows = 6 }: { rows?: number }) {
           const eventBars = (i * 3 + 1) % 3;
           return (
             <Group key={i} gap="xs" wrap="nowrap">
-              <Skeleton width={48} height={44} radius={4} />
+              <Skeleton animate={false} width={48} height={44} radius={4} />
               <Box style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
                 {Array.from({ length: eventBars }).map((_, b) => (
-                  <Skeleton key={b} height={22} radius={3} style={{ width: "72%" }} />
+                  <Skeleton
+                    animate={false}
+                    key={b}
+                    height={22}
+                    radius={3}
+                    style={{ width: "72%" }}
+                  />
                 ))}
-                <Skeleton height={10} radius={2} style={{ width: "100%" }} />
+                <Skeleton animate={false} height={10} radius={2} style={{ width: "100%" }} />
               </Box>
             </Group>
           );
@@ -128,7 +148,7 @@ export function AgendaListSkeleton({ rows = 4, fill = false }: { rows?: number; 
       style={{ overflow: "hidden", ...(fill ? { flex: "1 1 auto", minHeight: 0 } : null) }}
     >
       <Box style={{ padding: "var(--mantine-spacing-xs) var(--mantine-spacing-sm)" }}>
-        <Skeleton height={14} width="45%" />
+        <Skeleton animate={false} height={14} width="45%" />
       </Box>
       {Array.from({ length: rows }).map((_, i) => (
         <Group
@@ -141,10 +161,15 @@ export function AgendaListSkeleton({ rows = 4, fill = false }: { rows?: number; 
             borderTop: "1px solid var(--mantine-color-default-border)",
           }}
         >
-          <Skeleton width={4} height={30} radius={2} style={{ flexShrink: 0 }} />
+          <Skeleton animate={false} width={4} height={30} radius={2} style={{ flexShrink: 0 }} />
           <Box style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
-            <Skeleton height={14} radius={2} style={{ width: `${60 - (i % 3) * 10}%` }} />
-            <Skeleton height={10} radius={2} style={{ width: "35%" }} />
+            <Skeleton
+              animate={false}
+              height={14}
+              radius={2}
+              style={{ width: `${60 - (i % 3) * 10}%` }}
+            />
+            <Skeleton animate={false} height={10} radius={2} style={{ width: "35%" }} />
           </Box>
         </Group>
       ))}
@@ -213,8 +238,8 @@ export function WeekGridViewSkeleton({
               borderLeft: c > 0 ? WEEK_GRID_BORDER : undefined,
             }}
           >
-            <Skeleton height={10} radius={2} style={{ width: "55%" }} />
-            <Skeleton height={8} radius={2} style={{ width: "25%" }} />
+            <Skeleton animate={false} height={10} radius={2} style={{ width: "55%" }} />
+            <Skeleton animate={false} height={8} radius={2} style={{ width: "25%" }} />
           </Box>
         ))}
       </Box>
@@ -238,7 +263,7 @@ export function WeekGridViewSkeleton({
               borderRight: WEEK_GRID_BORDER,
             }}
           >
-            <Skeleton height={8} radius={2} style={{ width: "70%" }} />
+            <Skeleton animate={false} height={8} radius={2} style={{ width: "70%" }} />
           </Box>
           {Array.from({ length: 7 }).map((_, c) => {
             // Deterministic 0-2 event blocks per cell, varying with row/column.
@@ -256,7 +281,13 @@ export function WeekGridViewSkeleton({
                 }}
               >
                 {Array.from({ length: blocks }).map((_, b) => (
-                  <Skeleton key={b} height={18} radius={3} style={{ width: "100%" }} />
+                  <Skeleton
+                    animate={false}
+                    key={b}
+                    height={18}
+                    radius={3}
+                    style={{ width: "100%" }}
+                  />
                 ))}
               </Box>
             );
@@ -279,7 +310,7 @@ export function WeekGridSkeleton({ rows = 6 }: { rows?: number }) {
       <Box style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {Array.from({ length: rows }).map((_, i) => (
           <Group key={i} gap="xs" wrap="nowrap" align="stretch">
-            <Skeleton width={48} height={44} radius={4} style={{ flexShrink: 0 }} />
+            <Skeleton animate={false} width={48} height={44} radius={4} style={{ flexShrink: 0 }} />
             <Box
               style={{
                 flex: 1,
@@ -303,7 +334,9 @@ export function WeekGridSkeleton({ rows = 6 }: { rows?: number }) {
                       paddingInline: 2,
                     }}
                   >
-                    {hasBar && <Skeleton height={18} radius={3} style={{ width: "100%" }} />}
+                    {hasBar && (
+                      <Skeleton animate={false} height={18} radius={3} style={{ width: "100%" }} />
+                    )}
                   </Box>
                 );
               })}
@@ -420,8 +453,8 @@ export function WeekMatrixSkeleton({ rows = 6 }: { rows?: number }) {
               padding: "5px 2px",
             }}
           >
-            <Skeleton height={10} radius={2} style={{ width: "55%" }} />
-            <Skeleton height={8} radius={2} style={{ width: "25%" }} />
+            <Skeleton animate={false} height={10} radius={2} style={{ width: "55%" }} />
+            <Skeleton animate={false} height={8} radius={2} style={{ width: "25%" }} />
           </Box>
         ))}
       </Box>
@@ -445,7 +478,7 @@ export function WeekMatrixSkeleton({ rows = 6 }: { rows?: number }) {
                 justifyContent: "center",
               }}
             >
-              <Skeleton height={10} radius={2} style={{ width: "60%" }} />
+              <Skeleton animate={false} height={10} radius={2} style={{ width: "60%" }} />
             </Box>
             <Box
               style={{
@@ -475,7 +508,7 @@ export function WeekMatrixSkeleton({ rows = 6 }: { rows?: number }) {
                   padding: 2,
                 }}
               >
-                <Skeleton height={28} radius={8} style={{ width: "100%" }} />
+                <Skeleton animate={false} height={28} radius={8} style={{ width: "100%" }} />
               </Box>
             </Box>
           </Box>

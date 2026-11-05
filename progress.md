@@ -2375,8 +2375,21 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   portaled chrome's mount entrances (`c2-glass-enter`, the FAB stagger) are
   removed — a transition captures the first frame, where a running entrance is
   still transparent; `c2-glass-enter` survives only for the feature-flag motion
-  preview. Docs: `docs/loading-transitions.md` §1.14/§1.17,
+  preview.   Docs: `docs/loading-transitions.md` §1.14/§1.17,
   `docs/dashboard-views.md` §1.1, `docs/desktop-responsive.md` §1.3.
+- 1.369 **Calendar period-step performance**: the real View Transition
+  cross-slide no longer runs for heavy grid kinds on coarse-pointer devices,
+  while the grid is loading, or on the `c2-low-end` tier — those steps use the
+  passive WAAPI nudge (`shouldUsePeriodSlide`, `src/lib/ui/periodSlide.ts`, pure +
+  unit-tested); `slideViewTransition` also checks the low-end tier directly and
+  `globals.css` zeroes `html.c2-low-end::view-transition-*`. Cold period steps
+  no longer publish an optimistic preview (`previewPeriodIfWarm` only sets it
+  when the target key is already warm), and the in-page calendar-grid skeletons
+  are static (`animate={false}`) so their ~100–170 composited pulse layers stop
+  forcing a full-width backdrop-filter recompute under the frosted chrome. The
+  mobile view-name line and compact view trigger now read `useDashboardTabStatus`
+  in their own components, so per-tab load ticks no longer re-render the whole
+  `DashboardView`. Docs: `docs/loading-transitions.md` §1.4/§1.14.1/§1.15.
 
 ## 1.4 Open items & next steps
 

@@ -162,6 +162,13 @@ dashboard's **in-page** kind-shaped transitions, not the plain-box
 route fallback), `parade-state/paradeStateSkeleton.tsx`,
 `settings/audit-log/AuditLogRowSkeleton.tsx`.
 
+The in-page calendar-grid skeletons are **static** (`animate={false}`): a
+Month placeholder renders ~100–170 blocks, and Mantine's pulse animates each
+block on its own compositor layer. Under the frosted sticky chrome that forced
+a full-width `backdrop-filter` recompute every frame and dropped frames on
+mid-range devices. The single-block route/launch-shell skeleton keeps its
+pulse; loading stays announced by `LoadingStatus` and the tab-strip spinner.
+
 The PWA **launch shell** (`public/loading.html`, served unconditionally by the
 service worker for the start URL) mirrors that plain-box route skeleton — one
 neutral full-page loading block with Mantine's exact palette values and pulse,
@@ -987,11 +994,38 @@ the old one). A stray `view-transition-name` would otherwise be captured as an
 extra named group by a later route transition; the browser test asserts none
 remains.
 
+**Performance gate.** The real slide is deliberately not free: it names the
+whole grid box, synchronously commits a full grid render inside the transition
+callback (`flushSync`), and makes the browser rasterise/animate two full-grid
+snapshots. `shouldUsePeriodSlide` (`src/lib/ui/periodSlide.ts`, pure +
+unit-tested) keeps it off when:
+
+- the grid is still loading (`gridLoading` — sliding the skeleton is the most
+  expensive and least useful case);
+- the device is the `c2-low-end` tier;
+- the view is a heavy grid kind (`month`, `dual`, `week`, `weekv2`, `weekgrid`,
+  `schedule`) on a **coarse pointer** (touch) device. The Agenda list is small
+  enough to slide everywhere.
+
+In those cases `DashboardView` falls back to the passive WAAPI nudge. Desktop
+fine-pointer devices keep the real cross-slide. `slideViewTransition` also
+checks `lowEndTierActive()` itself (covering Parade State), and `globals.css`
+zeroes `html.c2-low-end::view-transition-*` animations because the
+`html.c2-low-end *` duration collapse does not reach the view-transition
+pseudo-element tree.
+
+**Cold steps never publish a preview.** `previewPeriodIfWarm`
+(`DashboardScreen`) only sets the optimistic period preview when the target
+request key is already in the warm cache; a cold step would paint the skeleton
+anyway, so publishing a preview for it only added a synchronous
+`DashboardScreen` render to the step.
+
 **Browser support / fallbacks.** Without the API (or under
-`prefers-reduced-motion: reduce`) the update runs directly and the existing
-passive animation takes over (the nudge on the dashboard, the keyed CSS slide
-on Parade State). The reduced-motion block in `globals.css` additionally
-zeroes every view-transition animation.
+`prefers-reduced-motion: reduce`, the low-end tier, or the performance gate
+above) the update runs directly and the existing passive animation takes over
+(the nudge on the dashboard, the keyed CSS slide on Parade State). The
+reduced-motion and low-end blocks in `globals.css` additionally zero every
+view-transition animation.
 
 ## 1.15 Code-splitting & low-end device tier
 
@@ -1095,9 +1129,17 @@ every render of `DashboardView` and the zoom modals.
 device reports both a low core count and low memory (`isLowEndDevice`,
 `src/lib/motion/lowEndDevice.ts` — conservative, so capable phones are never
 flagged). `globals.css` collapses transition/animation durations under that
-class. It is applied after mount rather than baked into the motion tokens at
-module load, so the server-rendered inline transition durations never mismatch
-at hydration.
+class, including the `::view-transition-*` pseudo-element tree, and
+`slideViewTransition` / `shouldUsePeriodSlide` stand the real period slide down
+in JS (the pseudo-elements do not inherit the `html.c2-low-end *` rule). It is
+applied after mount rather than baked into the motion tokens at module load, so
+the server-rendered inline transition durations never mismatch at hydration.
+
+**Tab-status subscriptions stay small.** `DashboardViewImpl` does not read
+`useDashboardTabStatus()` itself: the mobile view-name line (`ViewNameLine`) and
+the compact desktop view trigger (`CompactViewButton`) subscribe in their own
+small components, so per-tab loading ticks and background preload writes never
+re-render the whole dashboard view.
 
 ## 1.16 File index & related docs
 
@@ -1110,7 +1152,8 @@ at hydration.
 | `src/components/LoadingStatus.tsx`                               | Sr-only `role="status"` announcement included with every skeleton block (§1.4, [`accessibility.md`](accessibility.md) §1.3)                                                                                                                                                                                                   |
 | `src/app/globals.css`                                            | `content-enter` / `c2-crossfade-*` / `agenda-slide-*` / `c2-page-in`/`c2-page-out` / `c2-grid-*` period-slide keyframes, `::view-transition-*` page + named-group rules, reduced-motion guard                                                                                                                                |
 | `src/components/PageTransition.tsx`                              | Per-page `<ViewTransition>` wrapper (fade + rise on route change) — §1.14                                                                                                                                                                                                                                                     |
-| `src/lib/ui/viewTransition.ts`                                   | Manual View-Transitions helper (`slideViewTransition`, `GRID_SLIDE_*`, `PARADE_SLIDE_*`, capability/reduced-motion probes) — §1.14.1                                                                                                                                                                                           |
+| `src/lib/ui/viewTransition.ts`                                   | Manual View-Transitions helper (`slideViewTransition`, `GRID_SLIDE_*`, `PARADE_SLIDE_*`, capability/reduced-motion/low-end probes) — §1.14.1                                                                                                                                                                                   |
+| `src/lib/ui/periodSlide.ts`                                      | Pure `shouldUsePeriodSlide` gate (loading / low-end / heavy-grid-on-touch) for the real period cross-slide — §1.14.1                                                                                                                                                                                                           |
 | `src/app/(protected)/**/page.tsx`                                | Each protected page renders its content through `PageTransition` (§1.14)                                                                                                                                                                                                                                                      |
 | `src/app/(protected)/*/loading.tsx`                              | Route-level skeletons (16 segments)                                                                                                                                                                                                                                                                                           |
 | `src/app/(protected)/dashboard/calendarSkeleton.tsx`             | The view grid skeletons (shared by route + in-page): `MonthGridSkeleton`, `WeekMatrixSkeleton`, `WeekGridSkeleton`, `AgendaListSkeleton`, `ScheduleGridSkeleton`, `DualPaneSkeleton`                                                                                                                                          |

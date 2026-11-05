@@ -41,6 +41,19 @@ export function prefersReducedMotion(): boolean {
 }
 
 /**
+ * Whether the weak-device tier is active. The tier's CSS duration collapse
+ * (`html.c2-low-end *`) does not reach the `::view-transition-*`
+ * pseudo-element tree, so the real slide must stand down in JS too — otherwise
+ * a low-end device still pays for two full-region snapshots and their
+ * animation (docs/loading-transitions.md §1.14.1).
+ */
+export function lowEndTierActive(): boolean {
+  return (
+    typeof document !== "undefined" && document.documentElement.classList.contains("c2-low-end")
+  );
+}
+
+/**
  * Cross-slide `el`'s content change in the direction of travel (`1` = next /
  * forward, `-1` = previous): the old content exits opposite the direction, the
  * new content enters from the tapped side. `mutate` must apply the React state
@@ -57,7 +70,7 @@ export function slideViewTransition(
   mutate: () => void,
   classes: SlideClasses = GRID_SLIDES,
 ): boolean {
-  if (!el || !canUseViewTransitions() || prefersReducedMotion()) return false;
+  if (!el || !canUseViewTransitions() || prefersReducedMotion() || lowEndTierActive()) return false;
   const cls = dir > 0 ? classes.next : classes.prev;
   // Re-arm fresh: a held chevron starts a new transition while the previous
   // one is still running (the new one skips it), so drop the stale class

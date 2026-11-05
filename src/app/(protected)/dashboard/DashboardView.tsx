@@ -98,10 +98,7 @@ import {
   preloadFilterModalBody as preloadFilterModal,
   type FilterGroup,
 } from "@/components/FilterModal";
-import {
-  DateSelectorModal,
-  preloadDateSelectorBody,
-} from "@/components/DateSelectorModal";
+import { DateSelectorModal, preloadDateSelectorBody } from "@/components/DateSelectorModal";
 import { EditViewsModal, preloadEditViewsBody } from "./EditViewsModal";
 import { EventDetail, preloadEventDetailBody } from "./EventDetail";
 import { ShareImportDialog } from "./ShareImportDialog";
@@ -198,8 +195,10 @@ import { gridMonthsCovered, planDashboardSwitch } from "@/lib/dashboard/navigati
 import {
   GRID_SLIDE_NEXT,
   GRID_SLIDE_PREV,
+  lowEndTierActive,
   slideViewTransition,
 } from "@/lib/ui/viewTransition";
+import { shouldUsePeriodSlide } from "@/lib/ui/periodSlide";
 import { WIZARD_WARM_DELAY_MS, tabWarmKinds } from "@/lib/dashboard/warmup";
 import { EventFormSkeleton } from "./EventFormSkeleton";
 import { ViewTypePicker } from "./ViewTypePicker";
@@ -1018,6 +1017,77 @@ function DashboardViewMenuItem({
   );
 }
 
+/**
+ * The mobile thin view-name line. Extracted so its per-tab load state
+ * (`useDashboardTabStatus`) re-renders only this line — a background preload
+ * or the active load ticking must never re-render the whole dashboard view.
+ */
+function ViewNameLine({ tabId, name }: { tabId: string; name: string }) {
+  const status = useDashboardTabStatus()[tabId] ?? "fresh";
+  return (
+    <Group
+      gap="xs"
+      align="center"
+      justify="center"
+      wrap="nowrap"
+      hiddenFrom="lg"
+      aria-busy={status === "loading" || undefined}
+    >
+      <Text size="xs" fw={500} c="dimmed" lineClamp={1} title={name} style={{ minWidth: 0 }}>
+        {name}
+      </Text>
+      {status === "loading" && (
+        <Loader size={9} color="accent" className="c2-tab-line-spinner c2-fade-in" aria-hidden />
+      )}
+    </Group>
+  );
+}
+
+/**
+ * The compact desktop row's view trigger. Extracted (like `DashboardTab`) so the
+ * tab-load ticks re-render only this button, never the whole view.
+ */
+function CompactViewButton({
+  tabId,
+  kind,
+  name,
+}: {
+  tabId: string;
+  kind: DashboardViewKind;
+  name: string;
+}) {
+  const status = useDashboardTabStatus()[tabId] ?? "fresh";
+  const faded = status === "not-loaded" ? "c2-tab-not-loaded" : undefined;
+  const icon = VIEW_TAB_META[kind].icon;
+  return (
+    <Button
+      variant="subtle"
+      color="gray"
+      size="compact-md"
+      radius={10}
+      className="c2-compact-control"
+      __vars={{ "--button-height": "36px" }}
+      leftSection={<span className={faded}>{icon}</span>}
+      rightSection={
+        <Group gap={4} wrap="nowrap">
+          {status === "loading" && (
+            <Loader size={9} color="accent" className="c2-fade-in" aria-hidden />
+          )}
+          <IconChevronDown size={16} aria-hidden />
+        </Group>
+      }
+      aria-label={`Calendar view: ${name}`}
+      title={`Calendar view: ${name}`}
+      aria-busy={status === "loading" || undefined}
+      style={{ flex: "0 1 auto", minWidth: 0, maxWidth: 168 }}
+    >
+      <Text size="sm" fw={600} className={faded} truncate style={{ maxWidth: 110 }}>
+        {name}
+      </Text>
+    </Button>
+  );
+}
+
 const ONE_SHOT_PARAMS = ["refresh", "edit", "event", "_eventCal", "share"];
 
 // Widths the minimized-draft chip needs in the mobile FAB row (measured leftover
@@ -1099,7 +1169,7 @@ function DashboardViewImpl({
     revalidate,
     isNavigating,
     setPreviewView,
-    setPreviewPeriod,
+    previewPeriodIfWarm,
     reportNavigationPending,
     applyViewTab,
     prefetchContext,
@@ -3058,11 +3128,24 @@ function DashboardViewImpl({
    * carry the class and keep the nudge. Unsupported browsers / reduced motion
    * fall back to the plain update + the nudge.
    */
-  const slidePeriod = useCallback((dir: 1 | -1, mutate: (vt: boolean) => void) => {
-    if (!slideViewTransition(gridSlideRef.current, dir, () => mutate(true))) {
-      mutate(false);
-    }
-  }, []);
+  const slidePeriod = useCallback(
+    (dir: 1 | -1, mutate: (vt: boolean) => void) => {
+      // The real cross-slide forces a synchronous grid render and two full-grid
+      // snapshots. Keep it off while this grid is loading and off for heavy
+      // grids on touch devices / the low-end tier, falling back to the passive
+      // WAAPI nudge (docs/loading-transitions.md §1.14.1).
+      const allowed = shouldUsePeriodSlide({
+        kind: shownView,
+        loading: gridLoading,
+        coarsePointer: isCoarsePointer,
+        lowEnd: lowEndTierActive(),
+      });
+      if (!allowed || !slideViewTransition(gridSlideRef.current, dir, () => mutate(true))) {
+        mutate(false);
+      }
+    },
+    [shownView, gridLoading, isCoarsePointer],
+  );
 
   /** `slidePeriod` keyed on the period change: no slide when nothing moves. */
   const slidePeriodTo = useCallback(
@@ -3085,7 +3168,7 @@ function DashboardViewImpl({
       setShownMonth(next);
       // Paint the warm target in the same commit as the slide (no skeleton when
       // the adjacent month is preloaded).
-      setPreviewPeriod({ month: next, date: null });
+      previewPeriodIfWarm({ month: next, date: null });
     });
     navigate({ month: next, date: null });
   }
@@ -3125,7 +3208,7 @@ function DashboardViewImpl({
     slidePeriod(delta > 0 ? 1 : -1, () => {
       setShownDate(nextDate);
       setShownMonth(nextMonth);
-      setPreviewPeriod({ month: nextMonth, date: nextDate });
+      previewPeriodIfWarm({ month: nextMonth, date: nextDate });
     });
     navigate({ date: nextDate, month: nextMonth });
   }
@@ -3263,7 +3346,7 @@ function DashboardViewImpl({
     } else {
       slidePeriodTo(shownMonth, todayMonth, () => {
         setShownMonth(todayMonth);
-        setPreviewPeriod({ month: todayMonth, date: null });
+        previewPeriodIfWarm({ month: todayMonth, date: null });
       });
       navigate({ month: todayMonth, date: null });
     }
@@ -3274,21 +3357,17 @@ function DashboardViewImpl({
     // Dual Pane's period key is the month (a same-month day tap moves the
     // agenda pane silently, mirroring the nudge effect's key); the other
     // anchored kinds key on the day.
-    slidePeriodTo(
-      shownIsDual ? shownMonth : shownDate,
-      shownIsDual ? pickedMonth : picked,
-      () => {
-        setShownDate(picked);
-        setShownMonth(pickedMonth);
-      },
-    );
+    slidePeriodTo(shownIsDual ? shownMonth : shownDate, shownIsDual ? pickedMonth : picked, () => {
+      setShownDate(picked);
+      setShownMonth(pickedMonth);
+    });
     navigateLocal({ date: picked, month: pickedMonth });
   }
 
   function pickMonth(picked: string) {
     slidePeriodTo(shownMonth, picked, () => {
       setShownMonth(picked);
-      setPreviewPeriod({ month: picked, date: null });
+      previewPeriodIfWarm({ month: picked, date: null });
     });
     navigate({ month: picked, date: null });
   }
@@ -3318,7 +3397,7 @@ function DashboardViewImpl({
       // fade there, as it always did); the real transition owns the slide.
       setAgendaSlideDir(vt || crossesMonth ? 0 : next > current ? 1 : -1);
       if (crossesMonth) {
-        setPreviewPeriod({ month: nextMonth, date: next });
+        previewPeriodIfWarm({ month: nextMonth, date: next });
       }
     });
     if (crossesMonth) {
@@ -3418,10 +3497,7 @@ function DashboardViewImpl({
    * added later automatically appears — an explicit array (incl. a genuine
    * empty one) is stored verbatim.
    */
-  function overrideFor(
-    key: "cal" | "users" | "types",
-    selected: string[],
-  ): string[] | null {
+  function overrideFor(key: "cal" | "users" | "types", selected: string[]): string[] | null {
     const def = defaultFilters[key] ?? [];
     return selected.length === def.length && selected.every((id) => def.includes(id))
       ? null
@@ -3453,7 +3529,7 @@ function DashboardViewImpl({
     const cals = values.Calendars ?? [];
     const users = values.Users ?? [];
     const types = values["Event Types"] ?? [];
-    const text = cleared ? null : (rawText?.trim() || null);
+    const text = cleared ? null : rawText?.trim() || null;
     announce(filterCountMessage(cals.length, users.length, types.length, text !== null));
     // Await the server write so the dialog's Apply button keeps its spinner up
     // through it; the follow-up read runs fire-and-forget and is carried by the
@@ -4076,36 +4152,10 @@ function DashboardViewImpl({
   // In the compact desktop tier (the 640-799px band, or a short wide viewport)
   // the strip is folded away too, so the
   // same spinner rides that band's view trigger in the single row instead.
-  const shownTabStatus = useDashboardTabStatus()[shownTabId] ?? "fresh";
-  // The compact desktop band's single row carries the active view on its trigger,
-  // so the trigger mirrors the strip tab's identity and load state (kind icon +
-  // the shared not-loaded fade).
-  const viewIcon = VIEW_TAB_META[(shownTab ?? activeView).kind].icon;
-  const shownTabFaded = shownTabStatus === "not-loaded" ? "c2-tab-not-loaded" : undefined;
-  const nameLine = (
-    <Group
-      gap="xs"
-      align="center"
-      justify="center"
-      wrap="nowrap"
-      hiddenFrom="lg"
-      aria-busy={shownTabStatus === "loading" || undefined}
-    >
-      <Text
-        size="xs"
-        fw={500}
-        c="dimmed"
-        lineClamp={1}
-        title={shownTabName}
-        style={{ minWidth: 0 }}
-      >
-        {shownTabName}
-      </Text>
-      {shownTabStatus === "loading" && (
-        <Loader size={9} color="accent" className="c2-tab-line-spinner c2-fade-in" aria-hidden />
-      )}
-    </Group>
-  );
+  // Both consumers route through `ViewNameLine` / `CompactViewButton`, which
+  // subscribe to the tab-status context themselves — this component stays out
+  // of that context so a load tick can't re-render the whole grid.
+  const nameLine = <ViewNameLine tabId={shownTabId} name={shownTabName} />;
 
   // The view-menu dropdown contents (tab list + Add-/Manage-views): rendered by
   // the mobile pill's four-squares button and by the compact desktop band's view
@@ -4315,31 +4365,11 @@ function DashboardViewImpl({
         }}
       >
         <Menu.Target>
-          <Button
-            variant="subtle"
-            color="gray"
-            size="compact-md"
-            radius={10}
-            className="c2-compact-control"
-            __vars={{ "--button-height": "36px" }}
-            leftSection={<span className={shownTabFaded}>{viewIcon}</span>}
-            rightSection={
-              <Group gap={4} wrap="nowrap">
-                {shownTabStatus === "loading" && (
-                  <Loader size={9} color="accent" className="c2-fade-in" aria-hidden />
-                )}
-                <IconChevronDown size={16} aria-hidden />
-              </Group>
-            }
-            aria-label={`Calendar view: ${shownTabName}`}
-            title={`Calendar view: ${shownTabName}`}
-            aria-busy={shownTabStatus === "loading" || undefined}
-            style={{ flex: "0 1 auto", minWidth: 0, maxWidth: 168 }}
-          >
-            <Text size="sm" fw={600} className={shownTabFaded} truncate style={{ maxWidth: 110 }}>
-              {shownTabName}
-            </Text>
-          </Button>
+          <CompactViewButton
+            tabId={shownTabId}
+            kind={(shownTab ?? activeView).kind}
+            name={shownTabName}
+          />
         </Menu.Target>
         <Menu.Dropdown>{viewMenuItems}</Menu.Dropdown>
       </Menu>

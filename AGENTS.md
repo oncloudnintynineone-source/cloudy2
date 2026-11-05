@@ -120,8 +120,12 @@ doc content here.
   `projectRangeEvents` and reassembled by `assembleDashboardSnapshot`) so tab switches and
   month navigations (either direction) paint from the warm cache with no round-trip and
   cross-slide with real data (`docs/loading-transitions.md` §1.14.1). The step also sets an
-  optimistic **period preview** (like the tab preview), so a warm target paints in the same
-  commit as the slide — no skeleton. After a **tab switch**, a follow-up idle
+  optimistic **period preview** (like the tab preview) **only when the target context is
+  already warm** (`previewPeriodIfWarm`), so a warm target paints in the same commit as the
+  slide — no skeleton; cold steps show the skeleton regardless. The real cross-slide is
+  gated (`shouldUsePeriodSlide`, `src/lib/ui/periodSlide.ts`): off while the grid is
+  loading, on the `c2-low-end` tier, and for heavy grid kinds on coarse-pointer (touch)
+  devices, which fall back to the passive WAAPI nudge. After a **tab switch**, a follow-up idle
   `POST /api/dashboard/preload` with `adjacentOnly: true` warms the newly active tab's
   previous/next periods (the full pass only warms the previously active tab's neighbours).
   The full pass runs once per signature (tab set + required months — **not** the active
@@ -520,6 +524,10 @@ none` so taps pass through to the clipped tile, and it hides on a side once
   `useChunkReady` (keep `dynamic()` at module level with `loading: () => null`) so chunk
   reveals crossfade too (§1.15.1); cold-mount-only surfaces fade in via
   `CONTENT_ENTER_CLASS`.
+  The in-page calendar-grid skeletons are **static** (`animate={false}`) — a
+  Month placeholder animates ~100–170 composited blocks otherwise, forcing a
+  backdrop-filter recompute every frame beneath the frosted chrome — while the
+  single-block route/launch-shell skeleton keeps its pulse.
   Every data-awaiting route segment gets a `loading.tsx`; every skeleton block includes a
   `LoadingStatus` (sr-only `role="status"`). A detail surface opened from a list that
   already carries the data uses **preview-first paint + intent prefetch** instead of a

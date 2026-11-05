@@ -332,6 +332,17 @@ html {
   }
 }
 
+/* Weak-device tier: the `html.c2-low-end *` duration collapse does not reach
+   the `::view-transition-*` pseudo-element tree, so zero route/page transition
+   animations here too. The in-page grid/Parade slide is additionally skipped
+   in JS (`lowEndTierActive`, src/lib/ui/viewTransition.ts). */
+html.c2-low-end::view-transition-old(*),
+html.c2-low-end::view-transition-new(*),
+html.c2-low-end::view-transition-group(*) {
+  animation-duration: 0s !important;
+  animation-delay: 0s !important;
+}
+
 /*
   Period-change grid slide (docs/loading-transitions.md §1.14.1). The dashboard
   grid box becomes its own view-transition group ONLY while a step is in

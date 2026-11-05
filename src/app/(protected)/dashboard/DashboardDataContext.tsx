@@ -46,9 +46,11 @@ export interface DashboardDataValue {
    * navigation), set in the same commit as the cross-slide. `DashboardScreen`
    * resolves the displayed record from `previewPeriod ?? searchParams`, so a
    * preloaded adjacent period paints instantly (no skeleton) instead of waiting
-   * on the RSC round-trip. Null once the URL catches up.
+   * on the RSC round-trip. Null once the URL catches up. Only applied when the
+   * target context is already warm — a cold step would render the skeleton
+   * anyway, so publishing a preview for it just adds a synchronous render.
    */
-  setPreviewPeriod: (period: PeriodPreview | null) => void;
+  previewPeriodIfWarm: (period: PeriodPreview) => void;
   /**
    * Tell the data layer whether a dashboard router transition is currently in
    * flight. The optimistic tab preview stays while a navigation is pending and
