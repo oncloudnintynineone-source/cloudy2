@@ -2,6 +2,7 @@
 
 import dayjs from "dayjs";
 import {
+  forwardRef,
   memo,
   type ComponentPropsWithoutRef,
   type CSSProperties,
@@ -25,6 +26,7 @@ import {
   Alert,
   Box,
   Button,
+  type ButtonProps,
   FocusTrap,
   Group,
   Loader,
@@ -1046,26 +1048,28 @@ function ViewNameLine({ tabId, name }: { tabId: string; name: string }) {
 /**
  * The compact desktop row's view trigger. Extracted (like `DashboardTab`) so the
  * tab-load ticks re-render only this button, never the whole view.
+ *
+ * It is rendered as `<Menu.Target>`, whose `Popover.Target` clones the child and
+ * injects a `ref` plus `onClick`/`aria-*` (that is how the dropdown opens), so
+ * the component must forward its ref and spread the injected props onto the
+ * inner `Button`.
  */
-function CompactViewButton({
-  tabId,
-  kind,
-  name,
-}: {
-  tabId: string;
-  kind: DashboardViewKind;
-  name: string;
-}) {
+const CompactViewButton = forwardRef<
+  HTMLButtonElement,
+  { tabId: string; kind: DashboardViewKind; name: string } & ButtonProps
+>(function CompactViewButton({ tabId, kind, name, className, ...rest }, ref) {
   const status = useDashboardTabStatus()[tabId] ?? "fresh";
   const faded = status === "not-loaded" ? "c2-tab-not-loaded" : undefined;
   const icon = VIEW_TAB_META[kind].icon;
   return (
     <Button
+      ref={ref}
+      {...rest}
       variant="subtle"
       color="gray"
       size="compact-md"
       radius={10}
-      className="c2-compact-control"
+      className={`c2-compact-control${className ? ` ${className}` : ""}`}
       __vars={{ "--button-height": "36px" }}
       leftSection={<span className={faded}>{icon}</span>}
       rightSection={
@@ -1086,7 +1090,7 @@ function CompactViewButton({
       </Text>
     </Button>
   );
-}
+});
 
 const ONE_SHOT_PARAMS = ["refresh", "edit", "event", "_eventCal", "share"];
 
