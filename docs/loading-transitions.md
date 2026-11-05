@@ -854,6 +854,32 @@ briefly cover the fixed shell. The header, sidebar and bottom nav
 their own `view-transition-name`s, and `globals.css` holds those groups at
 `z-index: 100` above the content with no animation (old snapshot hidden).
 
+**Portaled floating chrome.** The mobile control pill (`c2-control-pill`), the
+Parade attendance bar (`c2-attendance-bar`), the calendar FAB row
+(`c2-fab-step` / `c2-fab-link` / `c2-fab-create`) and the settings
+`FloatingToolbar` FABs (`c2-fab-1…4`) are portaled to `<body>`, so without a
+name they land in the `root` group — which paints **below** the page-transition
+groups, meaning the outgoing page's snapshot covered the incoming pill/cluster
+for the whole transition (it looked half-rendered behind other UI until the
+animation completed). Each glass element therefore carries its own
+`view-transition-name`, held at `z-index: 110` (attendance bar `120`) above the
+page and shell groups, `animation: none` with the old snapshot hidden, so the
+chrome rides through the navigation like the header/footer. The minimized-draft
+bar and mobile chip are also `.c2-control-pill` surfaces, so they take their own
+names (`c2-draft-bar` / `c2-draft-chip`) — they can co-exist with the page's real
+pill, and a duplicate name aborts the whole transition.
+
+The name must ride the **glass element itself**, never an `Affix` wrapper: a
+named ancestor becomes a backdrop root and starves every `backdrop-filter`
+descendant, so the frosted pill/buttons render as flat translucent blocks. The
+mount entrance animations (`c2-glass-enter`, the FAB-cluster stagger) were
+removed for the same reason a route transition can't carry them: the new
+snapshot is captured on the element's first frame, so a running entrance is
+snapshotted at `opacity: 0` and the chrome would be invisible for the
+transition, then pop in. A `view-transition-name` must be unique per document —
+never render two `FloatingToolbar`s on one page (a duplicate aborts the whole
+transition).
+
 **Interaction with `content-enter`.** Both can fire when a route lands with a
 cold `loading.tsx` skeleton (the page transition animates the navigation;
 `content-enter` animates the skeleton→content reveal). Both are short opacity
@@ -1163,24 +1189,22 @@ tier (§1.15). None change layout logic — removing any of them is always safe.
 - **Empty-state reveal** (`c2-empty-state`): the shared `EmptyState` block fades
   - rises in on mount with the icon a beat behind, so empty panels read as
     arriving rather than switching on.
-- **FAB cluster entrance** (`c2-fab-cluster`): the portaled `FloatingToolbar`
-  row pops in per FAB with a small stagger the first time it is painted
-  (nodes are reused afterwards, so it never replays on state changes).
-- **Control-pill entrance** (`c2-glass-enter`): the mobile floating
-  `.c2-control-pill` (Calendar / Parade State / Contacts) fades + rises in the
-  first time it is painted. Applied on the glass element itself, never an Affix
-  wrapper (same backdrop-filter caution as the FAB cluster). Layout-neutral, so
-  the dashboard's `offsetHeight`-based pill measurement is unaffected.
+- **Portaled chrome has no mount entrance.** The FAB cluster and the mobile
+  control pill used to pop/rise in on first paint (`c2-fab-enter` /
+  `c2-glass-enter`); both were removed when those portaled surfaces became named
+  view-transition groups (§1.14) — a route transition captures the element on
+  its first frame, so a running entrance is snapshotted transparent. They now
+  ride the route transition like the header/footer. `c2-glass-enter` survives
+  only for the Settings → Feature Flags motion preview.
 - **Glass control colour cross-fade**: `.c2-glass-fab` / `.c2-glass-btn` carry a
   `background-color` transition, so hover/active states and the frosted↔
   accent/brand/teal tint swaps ramp instead of cutting (the tint modifiers only
   set `background`, so the base transition rides them).
-- **Attendance mode-bar enter/exit** (`c2-attendance-bar` /
-  `c2-attendance-bar-closing`): the Parade State attendance mode bar (mobile
-  floating bar; the desktop top-chrome `Paper` reuses the entrance) fades +
-  rises in, and on exit `exitAttendance` holds it mounted for the exit duration
-  (the shared `action-pill` closing pattern) so it slides back down before it
-  unmounts.
+- **Attendance mode-bar exit** (`.c2-attendance-bar-closing`): the Parade State
+  attendance mode bar (mobile floating bar) no longer plays a mount entrance —
+  it is a named view-transition group held above the page groups (§1.14). On
+  exit `exitAttendance` holds it mounted for the closing transition (the shared
+  `action-pill` closing pattern) so it slides back down before it unmounts.
 - **Attendance toggle icon swap** (`c2-icon-swap`): the Parade pill's toggle
   icon is keyed by the mode, so it remounts and replays a fade + scale-in while
   the circle's tint cross-fades (above).

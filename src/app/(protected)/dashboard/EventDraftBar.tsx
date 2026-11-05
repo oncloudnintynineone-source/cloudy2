@@ -78,7 +78,7 @@ export function EventDraftBar({
       style={{ pointerEvents: "none" }}
     >
       <Box
-        className="c2-glass-surface c2-control-pill"
+        className="c2-glass-surface c2-control-pill c2-draft-bar"
         maw={560}
         mx="auto"
         role="group"

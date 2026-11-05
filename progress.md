@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.367 (floating-chrome tap/scroll flash fix)** is shipped.
+- All work through changelog **1.368 (portaled floating chrome held above route transitions)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -2360,6 +2360,23 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   opening filters/dates/search or stepping periods. Once hidden, every scroll still
   counts, so momentum keeps it hidden until settle. Docs:
   `docs/dashboard-views.md` §1.1, `AGENTS.md`.
+- 1.368 **Portaled floating chrome held above route transitions**: the mobile
+  control pill (Calendar / Parade / Contacts / settings lists), the Parade
+  attendance bar, the calendar FAB row and the `FloatingToolbar` FABs are
+  `Affix`-portaled to `<body>`, so they landed in the `root` view-transition
+  group — which paints **below** the page-content group, letting the outgoing
+  page's snapshot cover them for the whole route transition (the pill glitched
+  out and page content surfaced over it). Each glass element now carries its own
+  `view-transition-name` (`c2-control-pill`, `c2-attendance-bar`,
+  `c2-fab-step`/`c2-fab-link`/`c2-fab-create`, `c2-fab-1…4`), held at
+  `z-index` 110/120 above the page and shell groups with the old snapshot hidden
+  and the new one static. Names ride the glass elements themselves, never the
+  `Affix` wrappers (a named wrapper is a backdrop root and kills the frost). The
+  portaled chrome's mount entrances (`c2-glass-enter`, the FAB stagger) are
+  removed — a transition captures the first frame, where a running entrance is
+  still transparent; `c2-glass-enter` survives only for the feature-flag motion
+  preview. Docs: `docs/loading-transitions.md` §1.14/§1.17,
+  `docs/dashboard-views.md` §1.1, `docs/desktop-responsive.md` §1.3.
 
 ## 1.4 Open items & next steps
 

@@ -288,9 +288,11 @@ string maps to the first tab of that kind.
    same frosted treatment (`c2-glass-surface`) with pill/circle radius +
    hairline edge, so grid content scrolls *under* them (the row wrapper is
    `pointer-events: none` and only the controls re-enable it, so the empty stretch of
-   the edge-to-edge row never swallows taps on the grid). The pill fades + rises in on
-  first paint (`c2-glass-enter`; the FAB row via `c2-fab-cluster`) — see
-  [`loading-transitions.md`](loading-transitions.md) §1.17. The grid
+   the edge-to-edge row never swallows taps on the grid). Neither the pill nor the
+   FAB row plays a mount entrance: both are named view-transition groups
+   (`c2-control-pill`, `c2-fab-step` / `c2-fab-link` / `c2-fab-create`) held above
+   the page groups so a route transition can't paint the outgoing page over them
+   — see [`loading-transitions.md`](loading-transitions.md) §1.14. The grid
   starts under the top strip: the pinned strips (Week (H) day strip / hour
   rulers, Month weekday strip, Week (D) day header) dock under the name strip
   (`chromeOffset` = measured `topChromeHeight`), and the viewport-bounded
@@ -394,12 +396,16 @@ string maps to the first tab of that kind.
    untouched; the behavior is always on (no feature flag).
 - **Bottom control pill reuse (Parade State / Contacts).** Below `lg` both
   pages shed their sticky top chrome and ride the same `.c2-control-pill`
-  Affix recipe (inset 16, zIndex 100; 50px on Parade, 58px on Contacts):
+  Affix recipe (inset 16, zIndex 100; 50px on Parade, 58px on Contacts). The
+  pill and the attendance bar are named view-transition groups
+  (`c2-control-pill` / `c2-attendance-bar`, held above the page groups so a
+  route transition can't paint the outgoing page over them — never name the
+  Affix wrapper, which would starve the inner `backdrop-filter`):
   **Parade** puts the day label + `<`/`>` step + filter + date-picker +
   attendance-toggle circles in one pill (the attendance **mode bar** floats
-  above it while in attendance mode and fades/slides in and out —
-  `c2-attendance-bar` / `c2-attendance-bar-closing`, the pill's toggle icon
-  swaps with a scale-in via `c2-icon-swap`; the top chrome is `lg`-only); **Contacts** puts a
+  above it while in attendance mode and slides out on exit —
+  `c2-attendance-bar-closing`, the pill's toggle icon swaps with a scale-in via
+  `c2-icon-swap`; the top chrome is `lg`-only); **Contacts** puts a
   **rounded search field** (pill-radius `TextInput` at the default `sm`
   size — the themed ~43px input height, same as the lg+ search bar, with a
   matching 44px filter circle; sizing/padding props must go on the input

@@ -10051,3 +10051,46 @@ revealed them. Two causes, both in `useChromeHide`:
 lint` clean. `pnpm typecheck` still reports only the pre-existing Windows
 `EventFormSteps.tsx` / `eventFormSteps.ts` case-collision error (unrelated). Docs:
 `docs/dashboard-views.md` §1.1, `AGENTS.md`; `APP_VERSION` → `2026.11.04-5`.
+
+## 1.368 Portaled floating chrome held above route transitions
+
+**Problem.** On Calendar, Parade State and Contacts (and the settings list tabs), the
+bottom floating pill briefly glitched out during a route change: the page content
+surfaced over it until the navigation transition ended. The route fade wraps each
+page in a `<ViewTransition>` (`PageTransition`), so the page content is its own named
+group painted above the `root` group. The floating chrome is rendered by `Affix`,
+which portals to `<body>`; with no `view-transition-name` it lands in `root` — below
+the page group — so the outgoing page's snapshot covered it for the whole transition.
+The shell had already been pulled into named groups for exactly this reason; the
+portaled chrome was missed. (An earlier fix in `df63760`/`db2c6e2`/`b6677df` was lost
+in the lossy `6b2b04a` rewrite.)
+
+**Fix.**
+
+- `src/app/globals.css`: gave each glass element its own view-transition name —
+  `.c2-control-pill` → `c2-control-pill`, new `.c2-attendance-bar` →
+  `c2-attendance-bar`, `.c2-period-pill` → `c2-fab-step`, `.c2-fab-link` /
+  `.c2-fab-create`, and `.c2-fab-cluster .c2-glass-fab:nth-child(1…4)` →
+  `c2-fab-1…4` (settings FABs). Added group rules at `z-index` 110 (attendance bar
+  120) with `animation: none`, old snapshot hidden, new snapshot static — the same
+  recipe as the shell groups. Names ride the glass elements themselves, never the
+  `Affix`/`Group` wrappers: a named ancestor becomes a backdrop root and starves the
+  inner `backdrop-filter` (the frost reads as a flat translucent block).
+- Removed the portaled chrome's mount entrances: the `.c2-control-pill` /
+  `.c2-attendance-bar` `c2-glass-enter` application and the `c2-fab-cluster`
+  stagger (`c2-fab-enter`). A named group is captured on the element's first frame,
+  where a running entrance is still transparent, so the chrome would be invisible
+  for the transition then pop in. The `c2-glass-enter` keyframes remain for the
+  Settings → Feature Flags motion preview. `.c2-chrome-hidden` interaction
+  hide/reveal is untouched.
+- `DashboardView.tsx`: added the `c2-fab-link` / `c2-fab-create` classes to the
+  Quick-links and New-event circles so the row's glass children get their names.
+- Docs: `docs/loading-transitions.md` §1.14 (new "Portaled floating chrome"
+  paragraph) / §1.17 (entrance inventory), `docs/dashboard-views.md` §1.1,
+  `docs/desktop-responsive.md` §1.3.
+
+**Verification.** `pnpm lint`, `pnpm typecheck`, `pnpm test`; manual mobile-viewport
+navigation sweep Calendar ⇄ Parade State ⇄ Contacts ⇄ Double Booking (and a period
+step, which starts its own view transition) with the pill, attendance bar and FAB row
+staying fully rendered, still frosted, and no duplicate-name console warning.
+`APP_VERSION` → `2026.11.05-1`.

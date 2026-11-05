@@ -6319,7 +6319,7 @@ function DashboardViewImpl({
                   position="top-end"
                   trigger={
                     <Button
-                      className="c2-glass-btn c2-glass-fab--accent-solid"
+                      className="c2-fab-link c2-glass-btn c2-glass-fab--accent-solid"
                       aria-label="Quick links"
                       radius="50%"
                       w={56}
@@ -6337,7 +6337,7 @@ function DashboardViewImpl({
                 create/resume affordance. */}
             {!createYielded && (
               <Button
-                className="c2-glass-btn c2-glass-fab--brand-solid"
+                className="c2-fab-create c2-glass-btn c2-glass-fab--brand-solid"
                 aria-label="New event"
                 radius="50%"
                 w={56}
