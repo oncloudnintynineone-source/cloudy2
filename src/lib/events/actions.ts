@@ -18,6 +18,7 @@ import {
   encodeEventNotes,
   encodeNotesBlock,
   eventDetailUrl,
+  eventNotesFromInput,
   parseEventPeople,
   parseEventRegistrationEnabled,
   withEditLink,
@@ -155,7 +156,6 @@ async function buildGcalEventInput(
   eventId: string,
   titleContext: EventTitleContext,
 ): Promise<GcalEventInput> {
-  const rawTitle = input.title.trim();
   const title = renderEventTitle({
     description: input.title,
     eventType: titleContext.eventType,
@@ -175,28 +175,7 @@ async function buildGcalEventInput(
   // in-app reschedules. `_eventCal` names this copy's calendar so the fetch
   // includes it even when the arriving user's filters exclude it.
   const editLink = eventDetailUrl(await appBaseUrl(), input.start, eventId, calendarId);
-  const block = encodeNotesBlock(
-    encodeEventNotes({
-      eventId,
-      eventType: input.eventType || undefined,
-      createdBy: input.creatorId || undefined,
-      inviteeUsers: input.inviteeUserIds,
-      inviteeDepartments: input.inviteeDepartments,
-      ownerOnlyEdits: input.ownerOnlyEdits || undefined,
-      title: rawTitle,
-      timeOption: input.timeOption,
-      startAmPm: input.timeOption === "half" ? input.startAmPm : undefined,
-      endAmPm: input.timeOption === "half" ? input.endAmPm : undefined,
-      outOfCamp: input.outOfCamp || undefined,
-      overseas: input.outOfCamp && input.overseas ? true : undefined,
-      // A pin with no specific departments is global (legacy `pinned: true`);
-      // a targeted pin writes the department ids instead.
-      pinned: input.pinned && input.pinnedDepartments.length === 0 ? true : undefined,
-      pinnedDepartments:
-        input.pinned && input.pinnedDepartments.length > 0 ? input.pinnedDepartments : undefined,
-      registrationCap: input.registrationCap ?? undefined,
-    }),
-  );
+  const block = encodeNotesBlock(encodeEventNotes(eventNotesFromInput(eventId, input)));
   // The marker line at the bottom flags the event as created in the app, so
   // externally created (Google-only) events can be told apart on read.
   const description = withInternalMarker(withEditLink(block, editLink));

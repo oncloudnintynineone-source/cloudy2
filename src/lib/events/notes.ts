@@ -15,6 +15,7 @@
 import { brotliCompressSync, brotliDecompressSync, gunzipSync } from "node:zlib";
 
 import { isTimeOption, type TimeOption } from "./timeOptions";
+import type { EventFormValues } from "./validate";
 
 export interface EventNotes {
   eventType?: string;
@@ -112,6 +113,36 @@ export function encodeEventNotes(notes: EventNotes): string {
     }),
   );
   return Object.keys(cleaned).length === 0 ? "" : JSON.stringify(cleaned);
+}
+
+/**
+ * Build the notes block written to a Google event from a resolved event form
+ * (the create/update input). Centralized so every persisted field — including
+ * the per-event `registrationEnabled` / `registrationCap` flags — is mapped in
+ * one place and can be unit-tested without Google or the DB.
+ */
+export function eventNotesFromInput(eventId: string, input: EventFormValues): EventNotes {
+  return {
+    eventId,
+    eventType: input.eventType || undefined,
+    createdBy: input.creatorId || undefined,
+    inviteeUsers: input.inviteeUserIds,
+    inviteeDepartments: input.inviteeDepartments,
+    ownerOnlyEdits: input.ownerOnlyEdits || undefined,
+    title: input.title.trim(),
+    timeOption: input.timeOption,
+    startAmPm: input.timeOption === "half" ? input.startAmPm : undefined,
+    endAmPm: input.timeOption === "half" ? input.endAmPm : undefined,
+    outOfCamp: input.outOfCamp || undefined,
+    overseas: input.outOfCamp && input.overseas ? true : undefined,
+    // A pin with no specific departments is global (legacy `pinned: true`);
+    // a targeted pin writes the department ids instead.
+    pinned: input.pinned && input.pinnedDepartments.length === 0 ? true : undefined,
+    pinnedDepartments:
+      input.pinned && input.pinnedDepartments.length > 0 ? input.pinnedDepartments : undefined,
+    registrationEnabled: input.registrationEnabled || undefined,
+    registrationCap: input.registrationCap ?? undefined,
+  };
 }
 
 /** People linked to an event: the creator plus tagged users and departments. */
