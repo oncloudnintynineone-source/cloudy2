@@ -89,6 +89,20 @@ export function normalizeRegistrationCap(value: unknown): number | null {
     : null;
 }
 
+/**
+ * Step a registration cap by `delta`, clamped to at least 1. A missing/blank
+ * cap is treated as 1 so the +/− buttons always start from a valid seat count.
+ * Pure and client-safe (the wizard's stepper uses it); no upper bound, matching
+ * the server's normalization.
+ */
+export function stepRegistrationCap(
+  current: number | null | undefined,
+  delta: number,
+): number {
+  const base = typeof current === "number" && Number.isFinite(current) ? Math.trunc(current) : 1;
+  return Math.max(1, base + Math.trunc(delta));
+}
+
 /** Chronological sort key for a side, folding the half-of-day indicator in. */
 function sortKey(values: EventFormValues, end: boolean): string {
   const naive = end ? values.end : values.start;

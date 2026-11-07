@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   normalizeRegistrationCap,
   resolveEventAuthor,
+  stepRegistrationCap,
   validateEventForm,
   type EventFormValues,
 } from "./validate";
@@ -268,5 +269,19 @@ describe("registration cap", () => {
     expect(validateEventForm({ ...base, registrationCap: 0 })).toMatchObject({
       registrationCap: "Enter a whole number of at least 1",
     });
+  });
+
+  it("steps by one and by ten", () => {
+    expect(stepRegistrationCap(5, 1)).toBe(6);
+    expect(stepRegistrationCap(5, 10)).toBe(15);
+    expect(stepRegistrationCap(15, -1)).toBe(14);
+    expect(stepRegistrationCap(15, -10)).toBe(5);
+  });
+
+  it("clamps at one and treats a missing cap as one", () => {
+    expect(stepRegistrationCap(5, -10)).toBe(1);
+    expect(stepRegistrationCap(1, -1)).toBe(1);
+    expect(stepRegistrationCap(null, 10)).toBe(11);
+    expect(stepRegistrationCap(undefined, 1)).toBe(2);
   });
 });

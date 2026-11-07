@@ -77,7 +77,12 @@ import {
   type AmPm,
   type TimeOption,
 } from "@/lib/events/timeOptions";
-import { clampEventEnd, validateEventForm, type EventFormValues } from "@/lib/events/validate";
+import {
+  clampEventEnd,
+  stepRegistrationCap,
+  validateEventForm,
+  type EventFormValues,
+} from "@/lib/events/validate";
 import type { CalendarEvent } from "@/lib/events/queries";
 import {
   renderTitleRecipe,
@@ -397,6 +402,13 @@ export function EventForm({
   const selectedType = sortedEventTypes.find((type) => type.name === form.values.eventType) ?? null;
   /** Whether this event is open for self-registration (per-event, wizard choice). */
   const registrationType = form.values.registrationEnabled === true;
+
+  /** Apply a −10/−1/+1/+10 step to the registration cap (never below 1). */
+  const bumpRegistrationCap = (delta: number) => {
+    const next = stepRegistrationCap(form.values.registrationCap, delta);
+    form.setFieldValue("registrationCap", next);
+    announce(`Maximum registrations: ${next}`);
+  };
 
   // Badge picker user sections (one per department, No department last) for
   // the invitees picker (which prepends a Departments section). Badges show
@@ -1844,21 +1856,60 @@ export function EventForm({
                         }}
                       />
                       {form.values.registrationCap != null && (
-                        <NumberInput
-                          label="Maximum registrations"
-                          description="People can register until this many explicit registrants are on the event."
-                          min={1}
-                          allowDecimal={false}
-                          clampBehavior="blur"
-                          value={form.values.registrationCap ?? ""}
-                          error={form.errors.registrationCap}
-                          onChange={(value) =>
-                            form.setFieldValue(
-                              "registrationCap",
-                              typeof value === "number" ? Math.max(1, Math.trunc(value)) : null,
-                            )
-                          }
-                        />
+                        <Stack gap={6}>
+                          <NumberInput
+                            label="Maximum registrations"
+                            description="People can register until this many explicit registrants are on the event."
+                            min={1}
+                            allowDecimal={false}
+                            clampBehavior="blur"
+                            hideControls
+                            value={form.values.registrationCap}
+                            error={form.errors.registrationCap}
+                            onChange={(value) =>
+                              form.setFieldValue(
+                                "registrationCap",
+                                typeof value === "number" ? Math.max(1, Math.trunc(value)) : null,
+                              )
+                            }
+                          />
+                          <Group gap={6} grow>
+                            <Button
+                              variant="default"
+                              size="sm"
+                              disabled={(form.values.registrationCap ?? 1) <= 1}
+                              aria-label="Decrease limit by 10"
+                              onClick={() => bumpRegistrationCap(-10)}
+                            >
+                              −10
+                            </Button>
+                            <Button
+                              variant="default"
+                              size="sm"
+                              disabled={(form.values.registrationCap ?? 1) <= 1}
+                              aria-label="Decrease limit by 1"
+                              onClick={() => bumpRegistrationCap(-1)}
+                            >
+                              −1
+                            </Button>
+                            <Button
+                              variant="default"
+                              size="sm"
+                              aria-label="Increase limit by 1"
+                              onClick={() => bumpRegistrationCap(1)}
+                            >
+                              +1
+                            </Button>
+                            <Button
+                              variant="default"
+                              size="sm"
+                              aria-label="Increase limit by 10"
+                              onClick={() => bumpRegistrationCap(10)}
+                            >
+                              +10
+                            </Button>
+                          </Group>
+                        </Stack>
                       )}
                     </Stack>
                   )}

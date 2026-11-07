@@ -179,7 +179,8 @@ belong to one event, not to its duplicate.
     the organizer/admin can edit;
   - Other settings also shows the registration **Limit registrations** switch
     + maximum input (empty/off = unlimited) beneath the Open for registration
-    switch;
+    switch, with a **−10 / −1 / +1 / +10** stepper row under the input
+    (clamped to at least 1);
   - registration events use a people-only picker (no Departments section);
   - review shows a “Registration event” badge;
   - zero participants is accepted on submit.
