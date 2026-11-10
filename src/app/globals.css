@@ -2758,13 +2758,18 @@ html.c2-low-end::view-transition-group(*) {
   added per instance only when the dashboard is at ≥800px and not in the
   compact-desktop tier (`isDesktopWide && !isCompactDesktop`). Mobile and the
   semi-desktop / compact tiers therefore keep the library's 12px chip text.
-  The 3-class selector also beats the library's auto-size container query. The
-  reduced block padding keeps a 14px line inside the smallest 21px fitted slot
-  (chip box = slot − 2px, minus the event root's 1px padding).
+  The `@media (min-width: 50em)` wrapper is a hard belt-and-braces floor: even
+  if the modifier class ever leaked onto a narrower render, the rule cannot
+  fire below 800px. The 3-class selector also beats the library's auto-size
+  container query. The reduced block padding keeps a 14px line inside the
+  smallest 21px fitted slot (chip box = slot − 2px, minus the event root's 1px
+  padding).
 */
-.c2-month-grid--full-desktop .c2-schedule-event .c2-event-inner {
-  font-size: var(--mantine-font-size-sm);
-  padding-block: calc(0.0625rem * var(--mantine-scale));
+@media (min-width: 50em) {
+  .c2-month-grid--full-desktop .c2-schedule-event .c2-event-inner {
+    font-size: var(--mantine-font-size-sm);
+    padding-block: calc(0.0625rem * var(--mantine-scale));
+  }
 }
 
 /*

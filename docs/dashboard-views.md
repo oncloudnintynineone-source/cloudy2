@@ -653,7 +653,9 @@ directly ([`events-cache.md`](events-cache.md)):
   dashboard is at ≥800px and not in the compact desktop tier
   (`isDesktopWide && !isCompactDesktop`). Then its in-cell chips render at
   `--mantine-font-size-sm` (14px, the same var as the day label) instead of
-  the library's 12px / 9px auto-size tiers. Mobile and the semi-desktop /
+  the library's 12px / 9px auto-size tiers. The rule is also wrapped in
+  `@media (min-width: 50em)` as a hard floor, so it can never fire below
+  800px even if the modifier class leaks. Mobile and the semi-desktop /
   compact tiers keep the library's 12px text; Day/Week chips are never
   affected.
   Separately, on the mobile band (`max-width: 39.99em`, below the app's `lg`
