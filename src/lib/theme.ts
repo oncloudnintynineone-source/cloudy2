@@ -75,6 +75,11 @@ export const theme = createTheme({
     ScheduleEvent: {
       classNames: { event: "c2-schedule-event", eventInner: "c2-event-inner" },
     },
+    // Month-grid root hook, so globals.css can size in-cell chips to the day
+    // number without touching the Day/Week chip text.
+    MonthView: {
+      classNames: { monthView: "c2-month-grid" },
+    },
     // Shared hook on every Button's label span, used by the centering rule in
     // globals.css (see the `.c2-button-label` block).
     Button: {

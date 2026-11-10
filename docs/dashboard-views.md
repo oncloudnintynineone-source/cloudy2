@@ -647,6 +647,11 @@ directly ([`events-cache.md`](events-cache.md)):
   `globals.css` with a two-class selector that beats the library's `.m_*` rule.
   All grid chips (Month / Day / Week (H) / Week (Grid) / per-department
   Resources) render through `ScheduleEvent`, so one rule covers them.
+  **Month chips match the day number's size.** The month root carries the
+  `c2-month-grid` hook (theme `MonthView` `classNames`), so its in-cell chips
+  render at `--mantine-font-size-sm` (14px, the same var as the day label)
+  instead of the library's 12px / 9px auto-size tiers; the rule is scoped to
+  the month grid, so Day/Week chips keep their own size.
   Separately, on the mobile band (`max-width: 39.99em`, below the app's `lg`
   breakpoint) the inner box's padding is tightened from the library's `3px 4px`
   (`4px 6px` at `size="md"`) to `1px 2px`, so more of a small chip's width is
@@ -1124,7 +1129,8 @@ nothing scrolls. The chip count follows the fitted height: Mantine lays chips as
 each chip slot ≥ 21px — 4 by default, dropping to 3/2/1 on short fitted rows —
 that floor is the point where the library's `autoSize` chips would otherwise
 drop their text from 12px to 9px (`@container (max-height: 18px)`, chip box =
-slot − 2px), so the standard text size always renders. Overflow goes to the
+slot − 2px), and it also keeps the app's month-chip text — forced to the day
+number's 14px, see §1.4 — unclipped. Overflow goes to the
 existing `+N more` trigger (which rides the day's fixed bottom inset, so it
 never collides with the chips) and `sortMineFirst` keeps the user's events at
 the head of the visible set. The fill floor is one whole chip slot (76px row),

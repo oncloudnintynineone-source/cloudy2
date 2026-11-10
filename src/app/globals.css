@@ -2750,6 +2750,21 @@ html.c2-low-end::view-transition-group(*) {
 }
 
 /*
+  Month-grid chips are never smaller than the day number in their cell: the
+  day label uses `--mantine-font-size-sm` (14px), while the library's chip
+  text is 12px (and its `@container (max-height: 18px)` tier drops to 9px).
+  The month root hook (`c2-month-grid`, from the theme's MonthView classNames)
+  scopes this to the month grid, so Day/Week (H)/Week (Grid) chips keep their
+  own size. The 3-class selector also beats the library's auto-size container
+  query. The reduced block padding keeps a 14px line inside the smallest 21px
+  fitted slot (chip box = slot − 2px, minus the event root's 1px padding).
+*/
+.c2-month-grid .c2-schedule-event .c2-event-inner {
+  font-size: var(--mantine-font-size-sm);
+  padding-block: calc(0.0625rem * var(--mantine-scale));
+}
+
+/*
   Week (Grid) sticky-chrome separation (docs/dashboard-views.md §1.7). The
   library flags its day header with `data-scrolled` once the grid scrolls
   (scrollTop !== 0); the all-day row is its next sibling, so this marks the
