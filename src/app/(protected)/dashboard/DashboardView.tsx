@@ -5105,6 +5105,14 @@ function DashboardViewImpl({
                   // library's natural row height applies.
                   style={monthFitStyle}
                   styles={{ monthViewInner: MONTH_INNER_STYLE }}
+                  // Full desktop only (≥800px, not the compact tier): make the
+                  // in-cell chip text match the 14px day number (globals.css).
+                  classNames={{
+                    monthView:
+                      isDesktopWide && !isCompactDesktop
+                        ? "c2-month-grid--full-desktop"
+                        : undefined,
+                  }}
                   scrollAreaProps={monthScrollAreaProps}
                   // Fit-height chip count (`lg`): 4 while the fitted row can hold
                   // 21px slots, fewer when it can't, so the chip text never falls
@@ -5175,6 +5183,9 @@ function DashboardViewImpl({
                   showSwipeHint={showAgendaHint}
                   chromeOffset={topChromeHeight}
                   bottomBarrierRef={isDesktop ? null : fabStackRef}
+                  // Full desktop only: the month pane's chip text matches the
+                  // day number (see the standalone MonthView above).
+                  matchMonthChipText={isDesktopWide && !isCompactDesktop}
                 />
               ) : isAgenda ? (
                 <div

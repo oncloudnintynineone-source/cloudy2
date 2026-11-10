@@ -75,8 +75,9 @@ export const theme = createTheme({
     ScheduleEvent: {
       classNames: { event: "c2-schedule-event", eventInner: "c2-event-inner" },
     },
-    // Month-grid root hook, so globals.css can size in-cell chips to the day
-    // number without touching the Day/Week chip text.
+    // Month-grid root hook. The `c2-month-grid--full-desktop` modifier is
+    // applied per instance only in the full desktop layout; globals.css uses
+    // it to size in-cell chips to the day number without touching Day/Week.
     MonthView: {
       classNames: { monthView: "c2-month-grid" },
     },

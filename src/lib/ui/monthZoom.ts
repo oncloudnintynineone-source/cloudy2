@@ -99,9 +99,10 @@ export function monthFillEvents(
  * drops the chip text from 12px to 9px. A chip box is `slot − 2px` tall, so
  * any slot ≤ 20px would render that 9px text. Because the count is
  * `floor(content / minSlotPx)` clamped to 1–4, `content / count` is always
- * ≥ `minSlotPx` — so the 9px tier can never fire. The app also forces the
- * month chip to the day-number size (14px, `.c2-month-grid` in globals.css),
- * so the floor additionally keeps a 14px line unclipped inside the slot.
+ * ≥ `minSlotPx` — so the 9px tier can never fire. In the full desktop layout
+ * the app also forces the month chip to the day-number size (14px,
+ * `.c2-month-grid--full-desktop` in globals.css), so the floor additionally
+ * keeps that line unclipped inside the slot.
  */
 export function monthFitChipCount(
   availableHeightPx: number,

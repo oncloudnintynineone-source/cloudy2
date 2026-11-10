@@ -132,6 +132,12 @@ export interface DualPaneViewProps {
    * cluster so it never parks behind it.
    */
   bottomBarrierRef?: RefObject<HTMLElement | null> | null;
+  /**
+   * Apply the full-desktop month-chip text parity class (the month pane's
+   * chips match the 14px day number). False below `lg` and in the compact
+   * desktop tier, where the library's 12px chip text is kept.
+   */
+  matchMonthChipText: boolean;
 }
 
 /** How far a horizontal drag must travel to count as a day swipe. */
@@ -176,6 +182,7 @@ export function DualPaneView({
   showSwipeHint,
   chromeOffset,
   bottomBarrierRef,
+  matchMonthChipText,
 }: DualPaneViewProps) {
   const motion = useMotion();
   const theme = useMantineTheme();
@@ -507,6 +514,9 @@ export function DualPaneView({
             consistentWeeks={false}
             styles={{ monthViewInner: MONTH_INNER_STYLE }}
             style={monthFillStyle}
+            classNames={{
+              monthView: matchMonthChipText ? "c2-month-grid--full-desktop" : undefined,
+            }}
             scrollAreaProps={monthScrollAreaProps}
             maxEventsPerDay={isDesktop ? 4 : 3}
             moreEventsProps={{
