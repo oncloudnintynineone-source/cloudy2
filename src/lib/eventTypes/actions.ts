@@ -20,8 +20,17 @@ import {
 } from "@/lib/events/locationPolicy";
 import { isTimeOption, normalizeTimeOptions, TIME_OPTION_LABELS } from "@/lib/events/timeOptions";
 
+export interface EventTypeRenameMigrationHint {
+  /** The name events may still carry in their notes (the pre-rename name). */
+  fromName: string;
+  /** The saved type to migrate those references to. */
+  toTypeId: string;
+  nameChanged: boolean;
+  shortnameChanged: boolean;
+}
+
 export type EventTypeActionResult =
-  | { ok: true }
+  | { ok: true; migration?: EventTypeRenameMigrationHint }
   | {
       ok: false;
       error: string;
@@ -251,7 +260,15 @@ export async function renameEventType(
 
   invalidateConfigCache(["eventTypes"]);
   revalidatePath("/settings/event-types");
-  return { ok: true };
+  const nameChanged = existing.name !== name;
+  const shortnameChanged = (existing.shortname ?? "") !== shortname;
+  return {
+    ok: true,
+    migration:
+      nameChanged || shortnameChanged
+        ? { fromName: existing.name, toTypeId: id, nameChanged, shortnameChanged }
+        : undefined,
+  };
 }
 
 export async function deleteEventType(id: string): Promise<EventTypeActionResult> {

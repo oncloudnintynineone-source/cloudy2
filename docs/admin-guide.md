@@ -105,6 +105,13 @@ Settings → Event Types. Each type constrains the event wizard:
   presentation-only: colors, target derivation, and KAH are unaffected.
 - **Name + Shortname** — the shortname is the `{type:acronym}` title token; it must
   be unique.
+- **Renaming & migrating existing events** — events store their type by name, so a
+  rename only affects new events until you migrate. After saving a changed name (or
+  shortname) the migration dialog opens prefilled; the toolbar's **Migrate events**
+  button runs it later for any old name. Pick a **From/To** range (default: all
+  history through two years ahead), optionally rewrite Google event titles, then run.
+  The scan is chunked and can be stopped/resumed; events outside the range are left
+  untouched. Shared-view links and audit history keep the old name.
 - **Time options** — which duration styles the type allows (e.g. range times,
   full/half day).
 - **Allowed locations matrix** — which categories events of this type may use:
@@ -122,7 +129,7 @@ Settings → Event Types. Each type constrains the event wizard:
 - **Color** — optional Mantine palette color for the type's events (null = a
   deterministic default derived from the type name).
 
-Design: [`event-lifecycle.md`](event-lifecycle.md) §1.9, §1.10.
+Design: [`event-lifecycle.md`](event-lifecycle.md) §1.9, §1.10, §1.10.1.
 
 ## 1.5 Templates
 

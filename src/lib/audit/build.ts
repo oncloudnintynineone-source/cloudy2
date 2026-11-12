@@ -16,6 +16,7 @@ export const AUDIT_ACTIONS = {
   eventTypeCreate: "eventType.create",
   eventTypeRename: "eventType.rename",
   eventTypeDelete: "eventType.delete",
+  eventTypeMigrate: "eventType.migrate",
   eventTypeGroupCreate: "eventTypeGroup.create",
   eventTypeGroupUpdate: "eventTypeGroup.update",
   eventTypeGroupDelete: "eventTypeGroup.delete",

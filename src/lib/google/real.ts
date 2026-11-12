@@ -12,6 +12,8 @@ import type {
   GcalEvent,
   GcalEventInput,
   GcalEventItem,
+  GcalEventPage,
+  GcalEventPatch,
   GoogleCalendarInfo,
   GoogleIntegration,
 } from "./types";
@@ -243,6 +245,29 @@ export function createRealGoogleIntegration(): GoogleIntegration {
         fail(error);
       }
     },
+    async patchEvent(eventId: string, input: GcalEventPatch): Promise<GcalEvent> {
+      try {
+        const requestBody: calendar_v3.Schema$Event = {};
+        if (input.title !== undefined) {
+          requestBody.summary = input.title;
+        }
+        if (input.description !== undefined) {
+          requestBody.description = input.description;
+        }
+        const res = await getClient().events.patch({
+          calendarId: input.calendarId,
+          eventId,
+          requestBody,
+        });
+        const id = res.data.id;
+        if (!id) {
+          throw new Error("Google returned no event id");
+        }
+        return { id, calendarId: input.calendarId, htmlLink: res.data.htmlLink ?? undefined };
+      } catch (error) {
+        fail(error);
+      }
+    },
     async deleteEvent(calendarId: string, eventId: string): Promise<void> {
       try {
         await getClient().events.delete({ calendarId, eventId });
@@ -264,6 +289,30 @@ export function createRealGoogleIntegration(): GoogleIntegration {
           maxResults: 2500,
         });
         return (res.data.items ?? []).map(mapGoogleEvent(calendarId));
+      } catch (error) {
+        fail(error);
+      }
+    },
+    async listEventPages(
+      calendarId: string,
+      timeMin: Date,
+      timeMax: Date,
+      pageToken?: string,
+    ): Promise<GcalEventPage> {
+      try {
+        const res = await getClient().events.list({
+          calendarId,
+          timeMin: timeMin.toISOString(),
+          timeMax: timeMax.toISOString(),
+          singleEvents: true,
+          orderBy: "startTime",
+          maxResults: 2500,
+          pageToken,
+        });
+        return {
+          items: (res.data.items ?? []).map(mapGoogleEvent(calendarId)),
+          nextPageToken: res.data.nextPageToken ?? undefined,
+        };
       } catch (error) {
         fail(error);
       }

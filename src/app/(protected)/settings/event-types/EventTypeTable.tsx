@@ -6,6 +6,7 @@ import { MotionModal } from "@/components/MotionModal";
 
 import { useDisclosure, useMediaQuery } from "@mantine/hooks";
 import {
+  IconArrowsExchange,
   IconCalendarEvent,
   IconCategory2,
   IconFolder,
@@ -35,6 +36,8 @@ import { useChunkReady } from "@/lib/loading/chunkReady";
 import { MIN_SKELETON_HOLD_MS } from "@/lib/loading/minHoldLoading";
 import { EventTypeGroupsModal } from "./EventTypeGroupsModal";
 import { useActivityRefresh } from "@/components/ActivityBar";
+import type { EventTypeRenameMigrationHint } from "@/lib/eventTypes/actions";
+import { EventTypeMigrationModal, type EventTypeMigrationPrefill } from "./EventTypeMigrationModal";
 import type { ReorderDrag } from "@/lib/settings/featureFlags";
 
 // The add/edit event-type form is only mounted on tap; split it out of the
@@ -57,6 +60,8 @@ export function EventTypeTable({ types, groups, reorderDrag }: EventTypeTablePro
   const [formOpened, { open: openForm, close: closeForm }] = useDisclosure(false);
   const [editing, setEditing] = useState<EventType | null>(null);
   const [groupsOpened, { open: openGroups, close: closeGroups }] = useDisclosure(false);
+  const [migrationOpened, { open: openMigration, close: closeMigration }] = useDisclosure(false);
+  const [migrationPrefill, setMigrationPrefill] = useState<EventTypeMigrationPrefill | null>(null);
   const eventTypeFormReady = useChunkReady(loadEventTypeForm, formOpened);
 
   const groupById = useMemo(() => new Map(groups.map((group) => [group.id, group])), [groups]);
@@ -91,6 +96,21 @@ export function EventTypeTable({ types, groups, reorderDrag }: EventTypeTablePro
     openForm();
   }
 
+  function openMigrationTool() {
+    setMigrationPrefill(null);
+    openMigration();
+  }
+
+  function handleFormDone(migration?: EventTypeRenameMigrationHint) {
+    closeForm();
+    setEditing(null);
+    refreshAfterSave();
+    if (migration) {
+      setMigrationPrefill(migration);
+      openMigration();
+    }
+  }
+
   return (
     <Stack ref={paneRef} gap="md" className={`${CONTENT_ENTER_CLASS} settings-pill-page-pad`}>
       <SettingsListChrome
@@ -103,6 +123,11 @@ export function EventTypeTable({ types, groups, reorderDrag }: EventTypeTablePro
             label: "Manage groups",
             icon: <IconCategory2 size={18} />,
             onClick: openGroups,
+          },
+          {
+            label: "Migrate events",
+            icon: <IconArrowsExchange size={18} />,
+            onClick: openMigrationTool,
           },
           {
             label: "Add event type",
@@ -223,11 +248,7 @@ export function EventTypeTable({ types, groups, reorderDrag }: EventTypeTablePro
             key={editing?.id ?? "new"}
             eventType={editing}
             groups={groups}
-            onDone={() => {
-              closeForm();
-              setEditing(null);
-              refreshAfterSave();
-            }}
+            onDone={handleFormDone}
           />
         </CrossfadeSwap>
       </MotionModal>
@@ -241,6 +262,17 @@ export function EventTypeTable({ types, groups, reorderDrag }: EventTypeTablePro
         onMutated={() => {
           refreshAfterSave();
         }}
+      />
+
+      <EventTypeMigrationModal
+        opened={migrationOpened}
+        onClose={() => {
+          closeMigration();
+          setMigrationPrefill(null);
+        }}
+        types={types}
+        prefill={migrationPrefill}
+        onFinished={refreshAfterSave}
       />
     </Stack>
   );

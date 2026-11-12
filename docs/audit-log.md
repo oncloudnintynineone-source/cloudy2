@@ -134,10 +134,11 @@ every mutation site:
 
 **Row construction** is the pure `build.ts`:
 
-- `AUDIT_ACTIONS` (`build.ts`) — the 36 known dotted action keys:
+- `AUDIT_ACTIONS` (`build.ts`) — the 37 known dotted action keys:
   `auth.login.success`, `auth.login.failure`, `user.create`, `user.update`,
   `user.status.change`, `calendar.create`, `calendar.rename`, `calendar.update`,
   `calendar.delete`, `eventType.create`, `eventType.rename`, `eventType.delete`,
+  `eventType.migrate`,
   `eventTypeGroup.create`, `eventTypeGroup.update`, `eventTypeGroup.delete`,
   `event.create`, `event.update`, `event.delete`, `event.participantNotify`,
   `webhook.create`, `webhook.update`, `webhook.delete`, `quickLink.create`,
@@ -158,7 +159,7 @@ every mutation site:
 
 Call sites: `auth.ts` (login success/failure), `roster/actions.ts` (users,
 calendars, access), `events/actions.ts` (create/update/delete),
-`eventTypes/actions.ts`, `settings/actions.ts`, `webhooks/actions.ts`,
+`eventTypes/actions.ts`, `eventTypes/migrationActions.ts`, `settings/actions.ts`, `webhooks/actions.ts`,
 `quickLinks/actions.ts`, `kah/actions.ts` + `kah/notify.ts`,
 `parade-email/actions.ts` + `parade-email/dispatch.ts`,
 `events/participantNotify/notify.ts`, and `audit/actions.ts` (the purge itself,
@@ -189,6 +190,7 @@ raw enums, no machine datetimes. The shape is one of two things:
 | `event.delete` | flat `EventAuditSnapshot` + `eventId` + `googleEventIds[]` |
 | `access.grant` / `access.update` / `access.revoke` | role diff (previous role read from the ACLs before the mutation) |
 | `eventType.create` / `eventType.rename` / `eventType.delete` | field objects; time options / allowed locations as display labels |
+| `eventType.migrate` | flat: from, to, range start/end, update titles, events scanned/updated, failed, cancelled |
 | `settings.update` | single-field diffs (e.g. `auditLogRetentionDays` before/after) |
 | `auth.login.failure` | `{ reason: "invalid_credentials" \| "unknown_input" \| "admin.invalid_root_secret" \| "admin.invalid_account" \| "admin.invalid_pin" }`; the derived phone (never the raw input) is the `actor_name` |
 | `audit.purge` | `{ retentionDays, deleted }` |

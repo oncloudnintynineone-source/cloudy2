@@ -148,6 +148,11 @@ doc content here.
   route → login hop → the `?event=` details deep link) — the URL carries the whole
   target, nothing is stored.
   Design: [docs/event-lifecycle.md](docs/event-lifecycle.md), [docs/event-mutations.md](docs/event-mutations.md).
+- **Event-type rename migration:** events reference their type by **name** in the notes
+  block, so a rename leaves existing Google copies stale. Settings → Event Types →
+  **Migrate events** rewrites notes (and optionally Google summaries) in chunked,
+  admin-selected date ranges; the rename dialog opens it prefilled. Design:
+  [docs/event-lifecycle.md](docs/event-lifecycle.md) §1.10.1.
 - **Organizer & the owner-only lock:** the organizer (`createdBy` in notes) is fixed to the
   acting session user at create — no "on behalf of", no reassign. Edit/delete/duplicate
   authorization is pure `modifyGuard` (`src/lib/events/guards.ts`): admins always;

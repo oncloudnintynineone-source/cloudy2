@@ -10094,3 +10094,43 @@ navigation sweep Calendar ⇄ Parade State ⇄ Contacts ⇄ Double Booking (and 
 step, which starts its own view transition) with the pill, attendance bar and FAB row
 staying fully rendered, still frosted, and no duplicate-name console warning.
 `APP_VERSION` → `2026.11.05-1`.
+
+
+## 1.370 Event-type rename migration
+
+Settings → Event Types → **Migrate events** rewrites existing Google events that still
+reference an old event-type **name** in their notes block (events reference types by name,
+not id). The same dialog opens prefilled after a successful rename or shortname change.
+
+**Design.**
+
+- Pure helpers in `src/lib/eventTypes/migration.ts`: range validation/defaults
+  (`2000-01-01` through two years ahead; hard bounds `1970-01-01`–`now + 20y`), SGT year
+  windows, notes-block rewriting (preserves the `Edit:` link and `Created in cloudy2`
+  marker across v1/v2/v3 layouts), saved-filter rewriting, cursor validation, and a
+  page-batch selector whose cursor advances over *page items* (not filtered matches) so
+  resumed pages are correct after migrated copies disappear from the match set.
+- `src/lib/eventTypes/migrationRun.ts` drives one bounded chunk per request: up to 8
+  Google pages (paginated `listEventPages`) and 200 `patchEvent` calls at concurrency 3.
+  Each matching copy gets its notes `eventType` rewritten and, when enabled, its summary
+  re-rendered through the shared display-title path; legacy copies without a stored raw
+  title keep their hand-edited summary. Touched months invalidate the Google + pinned
+  caches even on partial/failed chunks.
+- Admin route `POST /api/settings/event-types/migrate` (CSRF header + admin role,
+  `nodejs`, no-store) returns `scanned/matched/updated/failed`, errors, progress totals and
+  an opaque `{yearIndex, calendarIndex, pageToken, skip}` cursor.
+- `finalizeEventTypeMigration` rewrites `user_dashboard_views.types_filter` old→new and
+  writes the flat `eventType.migrate` audit row (range, title flag, counts, cancelled).
+- `EventTypeMigrationModal` exposes old name, target type, From/To date pickers, and an
+  “Update Google event titles” switch; the run can be cancelled and resumed. Inputs lock
+  while running; changing them starts over. Settings chrome gains **Migrate events**.
+- Google contract gained `listEventPages` and `patchEvent` (summary/description only) with
+  stub parity; no schema change.
+
+**Not migrated:** audit history, webhook deliveries, and stateless shared-view links keep
+the old name. No event webhooks, push notifications, or KAH dispatches fire.
+
+**Verification.** `pnpm lint`, `pnpm typecheck`, `pnpm test` (136 files / 1761 tests),
+`pnpm build`; new migration unit tests cover range/year clipping, notes rewrites across
+all three stored formats, filter rewriting, cursor validation and page-batch selection.
+`APP_VERSION` → `2026.11.12-1`.

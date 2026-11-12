@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.368 (portaled floating chrome held above route transitions)** is shipped.
+- All work through changelog **1.370 (event-type rename migration)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -2390,6 +2390,12 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   mobile view-name line and compact view trigger now read `useDashboardTabStatus`
   in their own components, so per-tab load ticks no longer re-render the whole
   `DashboardView`. Docs: `docs/loading-transitions.md` §1.4/§1.14.1/§1.15.
+- 1.370 **Event-type rename migration**: Settings → Event Types gains **Migrate events**
+  (also prefilled after a rename/shortname change) — a chunked, resumable admin scan over
+  an adjustable From/To range that rewrites the notes `eventType` and (optionally) the
+  Google summary with `events.patch`, leaving times/location/reminders intact. Saved tab
+  filters are rewritten on finalize; audit rows (`eventType.migrate`) record the range and
+  counts. No schema change. Docs: `docs/event-lifecycle.md` §1.10.1.
 
 ## 1.4 Open items & next steps
 

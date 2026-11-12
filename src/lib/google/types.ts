@@ -24,6 +24,20 @@ export interface GcalEvent {
   htmlLink?: string;
 }
 
+/** One page of a calendar listing plus the token for the next page (if any). */
+export interface GcalEventPage {
+  items: GcalEventItem[];
+  nextPageToken?: string;
+}
+
+/** Partial event update: only the supplied fields are changed. */
+export interface GcalEventPatch {
+  calendarId: string;
+  /** Google event summary. */
+  title?: string;
+  description?: string;
+}
+
 /** A single event read back from Google Calendar for the calendar view. */
 export interface GcalEventItem {
   id: string;
@@ -47,10 +61,23 @@ export interface GoogleIntegration {
   createEvent(input: GcalEventInput): Promise<GcalEvent>;
   /** Update an existing event (full replace). */
   updateEvent(eventId: string, input: GcalEventInput): Promise<GcalEvent>;
+  /** Patch only the supplied event fields (summary/description), leaving the rest intact. */
+  patchEvent(eventId: string, input: GcalEventPatch): Promise<GcalEvent>;
   /** Delete an event. */
   deleteEvent(calendarId: string, eventId: string): Promise<void>;
   /** List events in a calendar overlapping the given [timeMin, timeMax] range. */
   listEvents(calendarId: string, timeMin: Date, timeMax: Date): Promise<GcalEventItem[]>;
+  /**
+   * One page of events in a calendar overlapping [timeMin, timeMax]. Pass the
+   * previous page's `nextPageToken` to continue; used by the bulk migration so
+   * a wide all-history scan is paginated rather than capped at 2500 events.
+   */
+  listEventPages(
+    calendarId: string,
+    timeMin: Date,
+    timeMax: Date,
+    pageToken?: string,
+  ): Promise<GcalEventPage>;
   /** Free-text search (`q`) for events in a calendar within [timeMin, timeMax]. */
   searchEvents(
     calendarId: string,

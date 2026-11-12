@@ -12,6 +12,7 @@ import {
   deleteEventType,
   renameEventType,
   type EventTypeActionResult,
+  type EventTypeRenameMigrationHint,
 } from "@/lib/eventTypes/actions";
 import { validateEventTypeForm, type EventTypeFormValues } from "@/lib/eventTypes/validate";
 import { NoKeyboardSelect } from "@/components/NoKeyboardSelect";
@@ -48,7 +49,7 @@ interface EventTypeFormProps {
     color: string | null;
   } | null;
   groups: { id: string; name: string }[];
-  onDone: () => void;
+  onDone: (migration?: EventTypeRenameMigrationHint) => void;
 }
 
 export function EventTypeForm({ eventType, groups, onDone }: EventTypeFormProps) {
@@ -94,7 +95,7 @@ export function EventTypeForm({ eventType, groups, onDone }: EventTypeFormProps)
           color: "green",
           message: isEdit ? "Event type updated" : "Event type created",
         });
-        onDone();
+        onDone(result.migration);
         return;
       }
 

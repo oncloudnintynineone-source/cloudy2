@@ -12,9 +12,15 @@ export const stubGoogleIntegration: GoogleIntegration = {
   async updateEvent() {
     return { id: "stub", calendarId: "stub" };
   },
+  async patchEvent() {
+    return { id: "stub", calendarId: "stub" };
+  },
   async deleteEvent() {},
   async listEvents() {
     return [];
+  },
+  async listEventPages() {
+    return { items: [] };
   },
   async searchEvents() {
     return [];

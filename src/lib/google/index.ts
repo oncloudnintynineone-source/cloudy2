@@ -6,6 +6,8 @@ export type {
   GcalEvent,
   GcalEventInput,
   GcalEventItem,
+  GcalEventPage,
+  GcalEventPatch,
   GoogleCalendarInfo,
   GoogleIntegration,
 } from "./types";

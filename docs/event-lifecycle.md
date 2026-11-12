@@ -26,6 +26,7 @@ month cache is covered in [`events-cache.md`](events-cache.md).
   - [1.9.1 Per-type field visibility](#191-per-type-field-visibility)
   - [1.9.2 Hiding the Location step](#192-hiding-the-location-step)
 - [1.10 Event type groups](#110-event-type-groups)
+  - [1.10.1 Renaming & migrating existing event references](#1101-renaming--migrating-existing-event-references)
 - [1.11 Time options & datetime math](#111-time-options--datetime-math)
 - [1.12 Add to calendar (personal copy)](#112-add-to-calendar-personal-copy)
 - [1.13 Pure helpers & testing](#113-pure-helpers--testing)
@@ -906,6 +907,60 @@ flowchart LR
   type table shows a Group column/badge. Grouping is **presentation-only**: the
   `eventType` name in the notes block, target derivation, KAH checks, and type colors
   are all unaffected.
+
+### 1.10.1 Renaming & migrating existing event references
+
+Events reference their type by **name** in the notes block (`eventType`), not by id.
+Renaming a type therefore updates only the `event_types` row; existing Google copies
+keep the old name until migrated. The admin migration rewrites those references and,
+optionally, the Google summaries rendered from them.
+
+```mermaid
+flowchart LR
+ A[Settings → Event Types<br/>rename saved] -->|name or shortname changed?| P[Migration dialog<br/>prefilled old → new]
+ P --> R[Client loop → POST /api/settings/event-types/migrate]
+ R --> Y{Year window in selected range}
+ Y --> C[Each registered department calendar]
+ C --> L[listEventPages<br/>paginated, all layouts]
+ L --> M{notes.eventType === old name?}
+ M -->|no| L
+ M -->|yes| N[rewrite notes block<br/>preserve Edit link + marker]
+ N --> T[optional: re-render summary<br/>shared display-title path]
+ T --> G[patchEvent<br/>summary/description only]
+ G --> I[invalidate month + pinned caches]
+ I --> F[finalize: saved tab filters + audit row]
+```
+
+- **UI**: the Event Types toolbar has **Migrate events** (and a successful rename/shortname
+  change opens the same dialog prefilled). The admin picks the **old name**, the
+  **target type**, a **From/To date range** (defaults: `2000-01-01` through two years
+  ahead), and whether to **update Google event titles**. Inputs lock while running;
+  a stopped run can resume from its stored cursor (changing any input starts over).
+- **Range**: only events in the selected range are touched — everything outside it is
+  left stale by design and can be migrated later. The hard bounds are `1970-01-01`
+  through `now + 20 years`.
+- **Chunking**: the client drives bounded requests; each scans up to 8 Google pages
+  (2500 events/page) and patches up to 200 copies with concurrency 3. The opaque cursor
+  is `{yearIndex, calendarIndex, pageToken, skip}`. `skip` is an offset into page items,
+  not filtered matches, so re-fetching a partially processed page is correct even
+  though already-migrated copies no longer match.
+- **What is rewritten**: only the serialized notes block (`eventType`) and, when
+  enabled, the Google `summary`; `events.patch` leaves times, location, reminders,
+  attendees and every other field untouched. The `Edit:` line and `Created in cloudy2`
+  marker are preserved. Legacy copies without a stored raw title keep their summary
+  (hand-edited titles are never re-rendered).
+- **What is not**: audit history, webhook deliveries, and shared-view links (stateless
+  tokens carry their own filter copy) keep the old name. Saved dashboard tab filters
+  are rewritten by `finalizeEventTypeMigration` when the run completes (a cancelled
+  run records the audit outcome but leaves filters alone until it is resumed).
+- **Safety**: the run is idempotent (migrated copies stop matching the old name), audit
+  rows record the range and counts (`eventType.migrate`), and migrated months are
+  invalidated from the Google cache plus the pinned-events cache. No event webhooks,
+  push notifications, or KAH dispatches fire.
+- **Code**: pure helpers in `src/lib/eventTypes/migration.ts`; the chunk scanner in
+  `migrationRun.ts`; the admin route `src/app/api/settings/event-types/migrate/route.ts`;
+  finalize/audit/filter rewrite in `migrationActions.ts`; dialog in
+  `EventTypeMigrationModal.tsx`.
 
 ## 1.11 Time options & datetime math
 
