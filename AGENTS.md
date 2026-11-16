@@ -348,29 +348,19 @@ doc content here.
   pure shaping in
   `src/lib/events/history.ts` + `myEvents.ts`; the `details` renderer is shared with the
   audit log (`src/components/AuditDetails.tsx`). Design: [docs/event-history.md](docs/event-history.md).
-- **Home-screen widgets (KWGT first):** a PWA cannot host a native widget, so
-  `GET /api/widget/v1/agenda` serves a read-only JSON agenda built from **one chosen
-  dashboard view** (its filters + title recipe) over a forward `today → today+days`
-  window (any of the seven view kinds; `?view=` takes an id or kind). Auth is a per-device
-  `widget_tokens` row (`c2w_…`, SHA-256 at rest, shown once in Profile → Widgets, never
-  expires, revocable; every request re-checks the owner is active) via
-  `Authorization: Bearer` or `?token=` (KWGT's `wg()`/Flow cannot set headers). Reads reuse
-  `readCalendarRange` (never force Google), pinned count/next come from
-  `fetchPinnedEventsFor(actor)`, and `flat` scalar aliases exist for KWGT. Widgets refresh
-  **only** on their own button — a Kustom Flow (manual trigger → WebGet → store the JSON
-  path in a global). Design: [docs/widgets.md](docs/widgets.md).
-- **Calendar feed (ICS, iOS):** the native Calendar-widget path is a signed, regenerable
-  subscription URL — `GET /api/widget/v1/calendar.ics?u=&v=&view=&sig=` — where
+- **Calendar feed (ICS, iOS + Android):** the native Calendar-widget path is a signed,
+  regenerable subscription URL — `GET /api/widget/v1/calendar.ics?u=&v=&view=&sig=` — where
   `sig = HMAC-SHA256(NEXTAUTH_SECRET)` over `(userId, feed_version, viewId)`. No token row:
-  the URL is derived, so Profile → Calendar & widgets can always show it; **Rotate feed
-  link** increments `user_preferences.feed_version` (audited `widgetFeed.rotate`) and
-  invalidates every subscribed URL. The feed is the chosen dashboard view's **±3-month**
-  agenda (deduped by group id, same filters/title recipe), rendered from a durable
-  per-user+view `widget_feed_cache` (15-min TTL, stale-while-revalidate in `after()`,
-  events-cache-epoch invalidation; view edits drop the user's rows). Android deliberately
-  uses the **directly shared Google Calendar** with the native widget because Google
-  refreshes subscribed ICS feeds only every ~12–24h. Design:
-  [docs/calendar-feed.md](docs/calendar-feed.md).
+  the URL is derived, so Profile → Calendar feed can always show it; **Rotate feed link**
+  increments `user_preferences.feed_version` (audited `widgetFeed.rotate`) and invalidates
+  every subscribed URL. The feed is the **chosen dashboard view's** ±3-month agenda
+  (deduped by group id; its Cal/Users/Types/Event-name filters + title recipe resolved
+  exactly like the dashboard) rendered from a durable per-user+view `widget_feed_cache`
+  (15-min TTL, stale-while-revalidate in `after()`, events-cache-epoch invalidation; view
+  edits drop the user's rows). The dialog preselects the view currently active on the
+  calendar page and documents both platforms (Apple Calendar; Android via Google Calendar
+  web "From URL" or a subscription-capable third-party app). The HTTP JSON widget API
+  (KWGT tokens/agenda) was removed. Design: [docs/calendar-feed.md](docs/calendar-feed.md).
 - **KAH constraints are notify-only.** After every successful create/update (never delete),
   `dispatchKahBreachCheck()` (`src/lib/kah/notify.ts`) runs inside `after()` — best-effort,
   it can never fail or delay the mutation. The KAH Status nav entry carries an amber

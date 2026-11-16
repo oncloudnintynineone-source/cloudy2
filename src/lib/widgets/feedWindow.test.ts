@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { CalendarEvent } from "@/lib/events/queries";
 
-import { eventInFeedWindow, widgetFeedWindow } from "./feedWindow";
+import { eventEndDateInclusive, eventInFeedWindow, widgetFeedWindow } from "./feedWindow";
 
 // 2026-11-16 03:04:05Z == 2026-11-16 11:04:05 in the app's UTC+8 clock.
 const NOW = new Date("2026-11-16T03:04:05Z");
@@ -55,6 +55,41 @@ describe("widgetFeedWindow", () => {
       "2027-01",
       "2027-02",
     ]);
+  });
+});
+
+describe("eventEndDateInclusive", () => {
+  function withTimeOption(
+    event: CalendarEvent,
+    timeOption: "range" | "full" | "half",
+  ): CalendarEvent {
+    return { ...event, payload: { ...event.payload, timeOption } };
+  }
+
+  it("steps back one day for an all-day exclusive end", () => {
+    expect(
+      eventEndDateInclusive(makeEvent("2026-11-16 00:00:00", "2026-11-18 00:00:00", true)),
+    ).toBe("2026-11-17");
+  });
+
+  it("keeps the same day for a timed event that ends before midnight", () => {
+    expect(
+      eventEndDateInclusive(makeEvent("2026-11-16 09:00:00", "2026-11-16 10:00:00")),
+    ).toBe("2026-11-16");
+  });
+
+  it("steps back one day for a timed event ending exactly at midnight", () => {
+    expect(
+      eventEndDateInclusive(makeEvent("2026-11-16 22:00:00", "2026-11-17 00:00:00")),
+    ).toBe("2026-11-16");
+  });
+
+  it("treats a half-day as a civil-day end", () => {
+    expect(
+      eventEndDateInclusive(
+        withTimeOption(makeEvent("2026-11-16 00:00:00", "2026-11-17 00:00:00"), "half"),
+      ),
+    ).toBe("2026-11-16");
   });
 });
 

@@ -239,40 +239,6 @@ export const pushSubscriptions = pgTable(
 );
 
 /**
- * Per-device read-only tokens for the widget API (`/api/widget/v1/*`). KWGT,
- * Scriptable and Widgy are separate native apps, so a home-screen widget needs
- * a credential that is not the NextAuth session cookie. Each row belongs to one
- * roster user and one device; the plaintext token is shown once at creation and
- * only its SHA-256 hash is stored. Tokens never expire by policy but are
- * revocable individually (`revokedAt`), and every request re-checks that the
- * owner is still active. A row cascades with its user.
- */
-export const widgetTokens = pgTable(
-  "widget_tokens",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    userId: uuid("user_id")
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
-    /** Human label for the device ("Pixel 9 KWGT"). */
-    label: text("label").notNull().default("Widget"),
-    /** SHA-256 (hex) of the plaintext token — the lookup key. */
-    tokenHash: text("token_hash").notNull(),
-    /** Leading characters of the token, for display in the token list. */
-    tokenPrefix: text("token_prefix").notNull(),
-    /** Last successful widget read (written at most every few minutes). */
-    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
-    /** Null while active; set when the user revokes the device. */
-    revokedAt: timestamp("revoked_at", { withTimezone: true }),
-    ...timestamps,
-  },
-  (table) => [
-    uniqueIndex("widget_tokens_hash_idx").on(table.tokenHash),
-    index("widget_tokens_user_idx").on(table.userId),
-  ],
-);
-
-/**
  * Durable cache of one user's rendered calendar-feed (`.ics`) body for one
  * dashboard view. A feed covers ±3 months, so rebuilding it on every calendar
  * app poll would read up to eight months per request; the cached body is served
@@ -783,8 +749,6 @@ export type UserDashboardView = typeof userDashboardViews.$inferSelect;
 export type NewUserDashboardView = typeof userDashboardViews.$inferInsert;
 export type UserPreference = typeof userPreferences.$inferSelect;
 export type NewUserPreference = typeof userPreferences.$inferInsert;
-export type WidgetToken = typeof widgetTokens.$inferSelect;
-export type NewWidgetToken = typeof widgetTokens.$inferInsert;
 export type WidgetFeedCache = typeof widgetFeedCache.$inferSelect;
 export type NewWidgetFeedCache = typeof widgetFeedCache.$inferInsert;
 export type PushSubscription = typeof pushSubscriptions.$inferSelect;

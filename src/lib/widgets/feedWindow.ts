@@ -6,10 +6,13 @@
  * window so a multi-day event that started earlier still appears as ongoing.
  */
 
-import { formatInstantToNaive, lastDayOfMonth, shiftMonth } from "@/lib/events/datetime";
+import {
+  formatInstantToNaive,
+  lastDayOfMonth,
+  shiftMonth,
+  subOneDay,
+} from "@/lib/events/datetime";
 import type { CalendarEvent } from "@/lib/events/queries";
-
-import { eventEndDateInclusive } from "./shape";
 
 export interface WidgetFeedWindow {
   /** First civil day included (`YYYY-MM-DD`). */
@@ -33,6 +36,25 @@ export function widgetFeedWindow(now: Date = new Date()): WidgetFeedWindow {
     endDate: lastDayOfMonth(endMonth),
     readMonths,
   };
+}
+
+/**
+ * The last civil day an event occupies (inclusive). All-day / full / half-day
+ * events store an exclusive UTC-midnight end, and a timed event ending exactly
+ * at midnight occupies only the prior day — so both step back one day.
+ */
+export function eventEndDateInclusive(event: CalendarEvent): string {
+  const startDate = event.start.slice(0, 10);
+  const endDate = event.end.slice(0, 10);
+  if (!startDate || !endDate) {
+    return startDate;
+  }
+  const endTime = event.end.slice(11, 19);
+  const civilBasis = event.payload.allDay || event.payload.timeOption !== "range";
+  if (civilBasis || (endDate > startDate && endTime === "00:00:00")) {
+    return subOneDay(endDate);
+  }
+  return endDate;
 }
 
 /** Whether an event occupies at least one day in the feed window. */

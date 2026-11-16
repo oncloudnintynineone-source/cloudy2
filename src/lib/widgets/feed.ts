@@ -3,17 +3,22 @@
  * (`GET /api/widget/v1/calendar.ics`).
  *
  * Reads the chosen dashboard view's ±3-month window through the same layered
- * events cache as the dashboard and the JSON widget agenda, applies the view's
- * filters/title recipe, then renders one RFC 5545 feed. Kept separate from the
- * cached wrapper (`feedCache.ts`) so the read/ICS shaping is easy to reason
- * about and unit-test.
+ * events cache as the dashboard, applies the view's filters/title recipe, then
+ * renders one RFC 5545 feed. Kept separate from the cached wrapper
+ * (`feedCache.ts`) so the read/ICS shaping is easy to reason about and
+ * unit-test.
  */
 
 import { buildCalendarFeedIcs } from "@/lib/events/icalFeed";
 
-import type { WidgetActor } from "./auth";
 import { eventInFeedWindow, widgetFeedWindow } from "./feedWindow";
 import { readWidgetViewEvents, resolveWidgetView } from "./viewEvents";
+
+/** The user a feed build runs as (resolved from the signed URL, not a session). */
+export interface WidgetActor {
+  id: string;
+  role: "admin" | "user";
+}
 
 export interface BuiltCalendarFeed {
   body: string;

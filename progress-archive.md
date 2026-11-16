@@ -10230,3 +10230,49 @@ subscription — no KWGT, no Pro, no on-device configuration beyond subscribing 
 feed signing/tamper/version/view binding, ±3-month window and edge inclusion, ICS shape/
 dedupe/escaping/folding, and cache TTL/epoch freshness. Docs: `docs/calendar-feed.md`
 (new), `docs/widgets.md` (cross-link), `AGENTS.md`. `APP_VERSION` → `2026.11.16-2`.
+
+
+## 1.373 Calendar feed only (HTTP widget removed)
+
+The user asked to keep only the calendar-feed method, make it work on Android as well as
+iOS, and ensure its content follows the view chosen on the calendar page.
+
+**Design.**
+
+- **Removed the HTTP JSON widget API entirely**: the `GET /api/widget/v1/agenda` route,
+  `src/lib/widgets/agenda.ts` / `shape.ts` / `auth.ts` / `tokens.ts` (+ their tests), the
+  `widget_tokens` table, the `widgetToken.create` / `widgetToken.revoke` audit actions, the
+  Profile → Widgets token list / KWGT Flow recipe UI, and `docs/widgets.md`. The feed endpoint
+  path, HMAC namespace, `widget_feed_cache` table and `widgetFeed.rotate` audit action are
+  unchanged (a subscription URL is a stored credential).
+- `WidgetActor` moved to `feed.ts` and narrowed to `{ id, role }` (the feed never needed a
+  fake name/phone); `feedCache.ts` imports it from `feed.ts`; the ICS route builds it from the
+  signed user + `users.role`. `fetchPinnedEventsFor`/`PinnedActor` were inlined back into
+  `fetchPinnedEvents` (their only other caller was the agenda route).
+- `eventEndDateInclusive` moved from the deleted `shape.ts` into `feedWindow.ts` (its only
+  consumer); the timed-midnight and half-day cases moved into `feedWindow.test.ts`.
+- **Android:** the feed is now documented and presented as the single native-widget path on
+  both platforms. The dialog's Android card (which said "don't subscribe; use the shared
+  Google Calendar") was replaced with real steps: copy the HTTPS URL, add it in Google
+  Calendar **on the web** (Other calendars → + → From URL), then use the Google Calendar
+  widget; Google's ~12–24 h refresh is stated as a lag, with subscription-capable third-party
+  apps (Samsung Calendar, Business Calendar, DigiCal, aCalendar) offered for faster refresh.
+  iOS steps and the `webcal://` Open-in-Calendar button stay.
+- **View filtering / selection:** the feed already resolves the signed view through the same
+  `resolveTabFilters` → `projectRangeEvents` → `resolveDisplayTitles` → `filterEventsByText`
+  chain as the dashboard, so its Cal/Users/Types/Event-name filters and title recipe match the
+  calendar page. The gap was the dialog defaulting to the first view: `CalendarFeedModal`
+  (renamed from `WidgetsModal`, menu item now "Calendar feed" with `IconCalendarShare`)
+  preselects the current `?view=` id when it exists, keeps the previous view across rotation,
+  and states the filter scope next to the View selector.
+- Schema change: `drizzle/0069_windy_warstar.sql` drops `widget_tokens`
+  (`DROP TABLE "widget_tokens" CASCADE;`) with the 0069 snapshot + journal. `feed_version` and
+  `widget_feed_cache` are untouched.
+
+**Verification.** `pnpm lint` clean. `pnpm test` 141 files / 1793 tests pass (agenda/token
+tests deleted; four `eventEndDateInclusive` cases added to `feedWindow.test.ts`).
+`pnpm typecheck` reports only the pre-existing Windows `EventFormSteps.tsx` /
+`eventFormSteps.ts` case-collision error (unrelated, documented in §1.367). `pnpm db:generate`
+produced only `0069_windy_warstar.sql`; a second run reported "No schema changes". Docs:
+`docs/calendar-feed.md` (rewritten), `docs/developer-guide.md` §1.12 row, `AGENTS.md`,
+`progress.md`. `APP_VERSION` → `2026.11.16-3`.

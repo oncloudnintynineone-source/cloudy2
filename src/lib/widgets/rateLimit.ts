@@ -1,9 +1,9 @@
 /**
- * Small fixed-window rate limiter for the widget API. Widgets refresh only
- * when the user taps their refresh button, so this is a burst guard against a
- * leaked URL, not a quota. Per-instance and best-effort by design: Cloud Run
- * may run several instances, and a shared counter is not worth a DB write on
- * every widget read.
+ * Small fixed-window rate limiter for the calendar-feed endpoint. Calendar apps
+ * poll the subscription on their own schedule (Apple roughly hourly, Google
+ * every ~12–24h), so this is a burst guard against a leaked URL, not a quota.
+ * Per-instance and best-effort by design: Cloud Run may run several instances,
+ * and a shared counter is not worth a DB write on every feed read.
  *
  * The window math is pure and clock-injected so it is unit-tested without
  * timers or a database.

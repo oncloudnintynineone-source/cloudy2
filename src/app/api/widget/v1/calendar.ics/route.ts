@@ -20,8 +20,8 @@ import { checkWidgetRateLimit } from "@/lib/widgets/rateLimit";
  * Calendar apps cannot send an Authorization header and store the subscription
  * URL, so the URL itself is the credential: an HMAC over
  * `(userId, feed_version, viewId)` keyed by `NEXTAUTH_SECRET`. Rotating the
- * feed link in Profile → Widgets increments the version and invalidates every
- * previously generated URL.
+ * feed link in Profile → Calendar feed increments the version and invalidates
+ * every previously generated URL.
  *
  * The rendered ICS body is cached per user+view (feedCache.ts) because a ±3
  * month feed is an eight-month read; calendar apps poll on their own schedule.
@@ -107,7 +107,7 @@ export async function GET(request: Request) {
   try {
     const origin = await appBaseUrl();
     const body = await buildCalendarFeedCached({
-      actor: { id: userId, name: "", role: row.role, phone: null },
+      actor: { id: userId, role: row.role },
       viewId,
       origin,
     });

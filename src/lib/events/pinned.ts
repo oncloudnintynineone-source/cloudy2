@@ -43,12 +43,6 @@ export async function invalidatePinnedCache(): Promise<void> {
   await invalidatePinnedSelectionCache();
 }
 
-/** The viewer a pinned read is scoped to (session user or widget token owner). */
-export interface PinnedActor {
-  id: string;
-  role: "admin" | "user";
-}
-
 /**
  * Upcoming explicitly-pinned events behind the Pinned Events panel AND the
  * header ticker. The selection itself comes from the durable singleton cache
@@ -58,16 +52,7 @@ export interface PinnedActor {
  */
 export async function fetchPinnedEvents(): Promise<PinnedEvent[]> {
   const session = await requireSession();
-  return fetchPinnedEventsFor({ id: session.user.id, role: session.user.role });
-}
-
-/**
- * The actor-scoped form of {@link fetchPinnedEvents}: the cookie-less widget
- * API resolves its user from a device token, so it cannot use the session
- * helper. Scoping (admin sees everything; a user sees global + ancestor pins)
- * is otherwise identical.
- */
-export async function fetchPinnedEventsFor(actor: PinnedActor): Promise<PinnedEvent[]> {
+  const actor = { id: session.user.id, role: session.user.role };
   const [selection, calendars, departmentId] = await Promise.all([
     readPinnedSelection(),
     listCalendars(),

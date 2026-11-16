@@ -460,6 +460,7 @@ In CI, the schema-drift check runs `pnpm db:generate` then fails on any diff to
 | [`loading-transitions.md`](loading-transitions.md) | Skeleton-only loading, fades, optimistic nav chrome |
 | [`desktop-responsive.md`](desktop-responsive.md) | The `lg` breakpoint, sidebar shell, tables/card-grids |
 | [`dashboard-views.md`](dashboard-views.md) | View inventory, filter menus, Week (D) matrix |
+| [`calendar-feed.md`](calendar-feed.md) | Signed ICS calendar subscription for the iOS/Android native widget |
 | [`grid-pan.md`](grid-pan.md) | Drag-to-pan + edge buttons for the wide grids |
 | [`immersive-mode.md`](immersive-mode.md) | Fullscreen calendar mode |
 | [`quick-links.md`](quick-links.md) | Admin-managed quick links |

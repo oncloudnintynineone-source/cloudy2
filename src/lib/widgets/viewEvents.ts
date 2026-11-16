@@ -1,11 +1,11 @@
 /**
- * Shared dashboard-view resolution for the widget surfaces (the JSON agenda
- * and the calendar feed). Both must agree on what a view means: its stored
- * filters resolved against live data, the department-membership map the Users
- * filter uses, and the title recipe assigned to its renderer kind.
+ * Shared dashboard-view resolution for the calendar-feed subscription. The feed
+ * must agree with the dashboard on what a view means: its stored filters
+ * resolved against live data, the department-membership map the Users filter
+ * uses, and the title recipe assigned to its renderer kind.
  *
- * Kept separate from `agenda.ts` so the ICS feed cannot drift from the JSON
- * endpoint (and vice versa).
+ * Kept separate from `feed.ts` so the ICS rendering stays easy to reason about
+ * while the view read/filtering reuses the dashboard's exact projection.
  */
 
 import {
@@ -47,9 +47,9 @@ export interface WidgetViewConfig {
 }
 
 /**
- * Resolve a widget actor + view selector (id or legacy kind string) into
+ * Resolve a feed actor + view selector (id or legacy kind string) into
  * everything a range read needs. The reads are the same cached config queries
- * the dashboard uses, so a feed/agenda request reuses their 60s TTLs.
+ * the dashboard uses, so a feed request reuses their 60s TTLs.
  */
 export async function resolveWidgetView(
   actor: { id: string; role: "admin" | "user" },
@@ -125,8 +125,8 @@ export async function resolveWidgetView(
 
 /**
  * Read `months` through the layered events cache and apply the view's filters,
- * title recipe and event-name text filter. No window shaping — the agenda and
- * the feed apply their own windows after this.
+ * title recipe and event-name text filter. No window shaping — the feed applies
+ * its own ±3-month window after this.
  */
 export async function readWidgetViewEvents(
   config: WidgetViewConfig,

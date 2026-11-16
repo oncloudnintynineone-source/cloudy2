@@ -23,8 +23,7 @@ import { db } from "@/db";
 import { widgetFeedCache } from "@/db/schema";
 import { readCacheEpoch } from "@/lib/google/eventsCache";
 
-import type { WidgetActor } from "./auth";
-import { buildCalendarFeed } from "./feed";
+import { buildCalendarFeed, type WidgetActor } from "./feed";
 
 /** How long a rendered feed body is considered fresh. */
 export const WIDGET_FEED_CACHE_TTL_MS = 15 * 60_000;

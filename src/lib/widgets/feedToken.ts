@@ -3,10 +3,10 @@
  *
  * Calendar apps cannot set an `Authorization` header, and a feed URL is
  * subscribed once and then stored by the calendar app, so it must be a bearer
- * credential. Unlike `widget_tokens`, the feed URL is **derived** rather than
- * stored: an HMAC over `(userId, feedVersion, viewId)` keyed by
- * `NEXTAUTH_SECRET` (domain-separated). That lets the Profile → Widgets dialog
- * re-display the current URL at any time.
+ * credential. The feed URL is **derived**, not stored: an HMAC over
+ * `(userId, feedVersion, viewId)` keyed by `NEXTAUTH_SECRET`
+ * (domain-separated). That lets the Profile → Calendar feed dialog re-display
+ * the current URL at any time.
  *
  * Revocation is the per-user `user_preferences.feed_version` counter: rotating
  * the link increments it, so every previously generated URL fails. Rotating

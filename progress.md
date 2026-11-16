@@ -2402,6 +2402,11 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
 - 1.372 Signed ICS calendar feed for the native iOS Calendar widget (±3 months,
   per-view filters, durable feed cache); Android uses the directly shared Google
   Calendar. Docs: `docs/calendar-feed.md`.
+- 1.373 Calendar feed only: removed the HTTP JSON widget API (agenda endpoint,
+  `widget_tokens`, KWGT recipe) and the Android "use the shared Google Calendar"
+  workaround; the signed ICS feed is the single native-widget path for iOS + Android,
+  keeps the chosen view's filters/title recipe, and the dialog preselects the calendar's
+  active view. Migration `0069_*` drops `widget_tokens`. Docs: `docs/calendar-feed.md`.
 
 ## 1.4 Open items & next steps
 
