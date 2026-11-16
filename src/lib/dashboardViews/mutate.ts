@@ -14,6 +14,7 @@ import { ensureDefaultDashboardView, toDashboardViewTab } from "./queries";
 import {
   MAX_VIEWS_PER_USER,
   type DashboardTabFilters,
+  type DashboardViewCreation,
   type DashboardViewKind,
   type DashboardViewTab,
 } from "./views";
@@ -22,6 +23,8 @@ export interface AppendDashboardViewInput {
   kind: DashboardViewKind;
   name: string;
   filters?: DashboardTabFilters;
+  /** Provenance of the new row (defaults to `manual`; share imports pass `shared`). */
+  createdVia?: DashboardViewCreation;
 }
 
 export type AppendDashboardViewResult =
@@ -59,6 +62,7 @@ export async function appendDashboardView(
       usersFilter: filters.users,
       typesFilter: filters.types,
       textFilter: filters.text,
+      createdVia: input.createdVia ?? "manual",
     })
     .returning();
   return { ok: true, id: created.id, tab: toDashboardViewTab(created) };

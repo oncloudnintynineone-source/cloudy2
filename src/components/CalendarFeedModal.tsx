@@ -171,6 +171,10 @@ export function CalendarFeedModal({ opened, onClose }: CalendarFeedModalProps) {
           Subscribe once to a read-only feed of one of your calendar views. The native calendar
           widget on iPhone, iPad or Android then shows it — no app or token setup.
         </Text>
+        <Text size="xs" c="dimmed">
+          Only views you created yourself appear here; views added from a share link are not
+          available as feeds.
+        </Text>
 
         <Group justify="space-between" align="center" wrap="nowrap">
           <Group gap={6}>
@@ -207,7 +211,8 @@ export function CalendarFeedModal({ opened, onClose }: CalendarFeedModalProps) {
           </Group>
         ) : feedLinks.length === 0 ? (
           <Text size="sm" c="dimmed">
-            No dashboard views available.
+            You haven&apos;t created a calendar view yet. Create one on the Calendar page, then
+            come back here.
           </Text>
         ) : (
           <>
@@ -222,6 +227,11 @@ export function CalendarFeedModal({ opened, onClose }: CalendarFeedModalProps) {
               value={feedViewId || null}
               onChange={(value) => setFeedViewId(value ?? "")}
             />
+            {selectedFeed && (
+              <Text size="xs" c="dimmed">
+                Filtered to: {selectedFeed.filterSummary}
+              </Text>
+            )}
             {selectedFeed && (
               <>
                 <Code block style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>

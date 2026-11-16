@@ -67,8 +67,21 @@ describe("buildCalendarFeedIcs", () => {
     expect(ics).toContain("X-WR-CALNAME:Cloudy2 · Agenda");
     expect(ics).toContain("X-WR-TIMEZONE:Asia/Singapore");
     expect(ics).toContain("REFRESH-INTERVAL;VALUE=DURATION:PT15M");
+    expect(ics).not.toContain("X-WR-CALDESC");
     expect(ics.endsWith("END:VCALENDAR\r\n")).toBe(true);
     expect(ics).not.toContain("BEGIN:VEVENT");
+  });
+
+  it("emits the escaped filter summary as X-WR-CALDESC", () => {
+    const ics = buildCalendarFeedIcs({
+      calendarName: "Cloudy2 · Duty only",
+      calendarDescription: "Filters: 2 users, 1 type\nOps only",
+      events: [],
+      viewId: VIEW,
+      origin: ORIGIN,
+      now: NOW,
+    });
+    expect(ics).toContain("X-WR-CALDESC:Filters: 2 users\\, 1 type\\nOps only");
   });
 
   it("emits UTC datetimes for a timed event and a dashboard URL", () => {

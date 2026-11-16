@@ -8,15 +8,23 @@ import { appBaseUrl } from "@/lib/appUrl";
 import { AUDIT_ACTIONS, actorFromUser } from "@/lib/audit/build";
 import { logAction } from "@/lib/audit/log";
 import { getDashboardViews } from "@/lib/dashboardViews/queries";
+import { filterFeedEligibleViews, type DashboardViewTab } from "@/lib/dashboardViews/views";
 import { requireSession } from "@/lib/session";
 import { isUuid } from "@/lib/uuid";
 
 import { feedTokenSecret, signFeedUrl } from "./feedToken";
+import {
+  loadWidgetFilterContext,
+  summarizeTabFilters,
+  type WidgetFilterContext,
+} from "./viewEvents";
 
 export interface WidgetFeedLink {
   viewId: string;
   viewName: string;
   kind: string;
+  /** The view's effective Cal/Users/Types/Event-name scope, for the dialog. */
+  filterSummary: string;
   /** HTTPS subscription URL for the calendar app. */
   icsUrl: string;
   /** `webcal://` form for an iOS one-tap subscription. */
@@ -41,7 +49,8 @@ function buildFeedLinks(params: {
   version: number;
   origin: string;
   secret: string;
-  tabs: readonly { id: string; name: string; kind: string }[];
+  tabs: readonly DashboardViewTab[];
+  context: WidgetFilterContext;
 }): WidgetFeedLink[] {
   return params.tabs.flatMap((tab) => {
     const icsUrl = signFeedUrl({
@@ -59,6 +68,7 @@ function buildFeedLinks(params: {
         viewId: tab.id,
         viewName: tab.name,
         kind: tab.kind,
+        filterSummary: summarizeTabFilters(tab, params.context),
         icsUrl,
         webcalUrl: icsUrl.replace(/^https?:\/\//, "webcal://"),
       },
@@ -67,10 +77,10 @@ function buildFeedLinks(params: {
 }
 
 /**
- * The current signed feed URLs, one per dashboard view, so the dialog can show
- * and copy the subscription URL for the view the user chooses. Unlike a
- * show-once secret, the URL is derived from a per-user version counter, so it
- * can be displayed again at any time.
+ * The current signed feed URLs, one per **self-created** dashboard view (share
+ * imports are excluded), so the dialog can show and copy the subscription URL
+ * for the view the user chooses. Unlike a show-once secret, the URL is derived
+ * from a per-user version counter, so it can be displayed again at any time.
  */
 export async function getWidgetFeedLinks(): Promise<WidgetFeedLinksResult> {
   const session = await requireSession();
@@ -82,15 +92,23 @@ export async function getWidgetFeedLinks(): Promise<WidgetFeedLinksResult> {
   if (!secret) {
     return { ok: false, error: "Calendar feeds are not configured" };
   }
-  const [tabs, version, origin] = await Promise.all([
+  const [storedTabs, version, origin, context] = await Promise.all([
     getDashboardViews(userId),
     readFeedVersion(userId),
     appBaseUrl(),
+    loadWidgetFilterContext({ id: userId, role: session.user.role }),
   ]);
   return {
     ok: true,
     version,
-    links: buildFeedLinks({ userId, version, origin, secret, tabs }),
+    links: buildFeedLinks({
+      userId,
+      version,
+      origin,
+      secret,
+      tabs: filterFeedEligibleViews(storedTabs),
+      context,
+    }),
   };
 }
 
@@ -137,10 +155,21 @@ export async function rotateWidgetFeedLink(): Promise<WidgetFeedLinksResult> {
     details: { feedVersion: version },
   });
 
-  const [tabs, origin] = await Promise.all([getDashboardViews(userId), appBaseUrl()]);
+  const [storedTabs, origin, context] = await Promise.all([
+    getDashboardViews(userId),
+    appBaseUrl(),
+    loadWidgetFilterContext({ id: userId, role: session.user.role }),
+  ]);
   return {
     ok: true,
     version,
-    links: buildFeedLinks({ userId, version, origin, secret, tabs }),
+    links: buildFeedLinks({
+      userId,
+      version,
+      origin,
+      secret,
+      tabs: filterFeedEligibleViews(storedTabs),
+      context,
+    }),
   };
 }

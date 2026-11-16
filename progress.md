@@ -2405,8 +2405,11 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
 - 1.373 Calendar feed only: removed the HTTP JSON widget API (agenda endpoint,
   `widget_tokens`, KWGT recipe) and the Android "use the shared Google Calendar"
   workaround; the signed ICS feed is the single native-widget path for iOS + Android,
-  keeps the chosen view's filters/title recipe, and the dialog preselects the calendar's
-  active view. Migration `0069_*` drops `widget_tokens`. Docs: `docs/calendar-feed.md`.
+  keeps the chosen view's filters/title recipe (now shown in the dialog and the ICS
+  `X-WR-CALDESC`), and the dialog preselects the calendar's active view. Feed-eligible
+  views are limited to the account's own creations — share imports are recorded
+  `created_via = 'shared'` and excluded. Migrations `0069_*` (drop `widget_tokens`) and
+  `0070_*` (`user_dashboard_views.created_via`). Docs: `docs/calendar-feed.md`.
 
 ## 1.4 Open items & next steps
 

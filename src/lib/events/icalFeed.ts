@@ -27,6 +27,8 @@ export const MAX_CALENDAR_FEED_EVENTS = 2_000;
 export interface CalendarFeedInput {
   /** Calendar display name (rendered title of the feed). */
   calendarName: string;
+  /** Optional calendar description (the view's effective filter summary). */
+  calendarDescription?: string;
   events: readonly CalendarEvent[];
   /** Dashboard view id carried by event deep links. */
   viewId: string;
@@ -54,10 +56,18 @@ export function buildCalendarFeedIcs(input: CalendarFeedInput): string {
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
     `X-WR-CALNAME:${escapeIcsText(input.calendarName)}`,
+  ];
+
+  const description = input.calendarDescription?.trim();
+  if (description) {
+    lines.push(`X-WR-CALDESC:${escapeIcsText(description)}`);
+  }
+
+  lines.push(
     "X-WR-TIMEZONE:Asia/Singapore",
     "REFRESH-INTERVAL;VALUE=DURATION:PT15M",
     "X-PUBLISHED-TTL:PT15M",
-  ];
+  );
 
   const seen = new Set<string>();
   for (const event of input.events) {

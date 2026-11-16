@@ -43,6 +43,7 @@ export async function buildCalendarFeed(params: {
   const calendarName = `Cloudy2 · ${config.tab.name}`;
   const body = buildCalendarFeedIcs({
     calendarName,
+    calendarDescription: `Filters: ${config.filterSummary}`,
     events: inWindow,
     viewId: config.tab.id,
     origin: params.origin,

@@ -1273,8 +1273,14 @@ flowchart LR
   D -->|signed in| F["/dashboard?share=…"]
   E --> F
   F --> G["ShareImportDialog"]
-  G -->|Add view| H["appendDashboardView copy"]
+  G -->|Add view| H["appendDashboardView copy<br/>(created_via = 'shared')"]
 ```
+
+- **Imported copies are normal tabs for the recipient** except for one rule: the
+  row is recorded with `created_via = 'shared'`, which makes it **ineligible for
+  the calendar feed** (the feed only offers the account's own manually created
+  views — [calendar-feed.md](calendar-feed.md) §1.4). Rows imported before that
+  column existed keep the `manual` default and cannot be distinguished.
 
 - **Payload.** `{ v: 1, n: name, k: kind, c: calendarIds, u: userIds,
   t: eventTypeNames, b: sharerName }`. The owner's effective filters are

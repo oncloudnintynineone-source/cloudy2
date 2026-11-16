@@ -4,6 +4,7 @@ import {
   DASHBOARD_TEXT_FILTER_MAX_LENGTH,
   DASHBOARD_VIEW_KINDS,
   DASHBOARD_VIEW_KIND_LABELS,
+  filterFeedEligibleViews,
   isDashboardViewKind,
   nameAfterKindChange,
   normalizeFilterOverride,
@@ -243,5 +244,38 @@ describe("resolveTabFilters", () => {
         context,
       ).text,
     ).toBe("night duty");
+  });
+});
+
+describe("filterFeedEligibleViews", () => {
+  it("drops share imports and keeps self-created / legacy rows", () => {
+    const manual: DashboardViewTab = {
+      id: "v1",
+      kind: "month",
+      name: "Mine",
+      sortOrder: 0,
+      filters: { cal: null, users: null, types: null, text: null },
+      createdVia: "manual",
+    };
+    const shared: DashboardViewTab = {
+      id: "v2",
+      kind: "month",
+      name: "Someone else's",
+      sortOrder: 1,
+      filters: { cal: null, users: null, types: null, text: null },
+      createdVia: "shared",
+    };
+    const legacy: DashboardViewTab = {
+      id: "v3",
+      kind: "agenda",
+      name: "Legacy (no provenance)",
+      sortOrder: 2,
+      filters: { cal: null, users: null, types: null, text: null },
+    };
+
+    expect(filterFeedEligibleViews([manual, shared, legacy]).map((tab) => tab.id)).toEqual([
+      "v1",
+      "v3",
+    ]);
   });
 });

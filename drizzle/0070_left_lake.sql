@@ -1,0 +1,1 @@
+ALTER TABLE "user_dashboard_views" ADD COLUMN "created_via" text DEFAULT 'manual' NOT NULL;

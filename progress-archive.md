@@ -10258,21 +10258,46 @@ iOS, and ensure its content follows the view chosen on the calendar page.
   widget; Google's ~12–24 h refresh is stated as a lag, with subscription-capable third-party
   apps (Samsung Calendar, Business Calendar, DigiCal, aCalendar) offered for faster refresh.
   iOS steps and the `webcal://` Open-in-Calendar button stay.
-- **View filtering / selection:** the feed already resolves the signed view through the same
+- **View filtering / selection:** the feed resolves the signed view through the same
   `resolveTabFilters` → `projectRangeEvents` → `resolveDisplayTitles` → `filterEventsByText`
   chain as the dashboard, so its Cal/Users/Types/Event-name filters and title recipe match the
-  calendar page. The gap was the dialog defaulting to the first view: `CalendarFeedModal`
-  (renamed from `WidgetsModal`, menu item now "Calendar feed" with `IconCalendarShare`)
-  preselects the current `?view=` id when it exists, keeps the previous view across rotation,
-  and states the filter scope next to the View selector.
-- Schema change: `drizzle/0069_windy_warstar.sql` drops `widget_tokens`
-  (`DROP TABLE "widget_tokens" CASCADE;`) with the 0069 snapshot + journal. `feed_version` and
+  calendar page. `CalendarFeedModal` (renamed from `WidgetsModal`, menu item now "Calendar
+  feed" with `IconCalendarShare`) preselects the current `?view=` id when it exists, keeps the
+  previous view across rotation, and states the filter scope next to the View selector. To
+  make that guarantee explicit:
+  - `readWidgetViewEvents` was split into the DB read + a pure
+    `projectWidgetViewEvents(rangeData, config)`; `viewEvents.test.ts` mocks the config
+    reads and proves a Month view storing `users: [u1]` / `types: ["Duty"]` / `cal: [Ops]`
+    yields only Ops/Duty/u1 events (plus the department-membership match) and that the
+    text filter runs last.
+  - `loadWidgetFilterContext` + pure `summarizeTabFilters` produce an **effective filter
+    summary** (`1/4 calendars · 2 users · 1 type · Name “parade”`) for each link;
+    `WidgetFeedLink.filterSummary` renders in the modal, and the feed writes it as
+    `X-WR-CALDESC` (`Filters: …`).
+  - The ICS response now sends `Cache-Control: private, max-age=0, must-revalidate` so a
+    filter edit is picked up on the calendar app's next poll (the durable
+    `widget_feed_cache` still absorbs the cost).
+- **Self-created views only:** `user_dashboard_views` gains
+  `created_via text default 'manual'` (`manual | shared`); `appendDashboardView` takes an
+  optional provenance and `addSharedDashboardView` writes `shared`. `toDashboardViewTab`
+  maps it, `filterFeedEligibleViews` drops shared rows, `getWidgetFeedLinks` /
+  `rotateWidgetFeedLink` only sign manual views, and the ICS route 401s a signed URL whose
+  view is `shared` (so URLs generated before the rule stop working). The dialog explains the
+  restriction and shows a "create a view first" empty state. Dashboard sharing/importing is
+  otherwise unchanged. *Limitation:* rows imported before this migration have no provenance
+  and stay `manual` (undetectable).
+- Schema changes: `drizzle/0069_windy_warstar.sql` drops `widget_tokens`
+  (`DROP TABLE "widget_tokens" CASCADE;`) with the 0069 snapshot + journal;
+  `drizzle/0070_left_lake.sql` adds `user_dashboard_views.created_via`. `feed_version` and
   `widget_feed_cache` are untouched.
 
-**Verification.** `pnpm lint` clean. `pnpm test` 141 files / 1793 tests pass (agenda/token
-tests deleted; four `eventEndDateInclusive` cases added to `feedWindow.test.ts`).
-`pnpm typecheck` reports only the pre-existing Windows `EventFormSteps.tsx` /
-`eventFormSteps.ts` case-collision error (unrelated, documented in §1.367). `pnpm db:generate`
-produced only `0069_windy_warstar.sql`; a second run reported "No schema changes". Docs:
-`docs/calendar-feed.md` (rewritten), `docs/developer-guide.md` §1.12 row, `AGENTS.md`,
-`progress.md`. `APP_VERSION` → `2026.11.16-3`.
+**Verification.** `pnpm lint` clean. `pnpm test` 142 files / 1798 tests pass (agenda/token
+tests deleted; four `eventEndDateInclusive` cases added to `feedWindow.test.ts`; new
+`viewEvents.test.ts` filter-projection cases, `filterFeedEligibleViews`, and the
+`X-WR-CALDESC` case). `pnpm typecheck` reports only the pre-existing Windows
+`EventFormSteps.tsx` / `eventFormSteps.ts` case-collision error (unrelated, documented in
+§1.367). `pnpm db:generate` produced `0069_windy_warstar.sql` and
+`0070_left_lake.sql`; a second run reported "No schema changes". Docs:
+`docs/calendar-feed.md` (rewritten), `docs/dashboard-views.md` §1.10,
+`docs/developer-guide.md` §1.12 row, `AGENTS.md`, `progress.md`.
+`APP_VERSION` → `2026.11.16-4`.

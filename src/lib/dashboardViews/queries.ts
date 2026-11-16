@@ -64,6 +64,8 @@ export function toDashboardViewTab(row: UserDashboardView): DashboardViewTab {
       types: normalizeFilterOverride(row.typesFilter),
       text: normalizeTextFilter(row.textFilter),
     },
+    // Only rows explicitly flagged as share imports are feed-ineligible.
+    createdVia: row.createdVia === "shared" ? "shared" : "manual",
   };
 }
 

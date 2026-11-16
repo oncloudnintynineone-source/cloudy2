@@ -138,7 +138,9 @@ export const userCalendarAccess = pgTable(
  * NULL. Values are re-validated against live data on every dashboard read
  * (stale ids drop out), exactly like the URL params they replaced.
  * `textFilter` is a case-insensitive event-name substring (raw typed name or
- * rendered title); NULL/blank means no text filter.
+ * rendered title); NULL/blank means no text filter. `createdVia` records whether
+ * the row was added manually or imported from a share link (the calendar feed
+ * only offers `manual` rows).
  */
 export const userDashboardViews = pgTable(
   "user_dashboard_views",
@@ -155,6 +157,12 @@ export const userDashboardViews = pgTable(
     typesFilter: jsonb("types_filter"),
     /** Case-insensitive event-name substring; NULL = no text filter. */
     textFilter: text("text_filter"),
+    /**
+     * How the row was created: `manual` (added by this account on the Calendar
+     * page) or `shared` (imported from another account's share link). The
+     * calendar feed only offers manually created views (docs/calendar-feed.md).
+     */
+    createdVia: text("created_via").notNull().default("manual"),
     ...timestamps,
   },
   (table) => [index("user_dashboard_views_user_sort_idx").on(table.userId, table.sortOrder)],

@@ -27,7 +27,7 @@ calendar apps and their widgets on both platforms:
 
 - no token pasting or per-device setup on the phone;
 - the same view filters and rendered titles as the app;
-- one subscription URL per dashboard view.
+- one subscription URL per self-created dashboard view.
 
 The trade-offs are explicit: the calendar app decides when to refresh, the feed has no
 KAH/double-booking badges, and a subscription URL is a credential.
@@ -55,23 +55,35 @@ sig = base64url(HMAC-SHA256(NEXTAUTH_SECRET, "cloudy2:widget-feed:v1:<userId>:<f
 - Query: `u`, `v`, `view`, `sig` (all required; `view` is a dashboard view UUID).
 - Success: `200 text/calendar; charset=utf-8`,
   `Content-Disposition: inline; filename="cloudy2.ics"`,
-  `Cache-Control: private, max-age=900`.
-- Invalid/rotated/inactive: `401`; rate-limited: `429` + `Retry-After`; build
-  failure: `500`. No CORS headers; `/api/` is already excluded from the PWA
+  `Cache-Control: private, max-age=0, must-revalidate` (the durable server cache
+  does the expensive work, so the client may revalidate on every poll).
+- Invalid/rotated/inactive/imported-view: `401`; rate-limited: `429` + `Retry-After`;
+  build failure: `500`. No CORS headers; `/api/` is already excluded from the PWA
   service-worker caches.
 - Rate limit: the shared in-memory limiter keyed by `feed:<userId>`
   (60/min — calendar polling is infrequent).
 
 ## 1.4 View semantics and window
 
+- **Only views the account created itself are feed-eligible.** The dialog and the
+  signed URLs list only `user_dashboard_views` rows with
+  `created_via = 'manual'`; a view imported from another account's share link
+  (`created_via = 'shared'`) is never offered, and a signed URL for one returns
+  `401` (so URLs generated before this rule stop working). The row's provenance
+  is recorded at import time in `addSharedDashboardView`.
+  - *Limitation:* rows imported before the `created_via` column existed are
+    indistinguishable and keep the `manual` default; only imports made after the
+    0070 migration are excluded. Dashboard sharing/importing is otherwise unchanged.
 - `view` selects a stored dashboard view; its **Cal/Users/Types/Event-name
   filters** and its **title recipe** apply, exactly like the dashboard. The
   resolution is the same chain the calendar page uses (`resolveTabFilters` → `projectRangeEvents`
   → `resolveDisplayTitles` → `filterEventsByText`): `null` filter = the role default,
   stale ids fall back to the default, an explicit empty selection stays empty.
 - Profile → Calendar feed opens on the **view currently active on the calendar page**
-  (`?view=`) and lists one signed URL per view. Because the URL is bound to the view id,
-  editing a view's filters/title later changes the feed in place — no re-subscribe.
+  (`?view=`) and shows the selected view's **effective filter summary** (e.g.
+  `1/4 calendars · 2 users · 1 type · Name “parade”`) before the URL is copied.
+  Because the URL is bound to the view id, editing a view's filters/title later
+  changes the feed in place — no re-subscribe.
 - The feed covers **±3 months**: first day of month−3 through the last day of
   month+3. The read set adds month−4 so a multi-day event that started earlier
   still appears as ongoing.
@@ -83,8 +95,9 @@ sig = base64url(HMAC-SHA256(NEXTAUTH_SECRET, "cloudy2:widget-feed:v1:<userId>:<f
 ## 1.5 ICS shape
 
 - Calendar: `VERSION:2.0`, `PRODID`, `CALSCALE:GREGORIAN`, `METHOD:PUBLISH`,
-  `X-WR-CALNAME:Cloudy2 · <view>`, `X-WR-TIMEZONE:Asia/Singapore`,
-  `REFRESH-INTERVAL;VALUE=DURATION:PT15M`, `X-PUBLISHED-TTL:PT15M`.
+  `X-WR-CALNAME:Cloudy2 · <view>`, `X-WR-CALDESC:Filters: <effective filter summary>`,
+  `X-WR-TIMEZONE:Asia/Singapore`, `REFRESH-INTERVAL;VALUE=DURATION:PT15M`,
+  `X-PUBLISHED-TTL:PT15M`.
 - One `VEVENT` per event:
   - `UID:<eventId ?? copyId>@cloudy2` (stable group id)
   - `DTSTAMP` = build time (UTC)
@@ -117,7 +130,9 @@ flowchart LR
   rebuilds blocking.
 - Event mutations bump the events-cache epoch, so the next feed read rebuilds.
   Dashboard-view name/kind/filter/delete edits invalidate the user's cache rows.
-- The response also sets `Cache-Control: private, max-age=900`.
+- The response also sets `Cache-Control: private, max-age=0, must-revalidate` so a
+  filter edit is picked up on the calendar app's next fetch; the durable cache above
+  keeps the read cost independent of that header.
 - **Refresh cadence is the calendar app's choice.** Apple Calendar checks
   roughly hourly (configurable every 15 minutes/hourly/daily). Google Calendar
   refreshes subscribed ICS feeds only every ~12–24 hours and has no manual
@@ -173,11 +188,13 @@ avoid duplicate copies of the same event.
 | `src/components/CalendarFeedModal.tsx` | Profile → Calendar feed UI (iOS + Android). |
 | `src/lib/events/icalFeed.ts` | Multi-event ICS rendering. |
 | `src/lib/events/calendarExport.ts` | Shared escaping/folding/date primitives. |
-| `src/db/schema.ts` | `widget_feed_cache` + `user_preferences.feed_version`. |
+| `src/db/schema.ts` | `widget_feed_cache`, `user_preferences.feed_version`, `user_dashboard_views.created_via`. |
 | `drizzle/0069_windy_warstar.sql` | Drops `widget_tokens` (removed HTTP widget API). |
+| `drizzle/0070_left_lake.sql` | Adds `user_dashboard_views.created_via` (feed eligibility provenance). |
 | `src/lib/widgets/feedToken.test.ts` | Signing, tampering, version/view binding. |
 | `src/lib/widgets/feedWindow.test.ts` | Window math, inclusive end dates, edge inclusion. |
 | `src/lib/widgets/feedCache.test.ts` | TTL/epoch freshness. |
-| `src/lib/events/icalFeed.test.ts` | ICS shape, dedupe, escaping, folding. |
+| `src/lib/widgets/viewEvents.test.ts` | View filters → feed projection (Cal/Users/Types/Text) + filter summary. |
+| `src/lib/events/icalFeed.test.ts` | ICS shape, dedupe, escaping, folding, `X-WR-CALDESC`. |
 
 The former `docs/widgets.md` (KWGT JSON agenda) was removed with the HTTP widget API.

@@ -357,10 +357,14 @@ doc content here.
   (deduped by group id; its Cal/Users/Types/Event-name filters + title recipe resolved
   exactly like the dashboard) rendered from a durable per-user+view `widget_feed_cache`
   (15-min TTL, stale-while-revalidate in `after()`, events-cache-epoch invalidation; view
-  edits drop the user's rows). The dialog preselects the view currently active on the
-  calendar page and documents both platforms (Apple Calendar; Android via Google Calendar
-  web "From URL" or a subscription-capable third-party app). The HTTP JSON widget API
-  (KWGT tokens/agenda) was removed. Design: [docs/calendar-feed.md](docs/calendar-feed.md).
+  edits drop the user's rows). **Only views the account created itself are feed-eligible**:
+  share imports are stored with `user_dashboard_views.created_via = 'shared'`, excluded from
+  the dialog/URLs, and rejected by the endpoint (401). The dialog preselects the view
+  currently active on the calendar page, shows its **effective filter summary**, and the ICS
+  repeats it in `X-WR-CALDESC`; both platforms are documented (Apple Calendar; Android via
+  Google Calendar web "From URL" or a subscription-capable third-party app). The HTTP JSON
+  widget API (KWGT tokens/agenda) was removed. Design:
+  [docs/calendar-feed.md](docs/calendar-feed.md).
 - **KAH constraints are notify-only.** After every successful create/update (never delete),
   `dispatchKahBreachCheck()` (`src/lib/kah/notify.ts`) runs inside `after()` — best-effort,
   it can never fail or delay the mutation. The KAH Status nav entry carries an amber

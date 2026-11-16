@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { userPreferences, users } from "@/db/schema";
 import { API_NO_STORE } from "@/lib/api/server";
 import { appBaseUrl } from "@/lib/appUrl";
+import { getDashboardViews } from "@/lib/dashboardViews/queries";
 import { isUuid } from "@/lib/uuid";
 import { buildCalendarFeedCached } from "@/lib/widgets/feedCache";
 import {
@@ -32,7 +33,9 @@ export const runtime = "nodejs";
 const ICS_HEADERS = {
   "Content-Type": "text/calendar; charset=utf-8",
   "Content-Disposition": 'inline; filename="cloudy2.ics"',
-  "Cache-Control": "private, max-age=900",
+  // Revalidate on every poll (the server-side widget_feed_cache does the costly
+  // part) so a view's filter edit shows up on the calendar app's next fetch.
+  "Cache-Control": "private, max-age=0, must-revalidate",
   "X-Robots-Tag": "noindex, nofollow",
 } as const;
 
@@ -101,6 +104,22 @@ export async function GET(request: Request) {
   }
 
   if (!row || row.status !== "active" || (row.feedVersion ?? 0) !== version) {
+    return unauthorized();
+  }
+
+  // Only views the account created itself can be subscribed. Share imports are
+  // ineligible (the dialog never signs them) and any URL generated before that
+  // rule existed must stop working. A missing view id keeps the documented
+  // deleted-view fallback to the user's first tab.
+  let createdVia: "manual" | "shared" | undefined;
+  try {
+    const tabs = await getDashboardViews(userId);
+    createdVia = tabs.find((tab) => tab.id === viewId)?.createdVia;
+  } catch (error) {
+    console.error("[widgets] Calendar feed view lookup failed", error);
+    return serverError();
+  }
+  if (createdVia === "shared") {
     return unauthorized();
   }
 
