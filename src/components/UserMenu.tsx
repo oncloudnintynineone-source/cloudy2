@@ -168,6 +168,7 @@ export function UserMenu({ name, role, phone }: UserMenuProps) {
             </Menu.Item>
           ))}
           <Menu.Divider />
+          <Menu.Label>Settings</Menu.Label>
           <Menu.Item
             leftSection={<IconCalendarPlus size={16} />}
             onClick={() => setAccessOpen(true)}
@@ -186,6 +187,7 @@ export function UserMenu({ name, role, phone }: UserMenuProps) {
           >
             Preferences
           </Menu.Item>
+          <Menu.Divider />
           <Menu.Item leftSection={<IconLogout size={16} />} onClick={() => void handleLogout()}>
             Log out
           </Menu.Item>
