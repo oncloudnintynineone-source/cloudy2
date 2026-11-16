@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.370 (event-type rename migration)** is shipped.
+- All work through changelog **1.371 (read-only widget API)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -2396,6 +2396,9 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   Google summary with `events.patch`, leaving times/location/reminders intact. Saved tab
   filters are rewritten on finalize; audit rows (`eventType.migrate`) record the range and
   counts. No schema change. Docs: `docs/event-lifecycle.md` §1.10.1.
+- 1.371 Read-only widget API + Profile → Widgets: per-device `widget_tokens`, a
+  view-bound forward agenda at `GET /api/widget/v1/agenda`, and a manual-refresh
+  KWGT Flow recipe. Docs: `docs/widgets.md`.
 
 ## 1.4 Open items & next steps
 

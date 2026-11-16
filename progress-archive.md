@@ -10134,3 +10134,60 @@ the old name. No event webhooks, push notifications, or KAH dispatches fire.
 `pnpm build`; new migration unit tests cover range/year clipping, notes rewrites across
 all three stored formats, filter rewriting, cursor validation and page-batch selection.
 `APP_VERSION` → `2026.11.12-1`.
+
+
+## 1.371 Read-only widget API (KWGT)
+
+Users asked for Android/iOS home-screen widgets. A PWA cannot register a native widget, so
+the app now exposes a credentialled read-only JSON agenda that widget apps (KWGT first;
+Scriptable/Widgy later) can consume.
+
+**Design.**
+
+- New `widget_tokens` table: one row per device (`user_id`, `label`, `token_hash`,
+  `token_prefix`, `last_used_at`, `revoked_at`, timestamps; unique hash index). Plaintext
+  is `c2w_` + 32 random bytes base64url, shown once in Profile → Widgets; only the
+  SHA-256 hash is stored. Tokens never expire by policy, are revocable individually (row
+  kept for the audit trail), cap at 10 active per user, cascade with the user, and every
+  request re-checks `users.status = 'active'`.
+- `src/lib/widgets/auth.ts` accepts `Authorization: Bearer` first and `?token=` second
+  (KWGT's `wg()`/Flow WebGet cannot set headers), returns the same 401 for malformed /
+  revoked / inactive-owner tokens, throttles `last_used_at` writes to once per five
+  minutes, and applies a lenient in-memory per-token burst limiter (60/min; page 429 with
+  `Retry-After`). No CORS headers are sent.
+- `GET /api/widget/v1/agenda` is built from **one chosen dashboard view**. `?view=`
+  accepts a view UUID or a kind string (`agenda`, `month`, `dual`, `week`, `weekv2`,
+  `weekgrid`, `schedule`; `resolveActiveTab` resolves the first tab of that kind, missing
+  = first tab). The read uses the view's filters and title recipe but always renders a
+  **forward agenda** (today through today + `days` - 1, default 7, clamp 1–14). It does
+  not reuse `buildDashboardData` because that reads the view-grid months and can miss the
+  tail of a forward window across a month boundary. The previous month is included so
+  ongoing multi-day events and early-morning SGT events stored under the prior UTC month
+  still appear.
+- `src/lib/widgets/shape.ts` is the pure projection: inclusive end-date handling for
+  all-day/full/half/day events, ongoing detection, `Today`/`Tomorrow`/weekday labels,
+  time labels, absolute dashboard deep links, and a `flat` scalar alias map (`nextTitle`,
+  `nextWhen`, `updatedLabel`, `e1Title` … `e6Title`, `pinnedNextTitle`, links) because
+  KWGT's JSONPath array handling is fragile.
+- Pinned count/next reuse a new actor-scoped `fetchPinnedEventsFor({ id, role })` in
+  `src/lib/events/pinned.ts` (the session `fetchPinnedEvents()` delegates to it), so the
+  token path has the same admin/department scoping as the header panel and no session
+  dependency.
+- Profile → Widgets (`WidgetsModal`) lists active tokens (label, prefix, last use),
+  creates/revokes them, and — immediately after creation — shows the plaintext once plus
+  a copyable agenda URL per dashboard view and the KWGT Flow recipe. Token creation and
+  revocation are audited (`widgetToken.create` / `widgetToken.revoke`, label/id/prefix
+  only, never the secret).
+- Manual refresh only: inline `$wg(url)$` re-fetches on every redraw, so the documented
+  recipe is a Kustom Flow (manual trigger → WebGet → store the downloaded JSON **file
+  path** in a text global) with the token held in a Kustom secret global; text items read
+  `$wg(gv(c2json), json, .flat.nextTitle)$`. Every tap uses the normal event cache (no
+  forced Google refresh). A Tasker bearer-header + local-file variant is documented for
+  users who do not want the token in a URL/log.
+
+**Verification.** `pnpm lint`, `pnpm typecheck`, `pnpm test` (139 files / 1791 tests),
+`pnpm db:generate` (migration `0067_aromatic_scorpion.sql`; offline drift clean). New unit
+tests cover token generation/hashing/parsing/labels, the fixed-window limiter, and the
+pure agenda shaping (window overlap, all-day exclusive ends, midnight ends, ongoing
+events, multi-day spans, half-day labels, deep links, pinned summaries, flat aliases).
+Docs: `docs/widgets.md`, `AGENTS.md`. `APP_VERSION` → `2026.11.16-1`.

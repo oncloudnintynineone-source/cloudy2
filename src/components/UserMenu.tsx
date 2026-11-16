@@ -8,6 +8,7 @@ import {
   IconCalendarPlus,
   IconCalendarWeek,
   IconCheck,
+  IconDeviceMobile,
   IconLogout,
   IconMoon,
   IconSun,
@@ -28,6 +29,7 @@ import { useReportActivity } from "./ActivityBar";
 import { CalendarAccessModal } from "./CalendarAccessModal";
 import { NotificationSettings } from "./NotificationSettings";
 import { PreferencesModal } from "./PreferencesModal";
+import { WidgetsModal } from "./WidgetsModal";
 
 interface UserMenuProps {
   /** The user's full display name. */
@@ -61,6 +63,7 @@ export function UserMenu({ name, role, phone }: UserMenuProps) {
   const [accessOpen, setAccessOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [preferencesOpen, setPreferencesOpen] = useState(false);
+  const [widgetsOpen, setWidgetsOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const { colorScheme, setColorScheme } = useMantineColorScheme();
   // The stored scheme may be unset/unknown before first pick — normalize to
@@ -187,7 +190,15 @@ export function UserMenu({ name, role, phone }: UserMenuProps) {
           >
             Preferences
           </Menu.Item>
-          <Menu.Divider />
+          {/* The break-glass root has no users row, so it cannot own tokens. */}
+          {phone !== null && (
+            <Menu.Item
+              leftSection={<IconDeviceMobile size={16} />}
+              onClick={() => setWidgetsOpen(true)}
+            >
+              Widgets
+            </Menu.Item>
+          )}
           <Menu.Item leftSection={<IconLogout size={16} />} onClick={() => void handleLogout()}>
             Log out
           </Menu.Item>
@@ -199,6 +210,7 @@ export function UserMenu({ name, role, phone }: UserMenuProps) {
         onClose={() => setNotificationsOpen(false)}
       />
       <PreferencesModal opened={preferencesOpen} onClose={() => setPreferencesOpen(false)} />
+      <WidgetsModal opened={widgetsOpen} onClose={() => setWidgetsOpen(false)} />
     </>
   );
 }
