@@ -220,9 +220,6 @@ export async function addSharedDashboardView(token: string): Promise<AddSharedVi
       types: payload.t,
       text: payload.q || null,
     },
-    // Provenance: this row was created by someone else and imported here, so it
-    // is intentionally ineligible for the calendar feed (docs/calendar-feed.md).
-    createdVia: "shared",
   });
   if (!created.ok) {
     return { ok: false, error: created.error };

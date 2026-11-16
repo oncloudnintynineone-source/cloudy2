@@ -498,6 +498,13 @@
       "when": 1794832183872,
       "tag": "0070_left_lake",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1794834049292,
+      "tag": "0071_oval_vector",
+      "breakpoints": true
     }
   ]
 }

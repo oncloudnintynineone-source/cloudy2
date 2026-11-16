@@ -10301,3 +10301,47 @@ tests deleted; four `eventEndDateInclusive` cases added to `feedWindow.test.ts`;
 `docs/calendar-feed.md` (rewritten), `docs/dashboard-views.md` §1.10,
 `docs/developer-guide.md` §1.12 row, `AGENTS.md`, `progress.md`.
 `APP_VERSION` → `2026.11.16-4`.
+
+
+## 1.374 Calendar feed discontinued
+
+Android testing showed the ICS-subscription method cannot meet the requirement: the
+Android Google Calendar app has no handler for `webcal://` (so **Open in Calendar** did
+nothing) and a URL subscription refreshes only every ~12–24 h, while importing the `.ics`
+file is a one-time snapshot. Rather than build a live Google Calendar mirror, the user
+chose to discontinue the feature entirely.
+
+**Removed.**
+
+- `GET /api/widget/v1/calendar.ics` (the whole `src/app/api/widget/` tree) and the
+  `src/lib/widgets/` module: feed builder/cache, HMAC tokens, ±3-month window, shared view
+  resolution, feed-link server actions, the limiter, and all their tests.
+- `src/lib/events/icalFeed.ts` + test (multi-event feed rendering; the single-event
+  `calendarExport.ts` export is unrelated and stays).
+- `src/components/CalendarFeedModal.tsx`, the **Calendar feed** profile-menu item, its
+  `IconCalendarShare` import/state, and the `CalendarFeedModal` render.
+- `docs/calendar-feed.md`, the `docs/developer-guide.md` §1.12 row, the
+  `docs/dashboard-views.md` §1.10 provenance note, and the AGENTS calendar-feed bullet.
+- Feed-only schema (migration `drizzle/0071_oval_vector.sql`): `DROP TABLE
+  "widget_feed_cache" CASCADE`, `ALTER TABLE "user_dashboard_views" DROP COLUMN
+  "created_via"`, `ALTER TABLE "user_preferences" DROP COLUMN "feed_version"`. Migrations
+  0069/0070 stay as history (they may already be applied); a second `pnpm db:generate`
+  reports no drift.
+- Feed-only generalized code reverted: `views.ts` `DashboardViewCreation`/`createdVia`/
+  `filterFeedEligibleViews`, the `toDashboardViewTab` provenance mapping, the
+  `appendDashboardView` `createdVia` input, the share-import `createdVia: "shared"` flag,
+  the four `invalidateWidgetFeedCacheForUser` calls in `dashboardViews/actions.ts`, and the
+  `widgetFeed.rotate` audit action.
+
+**Kept.** The per-event **Add to Google Calendar** / **Download .ics file** links, and the
+department Google Calendars (which the Android Google Calendar app/widget shows with native
+sync). Historical audit rows with `widgetFeed.rotate` still render via the generic details
+renderer; the action filter simply no longer offers it.
+
+**Verification.** `pnpm exec eslint src` clean (the repo-wide `pnpm lint` was blocked by an
+unrelated untracked `.scratch/message-branching/tools/ls-asar.cjs` present in the
+workspace). `pnpm test` 136 files / 1761 tests pass (the six feed test files removed).
+`pnpm typecheck` reports only the pre-existing Windows `EventFormSteps.tsx` /
+`eventFormSteps.ts` case-collision error (unrelated, §1.367). `pnpm db:generate` produced
+only `0071_oval_vector.sql`; a second run reported "No schema changes". `APP_VERSION` →
+`2026.11.16-5`.

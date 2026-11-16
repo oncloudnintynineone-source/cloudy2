@@ -159,13 +159,6 @@ export function normalizeTextFilter(raw: unknown): string | null {
   return value.slice(0, DASHBOARD_TEXT_FILTER_MAX_LENGTH);
 }
 
-/**
- * How a stored view row was created. `shared` rows were appended from another
- * account's share link; only `manual` rows are eligible for the calendar feed.
- * A missing value (legacy fixture / old cached snapshot) is treated as manual.
- */
-export type DashboardViewCreation = "manual" | "shared";
-
 /** Client/view shape of one tab (no timestamps, filters parsed). */
 export interface DashboardViewTab {
   id: string;
@@ -173,19 +166,6 @@ export interface DashboardViewTab {
   name: string;
   sortOrder: number;
   filters: DashboardTabFilters;
-  /** Provenance; `shared` rows are excluded from the calendar feed. */
-  createdVia?: DashboardViewCreation;
-}
-
-/**
- * Drop views imported from another account's share link so the calendar feed
- * only offers views the account created itself. A missing provenance is treated
- * as manually created (it can only come from legacy fixtures/snapshots).
- */
-export function filterFeedEligibleViews<T extends Pick<DashboardViewTab, "createdVia">>(
-  tabs: readonly T[],
-): T[] {
-  return tabs.filter((tab) => tab.createdVia !== "shared");
 }
 
 export type DashboardViewNameResult =

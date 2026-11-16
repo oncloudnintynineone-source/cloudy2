@@ -1,4 +1,4 @@
-"use server";
+﻿"use server";
 
 import { and, asc, count, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -7,7 +7,6 @@ import { db } from "@/db";
 import { userDashboardViews, type UserDashboardView } from "@/db/schema";
 import { requireSession } from "@/lib/session";
 import { isUuid } from "@/lib/uuid";
-import { invalidateWidgetFeedCacheForUser } from "@/lib/widgets/feedCache";
 import { appendDashboardView } from "./mutate";
 import { toDashboardViewTab } from "./queries";
 import {
@@ -93,7 +92,6 @@ export async function renameDashboardView(
     .update(userDashboardViews)
     .set({ name: name.value, updatedAt: new Date() })
     .where(eq(userDashboardViews.id, id));
-  await invalidateWidgetFeedCacheForUser(userId);
   revalidatePath("/dashboard");
   return { ok: true, tab: { ...toDashboardViewTab(owned.view), name: name.value } };
 }
@@ -102,7 +100,7 @@ export async function renameDashboardView(
  * Change the renderer kind of a tab (e.g. turn a "Month" tab into a "Week
  * (D)" tab). The tab keeps its id, strip order, stored filters and its custom
  * name; a name that is still the old kind's default label follows to the new
- * kind's default (the mirror of the Add-view dialog's rule — see
+ * kind's default (the mirror of the Add-view dialog's rule â€” see
  * `nameAfterKindChange`). The active tab's caller re-navigates to the same id
  * so the dashboard re-renders under the new kind with the usual tab-switch
  * period rules.
@@ -132,7 +130,6 @@ export async function changeDashboardViewKind(
     .update(userDashboardViews)
     .set({ viewType: kind, name, updatedAt: new Date() })
     .where(eq(userDashboardViews.id, id));
-  await invalidateWidgetFeedCacheForUser(userId);
   revalidatePath("/dashboard");
   return { ok: true, tab: { ...toDashboardViewTab(owned.view), kind, name } };
 }
@@ -170,7 +167,6 @@ export async function saveDashboardViewFilters(
       updatedAt: new Date(),
     })
     .where(eq(userDashboardViews.id, id));
-  await invalidateWidgetFeedCacheForUser(userId);
   revalidatePath("/dashboard");
   return { ok: true };
 }
@@ -199,7 +195,6 @@ export async function deleteDashboardView(id: string): Promise<DashboardViewActi
     return { ok: false, error: "A dashboard needs at least one view" };
   }
   await db.delete(userDashboardViews).where(eq(userDashboardViews.id, id));
-  await invalidateWidgetFeedCacheForUser(userId);
   revalidatePath("/dashboard");
   return { ok: true };
 }
@@ -225,7 +220,7 @@ export async function reorderDashboardViews(orderedIds: string[]): Promise<Dashb
     new Set(rows.map((row) => row.id)).size !== orderedIds.length ||
     !orderedIds.every((id) => rows.some((row) => row.id === id))
   ) {
-    return { ok: false, error: "The view list changed — try again" };
+    return { ok: false, error: "The view list changed â€” try again" };
   }
   await db.transaction(async (tx) => {
     for (let i = 0; i < orderedIds.length; i += 1) {

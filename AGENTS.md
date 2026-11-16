@@ -348,23 +348,6 @@ doc content here.
   pure shaping in
   `src/lib/events/history.ts` + `myEvents.ts`; the `details` renderer is shared with the
   audit log (`src/components/AuditDetails.tsx`). Design: [docs/event-history.md](docs/event-history.md).
-- **Calendar feed (ICS, iOS + Android):** the native Calendar-widget path is a signed,
-  regenerable subscription URL — `GET /api/widget/v1/calendar.ics?u=&v=&view=&sig=` — where
-  `sig = HMAC-SHA256(NEXTAUTH_SECRET)` over `(userId, feed_version, viewId)`. No token row:
-  the URL is derived, so Profile → Calendar feed can always show it; **Rotate feed link**
-  increments `user_preferences.feed_version` (audited `widgetFeed.rotate`) and invalidates
-  every subscribed URL. The feed is the **chosen dashboard view's** ±3-month agenda
-  (deduped by group id; its Cal/Users/Types/Event-name filters + title recipe resolved
-  exactly like the dashboard) rendered from a durable per-user+view `widget_feed_cache`
-  (15-min TTL, stale-while-revalidate in `after()`, events-cache-epoch invalidation; view
-  edits drop the user's rows). **Only views the account created itself are feed-eligible**:
-  share imports are stored with `user_dashboard_views.created_via = 'shared'`, excluded from
-  the dialog/URLs, and rejected by the endpoint (401). The dialog preselects the view
-  currently active on the calendar page, shows its **effective filter summary**, and the ICS
-  repeats it in `X-WR-CALDESC`; both platforms are documented (Apple Calendar; Android via
-  Google Calendar web "From URL" or a subscription-capable third-party app). The HTTP JSON
-  widget API (KWGT tokens/agenda) was removed. Design:
-  [docs/calendar-feed.md](docs/calendar-feed.md).
 - **KAH constraints are notify-only.** After every successful create/update (never delete),
   `dispatchKahBreachCheck()` (`src/lib/kah/notify.ts`) runs inside `after()` — best-effort,
   it can never fail or delay the mutation. The KAH Status nav entry carries an amber

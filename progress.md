@@ -2410,6 +2410,12 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   views are limited to the account's own creations — share imports are recorded
   `created_via = 'shared'` and excluded. Migrations `0069_*` (drop `widget_tokens`) and
   `0070_*` (`user_dashboard_views.created_via`). Docs: `docs/calendar-feed.md`.
+- 1.374 Calendar feed discontinued: the signed ICS endpoint, Profile → Calendar feed
+  dialog, feed cache/signing/window/view libraries and tests, `docs/calendar-feed.md`,
+  and the feed-only schema (`widget_feed_cache`, `user_preferences.feed_version`,
+  `user_dashboard_views.created_via`) were removed (migration `0071_*`). Android uses
+  the shared department Google Calendars; the per-event **Add to Google Calendar** /
+  **Download .ics file** links remain. Docs: none (removed).
 
 ## 1.4 Open items & next steps
 

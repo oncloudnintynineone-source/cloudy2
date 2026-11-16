@@ -138,9 +138,7 @@ export const userCalendarAccess = pgTable(
  * NULL. Values are re-validated against live data on every dashboard read
  * (stale ids drop out), exactly like the URL params they replaced.
  * `textFilter` is a case-insensitive event-name substring (raw typed name or
- * rendered title); NULL/blank means no text filter. `createdVia` records whether
- * the row was added manually or imported from a share link (the calendar feed
- * only offers `manual` rows).
+ * rendered title); NULL/blank means no text filter.
  */
 export const userDashboardViews = pgTable(
   "user_dashboard_views",
@@ -157,12 +155,6 @@ export const userDashboardViews = pgTable(
     typesFilter: jsonb("types_filter"),
     /** Case-insensitive event-name substring; NULL = no text filter. */
     textFilter: text("text_filter"),
-    /**
-     * How the row was created: `manual` (added by this account on the Calendar
-     * page) or `shared` (imported from another account's share link). The
-     * calendar feed only offers manually created views (docs/calendar-feed.md).
-     */
-    createdVia: text("created_via").notNull().default("manual"),
     ...timestamps,
   },
   (table) => [index("user_dashboard_views_user_sort_idx").on(table.userId, table.sortOrder)],
@@ -211,12 +203,6 @@ export const userPreferences = pgTable("user_preferences", {
    * Defaults to Monday.
    */
   weekStart: text("week_start").notNull().default("monday"),
-  /**
-   * Revocation counter for the signed calendar-feed URL. The URL signs
-   * `(userId, feedVersion, viewId)`; rotating the feed link increments this so
-   * every previously generated URL stops validating. Default 0 (no row yet).
-   */
-  feedVersion: integer("feed_version").notNull().default(0),
   ...timestamps,
 });
 
@@ -244,32 +230,6 @@ export const pushSubscriptions = pgTable(
     uniqueIndex("push_subscriptions_endpoint_idx").on(table.endpoint),
     index("push_subscriptions_user_idx").on(table.userId),
   ],
-);
-
-/**
- * Durable cache of one user's rendered calendar-feed (`.ics`) body for one
- * dashboard view. A feed covers ±3 months, so rebuilding it on every calendar
- * app poll would read up to eight months per request; the cached body is served
- * fresh for a short TTL and stale-while-revalidate after that (the rebuild runs
- * in `after()`). `epoch` snapshots the events-cache epoch so an event mutation
- * makes the next read rebuild; dashboard-view edits invalidate the user's rows
- * directly. The body is the ICS only — it carries no credential.
- */
-export const widgetFeedCache = pgTable(
-  "widget_feed_cache",
-  {
-    userId: uuid("user_id")
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
-    /** The requested dashboard view id (the signed URL's view). */
-    viewId: text("view_id").notNull(),
-    /** The rendered ICS body. */
-    body: text("body").notNull(),
-    /** Events-cache epoch at build time. */
-    epoch: bigint("epoch", { mode: "number" }).notNull().default(0),
-    fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull(),
-  },
-  (table) => [primaryKey({ columns: [table.userId, table.viewId] })],
 );
 
 export const acronyms = pgTable("acronyms", {
@@ -757,7 +717,5 @@ export type UserDashboardView = typeof userDashboardViews.$inferSelect;
 export type NewUserDashboardView = typeof userDashboardViews.$inferInsert;
 export type UserPreference = typeof userPreferences.$inferSelect;
 export type NewUserPreference = typeof userPreferences.$inferInsert;
-export type WidgetFeedCache = typeof widgetFeedCache.$inferSelect;
-export type NewWidgetFeedCache = typeof widgetFeedCache.$inferInsert;
 export type PushSubscription = typeof pushSubscriptions.$inferSelect;
 export type NewPushSubscription = typeof pushSubscriptions.$inferInsert;
