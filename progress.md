@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.371 (read-only widget API)** is shipped.
+- All work through changelog **1.372 (calendar feed)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -2399,6 +2399,9 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
 - 1.371 Read-only widget API + Profile → Widgets: per-device `widget_tokens`, a
   view-bound forward agenda at `GET /api/widget/v1/agenda`, and a manual-refresh
   KWGT Flow recipe. Docs: `docs/widgets.md`.
+- 1.372 Signed ICS calendar feed for the native iOS Calendar widget (±3 months,
+  per-view filters, durable feed cache); Android uses the directly shared Google
+  Calendar. Docs: `docs/calendar-feed.md`.
 
 ## 1.4 Open items & next steps
 

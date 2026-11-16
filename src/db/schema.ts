@@ -203,6 +203,12 @@ export const userPreferences = pgTable("user_preferences", {
    * Defaults to Monday.
    */
   weekStart: text("week_start").notNull().default("monday"),
+  /**
+   * Revocation counter for the signed calendar-feed URL. The URL signs
+   * `(userId, feedVersion, viewId)`; rotating the feed link increments this so
+   * every previously generated URL stops validating. Default 0 (no row yet).
+   */
+  feedVersion: integer("feed_version").notNull().default(0),
   ...timestamps,
 });
 
@@ -264,6 +270,32 @@ export const widgetTokens = pgTable(
     uniqueIndex("widget_tokens_hash_idx").on(table.tokenHash),
     index("widget_tokens_user_idx").on(table.userId),
   ],
+);
+
+/**
+ * Durable cache of one user's rendered calendar-feed (`.ics`) body for one
+ * dashboard view. A feed covers ±3 months, so rebuilding it on every calendar
+ * app poll would read up to eight months per request; the cached body is served
+ * fresh for a short TTL and stale-while-revalidate after that (the rebuild runs
+ * in `after()`). `epoch` snapshots the events-cache epoch so an event mutation
+ * makes the next read rebuild; dashboard-view edits invalidate the user's rows
+ * directly. The body is the ICS only — it carries no credential.
+ */
+export const widgetFeedCache = pgTable(
+  "widget_feed_cache",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** The requested dashboard view id (the signed URL's view). */
+    viewId: text("view_id").notNull(),
+    /** The rendered ICS body. */
+    body: text("body").notNull(),
+    /** Events-cache epoch at build time. */
+    epoch: bigint("epoch", { mode: "number" }).notNull().default(0),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.viewId] })],
 );
 
 export const acronyms = pgTable("acronyms", {
@@ -753,5 +785,7 @@ export type UserPreference = typeof userPreferences.$inferSelect;
 export type NewUserPreference = typeof userPreferences.$inferInsert;
 export type WidgetToken = typeof widgetTokens.$inferSelect;
 export type NewWidgetToken = typeof widgetTokens.$inferInsert;
+export type WidgetFeedCache = typeof widgetFeedCache.$inferSelect;
+export type NewWidgetFeedCache = typeof widgetFeedCache.$inferInsert;
 export type PushSubscription = typeof pushSubscriptions.$inferSelect;
 export type NewPushSubscription = typeof pushSubscriptions.$inferInsert;

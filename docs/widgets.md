@@ -5,6 +5,10 @@ home-screen widget — only a native app can — so Cloudy2 exposes a **read-onl
 agenda** that widget apps consume. This document covers the reason, the API, the token
 model, the view semantics, and the manual-refresh KWGT recipe.
 
+> For the **iPhone/iPad calendar-subscription** path (native Calendar widget, no KWGT),
+> see [calendar-feed.md](calendar-feed.md). The JSON API here remains the manual-refresh
+> and HTTP-widget surface.
+
 ## Table of contents
 
 - [1.1 Why an API](#11-why-an-api)
@@ -295,7 +299,11 @@ unchanged; the bearer path is already supported.
 
 ## 1.8 Future iOS clients
 
-Scriptable can `fetch` with the bearer header and cache the payload in `Keychain` /
+The preferred iOS path is the native **Calendar subscription** documented in
+[calendar-feed.md](calendar-feed.md) — no third-party widget app and no on-device setup
+beyond subscribing once.
+
+Scriptable can still `fetch` with the bearer header and cache the payload in `Keychain` /
 `FileManager`; Widgy's HTTP data source can send headers too. The response shape is
 platform-neutral, so no API change is needed — only client scripts/recipes. The manual
 refresh philosophy still applies: iOS decides timeline refreshes, so show `updatedLabel`.

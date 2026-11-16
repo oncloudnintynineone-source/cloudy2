@@ -359,6 +359,18 @@ doc content here.
   `fetchPinnedEventsFor(actor)`, and `flat` scalar aliases exist for KWGT. Widgets refresh
   **only** on their own button — a Kustom Flow (manual trigger → WebGet → store the JSON
   path in a global). Design: [docs/widgets.md](docs/widgets.md).
+- **Calendar feed (ICS, iOS):** the native Calendar-widget path is a signed, regenerable
+  subscription URL — `GET /api/widget/v1/calendar.ics?u=&v=&view=&sig=` — where
+  `sig = HMAC-SHA256(NEXTAUTH_SECRET)` over `(userId, feed_version, viewId)`. No token row:
+  the URL is derived, so Profile → Calendar & widgets can always show it; **Rotate feed
+  link** increments `user_preferences.feed_version` (audited `widgetFeed.rotate`) and
+  invalidates every subscribed URL. The feed is the chosen dashboard view's **±3-month**
+  agenda (deduped by group id, same filters/title recipe), rendered from a durable
+  per-user+view `widget_feed_cache` (15-min TTL, stale-while-revalidate in `after()`,
+  events-cache-epoch invalidation; view edits drop the user's rows). Android deliberately
+  uses the **directly shared Google Calendar** with the native widget because Google
+  refreshes subscribed ICS feeds only every ~12–24h. Design:
+  [docs/calendar-feed.md](docs/calendar-feed.md).
 - **KAH constraints are notify-only.** After every successful create/update (never delete),
   `dispatchKahBreachCheck()` (`src/lib/kah/notify.ts`) runs inside `after()` — best-effort,
   it can never fail or delay the mutation. The KAH Status nav entry carries an amber

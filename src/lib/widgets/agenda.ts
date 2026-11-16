@@ -17,20 +17,7 @@
  */
 
 import { addDays, formatInstantToNaive, monthsInRange, shiftMonth } from "@/lib/events/datetime";
-import { displayTitleOptions, resolveDisplayTitles } from "@/lib/events/eventTitleDisplay";
 import { fetchPinnedEventsFor } from "@/lib/events/pinned";
-import { listCalendars, projectRangeEvents, readCalendarRange } from "@/lib/events/queries";
-import { filterEventsByText } from "@/lib/events/textFilter";
-import { listEventTypes } from "@/lib/eventTypes/queries";
-import { listUsers } from "@/lib/roster/queries";
-import { getSettings, listEventTitleTemplates } from "@/lib/settings/queries";
-import { getDashboardViews } from "@/lib/dashboardViews/queries";
-import {
-  emptyTabFilters,
-  resolveActiveTab,
-  resolveTabFilters,
-  type DashboardViewTab,
-} from "@/lib/dashboardViews/views";
 
 import {
   absoluteLink,
@@ -44,16 +31,8 @@ import {
   type WidgetPinnedLike,
   type WidgetPinnedSummary,
 } from "./shape";
+import { readWidgetViewEvents, resolveWidgetView } from "./viewEvents";
 import type { WidgetActor } from "./auth";
-
-/** Used only for a virtual account with no stored views (not reachable by tokens). */
-const FALLBACK_TAB: DashboardViewTab = {
-  id: "default",
-  kind: "month",
-  name: "Month",
-  sortOrder: 0,
-  filters: emptyTabFilters(),
-};
 
 export interface WidgetAgendaResponse {
   ok: true;
@@ -80,72 +59,8 @@ export async function buildWidgetAgenda(params: {
   origin: string;
   now?: Date;
 }): Promise<WidgetAgendaResponse> {
-  const tabs = await getDashboardViews(params.actor.id);
-  const tab = resolveActiveTab(params.view, null, tabs) ?? tabs[0] ?? FALLBACK_TAB;
-
-  const [calendars, eventTypes, allUsers, settings, templates] = await Promise.all([
-    listCalendars(),
-    listEventTypes(),
-    listUsers(),
-    getSettings(),
-    listEventTitleTemplates(),
-  ]);
-
-  const isAdmin = params.actor.role === "admin";
-  const ownDepartmentId = allUsers.find((user) => user.id === params.actor.id)?.department?.id ?? null;
-  const defaultCalendars = isAdmin
-    ? calendars.map((calendar) => calendar.id)
-    : ownDepartmentId
-      ? [ownDepartmentId]
-      : [];
-
-  const filters = resolveTabFilters(tab.filters, {
-    calendarIds: calendars.map((calendar) => calendar.id),
-    userIds: allUsers.map((user) => user.id),
-    typeNames: eventTypes.map((type) => type.name),
-    defaultCalendars,
-  });
-
-  // The dashboard's Users filter treats a tagged department as every active
-  // member of it; mirror that membership map exactly.
-  const memberships = new Map<string, string[]>();
-  for (const user of allUsers) {
-    if (user.status !== "active" || !user.department) {
-      continue;
-    }
-    const list = memberships.get(user.department.id);
-    if (list) {
-      list.push(user.id);
-    } else {
-      memberships.set(user.department.id, [user.id]);
-    }
-  }
-
-  const displayOptions = displayTitleOptions(tab.kind, {
-    nameTemplate: settings.nameTemplate,
-    masterRecipe: settings.eventTitleRecipe,
-    assignments: settings.eventTitleTemplateAssignments as Record<string, string>,
-    templates: templates.map((template) => ({
-      id: template.id,
-      label: template.label,
-      recipe: template.recipe,
-    })),
-    usersById: new Map(
-      allUsers.map((user) => [
-        user.id,
-        {
-          id: user.id,
-          name: user.name,
-          shortname: user.shortname,
-          departmentName: user.department?.name ?? null,
-        },
-      ]),
-    ),
-    eventTypesByName: new Map(
-      eventTypes.map((type) => [type.name, { name: type.name, shortname: type.shortname }]),
-    ),
-    calendarsById: new Map(calendars.map((calendar) => [calendar.id, calendar.name])),
-  });
+  const config = await resolveWidgetView(params.actor, params.view);
+  const { tab } = config;
 
   const now = params.now ?? new Date();
   const generatedAt = formatInstantToNaive(now);
@@ -158,15 +73,7 @@ export async function buildWidgetAgenda(params: {
     ...new Set([shiftMonth(today.slice(0, 7), -1), ...monthsInRange(today, lastDay)]),
   ].sort();
 
-  const rangeData = await readCalendarRange({ months, calendarIds: filters.cal });
-  const projected = projectRangeEvents(
-    rangeData,
-    { typeFilter: filters.types, userFilter: filters.users },
-    filters.cal,
-    memberships,
-  );
-  const titled = resolveDisplayTitles(projected, displayOptions);
-  const filtered = filterEventsByText(titled, filters.text);
+  const filtered = await readWidgetViewEvents(config, months);
 
   const summary = shapeWidgetAgenda(filtered, {
     viewId: tab.id,
@@ -194,7 +101,7 @@ export async function buildWidgetAgenda(params: {
     today,
   });
 
-  const me = allUsers.find((user) => user.id === params.actor.id);
+  const me = config.allUsers.find((user) => user.id === params.actor.id);
   const fallbackLink = absoluteLink(`/dashboard?view=${encodeURIComponent(tab.id)}`, params.origin);
 
   return {

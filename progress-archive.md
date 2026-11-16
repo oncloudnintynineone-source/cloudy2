@@ -10191,3 +10191,42 @@ tests cover token generation/hashing/parsing/labels, the fixed-window limiter, a
 pure agenda shaping (window overlap, all-day exclusive ends, midnight ends, ongoing
 events, multi-day spans, half-day labels, deep links, pinned summaries, flat aliases).
 Docs: `docs/widgets.md`, `AGENTS.md`. `APP_VERSION` → `2026.11.16-1`.
+
+
+## 1.372 Signed ICS calendar feed (iOS)
+
+The iPhone/iPad home-screen answer is the native Calendar widget fed by a private ICS
+subscription — no KWGT, no Pro, no on-device configuration beyond subscribing once.
+
+**Design.**
+
+- Signed, regenerable feed URLs: `GET /api/widget/v1/calendar.ics?u=&v=&view=&sig=`
+  with `sig = base64url(HMAC-SHA256(NEXTAUTH_SECRET, "cloudy2:widget-feed:v1:<userId>:<feedVersion>:<viewId>"))`
+  (`src/lib/widgets/feedToken.ts`). No token row: Profile → Calendar & widgets can
+  re-display the URL at any time. Revocation is `user_preferences.feed_version`; **Rotate
+  feed link** increments it (audited `widgetFeed.rotate`) and invalidates every existing
+  subscription. The route also re-checks `users.status = 'active'` and rate-limits by user.
+- The feed is the chosen dashboard view's **±3-month** agenda (month−3 start through
+  month+3 end; reads month−4 for ongoing events), reusing the same view resolution/filters/
+  title recipe as the JSON widget agenda. `src/lib/widgets/viewEvents.ts` now holds that
+  shared resolution; `agenda.ts` delegates to it.
+- `src/lib/events/icalFeed.ts` renders one RFC 5545 feed, reusing `calendarExport.ts`'s
+  pure escaping/folding/UTC/all-day primitives. One `VEVENT` per group id (deduped),
+  `VALUE=DATE` for all-day/full/half events, UTC datetimes for timed, `SUMMARY` = rendered
+  title, `DESCRIPTION` = raw remarks, `URL` = dashboard deep link, CRLF + 75-octet folding.
+- A ±3-month feed is an eight-month read, so the rendered body is cached per `(user, view)`
+  in the new `widget_feed_cache` table (15-minute TTL, stale-while-revalidate in `after()`,
+  events-cache-epoch invalidation, coalesced in-process). Dashboard-view name/kind/filter/
+  delete actions invalidate the user's rows so the feed never serves stale filters/titles.
+- Profile → Calendar & widgets is now the primary surface: a view selector, the signed ICS
+  URL, **Open in Calendar** (`webcal://`), rotation, iOS setup steps, and an Android card
+  that deliberately points at the **directly shared Google Calendar** because Google
+  refreshes subscribed ICS feeds only every ~12–24h. The KWGT/HTTP token flow is retained
+  under "HTTP widgets (advanced)".
+- No credential is stored in the cache; the ICS body only.
+
+**Verification.** `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm db:generate` (migration
+`0068_happy_pet_avengers.sql` for `feed_version` + `widget_feed_cache`). New unit tests:
+feed signing/tamper/version/view binding, ±3-month window and edge inclusion, ICS shape/
+dedupe/escaping/folding, and cache TTL/epoch freshness. Docs: `docs/calendar-feed.md`
+(new), `docs/widgets.md` (cross-link), `AGENTS.md`. `APP_VERSION` → `2026.11.16-2`.

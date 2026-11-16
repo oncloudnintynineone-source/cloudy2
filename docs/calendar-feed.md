@@ -1,0 +1,171 @@
+# 1. Calendar feed (ICS subscription)
+
+The iPhone/iPad answer to "put my calendar on the home screen": a private,
+read-only **ICS feed** that Apple Calendar (or any calendar app) subscribes to,
+with the native Calendar widget rendering it. Android deliberately uses the
+already-shared Google Calendar instead — see §1.6.
+
+## Table of contents
+
+- [1.1 Why a feed](#11-why-a-feed)
+- [1.2 Signed, regenerable URL](#12-signed-regenerable-url)
+- [1.3 Endpoint](#13-endpoint)
+- [1.4 View semantics and window](#14-view-semantics-and-window)
+- [1.5 ICS shape](#15-ics-shape)
+- [1.6 Caching, refresh and the Android hybrid](#16-caching-refresh-and-the-android-hybrid)
+- [1.7 Platform setup](#17-platform-setup)
+- [1.8 Security and rotation](#18-security-and-rotation)
+- [1.9 Files and tests](#19-files-and-tests)
+
+## 1.1 Why a feed
+
+A PWA cannot register a home-screen widget, and KWGT's free version cannot import
+presets. A calendar **subscription** is the one zero-install path that works with
+the native calendar apps and their widgets:
+
+- no token pasting or Flow/global setup on the phone;
+- the same view filters and rendered titles as the app;
+- one subscription URL per dashboard view.
+
+The trade-offs are explicit: the calendar app decides when to refresh, the feed
+has no KAH/double-booking badges, and a subscription URL is a credential.
+
+## 1.2 Signed, regenerable URL
+
+The URL is not stored in `widget_tokens`; it is derived:
+
+```text
+https://<host>/api/widget/v1/calendar.ics?u=<userId>&v=<feedVersion>&view=<viewId>&sig=<hmac>
+sig = base64url(HMAC-SHA256(NEXTAUTH_SECRET, "cloudy2:widget-feed:v1:<userId>:<feedVersion>:<viewId>"))
+```
+
+- `user_preferences.feed_version` is the revocation counter.
+- **Rotate feed link** increments it; every previously generated URL returns
+  401. The new URL is shown immediately — there is no show-once secret.
+- Rotating `NEXTAUTH_SECRET` invalidates every feed URL (and every session),
+  the same trade-off as the dashboard share links.
+- Verification also re-checks `users.status = 'active'`.
+
+## 1.3 Endpoint
+
+`GET /api/widget/v1/calendar.ics`
+
+- Query: `u`, `v`, `view`, `sig` (all required; `view` is a dashboard view UUID).
+- Success: `200 text/calendar; charset=utf-8`,
+  `Content-Disposition: inline; filename="cloudy2.ics"`,
+  `Cache-Control: private, max-age=900`.
+- Invalid/rotated/inactive: `401`; rate-limited: `429` + `Retry-After`; build
+  failure: `500`. No CORS headers; `/api/` is already excluded from the PWA
+  service-worker caches.
+- Rate limit: the shared in-memory limiter keyed by `feed:<userId>`
+  (60/min — calendar polling is infrequent).
+
+## 1.4 View semantics and window
+
+- `view` selects a stored dashboard view; its **Cal/Users/Types/Event-name
+  filters** and its **title recipe** apply, exactly like the JSON agenda.
+- The feed covers **±3 months**: first day of month−3 through the last day of
+  month+3. The read set adds month−4 so a multi-day event that started earlier
+  still appears as ongoing.
+- Logical events are deduped by group id (`projectRangeEvents`), so a
+  multi-department copy appears once.
+- A deleted view falls back to the user's first tab; the signed URL continues
+  to validate.
+
+## 1.5 ICS shape
+
+- Calendar: `VERSION:2.0`, `PRODID`, `CALSCALE:GREGORIAN`, `METHOD:PUBLISH`,
+  `X-WR-CALNAME:Cloudy2 · <view>`, `X-WR-TIMEZONE:Asia/Singapore`,
+  `REFRESH-INTERVAL;VALUE=DURATION:PT15M`, `X-PUBLISHED-TTL:PT15M`.
+- One `VEVENT` per event:
+  - `UID:<eventId ?? copyId>@cloudy2` (stable group id)
+  - `DTSTAMP` = build time (UTC)
+  - All-day/full/half → `DTSTART;VALUE=DATE` / `DTEND;VALUE=DATE` with the
+    exclusive end (half-day therefore shows as all-day; the recipe's title can
+    carry the AM/PM markers)
+  - Timed → UTC `DTSTART`/`DTEND`
+  - `SUMMARY` = the rendered title
+  - `LOCATION` (when set), `DESCRIPTION` = the organizer's raw remarks (never
+    the notes block), `URL` = the dashboard deep link
+  - `STATUS:CONFIRMED`, `SEQUENCE:0`
+- CRLF endings and RFC 5545 75-octet folding, reusing the same pure helpers as
+  the single-event `.ics` export (`src/lib/events/calendarExport.ts`).
+
+## 1.6 Caching, refresh and the Android hybrid
+
+```mermaid
+flowchart LR
+  R[Feed request] --> A[Signed URL + active user]
+  A --> C{Durable cache<br/>user+view}
+  C -->|fresh + epoch match| ICS[text/calendar]
+  C -->|stale| S[serve stale]
+  S -. after() .-> B[rebuild: ±3m read → ICS]
+  B --> C
+```
+
+- A ±3-month feed is an eight-month read, so the rendered body is cached per
+  `(user, view)` in `widget_feed_cache` (15-minute TTL). Stale bodies are served
+  while the rebuild runs in `after()`; the first request after a cold cache
+  rebuilds blocking.
+- Event mutations bump the events-cache epoch, so the next feed read rebuilds.
+  Dashboard-view name/kind/filter/delete edits invalidate the user's cache rows.
+- The response also sets `Cache-Control: private, max-age=900`.
+- **Refresh cadence is the calendar app's choice.** Apple Calendar checks
+  roughly hourly (configurable every 15 minutes/hourly/daily). **Google Calendar
+  refreshes subscribed ICS feeds only every ~12–24 hours** and has no manual
+  refresh, so Android users should use the shared department calendar directly:
+  it is a real Google calendar (instant sync), with the Google Calendar widget.
+  The ICS feed is still offered for third-party Android calendar apps that
+  refresh faster.
+
+## 1.7 Platform setup
+
+**iPhone / iPad**
+
+1. Profile → Calendar & widgets → copy the feed URL (or **Open in Calendar**).
+2. Settings → Calendar → Accounts → Add Account → Other → Add Subscribed
+   Calendar → paste the URL; set the refresh interval.
+3. Add the Calendar widget and select “Cloudy2 · <view>”.
+
+**Android (recommended — no feed)**
+
+1. Ensure the department calendar is enabled in Google Calendar (it is already
+   shared with the user's Google account).
+2. Add the Google Calendar widget and select it.
+3. If several department calendars are enabled, hide the extras to avoid
+   duplicate logical events.
+
+**Android with a third-party calendar app**
+
+Subscribe to the feed in an app that supports ICS subscriptions with a fast
+refresh (e.g. Business Calendar, DigiCal, aCalendar), then use that app's
+widget.
+
+## 1.8 Security and rotation
+
+- The subscription URL is a **bearer credential**; anyone with it can read the
+  feed. Calendar apps store it in their account settings.
+- It appears in server logs (query string) and is read-only.
+- **Rotate feed link** invalidates every existing subscription; re-subscribe
+  with the new URL. Rotation is audited (`widgetFeed.rotate`).
+- A deactivated user's feed stops working immediately (`users.status` check).
+- The cached ICS contains no credential.
+
+## 1.9 Files and tests
+
+| Path | Purpose |
+| --- | --- |
+| `src/app/api/widget/v1/calendar.ics/route.ts` | The feed endpoint. |
+| `src/lib/widgets/feedToken.ts` | HMAC signing/verification + URL builder. |
+| `src/lib/widgets/feedWindow.ts` | ±3-month window + event inclusion. |
+| `src/lib/widgets/feed.ts` | View read + ICS assembly. |
+| `src/lib/widgets/feedCache.ts` | Durable body cache, epoch invalidation. |
+| `src/lib/widgets/viewEvents.ts` | Shared view resolution/read (agenda + feed). |
+| `src/lib/events/icalFeed.ts` | Multi-event ICS rendering. |
+| `src/lib/events/calendarExport.ts` | Shared escaping/folding/date primitives. |
+| `src/lib/widgets/actions.ts` | Feed links + rotation server actions. |
+| `src/components/WidgetsModal.tsx` | Profile → Calendar & widgets UI. |
+| `src/lib/widgets/feedToken.test.ts` | Signing, tampering, version/view binding. |
+| `src/lib/widgets/feedWindow.test.ts` | Window math and edge inclusion. |
+| `src/lib/widgets/feedCache.test.ts` | TTL/epoch freshness. |
+| `src/lib/events/icalFeed.test.ts` | ICS shape, dedupe, escaping, folding. |

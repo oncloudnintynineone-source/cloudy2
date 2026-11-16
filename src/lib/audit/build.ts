@@ -40,6 +40,7 @@ export const AUDIT_ACTIONS = {
   accessRevoke: "access.revoke",
   widgetTokenCreate: "widgetToken.create",
   widgetTokenRevoke: "widgetToken.revoke",
+  widgetFeedRotate: "widgetFeed.rotate",
   settingsUpdate: "settings.update",
   auditPurge: "audit.purge",
   cachePurge: "cache.purge",

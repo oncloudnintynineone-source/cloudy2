@@ -19,7 +19,7 @@ import type { CalendarEvent } from "@/lib/events/queries";
 const pad = (value: number): string => String(value).padStart(2, "0");
 
 /** Compact UTC `YYYYMMDDTHHmmssZ` stamp for a Google template / ICS datetime. */
-function toUtcStamp(date: Date): string {
+export function toUtcStamp(date: Date): string {
   return [
     `${date.getUTCFullYear()}${pad(date.getUTCMonth() + 1)}${pad(date.getUTCDate())}`,
     `T${pad(date.getUTCHours())}${pad(date.getUTCMinutes())}${pad(date.getUTCSeconds())}Z`,
@@ -27,7 +27,7 @@ function toUtcStamp(date: Date): string {
 }
 
 /** `YYYYMMDD` date stamp from a UTC-midnight all-day instant. */
-function toDateStamp(date: Date): string {
+export function toDateStamp(date: Date): string {
   return `${date.getUTCFullYear()}${pad(date.getUTCMonth() + 1)}${pad(date.getUTCDate())}`;
 }
 
@@ -63,7 +63,7 @@ export function buildGoogleCalendarUrl(event: CalendarEvent): string {
 }
 
 /** Escape an ICS text value (RFC 5545 §3.3.11): backslash, semicolon, comma, newline. */
-function escapeIcsText(value: string): string {
+export function escapeIcsText(value: string): string {
   return value
     .replace(/\\/g, "\\\\")
     .replace(/;/g, "\\;")
@@ -77,7 +77,7 @@ function escapeIcsText(value: string): string {
  * UTF-8 characters are never split (continuation lines reserve one octet for
  * the leading space).
  */
-function foldIcsLine(line: string): string {
+export function foldIcsLine(line: string): string {
   const encoder = new TextEncoder();
   const parts: string[] = [];
   let current = "";
