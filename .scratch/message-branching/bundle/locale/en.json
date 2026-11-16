@@ -1,6 +1,0 @@
-{
-  "meta": {
-    "title": "Message edit and branch",
-    "description": "Adds Edit and Copy to each of your Chat messages. Saving an edit forks the conversation just before that message, sends the edited text in the new branch, and opens the branch; the original conversation is left unchanged. Use the pencil button beside the message clock (Edit message), then Edit & branch; Cmd/Ctrl+Enter saves and Escape cancels. Attachments of the original message are not carried into the branch, and the first message of a session cannot be edited because nothing precedes it."
-  }
-}

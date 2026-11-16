@@ -102,8 +102,8 @@ string maps to the first tab of that kind.
    on the row's right edge.
    - **Reorder** (left): the shared `useReorderRows` control follows the locked
      `reorderDrag` mode (**drag only**), so each row leads with its drag handle;
-     dropping commits `reorderDashboardViews` (renumbers every row in a
-     transaction) — see [`reorder.md`](reorder.md);
+     dropping commits `reorderDashboardViews` (one batched
+     `UPDATE … FROM (VALUES …)` for the whole strip) — see [`reorder.md`](reorder.md);
    - **⋮ menu** (right, a subtle `IconDotsVertical` `ActionIcon` on the row's
      right edge) opens a small dropdown headed by the row's name (truncated)
      holding the row's three actions — **Share**, **Edit** and **Delete** —
@@ -548,6 +548,23 @@ Filter storage & resolution:
   dialog's **Apply** button spins through the server write, then the active tab's
   loading bar sweeps through the follow-up read
   ([`loading-transitions.md`](loading-transitions.md) §1.13.2).
+  The write is **one statement** (`UPDATE … WHERE id AND user_id RETURNING`), so
+  ownership and persistence cost one Neon round trip, and the action deliberately
+  does **not** call `revalidatePath("/dashboard")`: the dashboard route is a thin
+  client shell that reads no view data, and the strip/events come from the client's
+  `/api/dashboard/load` re-read. Forcing the RSC re-render only added a full
+  layout+page render (~66–75 ms server-side measured) to the Apply wait
+  (`tasks/responsiveness-plan.md`).
+- **Tab CRUD skips the RSC revalidation too.** `createDashboardView`,
+  `renameDashboardView`, `deleteDashboardView`, `reorderDashboardViews`,
+  `changeDashboardViewKind` and `addSharedDashboardView` all resolve after their DB
+  write; the client's manage dialog calls the dashboard's `revalidate()` (or navigates
+  with `force`) and the strip repaints from that data read. The writes are as short as
+  the work allows: create = cap probe + one INSERT with the next `sortOrder` computed in
+  SQL; rename = ownership + UPDATE in one `RETURNING`; delete = ownership probe +
+  last-view guard + DELETE in one CTE; reorder = one batched
+  `UPDATE … FROM (VALUES …)` instead of a transaction of N UPDATEs. Measured ~44–67 ms
+  per action vs ~92–120 ms before.
 - Stored ids/names are re-validated against live calendars/users/types on every
   dashboard read (stale entries drop out; an all-stale list degrades to the role
   default), exactly like the URL params they replaced.

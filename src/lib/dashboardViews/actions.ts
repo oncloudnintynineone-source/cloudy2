@@ -1,7 +1,6 @@
-﻿"use server";
+"use server";
 
-import { and, asc, count, eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
+import { and, asc, eq, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { userDashboardViews, type UserDashboardView } from "@/db/schema";
@@ -66,7 +65,9 @@ export async function createDashboardView(input: {
   if (!created.ok) {
     return { ok: false, error: created.error };
   }
-  revalidatePath("/dashboard");
+  // The caller navigates to the new id with `force`, which triggers the
+  // client-owned `/api/dashboard/load` re-read. No RSC revalidation: the route
+  // is a thin shell that reads no view data (see tasks/responsiveness-plan.md).
   return { ok: true, id: created.id, tab: created.tab };
 }
 
@@ -80,20 +81,24 @@ export async function renameDashboardView(
   if (!isUuid(userId)) {
     return { ok: false, error: "Not available for this account" };
   }
-  const owned = await requireOwnedView(userId, id);
-  if (!owned.view) {
-    return { ok: false, error: owned.error };
+  if (!isUuid(id)) {
+    return { ok: false, error: "View not found" };
   }
   const name = sanitizeDashboardViewName(input.name);
   if (!name.ok) {
     return { ok: false, error: name.error, field: "name" };
   }
-  await db
+  // Ownership and write in one statement (was SELECT + UPDATE). The manage
+  // dialog then calls the dashboard's own `revalidate()`; no RSC revalidation.
+  const [updated] = await db
     .update(userDashboardViews)
     .set({ name: name.value, updatedAt: new Date() })
-    .where(eq(userDashboardViews.id, id));
-  revalidatePath("/dashboard");
-  return { ok: true, tab: { ...toDashboardViewTab(owned.view), name: name.value } };
+    .where(and(eq(userDashboardViews.id, id), eq(userDashboardViews.userId, userId)))
+    .returning();
+  if (!updated) {
+    return { ok: false, error: "View not found" };
+  }
+  return { ok: true, tab: toDashboardViewTab(updated) };
 }
 
 /**
@@ -130,7 +135,8 @@ export async function changeDashboardViewKind(
     .update(userDashboardViews)
     .set({ viewType: kind, name, updatedAt: new Date() })
     .where(eq(userDashboardViews.id, id));
-  revalidatePath("/dashboard");
+  // No RSC revalidation: the caller re-reads the dashboard data (and switches
+  // the active tab with `force`); the route shell reads no view data.
   return { ok: true, tab: { ...toDashboardViewTab(owned.view), kind, name } };
 }
 
@@ -144,9 +150,8 @@ export async function saveDashboardViewFilters(
   if (!isUuid(userId)) {
     return { ok: false, error: "Not available for this account" };
   }
-  const owned = await requireOwnedView(userId, id);
-  if (!owned.view) {
-    return { ok: false, error: owned.error };
+  if (!isUuid(id)) {
+    return { ok: false, error: "View not found" };
   }
   const clean = (raw: unknown): string[] | null => {
     if (raw === null || raw === undefined) {
@@ -157,7 +162,10 @@ export async function saveDashboardViewFilters(
     }
     return raw.filter((entry): entry is string => typeof entry === "string" && entry.length > 0);
   };
-  await db
+  // One statement for ownership + write: this runs inside the filter dialog's
+  // Apply spinner, and the old owned-view SELECT followed by the UPDATE paid two
+  // Neon round trips for one write. A missing/foreign row returns nothing.
+  const [updated] = await db
     .update(userDashboardViews)
     .set({
       calFilter: clean(filters.cal),
@@ -166,8 +174,17 @@ export async function saveDashboardViewFilters(
       textFilter: normalizeTextFilter(filters.text),
       updatedAt: new Date(),
     })
-    .where(eq(userDashboardViews.id, id));
-  revalidatePath("/dashboard");
+    .where(and(eq(userDashboardViews.id, id), eq(userDashboardViews.userId, userId)))
+    .returning({ id: userDashboardViews.id });
+  if (!updated) {
+    return { ok: false, error: "View not found" };
+  }
+  // Deliberately no `revalidatePath("/dashboard")`: the dashboard route is a
+  // thin client shell that reads no view data (the strip and the filtered
+  // events come from `/api/dashboard/load`, which the client re-reads right
+  // after this action). Forcing an RSC re-render of the route here only added a
+  // full layout+page render to the dialog's Apply wait (~66 ms server-side
+  // measured, plus the round trip); see tasks/responsiveness-plan.md.
   return { ok: true };
 }
 
@@ -183,26 +200,45 @@ export async function deleteDashboardView(id: string): Promise<DashboardViewActi
   if (!isUuid(userId)) {
     return { ok: false, error: "Not available for this account" };
   }
-  const owned = await requireOwnedView(userId, id);
-  if (!owned.view) {
-    return { ok: false, error: owned.error };
+  if (!isUuid(id)) {
+    return { ok: false, error: "View not found" };
   }
-  const [{ n }] = await db
-    .select({ n: count() })
-    .from(userDashboardViews)
-    .where(eq(userDashboardViews.userId, userId));
-  if (n <= 1) {
+  // One statement: the ownership probe, the "keep at least one view" guard and
+  // the delete. The old path paid an owned-view SELECT, a COUNT and the DELETE
+  // (~3 round trips) before the caller's own data re-read.
+  const result = await db.execute(sql`
+    WITH target AS (
+      SELECT id FROM user_dashboard_views
+      WHERE id = ${id}::uuid AND user_id = ${userId}::uuid
+    ), total AS (
+      SELECT count(*)::int AS n FROM user_dashboard_views
+      WHERE user_id = ${userId}::uuid
+    ), removed AS (
+      DELETE FROM user_dashboard_views
+      WHERE id IN (SELECT id FROM target)
+        AND (SELECT n FROM total) > 1
+      RETURNING id
+    )
+    SELECT
+      (SELECT count(*)::int FROM target) AS owned,
+      (SELECT count(*)::int FROM removed) AS removed
+  `);
+  const row = (result as unknown as { owned: number; removed: number }[])[0];
+  if (!row || Number(row.owned) === 0) {
+    return { ok: false, error: "View not found" };
+  }
+  if (Number(row.removed) === 0) {
     return { ok: false, error: "A dashboard needs at least one view" };
   }
-  await db.delete(userDashboardViews).where(eq(userDashboardViews.id, id));
-  revalidatePath("/dashboard");
+  // No RSC revalidation: the caller navigates to the remaining tab with
+  // `force` (or calls the dashboard's `revalidate()`), which re-reads the data.
   return { ok: true };
 }
 
 /**
  * Apply a new strip order. `orderedIds` must be exactly the user's tab ids in
- * the desired order; every row is renumbered to its index in a transaction so
- * `sortOrder` stays dense and unique even after legacy gaps.
+ * the desired order; every row is renumbered to its index in one batched
+ * `UPDATE … FROM (VALUES …)` so `sortOrder` stays dense even after legacy gaps.
  */
 export async function reorderDashboardViews(orderedIds: string[]): Promise<DashboardViewActionResult> {
   const session = await requireSession();
@@ -222,15 +258,24 @@ export async function reorderDashboardViews(orderedIds: string[]): Promise<Dashb
   ) {
     return { ok: false, error: "The view list changed â€” try again" };
   }
-  await db.transaction(async (tx) => {
-    for (let i = 0; i < orderedIds.length; i += 1) {
-      await tx
-        .update(userDashboardViews)
-        .set({ sortOrder: i, updatedAt: new Date() })
-        .where(eq(userDashboardViews.id, orderedIds[i]));
-    }
-  });
-  revalidatePath("/dashboard");
+  if (orderedIds.length === 0) {
+    return { ok: true };
+  }
+  // One statement renumbers the whole strip (was one UPDATE per row inside a
+  // transaction — N+2 round trips for a long tab strip). The index on
+  // (user_id, sort_order) is not unique, so a mid-statement swap is safe.
+  const values = sql.join(
+    orderedIds.map((viewId, index) => sql`(${viewId}::uuid, ${index}::int)`),
+    sql`, `,
+  );
+  await db.execute(sql`
+    UPDATE user_dashboard_views AS v
+    SET sort_order = data.sort_order, updated_at = now()
+    FROM (VALUES ${values}) AS data(id, sort_order)
+    WHERE v.id = data.id AND v.user_id = ${userId}::uuid
+  `);
+  // No RSC revalidation: the reorder is optimistic in the strip and the caller
+  // re-reads the dashboard data afterwards.
   return { ok: true };
 }
 

@@ -9,8 +9,6 @@
  * share row and therefore no per-link revoke list.
  */
 
-import { revalidatePath } from "next/cache";
-
 import { listEventTypes } from "@/lib/eventTypes/queries";
 import { listCalendars } from "@/lib/events/queries";
 import { requireSession } from "@/lib/session";
@@ -224,6 +222,5 @@ export async function addSharedDashboardView(token: string): Promise<AddSharedVi
   if (!created.ok) {
     return { ok: false, error: created.error };
   }
-  revalidatePath("/dashboard");
   return { ok: true, id: created.id, kind: created.tab.kind };
 }

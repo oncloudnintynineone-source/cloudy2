@@ -431,15 +431,20 @@ export async function purgeGcalCache(): Promise<void> {
  * Delete the Google month cache rows a mutation touched (DB + L1 + in-flight),
  * so the next view re-fetches and shows the change immediately. Over-invalidation
  * across the touched calendars and months is harmless.
+ *
+ * The epoch bump and the row delete run as **one** SQL statement (a
+ * data-modifying CTE): they are the mutation's response-path tail, and every
+ * event create/update/delete pays them before it can resolve, so a second Neon
+ * round trip is pure latency. The bump still commits atomically with the delete:
+ * a background refresh that started before the mutation sees the advanced epoch
+ * on its post-fetch check and refuses to persist the pre-mutation snapshot (see
+ * `refreshMonthEvents`).
  */
 export async function invalidateGcalCache(
   googleCalendarIds: string[],
   months: string[],
 ): Promise<void> {
-  // Bump the epoch first: any background refresh that started before this
-  // invalidation will see the advanced epoch on its post-fetch check and skip
-  // persisting a snapshot that predates the mutation (see `refreshMonthEvents`).
-  await bumpCacheEpoch();
+  await ensureCacheEpoch();
   const ids = [...new Set(googleCalendarIds)];
   const monthSet = [...new Set(months)];
   for (const id of ids) {
@@ -450,16 +455,21 @@ export async function invalidateGcalCache(
     }
   }
   if (ids.length === 0 || monthSet.length === 0) {
+    // Nothing to delete, but the epoch must still advance so an in-flight
+    // refresh cannot persist a snapshot that predates this mutation.
+    await bumpCacheEpoch();
     return;
   }
-  await db
-    .delete(googleEventCache)
-    .where(
-      and(
-        inArray(googleEventCache.calendarGoogleId, ids),
-        inArray(googleEventCache.month, monthSet),
-      ),
-    );
+  await db.execute(sql`
+    WITH bumped AS (
+      UPDATE cache_invalidation
+      SET epoch = epoch + 1, updated_at = now()
+      WHERE id = 'singleton'
+    )
+    DELETE FROM google_event_cache
+    WHERE ${inArray(googleEventCache.calendarGoogleId, ids)}
+      AND ${inArray(googleEventCache.month, monthSet)}
+  `);
 }
 
 /**

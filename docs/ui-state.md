@@ -130,7 +130,8 @@ Each of a tab's three filters is either:
   **`[]`** is a genuine "cleared" selection (an empty grid), distinct from
   `NULL`.
 
-`saveDashboardViewFilters` (a server action) persists the active tab's filters;
+`saveDashboardViewFilters` (a server action) persists the active tab's filters in
+one `UPDATE … RETURNING` (ownership and write in one statement);
 the client maps a selection that equals the role default onto `NULL` before
 calling it. The filter modal's **Clear** button maps every group to `NULL` (role
 default); only a per-group **Deselect All** stores the explicit `[]`. Reads
@@ -138,8 +139,9 @@ validate stored ids/names against live calendars/users/types
 each render (`buildDashboardData`, `src/lib/dashboard/data.ts`) and drop stale
 entries — an all-stale list
 degrades to the role default. There are **no `cal`/`users`/`types` URL params**
-any more: applying/clearing is an action followed by a server re-render that
-refetches the events under the new set. See [`dashboard-views.md`](dashboard-views.md) §1.2.
+any more: applying/clearing is an action followed by the dashboard's own data
+re-read (`/api/dashboard/load`), which refetches the events under the new set.
+See [`dashboard-views.md`](dashboard-views.md) §1.2.
 
 ```mermaid
 flowchart LR

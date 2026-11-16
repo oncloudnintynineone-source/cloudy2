@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { mapWithConcurrency, withTimeout } from "./async";
+import { mapSettled, mapWithConcurrency, withTimeout } from "./async";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -44,6 +44,60 @@ describe("mapWithConcurrency", () => {
 
   it("handles a limit larger than the input", async () => {
     await expect(mapWithConcurrency([1], 10, async (n) => n + 1)).resolves.toEqual([2]);
+  });
+});
+
+describe("mapSettled", () => {
+  it("keeps successful results aligned to the input order", async () => {
+    const out = await mapSettled([3, 1, 2], 2, async (n) => n * 10);
+    expect(out.results).toEqual([30, 10, 20]);
+    expect(out.failures).toEqual([]);
+  });
+
+  it("runs every item after a failure and reports failures in input order", async () => {
+    const seen: number[] = [];
+    const out = await mapSettled([0, 1, 2, 3], 2, async (n) => {
+      seen.push(n);
+      if (n === 1 || n === 3) throw new Error(`boom ${n}`);
+      return n;
+    });
+    expect(seen.sort()).toEqual([0, 1, 2, 3]);
+    expect(out.results).toEqual([0, undefined, 2, undefined]);
+    expect(out.failures.map((failure) => failure.index)).toEqual([1, 3]);
+    expect((out.failures[0].error as Error).message).toBe("boom 1");
+  });
+
+  it("never runs more than `limit` promises at once", async () => {
+    const d = [deferred<number>(), deferred<number>(), deferred<number>()];
+    let inFlight = 0;
+    let peak = 0;
+    const running = mapSettled([0, 1, 2], 2, (i) => {
+      inFlight += 1;
+      peak = Math.max(peak, inFlight);
+      return d[i].promise.finally(() => {
+        inFlight -= 1;
+      });
+    });
+    await Promise.resolve();
+    expect(peak).toBe(2);
+    d[0].resolve(10);
+    await Promise.resolve();
+    d[1].resolve(20);
+    d[2].resolve(30);
+    const out = await running;
+    expect(out.results).toEqual([10, 20, 30]);
+    expect(peak).toBe(2);
+  });
+
+  it("handles empty input and a limit larger than the input", async () => {
+    await expect(mapSettled([], 4, async () => 1)).resolves.toEqual({
+      results: [],
+      failures: [],
+    });
+    await expect(mapSettled([1], 10, async (n) => n + 1)).resolves.toEqual({
+      results: [2],
+      failures: [],
+    });
   });
 });
 

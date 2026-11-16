@@ -67,8 +67,8 @@ sequenceDiagram
     D->>R: onMove(id, toIndex)
     R->>R: predictMove(rows, id, toIndex) → optimistic override
     R->>A: persistOrder(next, id, toIndex)
-    A->>A: validate id set, renumber sortOrder in a transaction
-    A->>DB: UPDATE … sort_order = index
+    A->>A: validate id set, renumber sortOrder
+    A->>DB: dashboard views: one UPDATE … FROM (VALUES …); other lists: transaction UPDATEs
     A-->>R: ok / error
     R->>R: keep override until refresh returns the new order (or drop on error)
     Note over A: audit one human-readable entry for the dragged row
@@ -78,9 +78,10 @@ sequenceDiagram
   reconcile drops it once the authoritative rows match (or membership changes) —
   never a snap-back. A failed write drops it immediately.
 - **Persistence:** every server-backed surface has a whole-list
-  `reorderX(orderedIds, movedId?)` action that renumbers `sortOrder = index` in a
-  transaction (dense + unique even after legacy gaps) and audits the dragged row.
-  `movedId` is used only for the audit entry.
+  `reorderX(orderedIds, movedId?)` action that renumbers `sortOrder = index` densely
+  (even after legacy gaps) and audits the dragged row. Dashboard views do the whole
+  strip in **one** `UPDATE … FROM (VALUES …)` statement; the other lists renumber in a
+  transaction. `movedId` is used only for the audit entry.
 - **FLIP vs dnd-kit:** the drag path does **not** call `snapshot`/`play`; dnd-kit
   owns the drag/drop animation. FLIP stays for the chevron moves.
 - **Resolving the drop:** `@dnd-kit/react` enables its `OptimisticSortingPlugin`

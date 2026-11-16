@@ -141,6 +141,13 @@ doc content here.
   [docs/pwa-offline.md](docs/pwa-offline.md) §1.11/§1.18.
 - **Event lifecycle & mutations:** staged wizard → Google copies with notes-block
   round-trip; cross-department copies reconciled by `findCopies` (deliberately uncached).
+  Per-copy Google writes **fan out** across department calendars under a bounded
+  concurrency (`mapSettled`, ≤ 4) — never serialize them; the rollback waits for every
+  worker, the audit name lookups overlap the writes, and the response-path tail (audit +
+  month-cache purge + pinned drop) runs in one `Promise.all`. The actions resolve
+  **without** `revalidatePath("/dashboard")` — the client's own `/api/dashboard/load`
+  re-read follows. Design + measured rationale:
+  [docs/event-mutations.md](docs/event-mutations.md) §1.12.
   Wizard body is a fixed-height column + bottom **step strip** (`EventFormSteps`, locked
   to the `guided` labels + step list variant; tap = jump), so the modal never resizes
   between steps. The detail modal's
@@ -197,6 +204,13 @@ doc content here.
   with one group-level All/None across every category (no per-category pair), and the
   Users badge picker gains department-section counts, per-section All/Clear, a global
   Select all/Clear and an amber "(You)" badge.
+  Applying filters is one `UPDATE … WHERE id AND user_id RETURNING` server action
+  (`saveDashboardViewFilters`) with **no** `revalidatePath` — the dashboard shell reads no
+  view data, and the client's own `/api/dashboard/load` re-read carries the new filter set,
+  so the Apply wait is just the write plus that read. The other tab CRUD actions
+  (`create`/`rename`/`delete`/`reorder`/`changeKind`, `addSharedDashboardView`) likewise
+  skip the RSC revalidation; create is cap-probe + one INSERT, rename/delete fold
+  ownership into the write, and reorder is one batched `UPDATE … FROM (VALUES …)`.
   the active tab lives in `?view=<id>`; with no `?view=` a load defaults to the first
   tab in strip order (the last-viewed tab is not remembered). A tab
   tap is **optimistic**: it sets `previewView` in `DashboardDataContext`, so

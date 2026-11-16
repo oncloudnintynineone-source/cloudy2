@@ -10345,3 +10345,110 @@ workspace). `pnpm test` 136 files / 1761 tests pass (the six feed test files rem
 `eventFormSteps.ts` case-collision error (unrelated, §1.367). `pnpm db:generate` produced
 only `0071_oval_vector.sql`; a second run reported "No schema changes". `APP_VERSION` →
 `2026.11.16-5`.
+
+## 1.375 Write-path responsiveness (event saves + filter apply)
+
+The user asked to optimize responsiveness for database-backed actions. Plan,
+baseline measurements and the task ledger live in `tasks/responsiveness-plan.md`
+(plus reproducible probes in `.scratch/perf/`).
+
+**Measured baseline (dev machine, dev Neon `ap-southeast-1`, dev Google).**
+Neon statement RTT p50 ~2.3 ms; `events.list` p50 ~747 ms; 3 calendars serial
+~2115 ms vs concurrent ~723 ms; `events.insert` ~1.2 s, 3 copies serial ~3593 ms
+vs concurrent ~1346 ms. The write pipelines were latency-bound on serialized
+Google calls, not on Postgres.
+
+**Event create/update/delete (`src/lib/events/actions.ts`).**
+
+- `createEvent` now resolves every target's Google calendar id in **one**
+  `resolveGoogleCalendarIds` query (was one query per target inside the write
+  loop), resolves `appBaseUrl()` once per action, computes the rendered title
+  before the writes, and starts `calendarNames` + `getUsersByIds` **before** the
+  writes so the name tail overlaps them.
+- Per-copy Google writes fan out under `GOOGLE_WRITE_CONCURRENCY` (4) via the new
+  `mapSettled` (`src/lib/async.ts`): it runs every item even when some throw and
+  returns slot-ordered results + failures, so the rollback waits for all workers
+  and deletes every copy the run created (a rejecting `Promise.all` would have
+  rolled back while sibling writes were still in flight). Update and delete use
+  the same helper for their update/create/delete copy operations.
+- `legacyFallback(ref)` now resolves alongside old/new targets in the update path.
+- The response-path tail — `logAction`, `invalidateGcalCache`,
+  `invalidatePinnedCache` — runs under one `Promise.all` instead of three serial
+  awaits. `invalidateGcalCache` bumps the epoch and deletes the rows in a single
+  data-modifying CTE, removing one more round trip.
+- `findRepresentativeCopy` (registration toggle) probes all candidate calendars
+  concurrently and picks the first hit in preference order.
+- Name-lookup failures are caught (`Promise.all(...).catch(() => null)`) so they
+  can never fail a save whose Google copies are already written and cause a
+  duplicate-on-retry.
+
+**Filter apply (`src/lib/dashboardViews/actions.ts`).**
+
+- `saveDashboardViewFilters` is one `UPDATE … WHERE id AND user_id RETURNING`
+  (was an ownership SELECT followed by the UPDATE).
+- The action no longer calls `revalidatePath("/dashboard")`: the dashboard route is
+  a thin client shell that reads no view data, and the filtered events come from
+  the client's own `/api/dashboard/load` re-read. The forced RSC re-render only
+  added a layout+page render to the Apply wait.
+
+**Verification.**
+
+- `pnpm vitest run` — 136 files / 1765 tests pass (new `mapSettled` tests: order,
+  all-items-after-failure, concurrency bound, empty/oversized input).
+- `pnpm lint` clean. `pnpm typecheck` reports only the pre-existing Windows
+  `EventFormSteps.tsx` / `eventFormSteps.ts` case-collision error (§1.367).
+- End-to-end against the running dev server with real server-action calls
+  (`.scratch/perf/probe-event-actions.mjs`, real dev Google, every probe event
+  removed): 1-department create 1109 ms, 3-department create 1520 ms (1.37×, not
+  ~3×), 3-copy update 2066 ms, deletes 1772/1998 ms, cleanup swept 0 survivors.
+- Filter action (`.scratch/perf/probe-actions.mjs`): 48 ms after the change vs
+  89 ms for a control action that still does the owned-view SELECT + RSC
+  revalidate; the post-save `/api/dashboard/load` read returned the new filter
+  and the original value was restored. `GET /dashboard` RSC render measured
+  ~66 ms server-side.
+
+## 1.376 View-CRUD round trips + no redundant RSC revalidation
+
+Round 2 of the responsiveness objective (`tasks/responsiveness-plan.md`), closing the
+remaining DB-backed dashboard actions and the last forced RSC re-render.
+
+**Dashboard view CRUD (`src/lib/dashboardViews/actions.ts`, `mutate.ts`).**
+
+- `saveDashboardViewFilters` was already one `UPDATE … RETURNING`; every other tab action
+  now also skips `revalidatePath("/dashboard")` — the route is a thin client shell that
+  reads no view data, and the manage dialog/caller re-reads `/api/dashboard/load`.
+- `renameDashboardView`: ownership + rename in one `UPDATE … WHERE id AND user_id
+  RETURNING` (was SELECT + UPDATE). The returned row builds the tab, so the client's
+  custom name cannot drift.
+- `deleteDashboardView`: one CTE statement does the ownership probe, the "keep at least
+  one view" guard and the DELETE (was owned SELECT + COUNT + DELETE). The SELECT result
+  distinguishes "View not found" from "A dashboard needs at least one view".
+- `reorderDashboardViews`: one batched `UPDATE … FROM (VALUES (id, index), …)` for the
+  whole strip (was one UPDATE per row inside a transaction — N+2 round trips). The
+  `(user_id, sort_order)` index is not unique, so a mid-statement swap is safe.
+- `appendDashboardView` (normal create + shared-view import): dropped the
+  `ensureDefaultDashboardView` lock/upsert/count transaction and the separate sort-order
+  SELECT; it is now a cap probe + one INSERT whose `sortOrder` is `MAX(sort_order)+1`
+  computed in SQL. The zero-tab default seed remains owned by `getDashboardViews`.
+- `changeDashboardViewKind` and `addSharedDashboardView` also skip the RSC revalidation.
+
+**Event actions (`src/lib/events/actions.ts`).** `createEvent` / `updateEvent` /
+`deleteEvent` no longer call `revalidatePath("/dashboard")`: the grid comes from the
+client's own `/api/dashboard/load` re-read after the action, so the forced RSC re-render
+only added a layout+page render (~75 ms measured) to every save. Cache invalidation is
+still awaited before the action resolves.
+
+**Verification (dev server, real dev Google/Neon, `.scratch/perf/`).**
+
+- View actions (p50, before → after): rename 92 → 44–47 ms; reorder (3 views) 99 → 62 ms;
+  create 110–120 → 51–67 ms; delete 93–103 → 41–57 ms. Filter save stayed ~34–52 ms.
+- Reorder round-trip: reversed the strip, `/api/dashboard/load` returned the reversed
+  order, then the original order was restored. Deleting an unknown id returned
+  "View not found". Create+delete of a throwaway tab returned the strip to its original
+  3 tabs.
+- Events without RSC revalidation: a current-month create appeared in
+  `/api/dashboard/load` immediately and was absent after delete (the exact client path);
+  the 2030 multi-department create/update/delete probe still passes (1-dept 1.15 s,
+  3-dept 1.37 s = 1.18×) with 0 surviving copies in the Google sweep.
+- `pnpm test`, `pnpm lint` clean; `pnpm typecheck` only the pre-existing Windows
+  `EventFormSteps` casing error. No schema change (`pnpm db:generate` unchanged).

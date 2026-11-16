@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.372 (calendar feed)** is shipped.
+- All work through changelog **1.376 (view-CRUD round trips)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -2416,6 +2416,28 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   `user_dashboard_views.created_via`) were removed (migration `0071_*`). Android uses
   the shared department Google Calendars; the per-event **Add to Google Calendar** /
   **Download .ics file** links remain. Docs: none (removed).
+- 1.375 **Write-path responsiveness**: event create/update/delete fan their per-copy
+  Google writes out under `mapSettled` (≤ 4) instead of a serial loop, batch calendar-id
+  resolution, overlap the audit name lookups with the Google calls, and run the audit +
+  month-cache purge + pinned drop under one `Promise.all`; `invalidateGcalCache` bumps the
+  epoch and deletes rows in one CTE (`src/lib/async.ts`, `src/lib/events/actions.ts`,
+  `src/lib/google/eventsCache.ts`). `saveDashboardViewFilters` is one
+  `UPDATE … RETURNING` and no longer forces an RSC re-render
+  (`src/lib/dashboardViews/actions.ts`). Measured: 3-department create 1.5 s vs 3.6 s of
+  serial inserts; filter action 48 ms vs 89 ms control. Plan + probes:
+  `tasks/responsiveness-plan.md`, `.scratch/perf/`. Docs: `event-mutations.md` §1.4/§1.9/
+  §1.12, `events-cache.md` §1.6, `dashboard-views.md` §1.2, `ui-state.md`.
+- 1.376 **View-CRUD round trips + no redundant RSC revalidation**: `renameDashboardView`
+  folds ownership into one `UPDATE … RETURNING`, `deleteDashboardView` is one CTE
+  (ownership + last-view guard + DELETE), `reorderDashboardViews` is one batched
+  `UPDATE … FROM (VALUES …)`, and `appendDashboardView` drops the default-seed transaction
+  and sort-order SELECT (cap probe + one INSERT with the next order computed in SQL).
+  Every view action — and `createEvent`/`updateEvent`/`deleteEvent` — no longer calls
+  `revalidatePath("/dashboard")`; the client's own `/api/dashboard/load` re-read carries
+  the change. Measured: rename 92 → 44 ms, reorder 99 → 62 ms, create 110–120 → 51–67 ms,
+  delete 93–103 → 41–57 ms; event read-your-writes verified without the RSC leg. Docs:
+  `event-mutations.md` §1.4/§1.6/§1.9/§1.11, `events-cache.md` §1.6, `dashboard-views.md`
+  §1.2/§1.3, `reorder.md` §1.3, `AGENTS.md`.
 
 ## 1.4 Open items & next steps
 

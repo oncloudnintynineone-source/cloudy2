@@ -23,7 +23,8 @@ covered in [`events-cache.md`](events-cache.md).
 - [1.9 Cache invalidation & revalidation](#19-cache-invalidation--revalidation)
 - [1.10 Pure helpers & testing](#110-pure-helpers--testing)
 - [1.11 Registration mutations](#111-registration-mutations)
-- [1.12 File index & related docs](#112-file-index--related-docs)
+- [1.12 Write-path concurrency (measured)](#112-write-path-concurrency-measured)
+- [1.13 File index & related docs](#113-file-index--related-docs)
 
 ## 1.1 Problem
 
@@ -112,23 +113,29 @@ field?: EventResultField }` (`actions.ts`) — actions never throw for expected
 ```mermaid
 sequenceDiagram
  participant A as createEvent
- participant D as DB (departments)
+ participant D as DB (calendar ids + names)
  participant G as Google Calendar
  participant L as audit log
  participant C as events cache
- A->>D: getUserDepartmentIds(creator + invitees)
- A->>A: deriveTargetCalendarIds → targets (error if empty)
- A->>A: eventId = uuid, titleContext, effective input
- loop per target calendar (serial)
+ A->>D: resolveGoogleCalendarIds(targets) — one query
+ A->>A: eventId = uuid, titleContext, effective input, rendered title
+ A->>D: calendarNames + getUsersByIds (started before the writes)
+ loop bounded fan-out (mapSettled, ≤ 4, concurrent)
  A->>G: createEvent(buildGcalEventInput(...))
- G-->>A: { id, calendarId } → created[]
+ G-->>A: { id } → result slot per target
  end
- Note over A,G: on failure: delete the copies created so far (rollback)
+ Note over A,G: on failure: every worker settles, then all written copies are deleted
  A->>L: event.create — full snapshot + eventId + googleEventIds
- A->>C: invalidateGcalCache(googleCalendarIds, monthsInRange)
- A->>A: revalidatePath("/dashboard")
+ A->>C: invalidateGcalCache (one statement) + invalidatePinnedCache in parallel
+ Note over A: no revalidatePath — the client's own /api/dashboard/load re-read follows
 ```
 
+- **Fan-out**: every target copy is an independent Google write, so they are created
+  concurrently under `GOOGLE_WRITE_CONCURRENCY` (4) via `mapSettled` (`src/lib/async.ts`).
+  A three-department create therefore costs roughly one Google write rather than three:
+  measured 1.5 s vs 1.1 s for one department, where a serial loop would be ~3×
+  (`tasks/responsiveness-plan.md`). `mapSettled` deliberately keeps running every worker
+  after a failure so the rollback below sees **all** written copies.
 - **Target resolution** (`resolveTargetCalendars`, `writeContext.ts`): each invitee
   user's department + each tagged department, deduped. The organizer's home department
   is included only when the organizer is a participant (or as a fallback when no
@@ -140,16 +147,18 @@ sequenceDiagram
   deep link carrying the copy's own calendar id — + brotli notes block + internal
   marker, [`event-lifecycle.md` §1.7.3](event-lifecycle.md#173-description-assembly--markers)),
   converts the range via `absEventRange`, and puts the location in Google's first-class
-  field.
-- **Rollback**: if any copy fails, the already-created copies are deleted
-  (best-effort, `.catch(() => {})`) and the error is returned — a failed
+  field. The request origin is resolved once per action and passed in.
+- **Rollback**: if any copy fails, the action waits for every concurrent worker to
+  settle, then deletes every copy this run managed to create
+  (`Promise.allSettled` — best-effort) and returns the error — a failed
   multi-department create never leaves orphan events (`actions.ts`).
 - **Audit**: `event.create` with a flat `EventAuditSnapshot` (the rendered title, raw
   description, type, pre-formatted `time`, out-of-camp/location, department + invitee
   **names**, creator name) plus `eventId` and the per-copy `googleEventIds`
-  (`actions.ts`, §1.8).
-- **Cache**: invalidate every written Google calendar id × every touched month
-  (`actions.ts`).
+  (`actions.ts`, §1.8). The name lookups run **while** the Google writes are in flight,
+  so they no longer add a serial DB tail.
+- **Cache**: invalidate every written Google calendar id × every touched month,
+  concurrently with the audit row and the pinned-selection drop (`actions.ts`, §1.9).
 
 ## 1.5 updateEvent — reconciling copies
 
@@ -170,9 +179,9 @@ flowchart TB
  IN -- yes + copies found --> UP["updateEvent per copy<br/>(backfills group id on legacy first edit)"]
  IN -- yes + none found --> CR["createEvent — new department gained"]
  IN -- no --> DE["deleteEvent per copy — department no longer involved"]
- UP --> NEXT["next target (serial writes)"]
- CR --> NEXT
- DE --> NEXT
+ UP --> DONE["all targets fan out concurrently<br/>(mapSettled ≤ 4, one slot per target)"]
+ CR --> DONE
+ DE --> DONE
 ```
 
 Key mechanics:
@@ -213,11 +222,13 @@ location, and times. Update is a **full replace** in Google
 2. `refTargetCalendars(ref)` (legacy superset: organizer's department + participant
    departments) + `legacyFallback(ref)` in parallel; range = the ref's
    `absEventRange` ±1 day (`actions.ts`).
-3. For each target calendar: `findCopies`, then delete every match, collecting the
-   Google event ids and affected calendar ids; the first copy found is captured for the
-   audit snapshot (`actions.ts`).
-4. Audit `event.delete` with the flat snapshot (+ `eventId`, `googleEventIds`), then
-   cache invalidation + `revalidatePath("/dashboard")` (`actions.ts`).
+3. Read every target's copies concurrently (`mapWithConcurrency ≤ 4`), capture the
+   first copy found for the audit snapshot, then delete every match **concurrently**
+   (`mapSettled ≤ 4`), collecting the Google event ids and affected calendar ids
+   (`actions.ts`).
+4. Audit `event.delete` with the flat snapshot (+ `eventId`, `googleEventIds`),
+   concurrently with cache invalidation and the pinned-selection drop; the client's own
+   `/api/dashboard/load` re-read follows (no RSC revalidation) (`actions.ts`).
 
 No rollback is needed: deleting a second time is a 404, and the integration's
 `deleteEvent` treats 404 as success.
@@ -226,7 +237,7 @@ No rollback is needed: deleting a second time is a 404, and the integration's
 
 | Situation                                                                                 | Behavior                                                                                                                                                                                                   |
 | ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| One copy of a multi-calendar **create** fails                                             | All copies created so far in this run are deleted (rollback); the error is returned; nothing is left behind.                                                                                               |
+| One copy of a multi-calendar **create** fails                                             | Every concurrent worker settles first, then all copies created so far in this run are deleted (rollback); the error is returned; nothing is left behind.                                                    |
 | A **create** fails after some copies exist                                                | The retry re-derives targets from the (unchanged) form and creates again; the rolled-back copies are gone, so no duplicates.                                                                               |
 | **Update** fails after updating some copies                                               | Only this run's _new_ copies are rolled back; pre-existing updated copies keep the new state. The retry re-derives the plan from Google's current state and converges the rest.                            |
 | A calendar id in the target set has no Google calendar (`resolveGoogleCalendarId` → null) | Skipped in update/delete loops (`actions.ts`); throws "Calendar not found" in create.                                                                                                                      |
@@ -275,18 +286,30 @@ stored `after` record.
 
 ## 1.9 Cache invalidation & revalidation
 
-After the Google writes and the audit row, every action calls
-`invalidateGcalCache(googleCalendarIds, months)` and then
-`revalidatePath("/dashboard")`:
+After the Google writes, every action writes its audit row, calls
+`invalidateGcalCache(googleCalendarIds, months)` and `invalidatePinnedCache()`
+concurrently, then resolves. The actions deliberately do **not** call
+`revalidatePath("/dashboard")`: the dashboard route is a thin client shell that renders
+no event data — the grid comes from the client's own `/api/dashboard/load` re-read
+immediately after the action (measured at ~75 ms of avoided layout+page render per save).
 
-- **Calendars**: every Google calendar id the mutation wrote to (create: `created`,
-  update/delete: `affectedGoogleIds`).
+- **Calendars**: every Google calendar id the mutation wrote to (create: the returned
+  copies, update/delete: `affectedGoogleIds`).
 - **Months**: every `YYYY-MM` the old _and_ new date ranges touch
   (`monthsInRange`, `datetime.ts`) — so a reschedule into a new month invalidates
   both months (`actions.ts`).
+- **One statement**: `invalidateGcalCache` bumps the shared cache epoch and deletes the
+  DB rows in a single data-modifying CTE (`eventsCache.ts`), so the purge costs one Neon
+  round trip instead of the old bump-then-delete pair. The L1 memory entries and
+  in-flight refresh promises are dropped synchronously first.
+- **Parallel tail**: the audit insert, the month-cache purge and the pinned-selection
+  delete are independent writes, so they run under one `Promise.all` — the mutation no
+  longer pays three serial DB round trips on its response path. Cache invalidation is
+  still **awaited** before the action resolves: the dashboard re-reads immediately
+  afterwards, and that read must not race a pre-mutation cache row.
 - The purge deletes the L1 in-process entries and the DB rows for those
   calendar×month keys; on the mutating instance the next view is a blocking re-fetch,
-  so the `router.refresh()` after the server action shows the change immediately
+  so the dashboard's post-save `revalidate()` read shows the change immediately
   (read-your-own-writes). Full consistency analysis in
   [`events-cache.md` §1.6/§1.7](events-cache.md#17-freshness--consistency).
 
@@ -330,8 +353,8 @@ Registration events add one server action,
 
 Because it reuses the update pipeline, copy reconciliation, title rendering,
 audit (`event.update` with a `registration` context field), the
-`event.updated` webhook, KAH checks, notifications, cache invalidation and
-`revalidatePath("/dashboard")` all behave exactly like an ordinary edit.
+`event.updated` webhook, KAH checks, notifications and cache invalidation all behave
+exactly like an ordinary edit (including the client-owned post-save re-read).
 
 `updateEvent` and `deleteEvent` apply the organizer/admin-only restriction
 authoritatively **after** reading the first stored copy and before any write
@@ -342,7 +365,26 @@ participant), so the event keeps a stable home as registrants come and go.
 
 See [`registration-events.md`](registration-events.md) for the full model.
 
-## 1.12 File index & related docs
+## 1.12 Write-path concurrency (measured)
+
+The write pipelines are latency-bound on Google Calendar, not Postgres: a single
+`events.insert` measured ~1.2 s and `events.list` ~0.75 s from the dev environment, while
+a warm Neon statement is ~2–3 ms (`tasks/responsiveness-plan.md`). The pipelines
+therefore overlap independent work instead of serializing it:
+
+| Change | Effect |
+| --- | --- |
+| Per-copy Google writes fan out (`mapSettled`, ≤ 4) | 3-department create ~1.5 s vs ~3.6 s of serial inserts; end-to-end 1-department create 1.1 s vs 3-department 1.5 s (1.37×, not 3×) |
+| Copy reads stay concurrent (`mapWithConcurrency`, ≤ 4) | unchanged (already concurrent) |
+| Calendar-id resolution batched (`resolveGoogleCalendarIds`) | one query per mutation instead of one per target |
+| Name lookups start before the Google calls | removes two serial DB round trips from the tail |
+| Audit + month-cache purge + pinned drop in one `Promise.all` | removes three serial DB round trips |
+| Epoch bump + cache delete in one CTE | removes one round trip per mutation |
+
+The cache invalidation deliberately stays on the response path (§1.9): moving it into
+`after()` would let the client's immediate post-mutation re-read serve stale rows.
+
+## 1.13 File index & related docs
 
 | File                                          | Role                                                  |
 | --------------------------------------------- | ----------------------------------------------------- |

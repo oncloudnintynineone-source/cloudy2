@@ -325,21 +325,33 @@ header button is the app's refresh affordance.
 ## 1.6 Write / invalidation path
 
 Create, update, and delete (`src/lib/events/actions.ts`: `createEvent`, `updateEvent`,
-`deleteEvent`) write to Google Calendar directly (the source of truth), audit-log,
-then call `invalidateGcalCache(googleCalendarIds, months)` before
-`revalidatePath("/dashboard")`:
+`deleteEvent`) write to Google Calendar directly (the source of truth), then audit-log
+and call `invalidateGcalCache(googleCalendarIds, months)` — concurrent with the audit
+insert and the pinned-selection drop — before resolving. The client's own
+`/api/dashboard/load` re-read follows; the actions do **not** force an RSC revalidation
+of `/dashboard` (its shell renders no event data):
 
 ```mermaid
 flowchart LR
- A["mutation (create/update/delete)"] --> B["Google writes"]
+ A["mutation (create/update/delete)"] --> B["Google writes<br/>(fan-out ≤ 4 per copy)"]
  B --> C["audit log"]
- C --> D["invalidateGcalCache(ids, months)"]
- D --> H["bumpCacheEpoch()"]
+ B --> D["invalidateGcalCache(ids, months)"]
+ B --> P["invalidatePinnedCache()"]
+ C --> R["resolves; client re-reads<br/>/api/dashboard/load"]
+ D --> R
+ P --> R
+ D --> H["one statement: bump epoch + DELETE rows"]
  D --> E["purge L1 + in-flight entries"]
- D --> F["DELETE rows (id × month)"]
- C --> G["revalidatePath('/dashboard')"]
 ```
 
+- The three response-path writes (audit, month-cache purge, pinned drop) are independent
+  and run under one `Promise.all`; cache invalidation is still awaited before the action
+  resolves so the dashboard's immediate re-read cannot serve a pre-mutation row.
+- `invalidateGcalCache` bumps the epoch and deletes the database rows in **one**
+  data-modifying CTE (`eventsCache.ts`), then drops the local L1/in-flight entries
+  synchronously. The bump still commits atomically with the delete, so a background
+  refresh that started before the mutation refuses to persist the stale snapshot
+  (`refreshMonthEvents`).
 - **Affected ids** are the Google calendar ids the mutation wrote to, collected during the
   write loops (`created.map(...)`, `affectedGoogleIds`).
 - **Affected months** are every `YYYY-MM` the event's old and new date ranges touch, via
