@@ -2804,6 +2804,61 @@ html.c2-low-end::view-transition-group(*) {
 }
 
 /*
+  Picker-chip removal ✕ (docs/user-picker.md §1.7): the ✕ on a picked chip is
+  the primary way people remove a user or department, so it must read as a real
+  control — a square 22px target that never shrinks in a wrapped row (the chip
+  itself grows to 28px via PickerBadges), and the same explicit focus ring the
+  grid cells use, because the icon sits on the chip's own tint where Mantine's
+  scheme-derived ring loses contrast.
+*/
+.mantine-ActionIcon-root.c2-picker-chip-remove {
+  min-width: 22px;
+  min-height: 22px;
+  flex-shrink: 0;
+}
+.mantine-ActionIcon-root.c2-picker-chip-remove:focus-visible {
+  outline: 2px solid var(--mantine-color-brand-6);
+  outline-offset: 1px;
+}
+[data-mantine-color-scheme="dark"] .mantine-ActionIcon-root.c2-picker-chip-remove:focus-visible {
+  outline-color: var(--mantine-color-brand-4);
+}
+
+/*
+  Selected selectable badge (docs/user-picker.md §1.7): selection is a COLOR,
+  not a glyph — brand amber (#FBC02D, accent-6) with near-black text (~9.6:1)
+  in both schemes; the dark scheme's existing currentColor badge ring (above)
+  gives it an edge, the light scheme gets an accent-7 hairline because
+  amber-on-white alone is only ~1.9:1. The rule (0-3-0) outranks the
+  `.c2-my-badge` mine tint (0-2-0), so a selected self badge shows the amber
+  fill while keeping its accent-6 mine ring + "(You)" suffix; `aria-pressed`
+  still carries the state for AT and filled-vs-tint is a non-colour cue.
+*/
+.mantine-Badge-root.c2-selectable-badge[data-selected] {
+  background-color: var(--mantine-color-accent-6);
+  border-color: var(--mantine-color-accent-7);
+  color: var(--mantine-color-dark-9);
+}
+
+/*
+  UserSelectModal's pinned Selected strip (docs/user-picker.md §1.2): a
+  bordered, tinted container so the running selection reads as a different
+  area from the pool of selectable badges below it — its chips are amber
+  (the selected language), the pool's are gray. Scheme-scoped per the app's
+  dark-override convention.
+*/
+.c2-picker-selected-strip {
+  background-color: var(--mantine-color-gray-0);
+  border: 1px solid var(--mantine-color-gray-3);
+  border-radius: var(--mantine-radius-sm);
+  padding: 8px 10px;
+}
+[data-mantine-color-scheme="dark"] .c2-picker-selected-strip {
+  background-color: var(--mantine-color-dark-6);
+  border-color: var(--mantine-color-dark-4);
+}
+
+/*
   Event-type folder chip (the wizard Type step + the filter dialog's Event
   Types group, `EventTypeGroupGrid`'s GroupTile): `variant="outline"` paints
   its text and border in `--mantine-color-brand-outline` = brand-4 in the dark

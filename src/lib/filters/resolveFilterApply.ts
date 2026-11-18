@@ -9,12 +9,87 @@ export interface FilterApplyGroup {
 /** True when a group's selection means "no filter" (variant-dependent). */
 export function isGroupUnfiltered(
   group: Pick<FilterApplyGroup, "variant" | "optionCount">,
-  selected: string[],
+  selected: readonly string[],
 ): boolean {
   if (group.variant === "search") {
     return selected.length === 0 || selected.length === group.optionCount;
   }
   return selected.length === group.optionCount;
+}
+
+export type GroupFilterStateKind = "all" | "none" | "some";
+
+export interface GroupFilterState {
+  kind: GroupFilterStateKind;
+  /** Compact chip label: `"All"` / `"None"` / `"3 of 12"`. */
+  label: string;
+  /** True when the selection actually filters (`kind !== "all"`). */
+  active: boolean;
+  /** Selected option count, clamped to the group's option count. */
+  count: number;
+}
+
+/**
+ * The one "what is selected here?" answer every filter group header shows, so a
+ * grid group, a sectioned group and a search group describe their state in the
+ * same words. Built on {@link isGroupUnfiltered}, so the variant-dependent
+ * meaning of "no filter" (grid: everything ticked; search: nothing ticked) can
+ * never drift from what Apply actually stores.
+ */
+export function groupFilterState(
+  group: Pick<FilterApplyGroup, "variant" | "optionCount">,
+  selected: readonly string[],
+): GroupFilterState {
+  const count = Math.min(selected.length, group.optionCount);
+  if (isGroupUnfiltered(group, selected)) {
+    return { kind: "all", label: "All", active: false, count };
+  }
+  if (count === 0) {
+    return { kind: "none", label: "None", active: true, count };
+  }
+  return { kind: "some", label: `${count} of ${group.optionCount}`, active: true, count };
+}
+
+/**
+ * Group labels are the UI's plural nouns ("Event Types"), so a single pick reads
+ * better singular ("1 event type"). Only regular English plurals reduce — words
+ * that merely end in `s` ("Status", "Access") stay untouched.
+ */
+const ALREADY_SINGULAR = /(ss|us|is|xs)$/i;
+
+function singularizeLabel(label: string): string {
+  return label.length > 1 && !ALREADY_SINGULAR.test(label) && label.endsWith("s")
+    ? label.slice(0, -1)
+    : label;
+}
+
+/**
+ * One plain-language entry per group for the dialog's "Showing: …" line, e.g.
+ * `["All calendars", "3 users", 'Event name "parade"']`. It reads the same
+ * variant semantics as Apply, so the line can never promise something the write
+ * would not do.
+ */
+export function describeFilterGroups(
+  groups: readonly FilterApplyGroup[],
+  draft: Record<string, readonly string[]>,
+  text?: { label: string; value: string },
+): string[] {
+  const entries = groups.map((group) => {
+    const state = groupFilterState(group, draft[group.label] ?? []);
+    const label = group.label.toLocaleLowerCase();
+    if (state.kind === "all") {
+      return `All ${label}`;
+    }
+    if (state.kind === "none") {
+      return `No ${label}`;
+    }
+    return `${state.count} ${state.count === 1 ? singularizeLabel(label) : label}`;
+  });
+  const trimmed = text?.value.trim() ?? "";
+  if (trimmed !== "" && text) {
+    entries.push(`${text.label} "${trimmed}"`);
+  }
+  return entries;
 }
 
 /**

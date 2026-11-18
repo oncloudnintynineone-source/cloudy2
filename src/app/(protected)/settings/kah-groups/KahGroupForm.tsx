@@ -150,8 +150,13 @@ export function KahGroupForm({ group, defaultPercentage, pickerUsers, onDone }: 
           <PickerField
             label="Members"
             count={form.values.memberIds.length}
-            triggerLabel="Choose"
             items={memberItems}
+            onRemove={(item) =>
+              form.setFieldValue(
+                "memberIds",
+                form.values.memberIds.filter((id) => id !== item.key),
+              )
+            }
             empty={
               <Text c="dimmed" fz="sm">
                 No members selected.
@@ -218,7 +223,6 @@ export function KahGroupForm({ group, defaultPercentage, pickerUsers, onDone }: 
             opened
             onClose={closePicker}
             title="Select members"
-            confirmLabel="Add members"
             groups={groups}
             zIndex={300}
             values={selectionByGroup(groups, form.values.memberIds)}

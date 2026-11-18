@@ -193,7 +193,8 @@ the schema column defaults (guarded by a unit test).
 - **Settings → KAH Groups** (`/settings/kah-groups`): table (desktop) / cards (mobile) of
   groups with name, required %, members. Create/edit modal: name, required-% NumberInput
   prefilled from the settings default, and members picked through the shared badge dialog
-  (`UserSelectModal`, active users grouped by department). Delete asks for confirmation.
+  (`UserSelectModal`, active users grouped by department; summary chips removable via ✕).
+  Delete asks for confirmation.
   All mutations are audited (`kahGroup.create/update/delete`) with member display names.
 - **Settings → KAH Groups → Breach Email Templates**: subject/body template fields
   with a live preview (sample breach data rendered through

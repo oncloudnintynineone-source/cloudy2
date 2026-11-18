@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { isGroupUnfiltered, resolveFilterApply, type FilterApplyGroup } from "./resolveFilterApply";
+import {
+  describeFilterGroups,
+  groupFilterState,
+  isGroupUnfiltered,
+  resolveFilterApply,
+  type FilterApplyGroup,
+} from "./resolveFilterApply";
 
 const groups: FilterApplyGroup[] = [
   { label: "Calendars", optionCount: 3 },
@@ -91,5 +97,90 @@ describe("resolveFilterApply", () => {
     expect(
       resolveFilterApply(groups, draft, values, new Set(["Calendars", "Event Types"]), true),
     ).toEqual({ Calendars: [], Users: [], "Event Types": [] });
+  });
+});
+
+describe("groupFilterState", () => {
+  it("grid: a full selection reads as All and is not an active filter", () => {
+    expect(groupFilterState(groups[0], [CAL_A, CAL_B, CAL_C])).toEqual({
+      kind: "all",
+      label: "All",
+      active: false,
+      count: 3,
+    });
+  });
+
+  it("grid: a subset counts against the group", () => {
+    expect(groupFilterState(groups[0], [CAL_A, CAL_B])).toEqual({
+      kind: "some",
+      label: "2 of 3",
+      active: true,
+      count: 2,
+    });
+  });
+
+  it("grid: an empty selection is the explicit None state", () => {
+    expect(groupFilterState(groups[0], [])).toEqual({
+      kind: "none",
+      label: "None",
+      active: true,
+      count: 0,
+    });
+  });
+
+  it("search: empty and full both mean All (no filter)", () => {
+    expect(groupFilterState(groups[1], []).kind).toBe("all");
+    expect(groupFilterState(groups[1], ["u1", "u2", "u3"]).kind).toBe("all");
+    expect(groupFilterState(groups[1], ["u1"]).label).toBe("1 of 3");
+  });
+
+  it("clamps a stale-longer selection to the group's option count", () => {
+    expect(groupFilterState(groups[2], ["t1", "t2", "gone"]).count).toBe(2);
+  });
+
+  it("treats a group with no options as All", () => {
+    expect(groupFilterState({ optionCount: 0 }, []).kind).toBe("all");
+  });
+});
+
+describe("describeFilterGroups", () => {
+  it("names every group's state in plain words", () => {
+    expect(
+      describeFilterGroups(groups, {
+        Calendars: [CAL_A, CAL_B, CAL_C],
+        Users: ["u1", "u2"],
+        "Event Types": ["t1"],
+      }),
+    ).toEqual(["All calendars", "2 users", "1 event type"]);
+  });
+
+  it("says No <group> for an explicit empty grid selection", () => {
+    expect(describeFilterGroups([groups[0]], { Calendars: [] })).toEqual(["No calendars"]);
+  });
+
+  it("keeps an already-plural group label plural", () => {
+    expect(
+      describeFilterGroups([{ label: "Entity types", optionCount: 4 }], {
+        "Entity types": ["a", "b"],
+      }),
+    ).toEqual(["2 entity types"]);
+  });
+
+  it("does not reduce a label that merely ends in s", () => {
+    expect(describeFilterGroups([{ label: "Status", optionCount: 4 }], { Status: ["a"] })).toEqual([
+      "1 status",
+    ]);
+  });
+
+  it("appends the trimmed free-text term when present", () => {
+    expect(
+      describeFilterGroups([groups[0]], { Calendars: [] }, { label: "Event name", value: "  parade " }),
+    ).toEqual(["No calendars", 'Event name "parade"']);
+  });
+
+  it("omits a blank free-text term", () => {
+    expect(
+      describeFilterGroups([groups[0]], { Calendars: [] }, { label: "Event name", value: "   " }),
+    ).toEqual(["No calendars"]);
   });
 });

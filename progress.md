@@ -18,7 +18,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.380 (dev-server origin allowlist)** is shipped.
+- All work through changelog **1.382 (amber selected badges + distinct Selected
+  strip)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -2476,6 +2477,30 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   top-level `allowedDevOrigins` with `127.0.0.1` plus the optional comma-separated
   `DEV_ALLOWED_ORIGINS` env var (bare hostnames, `*.host` wildcards) for LAN devices,
   emulators and tunnels; dev-only, never read by a production build.
+- 1.381 **Picker selection state + one-tap removal**: users could not tell what was
+  selected — or how to remove it — because the trigger kept reading "Select +" after
+  picks, summary chips were inert, and the dialog's Confirm read add-only. Now
+  `PickerTrigger` says **Add** → **Edit** (pencil) once picks exist; every summary chip
+  carries a ✕ (`PickerBadges onRemove`, ≥22px target, focus ring) that drops that pick
+  in place across all consumers (invitees, KAH members, parade recipients, user/parent
+  department, Double Booking target, filter groups); `UserSelectModal` pins a removable
+  **Selected (N)** strip above its list and its confirm button defaults to **Done**.
+  The filter dialog unifies its three group idioms into one header recipe (label +
+  All/None state chip + Show/Hide + All/None), shows removable chips beside a collapsed
+  group, gives folder chips a count pill / check, the wizard's type step a persistent
+  **Selected** banner, and a "Showing: …" line states the effective result set; the
+  footer reset is **Reset filters** (role defaults — deliberately distinct from a
+  group's **None**). Pure copy/removal helpers in `lib/ui/picker.ts`, `userSelect.ts`
+  and `resolveFilterApply.ts` (82 tests). Docs: `user-picker.md` §1.2/§1.6/§1.7,
+  `dashboard-views.md` §1.2, `event-lifecycle.md` §1.4.1/§1.10.
+- 1.382 **Amber selected badges + distinct Selected strip**: the reserved check slot
+  shifted every unselected `SelectableBadge` label right and sat its text off-center —
+  selection now reads by **color**: brand-amber fill (#FBC02D) + near-black text in
+  both schemes (`.c2-selectable-badge[data-selected]`), no glyph; a `self` badge keeps
+  its mine ring + "(You)" suffix (amber fill replaces the cream tint while selected).
+  In `UserSelectModal` the pinned Selected strip becomes a bordered, tinted container
+  (`.c2-picker-selected-strip`) with amber chips, clearly apart from the gray pool.
+  Docs: `user-picker.md` §1.2/§1.7.
 
 ## 1.4 Open items & next steps
 

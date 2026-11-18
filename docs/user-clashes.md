@@ -42,7 +42,8 @@ without a navigation.
   (a `NoKeyboardSelect`-style dropdown would violate the large-option-list rule in
   `docs/user-picker.md`): roster grouped into per-department badge sections with the
   shortname as an extra search term. Picking one person (Confirm disabled until a
-  pick) switches the scan target. Inactive users are not offered.
+  pick) switches the scan target; the summary chip's ✕ returns the scan to the
+  acting user's own schedule. Inactive users are not offered.
 - The acting user is emphasised as `You` only when the target **is** the actor, so
   scanning a colleague sees plain name chips.
 

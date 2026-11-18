@@ -224,10 +224,14 @@ Mechanics worth knowing:
 
 ### 1.4.1 Step details
 
-- **Type** (`EventForm.tsx`): alphabetically sorted toggleable `Badge` chips
-  (no searchable select — the list is short). Selecting a type re-resolves the time
-  option against the type's allowed set and re-clamps the location category against the
-  type's allowed locations (`handleEventTypeChange`, `EventForm.tsx`).
+- **Type** (`EventForm.tsx`): the type list renders through the shared
+  `EventTypeGroupGrid` in `single` mode (§1.10). A persistent **Selected** banner sits
+  above the grid: the current type as a filled brand chip (`Type · Group` when grouped)
+  with a ✕ that clears it, or a dimmed "No event type selected — tap one below." — so
+  the pick is visible without hunting the grid for the one filled badge. Selecting a
+  type re-resolves the time option against the type's allowed set and re-clamps the
+  location category against the type's allowed locations (`handleEventTypeChange`,
+  `EventForm.tsx`).
 - **Timestamp** (`EventForm.tsx`): when the type allows more than one
   option the step shows a `Tabs` control ("Start & End" / "Full Day" / "Half Day");
   otherwise the single option's fields render directly. `range` = a `DatePickerInput`
@@ -289,7 +293,9 @@ Mechanics worth knowing:
   them apart from the other participants. The value
   prefixes are split into
   `inviteeUserIds` / `inviteeDepartments` on submit (`splitInvitees`,
-  `EventForm.tsx`).
+  `EventForm.tsx`). Every summary chip carries a ✕ that drops that person or
+  department in place (`removeInvitee`) — no need to reopen the dialog, whose
+  confirm button now reads **Done** because it both adds and removes.
 - **Remarks** (`EventForm.tsx`): an autosize `Textarea` bound to the form's
   `title` field — the **raw description**. It is optional; the calendar title comes from
   the template (§1.8).
@@ -906,7 +912,9 @@ flowchart LR
   brand-outline badge (the type badges in the popup are borderless light/filled, so
   container and options never read the same) showing the group name plus a right-edge
   chevron that rotates with the popup; a light-brand fill appears once the group holds a
-  selection (counts stay off the chip; the `aria-label` carries them). Tapping a chip
+  selection, with a visible marker on the chip — a brand **count pill** (multi) or a
+  check icon (single) — so a collapsed folder never hides that it holds picks (the
+  `aria-label` carries the same). Tapping a chip
   opens a Mantine `Popover`
   (zIndex 300, above the modals, standard `popoverTransitionProps` pop) with the
   group's `SelectableBadge`s. `mode="single"` (the wizard) closes the popup on select;

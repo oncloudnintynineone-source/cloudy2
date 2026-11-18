@@ -12,6 +12,7 @@ dialog**, never a searchable dropdown.
 - [1.4 Callers](#14-callers)
 - [1.5 File index & related docs](#15-file-index--related-docs)
 - [1.6 PickerField / PickerBadges — the shared trigger & summary](#16-pickerfield--pickerbadges--the-shared-trigger--summary)
+- [1.7 Selection state & one-tap removal](#17-selection-state--one-tap-removal)
 
 ## 1.1 No keyboard pop-up from dropdown taps
 
@@ -47,13 +48,27 @@ of toggleable badges with a search box on top:
   marker — `sortOptionsInGroups` leaves them in tree preorder instead of
   re-alphabetizing. Depth is display-only — the draft/summary/merge helpers key by
   section label and option id, so nesting never changes a caller's id semantics.
-- Every option renders through the shared `SelectableBadge` (the same filled/light
-  keyboard-operable badge as the wizard and filter grid). Options may carry
+- Every option renders through the shared `SelectableBadge` (the same keyboard-operable
+  badge as the wizard and filter grid — **amber fill** when selected, gray light
+  otherwise; selection is a color, not a glyph, §1.7). Options may carry
   `self: true`, which renders the amber "mine" treatment and a "(You)" suffix (the
   dashboard/parade Users filters mark the acting user).
 - Multi-select section headers show the option count plus an **All / Clear** pair
   scoped to that section; the footer carries a global **Select all / Clear**. The
   controls are hidden in `single` mode (where one pick replaces the whole draft).
+- A pinned **"Selected (N)"** strip sits between the search box and the scrolling
+  list — a bordered, tinted container (`.c2-picker-selected-strip`) so it reads as a
+  different area from the pool below: the current draft as removable **amber** chips
+  (the shared `PickerBadges`), so what is picked stays visible while the search
+  filters the list. Chips follow section /
+  option order (pure `selectedChips`); a chip's ✕ drops that id from **every** section
+  of the draft (`removeSelectedId` — no ghost pick), and an empty draft shows a dimmed
+  hint instead.
+- The footer shows a dimmed **"N selected"** beside the global Clear / All-None pair,
+  and the confirm button defaults to **"Done"** — the dialog both adds and removes, so
+  an "Add"/"Select" label made users believe re-tapping a name added it again. Callers
+  override only when a domain verb is clearer ("Check person"; the single-value
+  department/parent pickers keep "Select").
 - The `values` prop and every helper stay ids-in/ids-out; ownership of the id domain
   never changes.
 - Pass `zIndex` when nested — the event wizard uses 300 over its z-250 dialog;
@@ -76,6 +91,9 @@ of toggleable badges with a search box on top:
 | `departmentPickerOptions(rows)` | builds the options for a department-as-option list (wrapped badges / chip filters) from preorder `departmentTreeRows` (`roster/hierarchy.ts`); each option's label carries its **full ancestor chain** ("HQ › Logistics › Stores", via `departmentPathLabels`), top level = its plain name, and its `depth` is kept only as the "keep tree preorder, don't re-alphabetize" marker |
 | `filterPickerGroups` | narrows fuzzily; keeps a whole section when its label matches; drops empties |
 | `selectionByGroup` | seeds a draft from a flat selection |
+| `selectedChips(groups, draft)` | resolves a draft into `PickerChip[]` for the dialog's Selected strip — section order, then option order (matching the badge grid), deduped across sections; ids no longer in the option set drop out of the UI (never silently deleted from the caller's value) |
+| `removeSelectedId(draft, id)` | drops an id from **every** section of a draft (a chip's ✕ can never leave a ghost pick in another section); never mutates |
+| `removeInvitee(invitees, key)` | removes one prefixed (`user:`/`dept:`) invitee key from a flat invitee list — the wizard chip's ✕ handler |
 | `splitInvitees` / `mergeInviteeSelection` | split/merge the `user:<id>` / `dept:<id>` prefixed invitee list (keeps now-unlistable ids so edits don't drop them; nothing is auto-added by the helpers — a fresh create's form seeds the acting user as a participant, but that is `buildInitialValues`, not the picker) |
 
 ## 1.4 Callers
@@ -110,9 +128,10 @@ of toggleable badges with a search box on top:
 | ------------------------------------- | ----------------------------------------- |
 | `src/components/NoKeyboardSelect.tsx` | Keyboard-safe Select/MultiSelect wrappers |
 | `src/components/UserSelectModal.tsx`  | The badge-dialog picker |
-| `src/components/SelectableBadge.tsx` | Shared filled/light selectable badge (wizard + picker + filters) |
+| `src/components/SelectableBadge.tsx` | Shared selectable badge — amber fill when selected (wizard + picker + filters) |
 | `src/components/AllNoneControls.tsx` | Shared compact All/None (or All/Clear) pair |
-| `src/components/PickerField.tsx` | Presentational trigger + summary layer |
+| `src/components/PickerField.tsx` | Presentational trigger + summary layer (removable chips) |
+| `src/lib/ui/picker.ts` | Pure trigger-label / removal-hint copy helpers |
 | `src/lib/users/userSelect.ts` | Pure grouping/matching/merging helpers |
 | `src/lib/filters/filterSections.ts` | Pure section state + All/None math |
 
@@ -130,11 +149,18 @@ standalone as `PickerBadges`:
 - **`PickerBadges`** renders the picked options as `variant="light"` badges from
   `items: PickerBadgeItem[]` (`{ key, label, color?, self? }`). A `cap` shows a `+N`
   overflow badge instead of the tail; an `empty` node replaces the row when nothing is
-  picked, and `self` uses the amber "mine" treatment with "(You)". Pure presentation —
-  callers resolve their own id domains into items.
+  picked, and `self` uses the amber "mine" treatment with "(You)". With `onRemove`
+  every visible chip carries a ✕ that removes that pick in place (the `+N` badge
+  stays inert — §1.7); `removeLabel` overrides the ✕'s accessible name (default
+  `Remove <label>`). Pure presentation — callers resolve their own id domains into
+  items.
+- **`PickerTrigger`** is the shared trigger button: **Add** + `IconPlus` while nothing
+  is picked, **Edit** + `IconPencil` afterwards; `triggerLabel` wins over the pair and
+  `addLabel`/`editLabel` customize it.
 - **`PickerField`** composes the full affordance: an optional header (`label`, `count`
-  suffix `(N)`, `description`) with the `IconPlus` trigger button (`triggerLabel`,
-  default "Select") pinned right, then `PickerBadges`.
+  suffix `(N)`, `description`) with the `PickerTrigger` pinned right, then
+  `PickerBadges`, then the dimmed removal hint (`pickerRemovalHint`;
+  `showRemovalHint={false}` opts out).
 
 The modal itself stays with each caller — open state, `zIndex`, and the `onConfirm`
 transform differ (prefixed invitees vs. flat member ids vs. FilterModal's staged draft
@@ -144,10 +170,54 @@ separate role + Add commit:
 
 | Consumer | Field | Notes |
 | -------- | ----- | ----- |
-| Event wizard (Participants step) | `PickerField` | departments `accent`, explanatory description (participants can edit; a fresh create pre-selects the acting user; an event must keep ≥1 participant/department) |
-| KAH group form | `PickerField` | `Members (N)` count, "Choose" trigger, "No members selected." empty; field error renders below |
-| Double Booking scan target | `PickerField` | single `brand` chip "Name · Department"; self-scan shows the empty text instead |
-| Department create/edit (Parent department) | `PickerField` | summary always shows the current option incl. "No parent (top level)" |
-| UserForm (Department to grant) | trigger `Button` | stages the department; role select + Add commit it |
-| `FilterModal` search groups | `PickerBadges` only | `cap={5}` + `+N`, "All {label}" empty — the group's own heading/label row is FilterModal's |
+| Event wizard (Participants step) | `PickerField` | departments `accent`, explanatory description (participants can edit; a fresh create pre-selects the acting user; an event must keep ≥1 participant/department); chip ✕ removes one `user:`/`dept:` invitee via `removeInvitee` |
+| KAH group form | `PickerField` | `Members (N)` count, "No members selected." empty; chip ✕ removes a member; field error renders below |
+| Parade email form (Recipients) | `PickerField` | chip ✕ removes a recipient |
+| Double Booking scan target | `PickerField` | single `brand` chip "Name · Department"; ✕ returns the scan to the user's own schedule; self-scan shows the empty text instead |
+| Department create/edit (Parent department) | `PickerField` | chip ✕ clears the parent to top level; empty text "No parent (top level)"; `triggerLabel="Select"` |
+| UserForm (Department) | `PickerField` | single chip; ✕ clears the department ("Remove department"); `triggerLabel="Select"` |
+| UserForm (Department to grant) | trigger `Button` | stages the department; role select + Add commit it — add-only by design, so its dialog keeps `confirmLabel="Add"` |
+| `FilterModal` search groups | `PickerBadges` + `PickerTrigger` | `cap={5}` + inert `+N`, chip ✕, "All {label}" empty — the group's heading row is FilterModal's (see [`dashboard-views.md`](dashboard-views.md) §1.2) |
+
+## 1.7 Selection state & one-tap removal
+
+The old picker hid its state at every layer: the trigger kept reading "Select +" after
+people were tagged, the summary chips were inert, and the dialog's Confirm said
+"Select"/"Add" as if it could only add — so users re-tapped names "to add them again"
+(toggling them off) or opened the dialog hunting for a Remove button. The fix makes
+selection state visible everywhere and removal one tap:
+
+- **Option badges:** a selected `SelectableBadge` is unmistakable by **color** —
+  brand-amber fill (`#FBC02D`) with near-black text in both schemes
+  (`.c2-selectable-badge[data-selected]` in `globals.css`), unselected stays the
+  gray light badge. Deliberately **not a check glyph**: the earlier reserved
+  check slot shifted every unselected label right and sat off-center, and a
+  color needs no reserved space. `aria-pressed` carries the state for AT and
+  filled-vs-tint is a non-colour cue. Amber is also the "mine" colour, so a
+  `self` badge keeps its accent ring + "(You)" suffix in both states — the
+  amber fill simply replaces the cream tint while selected.
+- **Trigger:** `PickerTrigger` says **Add** + `IconPlus` while nothing is picked and
+  **Edit** + `IconPencil` afterwards — never a static "Select +" over a non-empty
+  selection. Single-value pickers that read as fields (UserForm department, Department
+  parent) keep an explicit `triggerLabel="Select"`.
+- **Summary chips:** `PickerBadges onRemove` puts a ✕ (`ActionIcon`, ≥22px via
+  `.c2-picker-chip-remove` in `globals.css`, visible focus ring on the brand ramp) on
+  every visible chip; a removable row grows all its chips to 28px together so the row
+  stays even. The `+N` overflow badge stays **inert** — its hidden picks are removed
+  inside the dialog, where they are named. `PickerField` adds the dimmed hint "Tap the
+  ✕ on a chip to remove it." under the row.
+- **Inside the dialog:** the pinned Selected strip — a bordered, tinted container
+  (`.c2-picker-selected-strip`) with amber chips, visually apart from the gray pool —
+  plus the footer "N selected" (§1.2), so the draft is visible while the search
+  filters the option list.
+- **Copy discipline:** group-level **All / None** (None = an explicit empty selection),
+  search-group **All / Clear**, and the filter footer's **Reset filters** (back to role
+  defaults) are three different actions with three names — never merge them.
+
+The copy decisions live in pure helpers (`src/lib/ui/picker.ts`: `pickerTriggerLabel`,
+`pickerRemovalHint`, `pickerChipRemovable`) and the removal math in `userSelect.ts`
+(`selectedChips`, `removeSelectedId`, `removeInvitee`) — all unit-tested. Removal UI
+never silently deletes an id the user cannot see: chips resolve from the current option
+set (stale ids stay out of the summary), while `mergeInviteeSelection` still preserves
+unlistable ids on commit.
 

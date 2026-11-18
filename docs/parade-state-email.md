@@ -154,7 +154,8 @@ There is no external scheduler to configure or rotate. To force a send on demand
 Settings → **Parade State Email** (`/settings/parade-email`, admin-only):
 
 - **Send parade-state email** — the enable switch.
-- **Recipients** — a `UserSelectModal` badge picker over active roster users.
+- **Recipients** — a `UserSelectModal` badge picker over active roster users; the
+  summary chips carry a ✕ that removes a recipient in place.
 - **Send time (Singapore time)** — a `TimeInput` cutoff.
 - **Send days** — Mon–Sun checkboxes (at least one required while enabled).
 - **Subject / Body templates** — with a token list and a live sample-data preview.

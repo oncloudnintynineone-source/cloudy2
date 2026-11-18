@@ -18,6 +18,15 @@ export interface SelectableBadgeProps {
  * control is keyboard-operable and announces its pressed state. Matches the
  * wizard's event-type badges and the user picker's option badges, and is shared
  * by those surfaces and the filter dialog so they can't drift apart.
+ *
+ * Selected = **amber fill** (`.c2-selectable-badge[data-selected]` in
+ * `globals.css` — brand amber + near-black text in both schemes), unselected =
+ * the gray light badge. Selection is deliberately a color, not a check glyph:
+ * the reserved check slot shifted every unselected label right and its
+ * baseline sat off-center (docs/user-picker.md §1.7). `aria-pressed` still
+ * carries the state for assistive tech, and filled-vs-tint is a non-colour
+ * cue. A `self` badge keeps its mine ring + "(You)" suffix in both states —
+ * the amber fill simply replaces the cream tint while selected.
  */
 export function SelectableBadge({
   label,
@@ -45,7 +54,8 @@ export function SelectableBadge({
       <Badge
         variant={selected ? "filled" : "light"}
         size="lg"
-        className={self ? "c2-my-badge" : undefined}
+        className={["c2-selectable-badge", self ? "c2-my-badge" : ""].filter(Boolean).join(" ")}
+        data-selected={selected || undefined}
         style={{
           height: "auto",
           minHeight: "calc(var(--badge-height-lg) * 1.5)",

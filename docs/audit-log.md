@@ -351,7 +351,8 @@ double-quotes fields containing `"`, `,`, `\r`, or `\n` and doubles inner quotes
   the app** — a `FilterButton` (desktop) or the mobile filter menu's "More
   filters…" item opens one [`FilterModal`](user-picker.md) with three
   `variant: "search"` groups (Actors / Actions / Entity types), each rendered as
-  a badge summary + Select trigger opening the `UserSelectModal` badge picker;
+  a removable badge summary + Add/Edit trigger opening the `UserSelectModal` badge
+  picker;
   Actors get per-department sections from the roster map ("Other" for
   unmatched). Applied selections show as a removable `Pill` row under the filter
   row (one pill per value: actor name, `actionLabel(action)`, entity type,

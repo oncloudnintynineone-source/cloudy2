@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Badge, Group, Popover, Stack, Text, UnstyledButton } from "@mantine/core";
-import { IconChevronDown } from "@tabler/icons-react";
+import { IconCheck, IconChevronDown } from "@tabler/icons-react";
 
 import { SelectableBadge } from "@/components/SelectableBadge";
 import { useMotion } from "@/components/MotionProvider";
@@ -124,8 +124,11 @@ export function EventTypeGroupGrid({
  * type badges inside its popup are borderless light/filled, so the container
  * and its options never read the same) with the group name and a right-edge
  * chevron that rotates with the popup. A light-brand fill appears once the
- * group holds a selection (counts stay off the chip; the `aria-label` carries
- * them).
+ * group holds a selection, **plus a visible marker**: a filled brand count pill
+ * in multi mode (how many of this folder's types are filtered in) and a check
+ * glyph in single mode (where the count is always one, so "which folder holds
+ * my pick" is the only question). A folder that looks untouched while it holds
+ * a selection is what made people re-pick types they had already filtered.
  */
 function GroupTile({
   section,
@@ -203,6 +206,14 @@ function GroupTile({
             >
               {section.label}
             </span>
+            {selectedCount > 0 &&
+              (mode === "single" ? (
+                <IconCheck size={14} stroke={2.5} style={{ flexShrink: 0 }} />
+              ) : (
+                <Badge size="xs" variant="filled" color="brand" aria-hidden>
+                  {selectedCount}
+                </Badge>
+              ))}
             <IconChevronDown
               size={14}
               style={{

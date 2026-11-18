@@ -195,8 +195,11 @@ doc content here.
   `cal/users/types` URL params); the optional Event-name field is a case-insensitive
   substring over the typed name + rendered title, applied server-side in the tab
   projection (`filterEventsByText`, `src/lib/events/textFilter.ts`); the shared
-  `FilterModal` renders every group with the same `SelectableBadge`s and an
-  All/None pair (search groups label it All/Clear); Event Types reuse the wizard's
+  `FilterModal` renders every group with one header recipe (label + All/None state chip
+  + Show/Hide + an All/None pair — search groups label it All/Clear) and removable
+  summary chips beside an Add/Edit trigger, plus a "Showing: …" result line and a
+  **Reset filters** footer (role defaults — never rename a group's "None" to this);
+  Event Types reuse the wizard's
   `buildEventTypePickerSections` rendered through the shared `EventTypeGroupGrid`
   (non-folder groups as name-only labeled rows, folder groups as chips → popup of
   badges, Ungrouped last among the rows; a lone non-folder section renders badges
@@ -450,6 +453,8 @@ a compact tier via `NARROW_MEDIA_QUERY` (`src/lib/theme.ts`) + `useMediaQuery` `
   users (or any large option list) is a badge dialog (`UserSelectModal`), not a searchable
   dropdown. Its trigger + summary markup is shared: every consumer renders through
   `PickerField` / `PickerBadges` (`src/components/PickerField.tsx`) — never hand-roll it.
+  Selection state must be visible everywhere and removal one tap: Add→Edit trigger, ✕ on
+  every summary chip, a pinned Selected strip inside the dialog (docs/user-picker.md §1.7).
   Design: [docs/user-picker.md](docs/user-picker.md).
 - **Floating action buttons** use shared `FloatingActionButton` + `FloatingToolbar`
   (`src/components/FloatingToolbar.tsx`) anchored bottom-right — never a raw `Button`.

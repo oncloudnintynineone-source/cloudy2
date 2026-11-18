@@ -1,19 +1,21 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ActionIcon, Badge, Button, Group, Stack, Text, TextInput } from "@mantine/core";
-import { IconChevronDown, IconPlus, IconSearch, IconX } from "@tabler/icons-react";
+import { ActionIcon, Badge, Box, Button, Group, Stack, Text, TextInput } from "@mantine/core";
+import { IconChevronDown, IconSearch, IconX } from "@tabler/icons-react";
 
 import { AllNoneControls } from "@/components/AllNoneControls";
 import { EventTypeGroupGrid } from "@/components/EventTypeGroupGrid";
-import { PickerBadges, type PickerBadgeItem } from "@/components/PickerField";
+import { PickerBadges, PickerTrigger, type PickerBadgeItem } from "@/components/PickerField";
 import { SelectableBadge } from "@/components/SelectableBadge";
 import { UserSelectModal } from "@/components/UserSelectModal";
-import { sectionSelectionState } from "@/lib/filters/filterSections";
 import {
+  describeFilterGroups,
+  groupFilterState,
   isGroupUnfiltered,
   resolveFilterApply,
   type FilterApplyGroup,
+  type GroupFilterState,
 } from "@/lib/filters/resolveFilterApply";
 import { useMotion } from "@/components/MotionProvider";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
@@ -84,11 +86,119 @@ function initialDraft(
   );
 }
 
+interface FilterGroupHeaderProps {
+  group: FilterGroup;
+  /** The group's current draft, so the quick action can report its own state. */
+  selected: readonly string[];
+  /** Live selection state, shown as the state chip beside the label. */
+  state: GroupFilterState;
+  /** Collapsed groups keep their header and hide everything below it. */
+  collapsible: boolean;
+  shown: boolean;
+  onToggleExpanded: () => void;
+  onAll: () => void;
+  onNone: () => void;
+  onAction: () => void;
+}
+
+/**
+ * One filter group's header — the same recipe for every group kind: label, the
+ * state chip ("All" / "None" / "3 of 12"), Show/Hide for a collapsed group, the
+ * group-level All/None pair, then the optional quick action. The three group
+ * kinds used to arrange these differently (the sectioned group hid its count in
+ * a gray badge, the search group had no count at all), which is what made the
+ * dialog read as three different dialogs. The chip is deliberately **not**
+ * `aria-hidden`: read after the label it is the group's state ("Users, 3 of 12").
+ */
+function FilterGroupHeader({
+  group,
+  selected,
+  state,
+  collapsible,
+  shown,
+  onToggleExpanded,
+  onAll,
+  onNone,
+  onAction,
+}: FilterGroupHeaderProps) {
+  const motion = useMotion();
+  const isSearch = group.variant === "search";
+  return (
+    <Group justify="space-between" align="center" gap="xs" wrap="wrap">
+      <Group gap="xs" align="center" wrap="nowrap" style={{ minWidth: 0 }}>
+        <Text fw={600} size="sm" truncate>
+          {group.label}
+        </Text>
+        <Badge
+          size="xs"
+          variant="light"
+          color={state.active ? "accent" : "gray"}
+          title={state.active ? `Filtered: ${state.label}` : `No filter: ${state.label}`}
+        >
+          {state.label}
+        </Badge>
+      </Group>
+      <Group gap={4} align="center" wrap="wrap">
+        {collapsible && (
+          <Button
+            size="xs"
+            variant="subtle"
+            color="gray"
+            rightSection={
+              <IconChevronDown
+                size={14}
+                style={{
+                  transform: shown ? "rotate(180deg)" : undefined,
+                  transition: `transform ${motion.duration.micro}ms ${motion.easing.out}`,
+                }}
+              />
+            }
+            aria-expanded={shown}
+            onClick={onToggleExpanded}
+          >
+            {shown ? "Hide" : "Show"}
+          </Button>
+        )}
+        {shown && (
+          <>
+            {/* Group-level pair: "None" is a real selection (an empty grid) for a
+                grid group, "Clear" is the absence of one for a search group — the
+                footer's "Reset filters" is a third thing and keeps its own name. */}
+            <AllNoneControls
+              label={group.label}
+              allSelected={state.kind === "all"}
+              noneSelected={state.kind === "none"}
+              noneLabel={isSearch ? "Clear" : "None"}
+              onAll={onAll}
+              onNone={onNone}
+            />
+            {group.action && (
+              <Button
+                size="xs"
+                variant="light"
+                color="brand"
+                leftSection={group.action.icon}
+                aria-pressed={group.action.isApplied([...selected])}
+                onClick={onAction}
+              >
+                {group.action.label}
+              </Button>
+            )}
+          </>
+        )}
+      </Group>
+    </Group>
+  );
+}
+
 /**
  * The filter dialog's body: staged selections, the optional free-text field,
- * collapsed groups, and the search-group badge picker. Split into its own chunk
- * so the modal chrome can animate out of the trigger before {@link FilterModal}
- * finishes loading this body (docs/loading-transitions.md §1.15.1).
+ * collapsed groups, and the search-group badge picker. Every group — flat grid,
+ * sectioned grid, or search — is introduced by the same {@link FilterGroupHeader}
+ * and summarized by the same removable chips, and one "Showing: …" line above the
+ * footer states the whole result in plain words. Split into its own chunk so the
+ * modal chrome can animate out of the trigger before {@link FilterModal} finishes
+ * loading this body (docs/loading-transitions.md §1.15.1).
  */
 export function FilterModalBody({
   groups,
@@ -102,7 +212,6 @@ export function FilterModalBody({
   FilterModalProps,
   "groups" | "values" | "onApply" | "textFilter" | "onClose" | "collapsedGroupLabels" | "hint"
 >) {
-  const motion = useMotion();
   const [draft, setDraft] = useState<Record<string, string[]>>(() => initialDraft(groups, values));
   // Free-text filter draft; blank means "no text filter". Staged like the
   // groups and only applied on Apply.
@@ -111,10 +220,10 @@ export function FilterModalBody({
   // to the dialog session (re-opening resets to the collapsed start).
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
   // Grid groups the user edited (apply their draft explicitly — including a
-  // full selection) and whether "Clear" was pressed (apply nothing, restoring
-  // the consumer's default). Untouched grid groups re-apply their current
-  // values, so re-opening the dialog and pressing Apply keeps an existing
-  // filter. Search groups ignore both and keep empty = no filter.
+  // full selection) and whether "Reset filters" was pressed (apply nothing,
+  // restoring the consumer's default). Untouched grid groups re-apply their
+  // current values, so re-opening the dialog and pressing Apply keeps an
+  // existing filter. Search groups ignore both and keep empty = no filter.
   const [changed, setChanged] = useState<ReadonlySet<string>>(() => new Set());
   const [cleared, setCleared] = useState(false);
   // Kept up through an async `onApply` (a server write) so the button shows a
@@ -190,8 +299,11 @@ export function FilterModalBody({
     commitGroupValue(group.label, [], true);
   }
 
-  // The search-group summary badges: the drafted selection resolved to option
-  // labels (ids that no longer resolve to an option are dropped).
+  // A group's summary chips: the drafted selection resolved to option labels
+  // (ids that no longer resolve to an option are dropped — a chip cannot name
+  // something the dialog does not list, so removal can never delete an id the
+  // user cannot see). A group whose selection means "no filter" shows the
+  // dimmed "All …" line instead of a chip per option.
   function pickerSummaryItems(group: FilterGroup): PickerBadgeItem[] {
     return (draft[group.label] ?? [])
       .map((value) => group.options.find((option) => option.value === value))
@@ -201,6 +313,15 @@ export function FilterModalBody({
         label: option.label,
         self: option.self,
       }));
+  }
+
+  /** The ✕ on a summary chip: the same untick the badge grid performs, by value. */
+  function removeChipValue(group: FilterGroup, value: string) {
+    const current = draft[group.label] ?? [];
+    handleGroupChange(
+      group.label,
+      current.filter((entry) => entry !== value),
+    );
   }
 
   function toggleOption(group: FilterGroup, value: string) {
@@ -214,6 +335,15 @@ export function FilterModalBody({
   const hasActiveFilter =
     (textFilter !== undefined && textDraft.trim() !== "") ||
     groups.some((group) => !isGroupUnfiltered(toApplyGroup(group), draft[group.label] ?? []));
+
+  // The whole dialog in one line ("All calendars · 3 users · Event name "parade""),
+  // read from the same variant semantics Apply uses, so it can never promise
+  // something the write would not do.
+  const showingSummary = describeFilterGroups(
+    groups.map(toApplyGroup),
+    draft,
+    textFilter && { label: textFilter.label, value: textDraft },
+  ).join(" · ");
 
   return (
     <Stack gap="md" style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
@@ -251,7 +381,25 @@ export function FilterModalBody({
           const collapsible = collapsedGroupLabels.includes(group.label);
           const shown = !collapsible || expanded.has(group.label);
           const isSearch = group.variant === "search";
-          const groupState = sectionSelectionState(group.options, draft[group.label] ?? []);
+          const selected = draft[group.label] ?? [];
+          const state = groupFilterState(toApplyGroup(group), selected);
+          // A group whose selection means "no filter" is named, not enumerated:
+          // one dimmed line instead of a chip per option.
+          const summaryItems = state.kind === "all" ? [] : pickerSummaryItems(group);
+          const summary = (
+            <PickerBadges
+              items={summaryItems}
+              cap={5}
+              onRemove={(item) => removeChipValue(group, item.key)}
+              empty={
+                <Text size="xs" c="dimmed">
+                  {state.kind === "none"
+                    ? "None selected"
+                    : `All ${group.label.toLocaleLowerCase()}`}
+                </Text>
+              }
+            />
+          );
           const toggleExpanded = () =>
             setExpanded((prev) => {
               const next = new Set(prev);
@@ -264,92 +412,27 @@ export function FilterModalBody({
             });
           return (
             <div key={group.label}>
-              <Group justify="space-between" align="center" gap="xs" wrap="wrap">
-                <Group gap="xs" align="center" wrap="nowrap">
-                  <Text fw={600} size="sm">
-                    {group.label}
-                  </Text>
-                  {group.sections && (
-                    <Badge size="sm" variant="light" color="gray" aria-hidden>
-                      {(draft[group.label] ?? []).length}/{group.options.length}
-                    </Badge>
-                  )}
-                </Group>
-                <Group gap={4} align="center" wrap="wrap">
-                  {collapsible && (
-                    <Button
-                      size="xs"
-                      variant="subtle"
-                      color="gray"
-                      rightSection={
-                        <IconChevronDown
-                          size={14}
-                          style={{
-                            transform: shown ? "rotate(180deg)" : undefined,
-                            transition: `transform ${motion.duration.micro}ms ${motion.easing.out}`,
-                          }}
-                        />
-                      }
-                      onClick={toggleExpanded}
-                    >
-                      {shown ? "Hide" : "Show"}
-                    </Button>
-                  )}
-                  {shown && (
-                    <>
-                      <AllNoneControls
-                        label={group.label}
-                        allSelected={groupState === "all"}
-                        noneSelected={groupState === "none"}
-                        noneLabel={isSearch ? "Clear" : "None"}
-                        onAll={() => handleSelectAll(group)}
-                        onNone={() => handleDeselectAll(group)}
-                      />
-                      {group.action && (
-                        <Button
-                          size="xs"
-                          variant={
-                            group.action.isApplied(draft[group.label] ?? []) ? "light" : "default"
-                          }
-                          color="brand"
-                          leftSection={group.action.icon}
-                          onClick={() =>
-                            group.action?.apply(
-                              (values) => handleGroupChange(group.label, values),
-                              {
-                                selected: draft[group.label] ?? [],
-                                allValues: allOptionValues(group),
-                              },
-                            )
-                          }
-                        >
-                          {group.action.label}
-                        </Button>
-                      )}
-                    </>
-                  )}
-                </Group>
-              </Group>
+              <FilterGroupHeader
+                group={group}
+                selected={selected}
+                state={state}
+                collapsible={collapsible}
+                shown={shown}
+                onToggleExpanded={toggleExpanded}
+                onAll={() => handleSelectAll(group)}
+                onNone={() => handleDeselectAll(group)}
+                onAction={() =>
+                  group.action?.apply((values) => handleGroupChange(group.label, values), {
+                    selected,
+                    allValues: allOptionValues(group),
+                  })
+                }
+              />
               {shown &&
                 (isSearch ? (
                   <Group justify="space-between" align="center" gap="xs" mt="xs" wrap="wrap">
-                    <PickerBadges
-                      items={pickerSummaryItems(group)}
-                      cap={5}
-                      empty={
-                        <Text size="xs" c="dimmed">
-                          All {group.label.toLowerCase()}
-                        </Text>
-                      }
-                    />
-                    <Button
-                      size="xs"
-                      variant="light"
-                      leftSection={<IconPlus size={14} />}
-                      onClick={() => openPicker(group)}
-                    >
-                      Select
-                    </Button>
+                    {summary}
+                    <PickerTrigger count={selected.length} onOpen={() => openPicker(group)} />
                   </Group>
                 ) : group.sections ? (
                   <Stack gap={0} mt="xs">
@@ -373,11 +456,17 @@ export function FilterModalBody({
                     ))}
                   </Group>
                 ))}
+              {/* A collapsed group still names what it is holding: its chips stay
+                  visible — and removable — so hiding a group never hides a filter
+                  the user has to hunt for later. */}
+              {!shown && <Box mt="xs">{summary}</Box>}
             </div>
           );
         })}
       </Stack>
 
+      {/* No confirmLabel: the dialog both adds and removes, so it takes the
+          shared "Done" — "Apply" here would shadow this dialog's own Apply. */}
       <UserSelectModal
         opened={pickerOpened}
         onClose={() => setPickerOpened(false)}
@@ -389,7 +478,6 @@ export function FilterModalBody({
           }
           setPickerOpened(false);
         }}
-        confirmLabel="Apply"
         zIndex={200}
       />
 
@@ -399,9 +487,19 @@ export function FilterModalBody({
         </Text>
       )}
 
+      {/* The live result of the whole dialog, directly above Apply. */}
+      <Text size="xs" c="dimmed">
+        <Text component="span" size="xs" fw={600}>
+          Showing:{" "}
+        </Text>
+        {showingSummary}
+      </Text>
+
       <Group justify="space-between" mt="md" wrap="wrap">
+        {/* "Reset filters" restores the role defaults; a group's own "None" is a
+            different thing (an explicit empty selection) and keeps that name. */}
         <Button variant="subtle" color="gray" onClick={handleClear} disabled={!hasActiveFilter}>
-          Clear
+          Reset filters
         </Button>
         <Group gap="xs">
           <Button variant="default" onClick={onClose}>

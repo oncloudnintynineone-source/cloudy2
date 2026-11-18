@@ -126,8 +126,13 @@ export function ParadeEmailForm({ pickerUsers, currentUserId, initial }: ParadeE
             <PickerField
               label="Recipients"
               count={form.values.recipientIds.length}
-              triggerLabel="Choose"
               items={recipientItems}
+              onRemove={(item) =>
+                form.setFieldValue(
+                  "recipientIds",
+                  form.values.recipientIds.filter((id) => id !== item.key),
+                )
+              }
               empty={
                 <Text c="dimmed" fz="sm">
                   No recipients selected.
@@ -226,7 +231,6 @@ export function ParadeEmailForm({ pickerUsers, currentUserId, initial }: ParadeE
           opened
           onClose={closePicker}
           title="Select recipients"
-          confirmLabel="Add recipients"
           groups={groups}
           values={selectionByGroup(groups, form.values.recipientIds)}
           onConfirm={(selection) => {

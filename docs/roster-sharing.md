@@ -343,7 +343,8 @@ flowchart TB
 - The detail modal carries a **Parent department** field rendered through the
   shared `PickerField` + `UserSelectModal` badge dialog (`docs/user-picker.md`)
   — never an inline dropdown — offering "No parent (top level)" plus every
-  department except the row itself and its descendants, as nested tree rows.
+  department except the row itself and its descendants, as nested tree rows;
+  the summary chip's ✕ clears the parent (same value as picking "No parent").
 - The list shows the tree: children indented under their parent (desktop
   table: indent + a Parent column; mobile cards: indent + an "In
   {parent}" line).

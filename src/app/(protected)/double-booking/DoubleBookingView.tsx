@@ -272,6 +272,10 @@ export function DoubleBookingView({
               <PickerField
                 label="Check another person"
                 items={selfScan ? [] : [targetSummaryItem]}
+                // ✕ returns the scan to the user's own schedule — the same
+                // state the page opens in.
+                onRemove={() => setTargetUserId(currentUserId)}
+                removeLabel={() => "Back to my schedule"}
                 empty={
                   selfScan ? (
                     <Text size="xs" c="dimmed">

@@ -452,6 +452,8 @@ export function UserForm({ user, departments, access, onDirtyChange, onDone }: U
             label="Department"
             description="Their own department: members see its calendar automatically."
             items={departmentSummary}
+            onRemove={() => selectDepartment(null)}
+            removeLabel={() => "Remove department"}
             empty={
               <Text size="sm" c="dimmed">
                 No department

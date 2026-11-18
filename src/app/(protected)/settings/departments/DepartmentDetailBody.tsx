@@ -295,7 +295,17 @@ export function DepartmentDetailBody({
         <Stack gap={4} mt="md">
           <PickerField
             label="Parent department"
-            items={[parentSummaryItem]}
+            // The modal also offers "No parent (top level)" explicitly; the ✕
+            // is the one-tap path to the same value.
+            items={form.values.parentId ? [parentSummaryItem] : []}
+            onRemove={() => form.setFieldValue("parentId", "")}
+            removeLabel={() => "Remove parent department"}
+            empty={
+              <Text size="sm" c="dimmed">
+                No parent (top level)
+              </Text>
+            }
+            triggerLabel="Select"
             onOpen={() => setParentPickerOpen(true)}
           />
           {form.errors.parentId && (

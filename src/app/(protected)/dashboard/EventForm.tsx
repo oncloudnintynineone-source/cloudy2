@@ -3,6 +3,7 @@
 import "@mantine/dates/styles.css";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import {
+  ActionIcon,
   Badge,
   Button,
   Grid,
@@ -28,6 +29,7 @@ import {
   IconChevronRight,
   IconUserMinus,
   IconUserPlus,
+  IconX,
 } from "@tabler/icons-react";
 
 import { PickerField, type PickerBadgeItem } from "@/components/PickerField";
@@ -98,6 +100,7 @@ import {
   buildUserGroups,
   departmentPickerOptions,
   mergeInviteeSelection,
+  removeInvitee,
   selectionByGroup,
   splitInvitees,
   toggleInviteeUser,
@@ -535,6 +538,21 @@ export function EventForm({
     [pickerSections],
   );
 
+  // The chosen type's own group, named beside it in the type step's banner: with
+  // the types split across folders, "which one did I pick" is only half the
+  // question people re-ask themselves.
+  const selectedTypeGroupLabel = useMemo(() => {
+    const value = form.values.eventType;
+    if (!value) {
+      return null;
+    }
+    return (
+      pickerSections.find((section) =>
+        section.types.some((type) => type.name === value),
+      )?.name ?? null
+    );
+  }, [pickerSections, form.values.eventType]);
+
   const allowedOptions: TimeOption[] = selectedType ? selectedType.timeOptions : ["range"];
   const effectiveTimeOption = resolveTimeOption(allowedOptions, form.values.timeOption);
   /**
@@ -873,10 +891,11 @@ export function EventForm({
     }),
   ];
   // Pin-audience summary badges; an empty list renders the "All departments"
-  // badge in the settings step.
+  // badge in the settings step. The chip key is the bare department id, so the
+  // ✕ removes exactly what the dialog would have un-ticked.
   const pinSummaryItems: PickerBadgeItem[] = form.values.pinnedDepartments.flatMap((id) => {
     const name = departmentNames[id];
-    return name ? [{ key: `pin:${id}`, label: name, color: "accent" }] : [];
+    return name ? [{ key: id, label: name, color: "accent" }] : [];
   });
   const pinnedAudienceLabel =
     pinSummaryItems.length === 0
@@ -1532,16 +1551,57 @@ export function EventForm({
                   No event types
                 </Text>
               ) : (
-                // Inline groups -> labeled rows; folder groups -> chips with a
-                // popup of that group's types (shared with the filter dialog).
-                <EventTypeGroupGrid
-                  sections={typeGridSections}
-                  mode="single"
-                  isSelected={(value) => value === form.values.eventType}
-                  onToggle={(value) =>
-                    handleEventTypeChange(form.values.eventType === value ? null : value)
-                  }
-                />
+                <>
+                  {/* Persistent selection banner: the grid scrolls and a single
+                      filled badge among twenty is exactly what people lose track
+                      of, so the step keeps naming the chosen type — with a ✕ that
+                      clears it, instead of hunting for the badge to un-tap. */}
+                  <Group gap="xs" align="center" wrap="wrap">
+                    {form.values.eventType ? (
+                      <>
+                        <Text size="xs" fw={600} c="dimmed">
+                          Selected
+                        </Text>
+                        <Badge
+                          variant="filled"
+                          color="brand"
+                          size="lg"
+                          styles={{ root: { minHeight: 28 } }}
+                          rightSection={
+                            <ActionIcon
+                              className="c2-picker-chip-remove"
+                              variant="subtle"
+                              color="gray"
+                              size="sm"
+                              aria-label="Clear event type"
+                              title="Clear event type"
+                              onClick={() => handleEventTypeChange(null)}
+                            >
+                              <IconX size={14} />
+                            </ActionIcon>
+                          }
+                        >
+                          {form.values.eventType}
+                          {selectedTypeGroupLabel ? ` · ${selectedTypeGroupLabel}` : ""}
+                        </Badge>
+                      </>
+                    ) : (
+                      <Text size="xs" c="dimmed">
+                        No event type selected — tap one below.
+                      </Text>
+                    )}
+                  </Group>
+                  {/* Inline groups -> labeled rows; folder groups -> chips with a
+                      popup of that group's types (shared with the filter dialog). */}
+                  <EventTypeGroupGrid
+                    sections={typeGridSections}
+                    mode="single"
+                    isSelected={(value) => value === form.values.eventType}
+                    onToggle={(value) =>
+                      handleEventTypeChange(form.values.eventType === value ? null : value)
+                    }
+                  />
+                </>
               )}
               {form.errors.eventType && (
                 <Text size="xs" c="red">
@@ -1670,6 +1730,11 @@ export function EventForm({
                       : "Participants can edit this event too. You're in by default — remove yourself if you won't take part; an event must keep at least one participant or department"
                   }
                   items={inviteeSummaryItems}
+                  onRemove={(item) =>
+                    // One tap on a chip's ✕ un-tags that person or department —
+                    // the same prefixed key the dialog commits with.
+                    form.setFieldValue("invitees", removeInvitee(form.values.invitees, item.key))
+                  }
                   onOpen={() => setInviteePickerOpen(true)}
                 />
               ) : (
@@ -1707,7 +1772,6 @@ export function EventForm({
                 groups={inviteePickerGroups}
                 values={inviteePickerValues}
                 onConfirm={applyInviteePicker}
-                confirmLabel="Select"
                 zIndex={300}
               />
             </Stack>
@@ -1756,6 +1820,14 @@ export function EventForm({
                     label="Visible to"
                     description="Leave empty to show it to every department, including ones created later. A pin also reaches sub-departments."
                     items={pinSummaryItems}
+                    onRemove={(item) =>
+                      // Clearing the last chip is the same as the dialog's empty
+                      // selection: the pin goes back to every department.
+                      form.setFieldValue(
+                        "pinnedDepartments",
+                        form.values.pinnedDepartments.filter((id) => id !== item.key),
+                      )
+                    }
                     empty={
                       <Badge variant="light" color="accent">
                         All departments
@@ -1771,7 +1843,6 @@ export function EventForm({
                     values={pinPickerValues}
                     onConfirm={applyPinPicker}
                     title="Pin to departments"
-                    confirmLabel="Select"
                     zIndex={300}
                   />
                 </>

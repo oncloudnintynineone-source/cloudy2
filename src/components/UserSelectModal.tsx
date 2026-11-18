@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import {
   ActionIcon,
   Badge,
+  Box,
   Button,
   Group,
   Stack,
@@ -16,6 +17,7 @@ import { useMediaQuery } from "@mantine/hooks";
 import { IconSearch, IconX } from "@tabler/icons-react";
 
 import { AllNoneControls } from "@/components/AllNoneControls";
+import { PickerBadges, type PickerBadgeItem } from "@/components/PickerField";
 import { SelectableBadge } from "@/components/SelectableBadge";
 import {
   applySectionSelection,
@@ -23,6 +25,8 @@ import {
 } from "@/lib/filters/filterSections";
 import {
   filterPickerGroups,
+  removeSelectedId,
+  selectedChips,
   selectionByGroup,
   sortOptionsInGroups,
   type PickerGroup,
@@ -39,6 +43,11 @@ interface UserSelectModalProps {
   values: Record<string, string[]>;
   onConfirm: (values: Record<string, string[]>) => void;
   title?: string;
+  /**
+   * Confirm button label; default **"Done"**. The dialog both adds and removes,
+   * so a verb that implies only adding ("Select +") is what made users hunt for
+   * a separate remove control (docs/user-picker.md §1.7).
+   */
   confirmLabel?: string;
   /**
    * Single-select mode: tapping any badge replaces the current selection (one
@@ -63,12 +72,16 @@ interface UserSelectModalProps {
  * persist, emptied ones disappear). The dialog has a fixed height — search
  * pinned top, footer pinned bottom, only the badge sections scroll — so
  * narrowing the list never resizes it or pushes the search box out of view.
- * Multi-select sections carry an option count and an All/Clear pair, the footer
- * adds a global Select all/Clear, and `self` options wear the amber "(You)"
- * badge. The selection is staged in a draft and only committed when the confirm
- * button is pressed. The draft lives in a child that mounts with the modal, so
- * it re-initializes from values every time the dialog opens (the FilterModalBody
- * pattern).
+ * Between the search box and the sections a pinned **Selected (N)** strip — a
+ * bordered, tinted container visually apart from the pool — shows every current
+ * pick as an amber chip with its own ✕, so the running selection (and how
+ * to undo one pick) stays visible while the list is filtered. Multi-select
+ * sections carry an option count and an All/Clear pair, the footer adds a global
+ * Select all/Clear plus a live "N selected" count, and `self` options wear the
+ * amber "(You)" badge. The selection is staged in a draft and only committed
+ * when the confirm button is pressed. The draft lives in a child that mounts
+ * with the modal, so it re-initializes from values every time the dialog opens
+ * (the FilterModalBody pattern).
  */
 export function UserSelectModal({
   opened,
@@ -77,7 +90,7 @@ export function UserSelectModal({
   values,
   onConfirm,
   title = "Select",
-  confirmLabel = "Select",
+  confirmLabel = "Done",
   single = false,
   allowEmptyConfirm = false,
   zIndex,
@@ -139,6 +152,19 @@ function UserSelectModalBody({
   const sorted = useMemo(() => sortOptionsInGroups(groups), [groups]);
   const visible = useMemo(() => filterPickerGroups(sorted, query), [sorted, query]);
   const selectedCount = Object.values(draft).reduce((sum, ids) => sum + ids.length, 0);
+  // Chips in section order (not tap order), so the strip never reshuffles while
+  // the user works through the list. Amber = the selected language, so the
+  // strip reads apart from the gray pool badges even before its container.
+  const chips = useMemo<PickerBadgeItem[]>(
+    () =>
+      selectedChips(sorted, draft).map((chip) => ({
+        key: chip.id,
+        label: chip.label,
+        self: chip.self,
+        color: "accent",
+      })),
+    [sorted, draft],
+  );
   const allIds = useMemo(
     () => groups.flatMap((group) => group.options.map((option) => option.id)),
     [groups],
@@ -180,6 +206,10 @@ function UserSelectModalBody({
     setDraft(selectionByGroup(groups, []));
   }
 
+  function handleRemoveChip(item: PickerBadgeItem) {
+    setDraft((prev) => removeSelectedId(prev, item.key));
+  }
+
   function handleConfirm() {
     onConfirm(draft);
     onClose();
@@ -214,6 +244,26 @@ function UserSelectModalBody({
         value={query}
         onChange={(event) => setQuery(event.currentTarget.value)}
       />
+
+      {/* Pinned selection strip (docs/user-picker.md §1.7): a bordered, tinted
+          container (`.c2-picker-selected-strip`) so the running selection reads
+          as a different area from the pool below — the label lives inside it,
+          every chip removes itself (the one-tap gesture users looked for), and
+          the chip area alone scrolls. */}
+      <Box className="c2-picker-selected-strip">
+        <Text size="xs" fw={600} c="dimmed" mb={4}>
+          Selected ({selectedCount})
+        </Text>
+        <Box style={{ maxHeight: 88, overflowY: "auto" }}>
+          {chips.length > 0 ? (
+            <PickerBadges items={chips} onRemove={handleRemoveChip} />
+          ) : (
+            <Text size="xs" c="dimmed">
+              Nothing selected yet — tap names below.
+            </Text>
+          )}
+        </Box>
+      </Box>
 
       <Stack flex={1} gap="md" style={{ overflowY: "auto", minHeight: 0 }}>
         {visible.length === 0 ? (
@@ -280,20 +330,34 @@ function UserSelectModalBody({
       </Stack>
 
       <Group justify="space-between" wrap="wrap">
-        {single ? (
-          <Button variant="subtle" color="gray" onClick={handleClear} disabled={selectedCount === 0}>
-            Clear
-          </Button>
-        ) : (
-          <AllNoneControls
-            label="all options"
-            allSelected={allIds.length > 0 && selectedCount === allIds.length}
-            noneSelected={selectedCount === 0}
-            noneLabel="Clear"
-            onAll={handleSelectAll}
-            onNone={handleClear}
-          />
-        )}
+        <Group gap="sm" align="center" wrap="wrap">
+          {/* Live count: the tap registered, right where the eye returns to
+              before pressing Done. */}
+          {selectedCount > 0 && (
+            <Text size="xs" c="dimmed">
+              {selectedCount === 1 ? "1 selected" : `${selectedCount} selected`}
+            </Text>
+          )}
+          {single ? (
+            <Button
+              variant="subtle"
+              color="gray"
+              onClick={handleClear}
+              disabled={selectedCount === 0}
+            >
+              Clear
+            </Button>
+          ) : (
+            <AllNoneControls
+              label="all options"
+              allSelected={allIds.length > 0 && selectedCount === allIds.length}
+              noneSelected={selectedCount === 0}
+              noneLabel="Clear"
+              onAll={handleSelectAll}
+              onNone={handleClear}
+            />
+          )}
+        </Group>
         <Group gap="xs">
           <Button variant="default" onClick={onClose}>
             Cancel

@@ -109,9 +109,9 @@ export interface FilterGroup {
    * optionally chunked into `sections` (event-type groups) as a tile grid
    * whose tiles open badge popups (see `EventTypeGroupGrid`). "search" renders a
    * badge picker dialog (UserSelectModal) for large option lists:
-   * the currently selected options appear as badges beside a Select trigger,
-   * and the dialog filters them by a search box. Search groups use "empty =
-   * no filter" semantics, so narrowing 100 options down to a few never
+   * the currently selected options appear as removable chips beside an Add/Edit
+   * trigger, and the dialog filters them by a search box. Search groups use
+   * "empty = no filter" semantics, so narrowing 100 options down to a few never
    * requires unticking the rest.
    */
   variant?: "grid" | "search";
@@ -130,11 +130,11 @@ export interface FilterTextGroup {
   maxLength?: number;
 }
 
-/** Result of an Apply: the resolved values plus whether "Clear" produced them. */
+/** Result of an Apply: the resolved values plus whether "Reset filters" produced them. */
 export interface FilterApplyMeta {
   /**
-   * True when the user pressed "Clear" (then Apply). Grid groups resolve to an
-   * empty array either way, so a consumer that distinguishes "role default"
+   * True when the user pressed "Reset filters" (then Apply). Grid groups resolve
+   * to an empty array either way, so a consumer that distinguishes "role default"
    * from a genuine empty selection (the dashboard) reads this flag instead.
    */
   cleared: boolean;
@@ -174,14 +174,16 @@ export interface FilterModalProps {
 /**
  * Reusable filter dialog: opens from a trigger button and presents each filter
  * group as selectable badges — flat, split into labeled rows and folder chips
- * (see `EventTypeGroupGrid`), or as
- * a selected-badge summary + Select trigger that opens the UserSelectModal badge
- * picker (variant "search", for large option lists). Every group gets an All/None
- * pair (search groups say "Clear"); grouped lists keep section counts, but the
- * All/None action spans the whole group.
- * Selections are staged in a draft and only applied when "Apply" is pressed. The
- * draft lives in a child that mounts with the modal, so it re-initializes from the
- * current applied values every time the dialog opens. "No filter applied" is "all
+ * (see `EventTypeGroupGrid`), or as a removable-chip summary + an Add/Edit
+ * trigger that opens the UserSelectModal badge picker (variant "search", for
+ * large option lists). Every group is introduced by the same header recipe
+ * (label · state chip · All/None pair · quick action), so the three group kinds
+ * read as one dialog; the pair says "Clear" instead of "None" on a search group,
+ * and the All/None action always spans the whole group.
+ * Selections are staged in a draft and only applied when "Apply" is pressed; a
+ * live "Showing: …" line above the footer states the result in plain words, and
+ * "Reset filters" restores the role defaults (a group's "None" is a real, empty
+ * selection — a third thing, with its own name). "No filter applied" is "all
  * selected" in grid groups and "nothing selected" in search groups.
  */
 export function FilterModal({
