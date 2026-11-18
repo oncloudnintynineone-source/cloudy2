@@ -40,10 +40,10 @@ export function EventFormSteps({
     return (
       <Stack gap={STEP_STRIP_GAP} className="c2-wizard-steps">
         <Group justify="space-between">
-          <Text size="xs" c="dimmed" fw={600}>
+          <Text size="xs" className="c2-wizard-step-caption" fw={600}>
             Steps
           </Text>
-          <Text size="xs" c="dimmed">
+          <Text size="xs" className="c2-wizard-step-caption">
             {position}
           </Text>
         </Group>
@@ -80,7 +80,7 @@ export function EventFormSteps({
           <Text size="sm" fw={600} style={{ lineHeight: 1.4 }}>
             {STEP_LABELS[current.id]}
           </Text>
-          <Text size="xs" c="dimmed">
+          <Text size="xs" className="c2-wizard-step-caption">
             {position}
           </Text>
         </Group>
@@ -135,7 +135,7 @@ export function EventFormSteps({
                 <Menu.Item
                   key={stepDef.id}
                   leftSection={
-                    <Text size="xs" c="dimmed" w={14} ta="center">
+                    <Text size="xs" className="c2-wizard-step-caption" w={14} ta="center">
                       {index + 1}
                     </Text>
                   }
@@ -149,7 +149,7 @@ export function EventFormSteps({
             </Menu.Dropdown>
           </Menu>
         ) : (
-          <Text size="xs" c="dimmed">
+          <Text size="xs" className="c2-wizard-step-caption">
             {position}
           </Text>
         )}

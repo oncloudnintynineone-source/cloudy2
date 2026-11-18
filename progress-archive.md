@@ -10452,3 +10452,53 @@ still awaited before the action resolves.
   3-dept 1.37 s = 1.18×) with 0 surviving copies in the Google sweep.
 - `pnpm test`, `pnpm lint` clean; `pnpm typecheck` only the pre-existing Windows
   `EventFormSteps` casing error. No schema change (`pnpm db:generate` unchanged).
+
+## 1.377 Dark-scheme contrast (event badges + wizard steps)
+
+**Problem.** In the dark scheme Mantine builds every custom colour's variant
+variables from the base tuple: a `light` variant's fill is `darken({c}-9, 0.5)`, a
+`filled` one is shade 8 (`getCSSColorVariables`), and `--mantine-primary-color-filled`
+resolves to brand-8 (`#0a3a85`). Text on those fills still passes (8–16:1), but the
+*fills* land at 1.08–1.76:1 against the dark body (`dark-7 #242424`), so event-info
+badges read as labels floating with no edge; the wizard's guided step strip mapped its
+current state onto brand-8 and came out at **1.45:1** for both the label and the circle
+edge, while its future labels used `--mantine-color-dimmed` (4.04:1, under AA).
+
+**Fix (dark-scheme only, all in `src/app/globals.css`).**
+
+- Badge boundary ring: `light` and `filled` variants get
+  `border-color: color-mix(in srgb, currentColor 45%, transparent)` — the badge's own
+  text colour, so one rule covers every colour family. Both variants already declare
+  `border: 1px solid transparent` (`--badge-bd`), so only the colour changes: no layout
+  shift, no fill or label change. Measured ring-vs-body across the event palette plus
+  gray: **3.57:1 (brand worst case) – 4.9:1**. `.c2-my-badge` is excluded (it already
+  carries the 2px `accent-6` mine ring).
+- Event-type folder chip (`EventTypeGroupGrid`'s `GroupTile`, `variant="outline"`)
+  gained the `c2-event-type-group-tile` hook: brand-4 text at 4.28:1 → brand-3 at
+  **6.52:1** for both the label and its edge.
+- Guided step strip: a brand ramp replaces the primary-colour mapping — current brand-2
+  (**9.27:1**, brand-9 glyph 7.96:1) → completed brand-3 (**6.52:1**, glyph 5.59:1) →
+  future gray-6 (**4.67:1**, ring 4.67:1); the keyboard focus ring switches to brand-3
+  (1.45 → 6.52:1). Light mode keeps the original mapping.
+- Step captions ("Step 3 of 7", the rail's "Steps", the step-menu numbers) moved off
+  Mantine's `c="dimmed"` (an inline style) to `.c2-wizard-step-caption`
+  (`light-dark(gray-6, gray-5)`): light unchanged, dark 4.04 → **7.48:1**.
+
+**Files.** `src/app/globals.css` (three dark blocks + the caption class),
+`src/app/(protected)/dashboard/EventFormSteps.tsx` (caption class on the five dimmed
+texts), `src/components/EventTypeGroupGrid.tsx` (tile hook class). No TS logic, no
+schema, no API.
+
+**Verification.** `pnpm lint` clean; `pnpm typecheck` clean (the first run flagged
+stale `.next/types/validator.ts` entries for the long-removed widget routes — `pnpm
+build` regenerated them); `pnpm test` 136 files / 1765 tests pass; `pnpm build`
+compiles the new CSS. Contrast pairs measured against Mantine v9.5.1's
+`getCSSColorVariables` + WCAG 2 relative-luminance math (recorded in the CSS comments
+and docs/accessibility.md §1.7). Visual sign-off in dark mode is the user's manual step.
+
+**Out of scope (recorded).** Calendar event chips share the defect (fill 1.08–1.76:1);
+the chosen treatment when wanted is the same hairline ring via
+`color-mix(in srgb, var(--event-color) 45%, transparent)` on
+`.c2-schedule-event .c2-event-inner`. The global `--mantine-color-dimmed` (4.04:1), the
+sub-800px Mantine `Stepper` circles and the locked-off `rail`/`classic` step variants
+were left alone.

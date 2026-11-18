@@ -180,6 +180,7 @@ function GroupTile({
           <Badge
             size="lg"
             variant="outline"
+            className="c2-event-type-group-tile"
             aria-hidden
             style={{
               gap: 6,

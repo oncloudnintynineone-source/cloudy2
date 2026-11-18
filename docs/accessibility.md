@@ -3,7 +3,8 @@
 The app is a touch-first mobile PWA, but keyboard and screen-reader users get
 first-class support too. This doc collects the assistive-tech machinery: the
 skip link, the polite live region and what feeds it, the skeleton loading
-announcements, and the text alternatives on count badges.
+announcements, the text alternatives on count badges, and the dark-scheme
+colour-contrast rules.
 
 ## Table of contents
 
@@ -13,7 +14,8 @@ announcements, and the text alternatives on count badges.
 - [1.4 Count badges & text alternatives](#14-count-badges--text-alternatives)
 - [1.5 Reorder controls](#15-reorder-controls)
 - [1.6 Modal minimize, draft bar & focus transfer](#16-modal-minimize-draft-bar--focus-transfer)
-- [1.7 File index & related docs](#17-file-index--related-docs)
+- [1.7 Colour contrast in the dark scheme](#17-colour-contrast-in-the-dark-scheme)
+- [1.8 File index & related docs](#18-file-index--related-docs)
 
 ## 1.1 Skip-to-content link
 
@@ -149,7 +151,70 @@ minimize too).
 - Starting another wizard while a draft exists prompts instead of replacing it
   ("Discard draft and continue?").
 
-## 1.7 File index & related docs
+## 1.7 Colour contrast in the dark scheme
+
+Dark mode follows the OS (`defaultColorScheme="auto"`, not a forced theme), so
+every themed surface resolves through Mantine's scheme-scoped CSS variables. For
+a custom colour that means the `light` variant's fill is `darken({c}-9, 0.5)` and
+the `filled` variant's fill is shade 8 — on the dark body (`dark-7 #242424`)
+both are near-black. The pale text *inside* such a badge passes comfortably
+(8–16:1), but the badge's **boundary** against the surface around it drops to
+1.1–1.5:1, so event-info badges read as labels floating with no edge.
+`globals.css` restores the boundary; every rule is dark-only
+(`[data-mantine-color-scheme="dark"]`), so light mode is unchanged.
+
+Targets: text ≥ 4.5:1 (WCAG 1.4.3), component boundary ≥ 3:1 (WCAG 1.4.11).
+
+| Surface (dark scheme)                                                | Before                 | After                                | Rule                                                    |
+| -------------------------------------------------------------------- | ---------------------- | ------------------------------------ | ------------------------------------------------------- |
+| `variant="light"` badge (event detail, wizard, filters, pickers)     | 1.08–1.76:1 boundary   | 3.57–4.9:1 ring (fill untouched)     | `color-mix(currentColor 45%, transparent)` border        |
+| `variant="filled"` selected badge (brand-8 fill)                     | 1.45:1 boundary        | 4.95:1 ring                          | same rule, `[data-variant="filled"]`                     |
+| Event-type folder chip (outline, brand-4 text)                       | 4.28:1 text            | 6.52:1 text + border                 | `.c2-event-type-group-tile` → brand-3                    |
+| Guided step — current (brand-8 label/edge)                           | 1.45:1                 | 9.27:1; glyph 7.96:1                 | brand-2                                                  |
+| Guided step — completed (brand-0 label, brand-8 circle)              | 14.0:1 / 1.45:1 edge   | 6.52:1; glyph 5.59:1; edge 6.52:1    | brand-3                                                  |
+| Guided step — future (`dimmed`)                                      | 4.04:1                 | 4.67:1; ring 4.67:1                  | gray-6                                                   |
+| Step caption ("Step 3 of 7")                                         | 4.04:1                 | 7.48:1                               | `.c2-wizard-step-caption` (gray-6 light / gray-5 dark)   |
+| Guided step keyboard focus ring                                      | 1.45:1                 | 6.52:1                               | brand-3 `outline-color`                                  |
+
+Mechanics:
+
+- The badge ring is derived from the badge's own text colour (`currentColor`),
+  so one rule covers every colour family without a palette table; it is applied
+  in both the `light` and `filled` variants, and both already declare
+  `border: 1px solid transparent` via `--badge-bd`, so only the colour changes
+  (no layout shift, no fill/label change). `.c2-my-badge` is excluded because it
+  already carries its 2px `accent-6` mine ring.
+- The guided step strip (the locked `guided` variant, see
+  [`event-lifecycle.md`](event-lifecycle.md) §1.4) runs a brand ramp in dark
+  mode — current brightest, then completed, then future — so the walk reads as
+  a progression instead of a mapping where the current step's label and edge
+  all but disappeared. The light-scheme primary-colour mapping is untouched.
+- The step captions swapped Mantine's `c="dimmed"` (an inline style) for the
+  `.c2-wizard-step-caption` class; its light branch is exactly the old `dimmed`
+  gray.
+
+```mermaid
+flowchart LR
+ B["Mantine dark scheme<br/>light = darken(c-9, 0.5)<br/>filled = c-8"] --> LB["light badge<br/>+45% currentColor ring"]
+ B --> FB["filled badge<br/>+45% currentColor ring"]
+ B --> OT["outline group chip<br/>brand-3 text/edge"]
+ B --> ST["guided step strip<br/>brand-2 / brand-3 / gray-6 ramp"]
+ ST --> CAP[".c2-wizard-step-caption<br/>gray-6 light / gray-5 dark"]
+ LB --> CSS["globals.css<br/>(dark-only rules)"]
+ FB --> CSS
+ OT --> CSS
+ CAP --> CSS
+```
+
+Known-but-untouched (recorded so the next pass does not re-derive it): the
+calendar **event chips** share the same defect (fill 1.08–1.76:1 against the
+grid); the chosen treatment, when wanted, is the same hairline ring via
+`color-mix(in srgb, var(--event-color) 45%, transparent)` on
+`.c2-schedule-event .c2-event-inner`. The global
+`--mantine-color-dimmed` (dark-2 `#828282`, 4.04:1) still governs secondary
+text outside the step strip.
+
+## 1.8 File index & related docs
 
 | File                                              | Role                                                              |
 | ------------------------------------------------- | ----------------------------------------------------------------- |

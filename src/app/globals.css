@@ -1203,6 +1203,17 @@ html.c2-low-end::view-transition-group(*) {
   flex: 0 0 auto;
 }
 
+/* The strip's caption/meta line ("Step 3 of 7", the rail's "Steps" label, the
+   step-menu numbers) replaces Mantine's `c="dimmed"`, whose dark-scheme value
+   (`--mantine-color-dimmed` = dark-2 #828282) is only 4.04:1 on the dark body —
+   under the 4.5:1 AA floor at the 10-12px sizes this strip uses. The light
+   branch is exactly the old `dimmed` gray, so light mode is unchanged; dark
+   mode lifts to 7.48:1. `c="dimmed"` had to go rather than be overridden: the
+   Mantine `c` style prop writes an inline `color`, which no class can beat. */
+.c2-wizard-step-caption {
+  color: light-dark(var(--mantine-color-gray-6), var(--mantine-color-gray-5));
+}
+
 /* Always-visible labelled step rail (`wizardStepIndicator` = rail). The pills
    wrap to a second row on phones; the fixed wizard body absorbs the extra
    height by shrinking the scroll area, so the modal itself never resizes. */
@@ -1341,6 +1352,55 @@ html.c2-low-end::view-transition-group(*) {
 .c2-wizard-guided-step:focus-visible {
   outline: 2px solid var(--mantine-primary-color-filled);
   outline-offset: 2px;
+}
+
+/*
+  Guided step strip — dark scheme. The rules above map each state onto a
+  primary-colour variable, and in the dark scheme `--mantine-primary-color-*`
+  resolves to brand-8 for `filled` (a dark navy): the current step's label and
+  circle edge came out at 1.45:1 on the dark body, i.e. effectively invisible,
+  the future steps used `--mantine-color-dimmed` at 4.04:1 and the focus ring
+  was brand-8 too. Dark mode instead runs a light-to-dark brand ramp so the
+  walk reads as a progression — current (brand-2, 9.27:1) > completed (brand-3,
+  6.52:1) > future (gray-6, 4.67:1) — with brand-9 glyphs on the filled
+  circles (7.96:1 active, 5.59:1 completed) and a gray-6 ring/border on the
+  future ones (4.67:1). Brand shades are raw tuple values, identical in both
+  schemes, so these are stable hex for the ratio comments above. Each selector
+  adds the scheme attribute on top of the base selector, so it wins the
+  cascade without `!important`; light mode keeps the original primary-colour
+  mapping untouched. */
+[data-mantine-color-scheme="dark"] .c2-wizard-guided-step {
+  color: var(--mantine-color-gray-6);
+}
+
+[data-mantine-color-scheme="dark"] .c2-wizard-guided-icon {
+  background: var(--mantine-color-body);
+  border-color: var(--mantine-color-gray-6);
+  color: var(--mantine-color-gray-6);
+}
+
+[data-mantine-color-scheme="dark"] .c2-wizard-guided-step[data-completed] {
+  color: var(--mantine-color-brand-3);
+}
+
+[data-mantine-color-scheme="dark"] .c2-wizard-guided-step[data-completed] .c2-wizard-guided-icon {
+  background: var(--mantine-color-brand-3);
+  border-color: var(--mantine-color-brand-3);
+  color: var(--mantine-color-brand-9);
+}
+
+[data-mantine-color-scheme="dark"] .c2-wizard-guided-step[data-active] {
+  color: var(--mantine-color-brand-2);
+}
+
+[data-mantine-color-scheme="dark"] .c2-wizard-guided-step[data-active] .c2-wizard-guided-icon {
+  background: var(--mantine-color-brand-2);
+  border-color: var(--mantine-color-brand-2);
+  color: var(--mantine-color-brand-9);
+}
+
+[data-mantine-color-scheme="dark"] .c2-wizard-guided-step:focus-visible {
+  outline-color: var(--mantine-color-brand-3);
 }
 
 .c2-wizard-scroll {
@@ -2629,6 +2689,46 @@ html.c2-low-end::view-transition-group(*) {
 .mantine-Badge-root.c2-my-badge {
   background-color: var(--c2-my-row-tint);
   box-shadow: inset 0 0 0 calc(0.125rem * var(--mantine-scale)) var(--mantine-color-accent-6);
+}
+
+/*
+  Dark-scheme badge boundary (event-info badges: the event detail modal, the
+  wizard's Type / Participants / Review steps, the filter dialog and the
+  picker summaries — all `variant="light"`, the selected ones `filled`).
+  Mantine builds a theme colour's dark-scheme variants with
+  `getCSSColorVariables`: `--mantine-color-{c}-light` is `darken({c}-9, 0.5)`
+  and `-filled` is shade 8, so the fill lands at 1.08-1.76:1 against the dark
+  body (`dark-7 #242424`) and the badge reads as a label floating with no
+  edge. The text inside is fine (shade 0 on the tint: 8-16:1), so only the
+  boundary is missing — a 1px ring derived from the badge's own text colour
+  restores it without touching the fill or the label (no colour shift, no
+  layout shift: both variants already declare
+  `border: 1px solid transparent` via `--badge-bd`). Measured ring-vs-body
+  across the event palette plus gray:
+  3.57:1 (brand, worst case) to 4.9:1 at 45%. `.c2-my-badge` is excluded: it
+  already carries its 2px accent-6 mine ring (9.4:1 boundary), so a second
+  hairline would only add clutter. The attributes/classes are Mantine's own
+  (`--badge-*` vars + the `mantine-*` runtime class), and globals.css loads
+  after @mantine/core/styles.css, so the higher-specificity rule wins without
+  `!important`.
+*/
+[data-mantine-color-scheme="dark"] .mantine-Badge-root[data-variant="light"]:not(.c2-my-badge),
+[data-mantine-color-scheme="dark"] .mantine-Badge-root[data-variant="filled"]:not(.c2-my-badge) {
+  border-color: color-mix(in srgb, currentColor 45%, transparent);
+}
+
+/*
+  Event-type folder chip (the wizard Type step + the filter dialog's Event
+  Types group, `EventTypeGroupGrid`'s GroupTile): `variant="outline"` paints
+  its text and border in `--mantine-color-brand-outline` = brand-4 in the dark
+  scheme, i.e. 4.28:1 on the dark body — just under the 4.5:1 AA floor for its
+  13px label, and visibly dim next to the light/filled type badges in its
+  popup. brand-3 keeps the same blue language at 6.52:1 and doubles as a
+  readable chip edge. The class is applied in EventTypeGroupGrid only.
+*/
+[data-mantine-color-scheme="dark"] .mantine-Badge-root.c2-event-type-group-tile {
+  color: var(--mantine-color-brand-3);
+  border-color: var(--mantine-color-brand-3);
 }
 
 /*

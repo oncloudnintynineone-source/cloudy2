@@ -2438,6 +2438,13 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   delete 93–103 → 41–57 ms; event read-your-writes verified without the RSC leg. Docs:
   `event-mutations.md` §1.4/§1.6/§1.9/§1.11, `events-cache.md` §1.6, `dashboard-views.md`
   §1.2/§1.3, `reorder.md` §1.3, `AGENTS.md`.
+- 1.377 **Dark-scheme contrast (event badges + wizard steps)**: dark-only `globals.css` rules
+  add a `currentColor`-derived hairline ring to `light`/`filled` badges (boundary 1.08–1.76
+  → 3.57–4.9:1), lift the event-type folder chip's outline text to brand-3 (4.28 → 6.52:1),
+  run the guided step strip on a brand-2 / brand-3 / gray-6 ramp (active label 1.45 → 9.27:1,
+  future 4.04 → 4.67:1, focus ring 1.45 → 6.52:1), and move the step captions off
+  `c="dimmed"` to `.c2-wizard-step-caption` (7.48:1 dark, unchanged light). Docs:
+  `accessibility.md` §1.7 (new), `event-lifecycle.md` §1.4, `AGENTS.md`.
 
 ## 1.4 Open items & next steps
 

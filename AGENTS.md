@@ -407,7 +407,10 @@ doc content here.
   Design: [docs/browser-support.md](docs/browser-support.md).
 - **Accessibility:** skip-to-content link first; one polite live region (`StatusAnnouncer`);
   every skeleton block carries a `LoadingStatus` sr-only announcement; count badges ride the
-  control's accessible name (visual badge `aria-hidden`). Design: [docs/accessibility.md](docs/accessibility.md).
+  control's accessible name (visual badge `aria-hidden`); dark-scheme event badges and the
+  wizard step strip use scheme-scoped `globals.css` rules to reach ≥3:1 boundaries / ≥4.5:1
+  text (Mantine's dark `light`/`filled` fills are near-black) — keep new badge/step colours
+  inside that ramp. Design: [docs/accessibility.md](docs/accessibility.md) §1.7.
 
 ## Conventions
 

@@ -188,8 +188,13 @@ Mechanics worth knowing:
       (`Location` · `Step 3 of 6`).
 
     In every variant passed steps are visually distinct from the current and future
-    ones, and the full step name is available in the control's accessible name. The
-    step labels describe the *section*, not a position, because the walk's length shifts
+    ones, and the full step name is available in the control's accessible name. In the
+    dark scheme the guided variant runs a light-to-dark brand ramp instead of the
+    primary-colour mapping (current brand-2 → completed brand-3 → future gray-6, with
+    the caption on `gray-6`/`gray-5`), because Mantine's dark-scheme
+    `--mantine-primary-color-filled` (brand-8) is only 1.45:1 on the dark body; see
+    [`accessibility.md`](accessibility.md) §1.7 for the measured pairs. The step labels
+    describe the *section*, not a position, because the walk's length shifts
     when a type hides its remarks/invitees step. Clicking any step calls `goToStep` — a
     **free jump** (the semantics of the old bottom "Go to Summary" link, now gone):
     nothing in between is validated; the final submit still catches problems and returns
