@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  enabledHourOptions,
+  enabledMinuteOptions,
   isTimeOption,
   isTimeWithinBounds,
   joinDateTimeParts,
@@ -194,5 +196,75 @@ describe("isTimeWithinBounds", () => {
     expect(isTimeWithinBounds("09:05", { min: "09:00", max: "09:15" })).toBe(true);
     expect(isTimeWithinBounds("09:20", { min: "09:00", max: "09:15" })).toBe(false);
     expect(isTimeWithinBounds("23:45", { min: "23:44" })).toBe(true);
+  });
+});
+
+describe("enabledHourOptions", () => {
+  const grid = [...TIME_MINUTE_OPTIONS];
+
+  it("offers every hour when no bounds are set", () => {
+    expect(enabledHourOptions(grid, {})).toEqual([...TIME_HOUR_OPTIONS]);
+  });
+
+  it("keeps the max hour (its earliest stop still fits) and drops the later ones", () => {
+    expect(enabledHourOptions(grid, { max: "10:00" })).toEqual(TIME_HOUR_OPTIONS.slice(0, 11));
+  });
+
+  it("keeps the min hour (its latest stop still fits) and drops the earlier ones", () => {
+    expect(enabledHourOptions(grid, { min: "09:30" })).toEqual(TIME_HOUR_OPTIONS.slice(9));
+  });
+
+  it("drops the min hour when no offered stop reaches the bound", () => {
+    expect(enabledHourOptions(grid, { min: "09:50" })).toEqual(TIME_HOUR_OPTIONS.slice(10));
+  });
+
+  it("keeps the min hour once the off-grid stop is offered", () => {
+    expect(enabledHourOptions(["00", "15", "30", "45", "50"], { min: "09:50" })).toEqual(
+      TIME_HOUR_OPTIONS.slice(9),
+    );
+  });
+
+  it("intersects both bounds", () => {
+    expect(enabledHourOptions(grid, { min: "09:30", max: "10:00" })).toEqual(["09", "10"]);
+  });
+});
+
+describe("enabledMinuteOptions", () => {
+  const grid = [...TIME_MINUTE_OPTIONS];
+
+  it("offers every stop when no bounds are set", () => {
+    expect(enabledMinuteOptions(grid, "09", {})).toEqual(grid);
+  });
+
+  it("caps the stops at the max time for the staged hour", () => {
+    expect(enabledMinuteOptions(grid, "10", { max: "10:30" })).toEqual(["00", "15", "30"]);
+  });
+
+  it("floors the stops at the min time for the staged hour", () => {
+    expect(enabledMinuteOptions(grid, "09", { min: "09:30" })).toEqual(["30", "45"]);
+  });
+
+  it("keeps an off-grid stop that sits inside the bound", () => {
+    expect(enabledMinuteOptions(["00", "15", "30", "37", "45"], "08", { max: "08:40" })).toEqual([
+      "00",
+      "15",
+      "30",
+      "37",
+    ]);
+  });
+
+  it("keeps every stop while no hour is staged and a one-sided bound leaves one reachable", () => {
+    expect(enabledMinuteOptions(grid, "", { min: "09:30" })).toEqual(grid);
+    expect(enabledMinuteOptions(grid, "", { max: "10:00" })).toEqual(grid);
+  });
+
+  it("drops the stops no hour can complete between two bounds", () => {
+    expect(enabledMinuteOptions(grid, "", { min: "09:30", max: "09:45" })).toEqual(["30", "45"]);
+  });
+
+  it("never dead-ends the bound hour: it stays pickable while its stops narrow", () => {
+    const bounds = { max: "09:30" };
+    expect(enabledHourOptions(grid, bounds)).toContain("09");
+    expect(enabledMinuteOptions(grid, "09", bounds)).toEqual(["00", "15", "30"]);
   });
 });

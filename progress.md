@@ -2530,6 +2530,19 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   **yellow outline**: 2px gold (bright accent-6 in dark), **dotted** = some of
   the folder's types picked, **solid** = all; the brand tint fill is gone too.
   Docs: `event-lifecycle.md` §1.4.1/§1.10, `dashboard-views.md` §1.2.
+- 1.387 **Time picker disables invalid choices**: the wizard's Start/End time dialog
+  no longer rejects an out-of-order same-date pick with a red alert + ringed cell —
+  every cell that could not complete in bounds is now a disabled button (dimmed,
+  inert, out of the tab order, skipped by arrow/Home/End) and a dimmed caption states
+  the window instead. An hour stays pickable while *some* offered minute still fits
+  (`max: 09:30` keeps `09` for `:00`/`:15`/`:30`); tapping it while a now-invalid
+  minute is highlighted only stages the hour and narrows the minute row, so nothing
+  invalid is ever applied. Same rule across the step: the Start date input gains
+  `maxDate` = end date (mirroring the End's `minDate`) and the Half Day AM/PM segment
+  that would invert a same-date range is disabled, making the silent `clampEventEnd`
+  snap unreachable from the UI (`clampEventEnd` + `validateEventForm` stay the
+  option-switch/server safety nets). Pure `enabledHourOptions` /
+  `enabledMinuteOptions` (13 tests). Docs: `event-lifecycle.md` §1.4.1/§1.11.1.
 
 ## 1.4 Open items & next steps
 

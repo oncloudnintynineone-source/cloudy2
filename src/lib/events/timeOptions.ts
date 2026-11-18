@@ -155,4 +155,41 @@ export function isTimeWithinBounds(time: string, bounds: TimeBounds): boolean {
   return true;
 }
 
+/**
+ * The hour cells a picker offers: every hour that still completes to at least
+ * one in-bounds time with one of `minutes`. An hour stays enabled while *some*
+ * minute makes it valid — the picker applies an hour and a minute
+ * independently, so `max: "09:30"` keeps `09` pickable (with `:00`/`:15`/`:30`)
+ * even while an off-grid `:45` is highlighted.
+ */
+export function enabledHourOptions(minutes: readonly string[], bounds: TimeBounds): string[] {
+  if (!bounds.min && !bounds.max) {
+    return [...TIME_HOUR_OPTIONS];
+  }
+  return TIME_HOUR_OPTIONS.filter((hour) =>
+    minutes.some((minute) => isTimeWithinBounds(`${hour}:${minute}`, bounds)),
+  );
+}
+
+/**
+ * The minute cells a picker offers for the staged `hour` ("" when none is
+ * staged yet): those already in bounds with that hour, or — while no hour is
+ * staged — those some hour can still complete in bounds.
+ */
+export function enabledMinuteOptions(
+  minutes: readonly string[],
+  hour: string,
+  bounds: TimeBounds,
+): string[] {
+  if (!bounds.min && !bounds.max) {
+    return [...minutes];
+  }
+  if (hour) {
+    return minutes.filter((minute) => isTimeWithinBounds(`${hour}:${minute}`, bounds));
+  }
+  return minutes.filter((minute) =>
+    TIME_HOUR_OPTIONS.some((option) => isTimeWithinBounds(`${option}:${minute}`, bounds)),
+  );
+}
+
 export type AmPm = "AM" | "PM" | "";

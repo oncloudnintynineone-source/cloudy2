@@ -246,19 +246,29 @@ Mechanics worth knowing:
   — an hour keeps the highlighted minute, a minute uses the highlighted hour — so
   closing it any way (X, backdrop tap or Escape) keeps the change. Picking a
   minute while an hour is set also applies the time and closes the dialog.
-  When both sides share a date, the Start picker caps at the current end time and
-  the End picker floors at the current start time: a pick outside that window is
-  staged (so the other half can still be corrected) but never applied, and the
-  dialog shows a red `Start time must be on or before 10:00.` /
-  `End time must be on or after 09:00.` alert while ringing the rejected cell.
-  `clampEventEnd` remains the date-change/server safety net.
+  When both sides share a date, the Start picker **disables** every cell that
+  could not complete at or before the current end time and the End picker every
+  cell at or after the current start time, so an out-of-order time cannot be
+  picked at all — no rejected tap, no error message; a dimmed caption states the
+  window (`Start time can be 09:00 or later.`). An hour stays pickable while
+  *some* offered minute still completes it in bounds (`max: 09:30` keeps `09` for
+  `:00`/`:15`/`:30`); tapping such an hour while a now-invalid minute is
+  highlighted only **stages** it — the stale minute drops out and the minute row
+  narrows to the stops that finish the pair, so nothing invalid is ever applied.
+  Disabled cells are native disabled buttons: inert, out of the tab order, and
+  skipped by the grid's arrow/Home/End navigation. `clampEventEnd` remains the
+  option-switch/server safety net.
   `data-mantine-stop-propagation` on every control keeps Escape from also
   minimizing the wizard, and the dialog returns focus to the button. The picked
   `HH:mm` joins into the naive `YYYY-MM-DD HH:mm:ss` string via
   `joinDateTimeParts`, a cleared time stores a bare date, which `validateEventForm`
   rejects ("Start time is required" / "End time is required"). `full` = two
   `DatePickerInput`s (plain dates, no half-day markers); `half` = two
-  `DatePickerInput`s plus an AM/PM `SegmentedControl` per side. Every date input is
+  `DatePickerInput`s plus an AM/PM `SegmentedControl` per side. Neither side may cross the other: the End date input floors at the
+   start date (`minDate`) and the Start date input caps at the end date
+   (`maxDate`), and on `half` the AM/PM segment that would invert a same-date
+   range is disabled (the selected value never is) — so the silent
+   `clampEventEnd` snap is unreachable from this step. Every date input is
   made natively read-only via the styles-API `attributes` (`attributes.input`) —
   **never** the component `readOnly` prop, which would also disable its popover —
   so tapping opens only the calendar and never raises the on-screen keyboard (the
@@ -1024,8 +1034,12 @@ markers, switching to `half` (prefilled from the stored notes) keeps them.
   (e.g. an event edited in Google to `08:37`), so an existing value is always
   visible and re-selectable.
 - `isTimeWithinBounds(time, { min, max })` (`TimeBounds`):
-  inclusive `HH:mm` bounds check used by the picker to reject an out-of-order
-  start/end pick when the range's dates are equal.
+  inclusive `HH:mm` bounds check behind the picker's disabled cells.
+- `enabledHourOptions(minutes, bounds)` / `enabledMinuteOptions(minutes, hour, bounds)`:
+  the cells a bounded picker offers — an hour while *some* offered minute still
+  completes it in bounds, and a minute that fits the staged hour (or, while no
+  hour is staged, that some hour could complete). Both return everything when no
+  bounds are set, so a cross-date range disables nothing.
 - The title's `(AM)`/`(PM)` marker comes from the recipe's `time` segment (§1.8.1), not a
   hardcoded helper.
 
@@ -1108,7 +1122,7 @@ writes, headers) is thin and lives in `actions.ts` / `queries.ts`.
 | `normalizeAssignments` (whitelist keys, drop empties), `validateAssignments` (unknown ids) (§1.8.5)                                                                                | `settings/validate.ts`                            | `settings/validate.test.ts`                 |
 | `formatFullName`                                                                                                                                                                   | `settings/formatName.ts`                          | `formatName.test.ts`                        |
 | `clampOutOfCamp` (all allowed-location sets), `flagsFromCategory` / `categoryFromFlags`, `normalizeAllowedLocations`                                                               | `events/locationPolicy.ts`                        | `locationPolicy.test.ts`                    |
-| `resolveTimeOption(s)`, `normalizeTimeOptions`, `naiveDatePart` / `naiveTimePart` / `joinDateTimeParts`, `isTimeWithinBounds`                                                                 | `events/timeOptions.ts`                           | `timeOptions.test.ts`                       |
+| `resolveTimeOption(s)`, `normalizeTimeOptions`, `naiveDatePart` / `naiveTimePart` / `joinDateTimeParts`, `isTimeWithinBounds`, `enabledHourOptions` / `enabledMinuteOptions`                                                                 | `events/timeOptions.ts`                           | `timeOptions.test.ts`                       |
 | `buildEventTypePickerSections` (groups in display order, empty-group skip, ungrouped last, dangling-id degrade), `sortEventTypeGroups`, `moveEventTypeGroupOrder` (§1.10)          | `eventTypes/groups.ts`                            | `groups.test.ts`                            |
 | `absEventRange` (timed + all-day exclusive end), naive↔instant, `weekDays`, `monthsInRange`, `shiftMonth`, `monthRange`, `monthGridRows`                                           | `events/datetime.ts`                              | `datetime.test.ts`                          |
 | `modifyGuard`, `canChangeLock`                                                                                                                                                     | `events/guards.ts`                                | `guards.test.ts`                            |
@@ -1165,7 +1179,7 @@ limitations live in [`registration-events.md`](registration-events.md).
 | `src/lib/eventTypes/groupActions.ts`              | Group create/rename/delete/move server actions (§1.10)                                    |
 | `src/lib/events/queries.ts`                       | `mapCalendarItem` — read-back into `CalendarEvent`                                        |
 | `src/lib/events/recentLocations.ts`               | `fetchRecentLocations` — per-user location suggestions (server action)                    |
-| `src/components/TimeSelectField.tsx`              | "Select time" button + auto-closing hour/minute picker dialog                            |
+| `src/components/TimeSelectField.tsx`              | "Select time" button + hour/minute picker dialog (out-of-bounds cells disabled)           |
 | `src/lib/appUrl.ts`                               | App origin for the `Edit:` link                                                           |
 
 Related docs:

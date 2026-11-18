@@ -1499,10 +1499,13 @@ html.c2-low-end::view-transition-group(*) {
   border-radius: var(--mantine-radius-md);
   cursor: pointer;
 }
-/* A rejected (out-of-bounds) pick: ring the cell that could not be applied. */
-.c2-time-cell[data-invalid] {
-  outline: 2px solid var(--mantine-color-error);
-  outline-offset: 2px;
+/* A cell that could not complete to an in-bounds time (an out-of-order start /
+   end on a same-date range): dimmed and inert rather than error-ringed, so the
+   invalid choice reads as unavailable instead of as a failed tap. Same dim the
+   disabled picker badges use. */
+.c2-time-cell:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 .c2-time-cell .c2-time-cell-badge {
   width: 100%;

@@ -6,7 +6,14 @@ import { useMediaQuery } from "@mantine/hooks";
 import { IconChevronDown, IconClock } from "@tabler/icons-react";
 
 import { MotionModal } from "@/components/MotionModal";
-import { isTimeWithinBounds, TIME_HOUR_OPTIONS, timeMinuteOptions } from "@/lib/events/timeOptions";
+import {
+  enabledHourOptions,
+  enabledMinuteOptions,
+  isTimeWithinBounds,
+  TIME_HOUR_OPTIONS,
+  timeMinuteOptions,
+  type TimeBounds,
+} from "@/lib/events/timeOptions";
 import { NARROW_MEDIA_QUERY } from "@/lib/theme";
 
 /**
@@ -19,9 +26,10 @@ import { NARROW_MEDIA_QUERY } from "@/lib/theme";
  * highlighted and applies each valid pick immediately (an hour keeps the stored
  * minute, a minute uses the stored hour), so closing it any way — X, backdrop,
  * Escape, or the automatic close after a minute pick — keeps the change.
- * `minTime`/`maxTime` (same-date ranges) reject an out-of-order pick with a red
- * in-dialog alert and a ringed cell; the rejected value is never applied.
- * `onChange` therefore fires on every valid pick, exactly once per tap.
+ * `minTime`/`maxTime` (same-date ranges) **disable** every cell that could not
+ * complete to an in-bounds time, so an out-of-order pick cannot be made at all:
+ * the dialog states the window in a dimmed caption instead of raising an error.
+ * `onChange` therefore fires on every applied pick, exactly once per tap.
  */
 
 /** Escape inside the dialog must close the dialog, not minimize the wizard. */
@@ -111,17 +119,22 @@ const HOUR_COLUMNS = 6;
 
 /**
  * The picker body. It opens with the stored hour and minute highlighted and
- * applies every valid pick immediately — an hour keeps the stored minute, a
- * minute uses the stored hour — so closing the dialog by any means keeps what
- * was picked. Picking a minute while an hour is set closes the dialog (and
- * picking an hour after a minute on an empty field does the same).
+ * applies every valid pick immediately — an hour keeps the highlighted minute, a
+ * minute uses the highlighted hour — so closing the dialog by any means keeps
+ * what was picked. Picking a minute while an hour is set also applies the time
+ * and closes the dialog (and picking an hour after a minute on an empty field
+ * does the same).
  *
- * A pick that would fall outside the field's inclusive bounds (only possible
- * when the range's dates are equal) is staged so the other half can still be
- * corrected, but it is never applied: the dialog shows a red alert and rings
- * the rejected cell. Because `MotionModal` is not `keepMounted`, this component
- * remounts on every open and its state re-seeds from `value` (the
- * `UserSelectModalBody` pattern).
+ * Bounds (only possible when the range's dates are equal) are enforced by
+ * **disabling** cells rather than by rejecting a pick: an hour stays pickable
+ * while some offered minute completes it in bounds, and a minute is pickable
+ * when it is in bounds with the highlighted hour (or, while no hour is set yet,
+ * when some hour could complete it). An hour that is pickable but not with the
+ * currently highlighted minute is only staged — the stale minute drops out and
+ * the minute row narrows to the stops that finish the pair — so nothing invalid
+ * is ever applied and the dialog never shows an error. Because `MotionModal` is
+ * not `keepMounted`, this component remounts on every open and its state
+ * re-seeds from `value` (the `UserSelectModalBody` pattern).
  */
 function TimeSelectDialogBody({
   label,
@@ -143,50 +156,45 @@ function TimeSelectDialogBody({
   // A minute picked before any hour (an empty-time field) waits for the hour
   // pick, which then completes the pair and closes the dialog.
   const [minutePicked, setMinutePicked] = useState(false);
-  // An out-of-bounds pick stays staged (so the other half remains adjustable)
-  // but is never applied; these drive the alert and the red cell ring.
-  const [boundsError, setBoundsError] = useState<string | null>(null);
-  const [invalidPick, setInvalidPick] = useState<{
-    part: "hour" | "minute";
-    value: string;
-  } | null>(null);
   const hourRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const minutes = useMemo(() => timeMinuteOptions(value), [value]);
-  // Roving tabindex: the highlighted (or first) hour is the grid's only tab stop.
-  const tabbableHour = hour || TIME_HOUR_OPTIONS[0];
-  const boundsMessage =
+  const bounds: TimeBounds = useMemo(() => ({ min: minTime, max: maxTime }), [minTime, maxTime]);
+  const enabledHours = useMemo(() => enabledHourOptions(minutes, bounds), [minutes, bounds]);
+  const enabledHourSet = useMemo(() => new Set(enabledHours), [enabledHours]);
+  const enabledMinuteSet = useMemo(
+    () => new Set(enabledMinuteOptions(minutes, hour, bounds)),
+    [minutes, hour, bounds],
+  );
+  // Roving tabindex: the highlighted hour, or the first pickable one, is the
+  // grid's only tab stop — a disabled cell is never focusable.
+  const tabbableHour = hour && enabledHourSet.has(hour) ? hour : enabledHours[0];
+  const boundsHint =
     minTime && maxTime
-      ? `${label} must be between ${minTime} and ${maxTime}.`
+      ? `${label} can be ${minTime} – ${maxTime}.`
       : minTime
-        ? `${label} must be on or after ${minTime}.`
+        ? `${label} can be ${minTime} or later.`
         : maxTime
-          ? `${label} must be on or before ${maxTime}.`
+          ? `${label} can be ${maxTime} or earlier.`
           : null;
-
-  /** Apply `candidate` when it is within bounds; otherwise flag it and refuse. */
-  function accept(candidate: string): boolean {
-    if (!isTimeWithinBounds(candidate, { min: minTime, max: maxTime })) {
-      setBoundsError(boundsMessage);
-      return false;
-    }
-    setBoundsError(null);
-    setInvalidPick(null);
-    onApply(candidate);
-    return true;
-  }
 
   function pickHour(next: string) {
     setHour(next);
     const candidate = `${next}:${minute || "00"}`;
-    if (!accept(candidate)) {
-      setInvalidPick({ part: "hour", value: next });
+    if (isTimeWithinBounds(candidate, bounds)) {
+      setMinute(candidate.slice(3, 5));
+      // Apply at once: closing after an hour-only change keeps it.
+      onApply(candidate);
+      if (minutePicked) {
+        onClose();
+      }
       return;
     }
-    setMinute(candidate.slice(3, 5));
-    // Apply at once: closing after an hour-only change keeps it.
-    if (minutePicked) {
-      onClose();
+    // Pickable hour, stale minute: stage the hour and drop the minute that no
+    // longer fits, so the narrowed minute row finishes the pair.
+    if (minute) {
+      setMinute("");
     }
+    setMinutePicked(false);
   }
 
   function pickMinute(next: string) {
@@ -196,49 +204,72 @@ function TimeSelectDialogBody({
       // The minute waits for an hour pick (an empty-time field).
       return;
     }
-    if (!accept(`${hour}:${next}`)) {
-      setInvalidPick({ part: "minute", value: next });
-      return;
-    }
+    // The cell is only reachable when `hour:next` is within bounds.
+    onApply(`${hour}:${next}`);
     onClose();
+  }
+
+  /**
+   * Focus the hour `delta` cells away (a column step for ↑/↓), nudging one cell
+   * at a time in the same direction until a pickable one is reached.
+   */
+  function focusRelativeHour(index: number, delta: number) {
+    const count = TIME_HOUR_OPTIONS.length;
+    const sign = delta > 0 ? 1 : -1;
+    let candidate = index;
+    for (let step = 0; step < count; step += 1) {
+      candidate = (((candidate + delta) % count) + count) % count;
+      if (enabledHourSet.has(TIME_HOUR_OPTIONS[candidate])) {
+        hourRefs.current[TIME_HOUR_OPTIONS[candidate]]?.focus();
+        return;
+      }
+      delta = sign;
+    }
+  }
+
+  function focusEdgeHour(last: boolean) {
+    const option = last ? enabledHours[enabledHours.length - 1] : enabledHours[0];
+    if (option) {
+      hourRefs.current[option]?.focus();
+    }
   }
 
   function handleHourKeyDown(event: KeyboardEvent<HTMLButtonElement>, current: string) {
     const index = TIME_HOUR_OPTIONS.indexOf(current);
-    let next: number;
+    let delta: number;
     switch (event.key) {
       case "ArrowRight":
-        next = index + 1;
+        delta = 1;
         break;
       case "ArrowLeft":
-        next = index - 1;
+        delta = -1;
         break;
       case "ArrowDown":
-        next = index + HOUR_COLUMNS;
+        delta = HOUR_COLUMNS;
         break;
       case "ArrowUp":
-        next = index - HOUR_COLUMNS;
+        delta = -HOUR_COLUMNS;
         break;
       case "Home":
-        next = 0;
-        break;
+        event.preventDefault();
+        focusEdgeHour(false);
+        return;
       case "End":
-        next = TIME_HOUR_OPTIONS.length - 1;
-        break;
+        event.preventDefault();
+        focusEdgeHour(true);
+        return;
       default:
         return;
     }
     event.preventDefault();
-    const count = TIME_HOUR_OPTIONS.length;
-    const wrapped = ((next % count) + count) % count;
-    hourRefs.current[TIME_HOUR_OPTIONS[wrapped]]?.focus();
+    focusRelativeHour(index, delta);
   }
 
   return (
     <Stack gap="sm">
-      {boundsError ? (
-        <Text size="sm" c="red" role="alert">
-          {boundsError}
+      {boundsHint ? (
+        <Text size="xs" c="dimmed">
+          {boundsHint}
         </Text>
       ) : null}
       <div>
@@ -252,7 +283,7 @@ function TimeSelectDialogBody({
               label={option}
               ariaLabel={`${Number(option)} o'clock`}
               selected={option === hour}
-              invalid={invalidPick?.part === "hour" && invalidPick.value === option}
+              disabled={!enabledHourSet.has(option)}
               tabIndex={option === tabbableHour ? 0 : -1}
               autoFocus={option === tabbableHour}
               cellRef={(node) => {
@@ -275,7 +306,7 @@ function TimeSelectDialogBody({
               label={option}
               ariaLabel={`${option} minutes past the hour`}
               selected={option === minute}
-              invalid={invalidPick?.part === "minute" && invalidPick.value === option}
+              disabled={!enabledMinuteSet.has(option)}
               onSelect={() => pickMinute(option)}
             />
           ))}
@@ -285,12 +316,16 @@ function TimeSelectDialogBody({
   );
 }
 
-/** One hour/minute badge chip: a real 44px button, pressed-state aware. */
+/**
+ * One hour/minute badge chip: a real 44px button, pressed-state aware. A cell
+ * that could not complete to an in-bounds time is a native disabled button —
+ * inert, out of the tab order, and announced as unavailable.
+ */
 function TimeCell({
   label,
   ariaLabel,
   selected,
-  invalid = false,
+  disabled = false,
   tabIndex,
   autoFocus = false,
   cellRef,
@@ -300,7 +335,7 @@ function TimeCell({
   label: string;
   ariaLabel: string;
   selected: boolean;
-  invalid?: boolean;
+  disabled?: boolean;
   tabIndex?: number;
   autoFocus?: boolean;
   cellRef?: (node: HTMLButtonElement | null) => void;
@@ -314,10 +349,9 @@ function TimeCell({
       className="c2-time-cell"
       aria-pressed={selected}
       aria-label={ariaLabel}
-      aria-invalid={invalid || undefined}
+      disabled={disabled}
       tabIndex={tabIndex}
       data-autofocus={autoFocus ? "" : undefined}
-      data-invalid={invalid || undefined}
       data-mantine-stop-propagation="true"
       onClick={onSelect}
       onKeyDown={onKeyDown}

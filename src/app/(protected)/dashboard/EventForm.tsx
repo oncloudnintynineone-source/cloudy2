@@ -1196,20 +1196,40 @@ export function EventForm({
       form.values[field] ? undefined : form.errors[field];
     const timeError = (field: "start" | "end") =>
       form.values[field] ? form.errors[field] : undefined;
-    // End must never be before start — clamp on every edit and also hint
-    // via minDate so the picker greys out earlier dates.
+    // Neither side may cross the other: the End date picker floors at the start
+    // date and the Start date picker caps at the end date, so an out-of-order
+    // date is unavailable instead of silently snapping the other side
+    // (`clampEventEnd` stays the option-switch/server safety net).
     const endMinDate = form.values.start
       ? naiveToDate(`${form.values.start.slice(0, 10)} 00:00:00`)
       : null;
+    const startMaxDate = form.values.end
+      ? naiveToDate(`${form.values.end.slice(0, 10)} 00:00:00`)
+      : null;
     // Same-day ranges are the only ordering case a time pick can create: the
-    // Start picker caps at the end time and the End picker floors at the start
-    // time, so an out-of-order pick is rejected with a message instead of
-    // letting clampEventEnd silently snap the value.
+    // Start picker disables every cell after the end time and the End picker
+    // every cell before the start time, so an out-of-order time simply cannot be
+    // picked — no rejected value, no message.
     const startDate = naiveDatePart(form.values.start);
     const endDate = naiveDatePart(form.values.end);
     const startTime = naiveTimePart(form.values.start);
     const endTime = naiveTimePart(form.values.end);
     const sameDate = !!startDate && startDate === endDate;
+    /**
+     * The Half Day AM/PM segments, with the one that would invert the
+     * half-of-day order on a shared date disabled. The selected value is never
+     * disabled, so the control always shows its current state.
+     */
+    const amPmData = (side: "start" | "end") =>
+      AMPM_OPTIONS.map((item) => ({
+        ...item,
+        disabled:
+          sameDate &&
+          item.value !== form.values[`${side}AmPm`] &&
+          (side === "start"
+            ? item.value === "PM" && form.values.endAmPm === "AM"
+            : item.value === "AM" && form.values.startAmPm === "PM"),
+      }));
     const startField =
       option === "range" ? (
         <Stack gap="xs">
@@ -1220,6 +1240,7 @@ export function EventForm({
               setStartField(joinDateTimeParts(value ?? "", naiveTimePart(form.values.start)))
             }
             error={dateError("start")}
+            maxDate={startMaxDate ?? undefined}
             attributes={{ input: { readOnly: true } }}
             popoverProps={{ trapFocus: false }}
           />
@@ -1240,13 +1261,14 @@ export function EventForm({
             value={naiveToDate(form.values.start)}
             onChange={(value) => setStartField(value ? `${value} 00:00:00` : "")}
             error={form.errors.start}
+            maxDate={startMaxDate ?? undefined}
             attributes={{ input: { readOnly: true } }}
           />
           {showAmPm && (
             <Stack gap={4}>
               <SegmentedControl
                 aria-label="Start AM or PM"
-                data={AMPM_OPTIONS}
+                data={amPmData("start")}
                 value={form.values.startAmPm || undefined}
                 onChange={(value) => setStartAmPmField(value as AmPm)}
               />
@@ -1297,7 +1319,7 @@ export function EventForm({
             <Stack gap={4}>
               <SegmentedControl
                 aria-label="End AM or PM"
-                data={AMPM_OPTIONS}
+                data={amPmData("end")}
                 value={form.values.endAmPm || undefined}
                 onChange={(value) => setEndAmPmField(value as AmPm)}
               />
