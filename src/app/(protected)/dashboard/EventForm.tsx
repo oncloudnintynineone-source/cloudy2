@@ -1199,6 +1199,15 @@ export function EventForm({
     const endMinDate = form.values.start
       ? naiveToDate(`${form.values.start.slice(0, 10)} 00:00:00`)
       : null;
+    // Same-day ranges are the only ordering case a time pick can create: the
+    // Start picker caps at the end time and the End picker floors at the start
+    // time, so an out-of-order pick is rejected with a message instead of
+    // letting clampEventEnd silently snap the value.
+    const startDate = naiveDatePart(form.values.start);
+    const endDate = naiveDatePart(form.values.end);
+    const startTime = naiveTimePart(form.values.start);
+    const endTime = naiveTimePart(form.values.end);
+    const sameDate = !!startDate && startDate === endDate;
     const startField =
       option === "range" ? (
         <Stack gap="xs">
@@ -1214,7 +1223,8 @@ export function EventForm({
           />
           <TimeSelectField
             label="Start time"
-            value={naiveTimePart(form.values.start)}
+            value={startTime}
+            maxTime={sameDate && endTime ? endTime : undefined}
             onChange={(time) =>
               setStartField(joinDateTimeParts(naiveDatePart(form.values.start), time))
             }
@@ -1263,7 +1273,8 @@ export function EventForm({
           />
           <TimeSelectField
             label="End time"
-            value={naiveTimePart(form.values.end)}
+            value={endTime}
+            minTime={sameDate && startTime ? startTime : undefined}
             onChange={(time) =>
               setEndField(joinDateTimeParts(naiveDatePart(form.values.end), time))
             }

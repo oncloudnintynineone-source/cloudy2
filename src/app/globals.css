@@ -1499,6 +1499,11 @@ html.c2-low-end::view-transition-group(*) {
   border-radius: var(--mantine-radius-md);
   cursor: pointer;
 }
+/* A rejected (out-of-bounds) pick: ring the cell that could not be applied. */
+.c2-time-cell[data-invalid] {
+  outline: 2px solid var(--mantine-color-error);
+  outline-offset: 2px;
+}
 .c2-time-cell .c2-time-cell-badge {
   width: 100%;
   height: 44px;

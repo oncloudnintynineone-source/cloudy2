@@ -129,4 +129,30 @@ export function timeMinuteOptions(value: string): string[] {
   return options.sort((a, b) => Number(a) - Number(b));
 }
 
+/** Inclusive `HH:mm` bounds for a time picker (either side may be absent). */
+export interface TimeBounds {
+  /** Earliest allowed time, inclusive. */
+  min?: string;
+  /** Latest allowed time, inclusive. */
+  max?: string;
+}
+
+/**
+ * Whether an `HH:mm` value sits inside the bounds (both inclusive). A blank
+ * value is never "within" — it means no time has been chosen. Zero-padded
+ * `HH:mm` strings compare chronologically as plain strings.
+ */
+export function isTimeWithinBounds(time: string, bounds: TimeBounds): boolean {
+  if (!time) {
+    return false;
+  }
+  if (bounds.min && time < bounds.min) {
+    return false;
+  }
+  if (bounds.max && time > bounds.max) {
+    return false;
+  }
+  return true;
+}
+
 export type AmPm = "AM" | "PM" | "";

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   isTimeOption,
+  isTimeWithinBounds,
   joinDateTimeParts,
   naiveDatePart,
   naiveTimePart,
@@ -155,5 +156,43 @@ describe("timeMinuteOptions", () => {
     const before = [...TIME_MINUTE_OPTIONS];
     timeMinuteOptions("08:37");
     expect([...TIME_MINUTE_OPTIONS]).toEqual(before);
+  });
+});
+
+describe("isTimeWithinBounds", () => {
+  it("treats both bounds as inclusive", () => {
+    const bounds = { min: "09:00", max: "10:00" };
+    expect(isTimeWithinBounds("09:00", bounds)).toBe(true);
+    expect(isTimeWithinBounds("10:00", bounds)).toBe(true);
+    expect(isTimeWithinBounds("09:30", bounds)).toBe(true);
+  });
+
+  it("rejects times outside either bound", () => {
+    const bounds = { min: "09:00", max: "10:00" };
+    expect(isTimeWithinBounds("08:59", bounds)).toBe(false);
+    expect(isTimeWithinBounds("10:15", bounds)).toBe(false);
+  });
+
+  it("supports a min-only or max-only bound", () => {
+    expect(isTimeWithinBounds("09:00", { min: "09:00" })).toBe(true);
+    expect(isTimeWithinBounds("08:45", { min: "09:00" })).toBe(false);
+    expect(isTimeWithinBounds("10:00", { max: "10:00" })).toBe(true);
+    expect(isTimeWithinBounds("10:15", { max: "10:00" })).toBe(false);
+  });
+
+  it("accepts any non-empty time when no bounds are set", () => {
+    expect(isTimeWithinBounds("00:00", {})).toBe(true);
+    expect(isTimeWithinBounds("23:45", {})).toBe(true);
+  });
+
+  it("never treats a blank time as within bounds", () => {
+    expect(isTimeWithinBounds("", {})).toBe(false);
+    expect(isTimeWithinBounds("", { min: "09:00" })).toBe(false);
+  });
+
+  it("compares minute-level values chronologically", () => {
+    expect(isTimeWithinBounds("09:05", { min: "09:00", max: "09:15" })).toBe(true);
+    expect(isTimeWithinBounds("09:20", { min: "09:00", max: "09:15" })).toBe(false);
+    expect(isTimeWithinBounds("23:45", { min: "23:44" })).toBe(true);
   });
 });

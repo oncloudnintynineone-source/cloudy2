@@ -2453,8 +2453,10 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   (closing it any way keeps the change), and a minute pick also auto-closes. Replaces
   the read-only
   `TimePicker` + horizontally scrolling chip rows (26px targets). Off-grid stored minutes
-  are preserved as an extra cell; end-clamping is unchanged. Docs:
-  `event-lifecycle.md` §1.4.1/§1.11.1/§1.15.
+  are preserved as an extra cell. A same-date out-of-order pick is rejected in the
+  dialog with a red alert and a ringed cell instead of being silently clamped
+  (`isTimeWithinBounds`), while `clampEventEnd` stays the date-change/server safety
+  net. Docs: `event-lifecycle.md` §1.4.1/§1.11.1/§1.15.
 
 ## 1.4 Open items & next steps
 

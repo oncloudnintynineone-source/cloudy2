@@ -239,10 +239,16 @@ Mechanics worth knowing:
   hour in a fixed six-column grid — each row starts at 00 / 06 / 12 / 18, cells are
   44px tall, so nothing scrolls — plus the 15-minute stops 00/15/30/45 (an off-grid
   stored minute such as `08:37` is added as an extra cell). The dialog opens with
-  the stored hour and minute highlighted and applies every pick immediately — an
-  hour keeps the highlighted minute, a minute uses the highlighted hour — so
+  the stored hour and minute highlighted and applies every valid pick immediately
+  — an hour keeps the highlighted minute, a minute uses the highlighted hour — so
   closing it any way (X, backdrop tap or Escape) keeps the change. Picking a
   minute while an hour is set also applies the time and closes the dialog.
+  When both sides share a date, the Start picker caps at the current end time and
+  the End picker floors at the current start time: a pick outside that window is
+  staged (so the other half can still be corrected) but never applied, and the
+  dialog shows a red `Start time must be on or before 10:00.` /
+  `End time must be on or after 09:00.` alert while ringing the rejected cell.
+  `clampEventEnd` remains the date-change/server safety net.
   `data-mantine-stop-propagation` on every control keeps Escape from also
   minimizing the wizard, and the dialog returns focus to the button. The picked
   `HH:mm` joins into the naive `YYYY-MM-DD HH:mm:ss` string via
@@ -1010,6 +1016,9 @@ markers, switching to `half` (prefilled from the stored notes) keeps them.
   seeded value — the standard four plus the stored minute when it sits off-grid
   (e.g. an event edited in Google to `08:37`), so an existing value is always
   visible and re-selectable.
+- `isTimeWithinBounds(time, { min, max })` (`TimeBounds`):
+  inclusive `HH:mm` bounds check used by the picker to reject an out-of-order
+  start/end pick when the range's dates are equal.
 - The title's `(AM)`/`(PM)` marker comes from the recipe's `time` segment (§1.8.1), not a
   hardcoded helper.
 
@@ -1092,7 +1101,7 @@ writes, headers) is thin and lives in `actions.ts` / `queries.ts`.
 | `normalizeAssignments` (whitelist keys, drop empties), `validateAssignments` (unknown ids) (§1.8.5)                                                                                | `settings/validate.ts`                            | `settings/validate.test.ts`                 |
 | `formatFullName`                                                                                                                                                                   | `settings/formatName.ts`                          | `formatName.test.ts`                        |
 | `clampOutOfCamp` (all allowed-location sets), `flagsFromCategory` / `categoryFromFlags`, `normalizeAllowedLocations`                                                               | `events/locationPolicy.ts`                        | `locationPolicy.test.ts`                    |
-| `resolveTimeOption(s)`, `normalizeTimeOptions`, `naiveDatePart` / `naiveTimePart` / `joinDateTimeParts`                                                                            | `events/timeOptions.ts`                           | `timeOptions.test.ts`                       |
+| `resolveTimeOption(s)`, `normalizeTimeOptions`, `naiveDatePart` / `naiveTimePart` / `joinDateTimeParts`, `isTimeWithinBounds`                                                                 | `events/timeOptions.ts`                           | `timeOptions.test.ts`                       |
 | `buildEventTypePickerSections` (groups in display order, empty-group skip, ungrouped last, dangling-id degrade), `sortEventTypeGroups`, `moveEventTypeGroupOrder` (§1.10)          | `eventTypes/groups.ts`                            | `groups.test.ts`                            |
 | `absEventRange` (timed + all-day exclusive end), naive↔instant, `weekDays`, `monthsInRange`, `shiftMonth`, `monthRange`, `monthGridRows`                                           | `events/datetime.ts`                              | `datetime.test.ts`                          |
 | `modifyGuard`, `canChangeLock`                                                                                                                                                     | `events/guards.ts`                                | `guards.test.ts`                            |
@@ -1139,7 +1148,7 @@ limitations live in [`registration-events.md`](registration-events.md).
 | `src/lib/settings/tokenTemplate.ts`               | Token engine for participant-notification content (pure)                                  |
 | `src/lib/settings/formatName.ts`                  | Display-name template (pure)                                                              |
 | `src/lib/events/locationPolicy.ts`                | Location categories / allowed-locations clamping (pure)                                   |
-| `src/lib/events/timeOptions.ts`                   | Time options + AM/PM marker (pure)                                                        |
+| `src/lib/events/timeOptions.ts`                   | Time options + picker bounds + AM/PM marker (pure)                                        |
 | `src/lib/events/datetime.ts`                      | UTC+8 datetime math (pure)                                                                |
 | `src/lib/events/calendarExport.ts`                | Add-to-calendar builders: Google template URL + `.ics` (pure, §1.12)                      |
 | `src/lib/events/guards.ts`                        | Creator/ownership guards (pure)                                                           |

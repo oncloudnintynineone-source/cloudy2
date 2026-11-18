@@ -10526,8 +10526,19 @@ never lost. The dialog opens with the stored hour and minute highlighted and
 applies every pick immediately — an hour keeps the highlighted minute, a minute
 uses the highlighted hour — so closing it by any means keeps the change; picking
 a minute once an hour is set also closes the dialog (as does picking the hour
-after a minute on an empty field). `setStartField`/`setEndField` run on each pick,
-so the end is re-clamped against every new start.
+after a minute on an empty field). `setStartField`/`setEndField` run on each
+applied pick.
+
+Same-date ordering is the only invalid time pick a range can create (the End date
+picker already blocks earlier dates). `EventForm` therefore passes inclusive
+`minTime`/`maxTime` bounds to the picker when both sides share a date — the Start
+picker caps at the current end time, the End picker floors at the current start
+time. An out-of-bounds pick is staged so the other half can still be corrected,
+but it is **never applied**: the dialog shows a red `role="alert"` message
+(`Start time must be on or before 10:00.` / `End time must be on or after
+09:00.`) and rings the rejected cell (`data-invalid`), instead of letting
+`clampEventEnd` silently snap the value. `clampEventEnd` remains the
+date-change/server safety net.
 
 Escape needed special care: the wizard closes on a **window-capture** Escape
 (`ModalBase/use-modal`), and its only opt-out is a
@@ -10541,29 +10552,33 @@ button.
 ```mermaid
 flowchart LR
     B["Select time button (44px)"] --> D["Picker dialog (z 300)"]
-    D -->|"hour tap"| A["apply HH:<highlighted minute>"]
-    D -->|"minute tap"| C["apply HH:mm + close"]
-    D -->|"X / backdrop / Escape"| K["close (picks already applied)"]
+    D -->|"valid hour / minute pick"| A["apply HH:mm"]
+    D -->|"minute tap"| C["apply + close"]
+    D -->|"out-of-bounds pick"| E["red alert + ringed cell<br/>(staged, not applied)"]
+    D -->|"X / backdrop / Escape"| K["close (valid picks already applied)"]
     A --> W["EventForm: setStartField / setEndField<br/>clamp + validation"]
     C --> W
 ```
 
 **Pure helpers.** `src/lib/events/timeOptions.ts` gains `TIME_HOUR_OPTIONS`,
-`TIME_MINUTE_OPTIONS` and `timeMinuteOptions` (the standard stops plus an off-grid
-current minute), covered in `timeOptions.test.ts`.
+`TIME_MINUTE_OPTIONS`, `timeMinuteOptions` (the standard stops plus an off-grid
+current minute) and `isTimeWithinBounds` / `TimeBounds` (the inclusive `HH:mm`
+check behind the picker's rejection), covered in `timeOptions.test.ts`.
 
 **Files.** `src/components/TimeSelectField.tsx` (new), `src/components/TimeChipSelector.tsx`
 (deleted), `src/app/(protected)/dashboard/EventForm.tsx` (TimePicker + chips replaced by
-one `TimeSelectField` per side), `src/app/globals.css`
-(`.c2-time-trigger` / `.c2-time-grid` / `.c2-time-cell` / `.c2-time-minutes`, and the
-`.c2-chip-scroll` comment now names its remaining consumer, event search),
-`src/lib/events/timeOptions.ts` + test, docs/event-lifecycle.md §1.4.1/§1.11.1/§1.15.
+one `TimeSelectField` per side, plus the same-date bounds), `src/app/globals.css`
+(`.c2-time-trigger` / `.c2-time-grid` / `.c2-time-cell` / `.c2-time-minutes`, the
+`[data-invalid]` rejected-cell ring, and the `.c2-chip-scroll` comment now names its
+remaining consumer, event search), `src/lib/events/timeOptions.ts` + test,
+docs/event-lifecycle.md §1.4.1/§1.11.1/§1.13/§1.15.
 
-**Verification.** `tsc --noEmit` clean; ESLint clean; `pnpm test` 136 files / 1771
-tests pass (6 new time-picker cases). Device check still to be signed off by the user:
+**Verification.** `tsc --noEmit` clean; ESLint clean; `pnpm test` 136 files / 1777
+tests pass (12 new time-picker cases). Device check still to be signed off by the user:
 open the wizard at 320/360px, confirm the dialog fits above the wizard, the hour
 cells are 44px tall (about 40px wide at the narrowest), an hour-only change survives
-closing the dialog, a minute tap applies and closes, Escape closes only the dialog
-(the wizard stays open), and an off-grid edit value (e.g. `08:37`) keeps its `37`
-cell.
+closing the dialog, a minute tap applies and closes, a same-date out-of-order pick
+shows the red message and ring without changing the value, Escape closes only the
+dialog (the wizard stays open), and an off-grid edit value (e.g. `08:37`) keeps its
+`37` cell.
 
