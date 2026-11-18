@@ -238,11 +238,12 @@ Mechanics worth knowing:
   stacked above the wizard (`MotionModal`, `zIndex={300}`). The dialog shows every
   hour in a fixed six-column grid — each row starts at 00 / 06 / 12 / 18, cells are
   44px tall, so nothing scrolls — plus the 15-minute stops 00/15/30/45 (an off-grid
-  stored minute such as `08:37` is added as an extra cell). The user must pick
-  **both** an hour and a minute: the second pick applies the time and closes the
-  dialog, while the X, backdrop tap or Escape discards the picks. The dialog opens
-  with the stored hour and minute highlighted, so the current time is visible as
-  context. `data-mantine-stop-propagation` on every control keeps Escape from also
+  stored minute such as `08:37` is added as an extra cell). The dialog opens with
+  the stored hour and minute highlighted and applies every pick immediately — an
+  hour keeps the highlighted minute, a minute uses the highlighted hour — so
+  closing it any way (X, backdrop tap or Escape) keeps the change. Picking a
+  minute while an hour is set also applies the time and closes the dialog.
+  `data-mantine-stop-propagation` on every control keeps Escape from also
   minimizing the wizard, and the dialog returns focus to the button. The picked
   `HH:mm` joins into the naive `YYYY-MM-DD HH:mm:ss` string via
   `joinDateTimeParts`, a cleared time stores a bare date, which `validateEventForm`

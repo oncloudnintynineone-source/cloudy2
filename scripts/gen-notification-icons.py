@@ -29,6 +29,7 @@ still shows a clean tile with no white halo.
 from __future__ import annotations
 
 import re
+
 import subprocess
 import sys
 from pathlib import Path

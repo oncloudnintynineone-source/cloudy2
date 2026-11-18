@@ -16,10 +16,10 @@ import { NARROW_MEDIA_QUERY } from "@/lib/theme";
  *
  * The dialog shows all 24 hours at once plus the 15-minute stops, so no
  * scrolling or keyboard is involved. It opens with the stored hour and minute
- * highlighted; the user then picks an hour and a minute, and the second pick
- * applies the time and closes the dialog (dismissing with the X, backdrop or
- * Escape discards the picks). `onChange` therefore runs once, on the second
- * pick, so the wizard's end-clamping runs once too.
+ * highlighted and applies each pick immediately (an hour keeps the stored
+ * minute, a minute uses the stored hour), so closing it any way — X, backdrop,
+ * Escape, or the automatic close after a minute pick — keeps the change.
+ * `onChange` therefore fires on every pick, exactly once per tap.
  */
 
 /** Escape inside the dialog must close the dialog, not minimize the wizard. */
@@ -80,13 +80,7 @@ export function TimeSelectField({ label, value, onChange, error }: TimeSelectFie
         zIndex={300}
         closeButtonProps={STOP_ESCAPE}
       >
-        <TimeSelectDialogBody
-          value={value}
-          onCommit={(time) => {
-            onChange(time);
-            setOpened(false);
-          }}
-        />
+        <TimeSelectDialogBody value={value} onApply={onChange} onClose={() => setOpened(false)} />
       </MotionModal>
     </Stack>
   );
@@ -96,25 +90,27 @@ export function TimeSelectField({ label, value, onChange, error }: TimeSelectFie
 const HOUR_COLUMNS = 6;
 
 /**
- * The picker body. It opens with the stored hour and minute highlighted (so the
- * current time is visible as context), then waits for the user to pick **both**
- * halves: the second pick applies the time and closes the dialog. Dismissing
- * with the X, backdrop or Escape discards the picks. Because `MotionModal` is
- * not `keepMounted`, this component remounts on every open and its state
- * re-seeds from `value` (the `UserSelectModalBody` pattern).
+ * The picker body. It opens with the stored hour and minute highlighted and
+ * applies every pick immediately — an hour keeps the stored minute, a minute
+ * uses the stored hour — so closing the dialog by any means keeps what was
+ * picked. Picking a minute while an hour is set closes the dialog (and picking
+ * an hour after a minute on an empty field does the same). Because
+ * `MotionModal` is not `keepMounted`, this component remounts on every open and
+ * its state re-seeds from `value` (the `UserSelectModalBody` pattern).
  */
 function TimeSelectDialogBody({
   value,
-  onCommit,
+  onApply,
+  onClose,
 }: {
   value: string;
-  onCommit: (time: string) => void;
+  onApply: (time: string) => void;
+  onClose: () => void;
 }) {
   const [hour, setHour] = useState(() => value.slice(0, 2));
   const [minute, setMinute] = useState(() => value.slice(3, 5));
-  // The highlighted stored value is context only: the dialog commits once the
-  // user has explicitly picked an hour and a minute in this session.
-  const [hourPicked, setHourPicked] = useState(false);
+  // A minute picked before any hour (an empty-time field) waits for the hour
+  // pick, which then completes the pair and closes the dialog.
   const [minutePicked, setMinutePicked] = useState(false);
   const hourRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const minutes = useMemo(() => timeMinuteOptions(value), [value]);
@@ -123,17 +119,19 @@ function TimeSelectDialogBody({
 
   function pickHour(next: string) {
     setHour(next);
-    setHourPicked(true);
+    // Apply at once: closing after an hour-only change keeps it.
+    onApply(`${next}:${minute || "00"}`);
     if (minutePicked) {
-      onCommit(`${next}:${minute}`);
+      onClose();
     }
   }
 
   function pickMinute(next: string) {
     setMinute(next);
     setMinutePicked(true);
-    if (hourPicked) {
-      onCommit(`${hour}:${next}`);
+    if (hour) {
+      onApply(`${hour}:${next}`);
+      onClose();
     }
   }
 
