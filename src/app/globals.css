@@ -1412,11 +1412,11 @@ html.c2-low-end::view-transition-group(*) {
   scrollbar-width: thin;
 }
 
-/* Horizontal chip rows (the event wizard's quick time selector): scroll the
-   hour chips without showing a scrollbar, so a full 24-hour range stays a
-   single finger-swipe row. The row is the flex container itself (not a nested
-   Group), and its chips never shrink — otherwise flex would compress each chip
-   below its label width and the Badge's overflow clip would hide the digits. */
+/* Horizontal chip rows (the event-search recent-search pills): scroll the
+   chips without showing a scrollbar so a long row stays a single finger-swipe.
+   The row is the flex container itself (not a nested Group), and its chips never
+   shrink — otherwise flex would compress each chip below its label width and the
+   Badge's overflow clip would hide the label. */
 .c2-chip-scroll {
   display: flex;
   gap: 6px;
@@ -1433,6 +1433,86 @@ html.c2-low-end::view-transition-group(*) {
 .c2-chip-scroll::-webkit-scrollbar {
   display: none;
 }
+
+/* The wizard's "Select time" trigger: an input-look button (44px tall) that
+   opens the time picker dialog. Theme border/body vars keep it consistent in
+   both schemes; `data-empty` dims the placeholder and `data-invalid` marks the
+   required-time error. */
+.c2-time-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-md);
+  background: var(--mantine-color-body);
+  color: var(--mantine-color-text);
+  font-size: var(--mantine-font-size-sm);
+  text-align: left;
+  cursor: pointer;
+}
+.c2-time-trigger:hover {
+  background: var(--mantine-color-default-hover);
+}
+.c2-time-trigger[data-invalid] {
+  border-color: var(--mantine-color-error);
+}
+.c2-time-trigger-icon {
+  flex: 0 0 auto;
+  color: var(--mantine-color-dimmed);
+}
+.c2-time-trigger-value {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.c2-time-trigger[data-empty] .c2-time-trigger-value {
+  color: var(--mantine-color-dimmed);
+}
+.c2-time-trigger:focus-visible,
+.c2-time-cell:focus-visible {
+  outline: 2px solid var(--mantine-color-brand-6);
+  outline-offset: 2px;
+}
+[data-mantine-color-scheme="dark"] .c2-time-trigger:focus-visible,
+[data-mantine-color-scheme="dark"] .c2-time-cell:focus-visible {
+  outline-color: var(--mantine-color-brand-4);
+}
+
+/* The time picker dialog's hour grid: `auto-fit` 44px columns so every hour is
+   visible at once — six columns in the 380px dialog, five in the narrow 320px
+   tier — with 44px-tall cells for thumbs and no horizontal scrolling. */
+.c2-time-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(44px, 1fr));
+  gap: 4px;
+}
+.c2-time-cell {
+  display: flex;
+  width: 100%;
+  min-height: 44px;
+  border-radius: var(--mantine-radius-md);
+  cursor: pointer;
+}
+.c2-time-cell .c2-time-cell-badge {
+  width: 100%;
+  height: 44px;
+  padding-inline: 4px;
+  font-size: var(--mantine-font-size-sm);
+}
+.c2-time-minutes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.c2-time-minutes > * {
+  flex: 1 1 44px;
+}
+
 
 /* In dark mode the active tab's underline (a 2px border in --tabs-color,
    defaulting to --mantine-primary-color-filled = brand shade 8, a dark navy)

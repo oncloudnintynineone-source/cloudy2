@@ -232,18 +232,27 @@ Mechanics worth knowing:
   option the step shows a `Tabs` control ("Start & End" / "Full Day" / "Half Day");
   otherwise the single option's fields render directly. `range` = a `DatePickerInput`
   plus a time control per side — date pickers carry no time. Time is set
-  keyboard-free: a shared **`TimeChipSelector`** (`src/components/TimeChipSelector.tsx`,
-  a horizontally scrollable hour row 00–23 + a fixed minute row 00/15/30/45 — two taps,
-  no dropdown) sits below the 24h `TimePicker` (kept for exact values, tap-to-select
-  hour/minute lists with `minutesStep={15}`); the two halves join into the naive
+  keyboard-free through the shared **`TimeSelectField`**
+  (`src/components/TimeSelectField.tsx`): a 44px "Select time" button (showing the
+  current `HH:mm`, or "Select time" when empty) opens a centered picker dialog
+  stacked above the wizard (`MotionModal`, `zIndex={300}`). The dialog shows every
+  hour as a 44px grid — six columns, five in the narrow 320px tier, so nothing
+  scrolls — plus the 15-minute stops 00/15/30/45 (an off-grid stored minute such as
+  `08:37` is added as an extra cell). The user must pick **both** an hour and a
+  minute: the second pick applies the time and closes the dialog, while the X,
+  backdrop tap or Escape discards the picks. The dialog opens with no cell
+  selected (the stored time is a `Current time:` hint), so the two-pick flow is
+  unambiguous. `data-mantine-stop-propagation` on
+  every control keeps Escape from also minimizing the wizard, and the dialog
+  returns focus to the button. The picked `HH:mm` joins into the naive
   `YYYY-MM-DD HH:mm:ss` string via `joinDateTimeParts`, a cleared time stores a bare
   date, which `validateEventForm` rejects ("Start time is required" / "End time is
   required"). `full` = two `DatePickerInput`s (plain dates, no half-day markers);
   `half` = two `DatePickerInput`s plus an AM/PM `SegmentedControl` per side. Every
-  date/time input is made natively read-only via the styles-API `attributes`
-  (`attributes.input` / `attributes.field`) — **never** the component `readOnly` prop,
-  which would also disable the popover/dropdown — so tapping opens only the
-  calendar/time dropdown and never raises the on-screen keyboard.
+  date input is made natively read-only via the styles-API `attributes`
+  (`attributes.input`) — **never** the component `readOnly` prop, which would also
+  disable its popover — so tapping opens only the calendar and never raises the
+  on-screen keyboard (the time field is a button, so it cannot raise one either).
   `switchTimeOption` (`EventForm.tsx`) zeroes the time part to `00:00:00` when
   entering any day-based option and defaults the indicators to AM→PM on `half`, so a
   mixed span renders with no title suffix.
@@ -973,11 +982,11 @@ flowchart LR
 
 Per event type, `time_options` enables one or more of:
 
-| Option  | Label       | Form fields                                                                | Notes                                     |
-| ------- | ----------- | -------------------------------------------------------------------------- | ----------------------------------------- |
-| `range` | Start & End | two date pickers + two 24h time pickers (tap-select dropdown, 15-min step) | always timed                              |
-| `full`  | Full Day    | two date pickers                                                           | plain all-day dates — no half-day markers |
-| `half`  | Half Day    | two date pickers + AM/PM per side                                          | optional (AM)/(PM) marker in the title    |
+| Option  | Label       | Form fields                                                                      | Notes                                     |
+| ------- | ----------- | -------------------------------------------------------------------------------- | ----------------------------------------- |
+| `range` | Start & End | two date pickers + two "Select time" dialogs (44px hour/minute grid, 15-min step) | always timed                              |
+| `full`  | Full Day    | two date pickers                                                                 | plain all-day dates — no half-day markers |
+| `half`  | Half Day    | two date pickers + AM/PM per side                                                | optional (AM)/(PM) marker in the title    |
 
 Legacy note: the AM/PM markers used to live under `full`; events saved before the split
 still carry `"full"` + markers in their notes and display them as-is. Editing such an
@@ -993,8 +1002,13 @@ markers, switching to `half` (prefilled from the stored notes) keeps them.
   to AM→PM when unset and blanks them for every other option.
 - `naiveDatePart` / `naiveTimePart` / `joinDateTimeParts`:
   split/join the Start & End form's one-string-per-side storage into the date picker's
-  `YYYY-MM-DD` half and the time picker's `HH:mm` half (a blank time stores a bare date
+  `YYYY-MM-DD` half and the time field's `HH:mm` half (a blank time stores a bare date
   — the "time not yet chosen" state).
+- `TIME_HOUR_OPTIONS` / `TIME_MINUTE_OPTIONS` / `timeMinuteOptions`:
+  the picker's 24 hour cells, its fixed 15-minute stops, and the minute cells for a
+  seeded value — the standard four plus the stored minute when it sits off-grid
+  (e.g. an event edited in Google to `08:37`), so an existing value is always
+  visible and re-selectable.
 - The title's `(AM)`/`(PM)` marker comes from the recipe's `time` segment (§1.8.1), not a
   hardcoded helper.
 
@@ -1134,7 +1148,7 @@ limitations live in [`registration-events.md`](registration-events.md).
 | `src/lib/eventTypes/groupActions.ts`              | Group create/rename/delete/move server actions (§1.10)                                    |
 | `src/lib/events/queries.ts`                       | `mapCalendarItem` — read-back into `CalendarEvent`                                        |
 | `src/lib/events/recentLocations.ts`               | `fetchRecentLocations` — per-user location suggestions (server action)                    |
-| `src/components/TimeChipSelector.tsx`             | Tap-to-set `HH:mm` chip grid (hour + minute rows)                                         |
+| `src/components/TimeSelectField.tsx`              | "Select time" button + auto-closing hour/minute picker dialog                            |
 | `src/lib/appUrl.ts`                               | App origin for the `Edit:` link                                                           |
 
 Related docs:
@@ -1150,4 +1164,4 @@ Related docs:
   template), 1.27 (time options), 1.31 (edit link), 1.32 (opaque notes), 1.40
   (external events), 1.46 (location policy), 1.47 (staged wizard), 1.127 (location
   categories matrix + remarks toggle), 1.221 (keyboard-free wizard: quick time chips +
-  recent-location suggestions).
+  recent-location suggestions), 1.378 (Select-time dialog replaces the time chips).

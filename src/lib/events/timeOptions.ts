@@ -4,7 +4,8 @@
  * express the event's datetime:
  *
  * - `range` ("Start & End") — always timed: two date pickers plus two
- *   keyboard-free 24h time pickers (tap-to-select dropdown, 15-min step).
+ *   keyboard-free 24h time pickers (a "Select time" button opening a
+ *   hour/minute grid dialog, 15-min step).
  * - `full` ("Full Day") — plain all-day: two date pickers, no half-day
  *   markers.
  * - `half` ("Half Day") — date pickers plus an AM/PM selector each side; the
@@ -65,7 +66,10 @@ export function resolveTimeOptions(raw: TimeOption[]): TimeOption[] {
  * selections fall back to "range" (the default); a selection the type no longer
  * allows falls back to the first allowed option.
  */
-export function resolveTimeOption(allowed: TimeOption[], selected: TimeOption | "" | null): TimeOption {
+export function resolveTimeOption(
+  allowed: TimeOption[],
+  selected: TimeOption | "" | null,
+): TimeOption {
   const options = resolveTimeOptions(allowed);
   return selected && options.includes(selected) ? selected : options[0];
 }
@@ -102,5 +106,27 @@ export function joinDateTimeParts(date: string, time: string): string {
   return date && time ? `${date} ${time}:00` : date;
 }
 
-export type AmPm = "AM" | "PM" | "";
+/** Every hour the wizard's 24-hour time picker offers, as `HH` strings. */
+export const TIME_HOUR_OPTIONS: readonly string[] = Array.from({ length: 24 }, (_, index) =>
+  String(index).padStart(2, "0"),
+);
 
+/** The fixed minute stops of the wizard's 15-minute time picker. */
+export const TIME_MINUTE_OPTIONS: readonly string[] = ["00", "15", "30", "45"];
+
+/**
+ * The minute cells for a picker seeded from `value` (`HH:mm`, or "" when no
+ * time is set): the fixed 15-minute stops plus the current minute when it sits
+ * off-grid (e.g. an event edited in Google to 08:37) so an existing value is
+ * always visible and re-selectable.
+ */
+export function timeMinuteOptions(value: string): string[] {
+  const minute = value.slice(3, 5);
+  const options: string[] = [...TIME_MINUTE_OPTIONS];
+  if (minute && !options.includes(minute)) {
+    options.push(minute);
+  }
+  return options.sort((a, b) => Number(a) - Number(b));
+}
+
+export type AmPm = "AM" | "PM" | "";

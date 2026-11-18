@@ -159,6 +159,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.197 Refresh re-homed + pull-to-refresh disabled](#1197-refresh-re-homed--pull-to-refresh-disabled)
 - [1.209 Dashboard-views ergonomics: All-views popover + changeable view type](#1209-dashboard-views-ergonomics-all-views-popover--changeable-view-type)
 - [1.273 Parade-state email cron fix + hardening](#1273-parade-state-email-cron-fix--hardening)
+- [1.378 Event time picker dialog](#1378-event-time-picker-dialog)
 
 ## 1.1 Status
 
@@ -10502,3 +10503,63 @@ the chosen treatment when wanted is the same hairline ring via
 `.c2-schedule-event .c2-event-inner`. The global `--mantine-color-dimmed` (4.04:1), the
 sub-800px Mantine `Stepper` circles and the locked-off `rail`/`classic` step variants
 were left alone.
+
+## 1.378 Event time picker dialog
+
+**Problem.** The wizard's Start & End step set times with a read-only `TimePicker`
+dropdown plus a `TimeChipSelector` (1.221): 24 hour chips in a horizontally
+scrolling `.c2-chip-scroll` row above a fixed 00/15/30/45 minute row. The chips were
+`Badge size="lg"` (26px tall) wrapped in a bare `UnstyledButton` — a thumb-hostile
+target — and reaching an evening hour meant scrolling most of the 24-chip row; the
+`TimePicker` dropdown added a second scrolling hour list on top. With the date
+picker above it, each side was ~190px tall, so the stacked Start/End pair also
+scrolled inside the fixed-height wizard body.
+
+**Solution.** `src/components/TimeSelectField.tsx` (replacing
+`src/components/TimeChipSelector.tsx`) renders a 44px input-look `Select time`
+button that shows the current `HH:mm` (or `Select time` when unset) and opens a
+centered `MotionModal` at `zIndex={300}` above the wizard. The dialog shows all 24
+hours as a 44px `auto-fit` grid (six columns, five in the narrow 320px tier — no
+scrolling) plus the 15-minute stops; an off-grid stored minute (e.g. an event
+edited in Google to `08:37`) is appended as an extra cell so an existing value is
+never lost. The user must pick both an hour and a minute: the second pick applies
+the time and closes the dialog, while X, backdrop and Escape discard the picks.
+Because the value is only applied on the second pick, `setStartField`/`setEndField`
+still clamp the end exactly once.
+
+Escape needed special care: the wizard closes on a **window-capture** Escape
+(`ModalBase/use-modal`), and its only opt-out is a
+`data-mantine-stop-propagation="true"` on the event target. That attribute is on
+every cell and on the header close button, so Escape closes the picker without
+minimizing the wizard. The dialog starts with no selection (the stored value is a
+`Current time:` hint) so the two-pick flow is unambiguous; the modal's focus trap
+puts initial focus on the first hour (`data-autofocus`), the hour grid uses a
+roving tabindex with arrow/Home/End navigation, and the default `returnFocus`
+sends focus back to the button.
+
+```mermaid
+flowchart LR
+    B["Select time button (44px)"] --> D["Picker dialog (z 300)"]
+    D -->|"hour tap"| D
+    D -->|"second pick (one hour + one minute)"| C["apply HH:mm + close"]
+    D -->|"X / backdrop / Escape"| X["discard picks"]
+    C --> W["EventForm: setStartField / setEndField<br/>clamp + validation unchanged"]
+```
+
+**Pure helpers.** `src/lib/events/timeOptions.ts` gains `TIME_HOUR_OPTIONS`,
+`TIME_MINUTE_OPTIONS` and `timeMinuteOptions` (the standard stops plus an off-grid
+current minute), covered in `timeOptions.test.ts`.
+
+**Files.** `src/components/TimeSelectField.tsx` (new), `src/components/TimeChipSelector.tsx`
+(deleted), `src/app/(protected)/dashboard/EventForm.tsx` (TimePicker + chips replaced by
+one `TimeSelectField` per side), `src/app/globals.css`
+(`.c2-time-trigger` / `.c2-time-grid` / `.c2-time-cell` / `.c2-time-minutes`, and the
+`.c2-chip-scroll` comment now names its remaining consumer, event search),
+`src/lib/events/timeOptions.ts` + test, docs/event-lifecycle.md §1.4.1/§1.11.1/§1.15.
+
+**Verification.** `tsc --noEmit` clean; ESLint clean; `pnpm test` 136 files / 1771
+tests pass (6 new time-picker cases). Device check still to be signed off by the user:
+open the wizard at 320/360px, confirm the dialog fits above the wizard, every cell is
+≥44×44, two taps commit and close, Escape closes only the dialog (the wizard stays
+open), and an off-grid edit value (e.g. `08:37`) keeps its `37` cell.
+

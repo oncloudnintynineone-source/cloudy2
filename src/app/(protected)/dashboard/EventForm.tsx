@@ -19,7 +19,7 @@ import {
   UnstyledButton,
   useMantineTheme,
 } from "@mantine/core";
-import { DatePickerInput, TimePicker } from "@mantine/dates";
+import { DatePickerInput } from "@mantine/dates";
 import { useMediaQuery } from "@mantine/hooks";
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
@@ -33,7 +33,7 @@ import {
 import { PickerField, type PickerBadgeItem } from "@/components/PickerField";
 import { EventTypeGroupGrid } from "@/components/EventTypeGroupGrid";
 import { useActionPill } from "@/components/ActionPill";
-import { TimeChipSelector } from "@/components/TimeChipSelector";
+import { TimeSelectField } from "@/components/TimeSelectField";
 import { UserSelectModal } from "@/components/UserSelectModal";
 import {
   createEvent,
@@ -1212,23 +1212,13 @@ export function EventForm({
             attributes={{ input: { readOnly: true } }}
             popoverProps={{ trapFocus: false }}
           />
-          <TimePicker
+          <TimeSelectField
             label="Start time"
             value={naiveTimePart(form.values.start)}
             onChange={(time) =>
               setStartField(joinDateTimeParts(naiveDatePart(form.values.start), time))
             }
-            withDropdown
-            minutesStep={15}
-            attributes={{ field: { readOnly: true } }}
             error={timeError("start")}
-            popoverProps={{ trapFocus: false }}
-          />
-          <TimeChipSelector
-            value={naiveTimePart(form.values.start)}
-            onChange={(time) =>
-              setStartField(joinDateTimeParts(naiveDatePart(form.values.start), time))
-            }
           />
         </Stack>
       ) : (
@@ -1271,23 +1261,13 @@ export function EventForm({
             attributes={{ input: { readOnly: true } }}
             popoverProps={{ trapFocus: false }}
           />
-          <TimePicker
+          <TimeSelectField
             label="End time"
             value={naiveTimePart(form.values.end)}
             onChange={(time) =>
               setEndField(joinDateTimeParts(naiveDatePart(form.values.end), time))
             }
-            withDropdown
-            minutesStep={15}
-            attributes={{ field: { readOnly: true } }}
             error={timeError("end")}
-            popoverProps={{ trapFocus: false }}
-          />
-          <TimeChipSelector
-            value={naiveTimePart(form.values.end)}
-            onChange={(time) =>
-              setEndField(joinDateTimeParts(naiveDatePart(form.values.end), time))
-            }
           />
         </Stack>
       ) : (

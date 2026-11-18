@@ -8,8 +8,11 @@ import {
   normalizeTimeOptions,
   resolveTimeOption,
   resolveTimeOptions,
+  TIME_HOUR_OPTIONS,
+  TIME_MINUTE_OPTIONS,
   TIME_OPTIONS,
   TIME_OPTION_LABELS,
+  timeMinuteOptions,
 } from "./timeOptions";
 
 describe("isTimeOption", () => {
@@ -43,10 +46,7 @@ describe("normalizeTimeOptions", () => {
   });
 
   it("drops unknown values (legacy ampm included) and dedupes", () => {
-    expect(normalizeTimeOptions(["full", "ampm", "half", "full", null])).toEqual([
-      "full",
-      "half",
-    ]);
+    expect(normalizeTimeOptions(["full", "ampm", "half", "full", null])).toEqual(["full", "half"]);
   });
 
   it("returns [] for non-arrays", () => {
@@ -121,5 +121,39 @@ describe("naiveDatePart / naiveTimePart / joinDateTimeParts", () => {
   it("round-trips a naive datetime through the parts", () => {
     const naive = "2026-08-15 23:45:00";
     expect(joinDateTimeParts(naiveDatePart(naive), naiveTimePart(naive))).toBe(naive);
+  });
+});
+
+describe("TIME_HOUR_OPTIONS / TIME_MINUTE_OPTIONS", () => {
+  it("offers every 24-hour value in order", () => {
+    expect(TIME_HOUR_OPTIONS).toHaveLength(24);
+    expect(TIME_HOUR_OPTIONS[0]).toBe("00");
+    expect(TIME_HOUR_OPTIONS[23]).toBe("23");
+  });
+
+  it("offers the 15-minute stops", () => {
+    expect([...TIME_MINUTE_OPTIONS]).toEqual(["00", "15", "30", "45"]);
+  });
+});
+
+describe("timeMinuteOptions", () => {
+  it("returns the standard stops when no time is set", () => {
+    expect(timeMinuteOptions("")).toEqual(["00", "15", "30", "45"]);
+    expect(timeMinuteOptions("08:00")).toEqual(["00", "15", "30", "45"]);
+  });
+
+  it("adds an off-grid stored minute in numeric order", () => {
+    expect(timeMinuteOptions("08:37")).toEqual(["00", "15", "30", "37", "45"]);
+    expect(timeMinuteOptions("08:05")).toEqual(["00", "05", "15", "30", "45"]);
+  });
+
+  it("does not duplicate a standard minute", () => {
+    expect(timeMinuteOptions("08:30")).toEqual(["00", "15", "30", "45"]);
+  });
+
+  it("never mutates the shared stop list", () => {
+    const before = [...TIME_MINUTE_OPTIONS];
+    timeMinuteOptions("08:37");
+    expect([...TIME_MINUTE_OPTIONS]).toEqual(before);
   });
 });

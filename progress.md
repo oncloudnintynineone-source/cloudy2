@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.376 (view-CRUD round trips)** is shipped.
+- All work through changelog **1.378 (event time picker)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -2445,6 +2445,14 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   future 4.04 → 4.67:1, focus ring 1.45 → 6.52:1), and move the step captions off
   `c="dimmed"` to `.c2-wizard-step-caption` (7.48:1 dark, unchanged light). Docs:
   `accessibility.md` §1.7 (new), `event-lifecycle.md` §1.4, `AGENTS.md`.
+- 1.378 **Event time picker**: the wizard's Start/End time controls become 44px
+  "Select time" buttons that open a centered picker dialog (`TimeSelectField`,
+  `MotionModal` at z-index 300) with a 24-hour grid (6 columns, 5 in the narrow tier,
+  44px cells — no scrolling) and the 15-minute stops; picking both an hour and a minute
+  applies the time and auto-closes, and X/backdrop/Escape discard. Replaces the read-only
+  `TimePicker` + horizontally scrolling chip rows (26px targets). Off-grid stored minutes
+  are preserved as an extra cell; end-clamping is unchanged. Docs:
+  `event-lifecycle.md` §1.4.1/§1.11.1/§1.15.
 
 ## 1.4 Open items & next steps
 
