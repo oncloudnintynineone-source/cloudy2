@@ -319,7 +319,9 @@ function TimeSelectDialogBody({
 /**
  * One hour/minute badge chip: a real 44px button, pressed-state aware. A cell
  * that could not complete to an in-bounds time is a native disabled button —
- * inert, out of the tab order, and announced as unavailable.
+ * inert, out of the tab order, and announced as unavailable — whose badge drops
+ * to the `transparent` variant (no fill, gray label) so it never reads as a
+ * tappable chip.
  */
 function TimeCell({
   label,
@@ -356,7 +358,11 @@ function TimeCell({
       onClick={onSelect}
       onKeyDown={onKeyDown}
     >
-      <Badge variant={selected ? "filled" : "light"} color="brand" className="c2-time-cell-badge">
+      <Badge
+        variant={disabled ? "transparent" : selected ? "filled" : "light"}
+        color={disabled ? "gray" : "brand"}
+        className="c2-time-cell-badge"
+      >
         {label}
       </Badge>
     </UnstyledButton>

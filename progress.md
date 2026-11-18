@@ -2533,7 +2533,8 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
 - 1.387 **Time picker disables invalid choices**: the wizard's Start/End time dialog
   no longer rejects an out-of-order same-date pick with a red alert + ringed cell —
   every cell that could not complete in bounds is now a disabled button (dimmed,
-  inert, out of the tab order, skipped by arrow/Home/End) and a dimmed caption states
+  inert, out of the tab order, skipped by arrow/Home/End, its badge stripped to a
+  transparent gray label — no fill at all, dimmed) and a dimmed caption states
   the window instead. An hour stays pickable while *some* offered minute still fits
   (`max: 09:30` keeps `09` for `:00`/`:15`/`:30`); tapping it while a now-invalid
   minute is highlighted only stages the hour and narrows the minute row, so nothing

@@ -256,7 +256,9 @@ Mechanics worth knowing:
   highlighted only **stages** it — the stale minute drops out and the minute row
   narrows to the stops that finish the pair, so nothing invalid is ever applied.
   Disabled cells are native disabled buttons: inert, out of the tab order, and
-  skipped by the grid's arrow/Home/End navigation. `clampEventEnd` remains the
+  skipped by the grid's arrow/Home/End navigation; their badge drops to the
+   `transparent` Badge variant (no fill, gray label), so an unavailable time never
+   reads as a tappable chip. `clampEventEnd` remains the
   option-switch/server safety net.
   `data-mantine-stop-propagation` on every control keeps Escape from also
   minimizing the wizard, and the dialog returns focus to the button. The picked
