@@ -160,6 +160,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 - [1.209 Dashboard-views ergonomics: All-views popover + changeable view type](#1209-dashboard-views-ergonomics-all-views-popover--changeable-view-type)
 - [1.273 Parade-state email cron fix + hardening](#1273-parade-state-email-cron-fix--hardening)
 - [1.378 Event time picker dialog](#1378-event-time-picker-dialog)
+- [1.379 User modal redesign + one access-row recipe](#1379-user-modal-redesign--one-access-row-recipe)
+- [1.380 Dev-server origin allowlist (allowedDevOrigins)](#1380-dev-server-origin-allowlist-alloweddevorigins)
 
 ## 1.1 Status
 
@@ -10581,4 +10583,170 @@ closing the dialog, a minute tap applies and closes, a same-date out-of-order pi
 shows the red message and ring without changing the value, Escape closes only the
 dialog (the wizard stays open), and an off-grid edit value (e.g. `08:37`) keeps its
 `37` cell.
+
+## 1.379 User modal redesign + one access-row recipe
+
+**Problem.** Settings → Users → Add/Edit user was three dialogs in one. Name,
+Shortname, Phone, Email and Birthday were ordinary labelled inputs; Department and
+Role were hand-rolled `SelectableBadge` clouds (one badge per department — a wall on
+a real hierarchy, no search, no path); and "Department access" was a
+`NoKeyboardMultiSelect` of *users* repurposed to pick *departments*, whose picks
+silently became rows underneath it. The section also mixed two persistence models in
+one list: grant rows were staged until Save, while the own-department level — an
+elevated ACL rule that has **no DB column** — wrote to Google the moment it was
+touched, so one row could change a live calendar while the row below it waited for
+Save. The copy was wrong in create mode ("their current level", "Not their
+department yet"), nothing said that grants affect only Google Calendar (never the
+app's dashboard filters) or that the whole section is inert while the email is blank.
+The list cards hid the rest: a leaf-only department badge and a bare "+N" chip whose
+grants had no names anywhere.
+
+**Why it was like that.** (1) `PickerField` / `PickerBadges` standardized picker
+*triggers*, but nothing ever said what a settings form's own body looks like, so each
+phase styled its own rows. (2) The modal grew phase by phase — the badge toggles
+predate `SelectableBadge`, the own-department row arrived with 1.118, the grants with
+`user_calendar_access` — and nothing consolidated them. (3) The two persistence
+models are a genuine domain fact (Google holds an elevated membership rule alone),
+but it had never been given a UI story, so it surfaced as surprising behavior.
+(4) The add-grant control was the cheapest available widget at the time — a user
+picker — and its staged state was invisible. (5) Three row kinds (own department /
+grant / inert-without-email) leaked into prose instead of structure.
+
+**The form (`UserForm.tsx`, rewritten).** One visual language: the fields ride a
+`Grid` (two columns at `lg`), Birthday is a `DatePickerInput` (never a native date
+input), Role is a `SegmentedControl`, and Department is the shared `PickerField` +
+`UserSelectModal` dialog (`single`, `allowEmptyConfirm`, nested tree rows with
+ancestor-chain labels) — the same dialog the department modal uses for its parent.
+"Department access" becomes a `Divider` section that states its own scope once —
+*grants change what this user sees in Google Calendar, never the filters in the app;
+everything here is applied when you save* — and then renders exactly three things:
+the **own-department row** (always first, never removable, badged "Their
+department"), one row per **grant**, and one **Add departments** button. Adding is a
+single multi-select dialog listing only the departments that can still be added
+(tree order, own department and existing rows excluded); every pick becomes a
+`reader` row, and the dialog never re-presents the rows it already added.
+
+**One row recipe (`src/components/AccessRows.tsx`, new).** Both roster access
+managers list *someone × a calendar × a level*, so both now render the same parts:
+`AccessRow` (bordered `Paper`, title + optional dimmed subtitle + optional badge,
+optional remove `ActionIcon` at the shared `ROW_ACTION_SIZE`), `AccessLevelSelect`
+(the level dropdown, `NoKeyboardSelect` under the hood) and `AccessRoleBadge` (the
+read-only chip), with `ACCESS_ROLE_OPTIONS` / `accessRoleLabel` as the single role
+vocabulary. `DepartmentDetailBody` consumes it for all three of its groups — its
+assigned-user rows also stop being a raw `Select` — which is what keeps the two
+modals from drifting apart again the way the role labels had.
+
+**Staged own-department level.** The elevated membership rule is now staged like
+everything else in the section and applied **after** the reconcile: the client sends
+it only when it is a real change (`resolveOwnRolePatch` — nothing without an email,
+nothing when the level still matches what Google reports, everything when the
+department moved), the server re-validates with `isManagedGrantRole` and calls
+`applyAssignedRoleOverride` (`actions.ts`), which skips silently without an email /
+Google / a known calendar, no-ops when the live rule already matches, and audits an
+`access.update` role diff. Because `reconcileCalendarToExpectations` never
+downgrades an elevated rule, the override survives every later reconcile. The row
+reads the live level through `getAssignedAccessRole` (debounced 400ms on the email
+draft, keyed by `department|email`, with loading and failed states) and explains
+itself when it cannot: no email, "couldn't read their current level", or "not their
+department yet — the level is applied when you save the move". Changing the
+department in the same edit drops a staged grant for the new own department and
+resets a staged level; the server strips it again in `normalizeAccessSelection`.
+
+```mermaid
+flowchart LR
+    A["Add departments<br/>(button)"] --> B["UserSelectModal (multi, z 300)<br/>only addable departments, tree order"]
+    B -->|"Confirm — Add"| C["nextGrantsAfterAdd<br/>new rows = reader, existing roles kept"]
+    C --> D["Staged form.values.access<br/>(+ staged ownDepartmentRole)"]
+    D -->|"row level / remove"| D
+    D -->|"Save"| E["createUser / updateUser<br/>normalizeAccessSelection server-side"]
+    E --> F["reconcileUserAccessChange<br/>grant rows → Google ACLs"]
+    F --> G["applyAssignedRoleOverride<br/>own-department level, last"]
+    G --> H["warnings → yellow toast<br/>(DB change already committed)"]
+    D -.->|"close with unsaved edits"| Q["Discard changes? dialog"]
+```
+
+**Closing the dialog.** The form reports dirtiness upward (`onDirtyChange`, driven by
+a render-time `form.isDirty()` read — Mantine bumps its dirty state with every value
+change, so the boolean is always current); `UserTable` keeps it in a ref and, on
+close, opens a "Discard changes?" `MotionModal` instead of losing the edit. The list
+cards gained the ancestor-chain department label and a "+N departments" chip whose
+`Tooltip` finally names the grants (`grantSummaryLabel` for the singular/plural
+text).
+
+**Pure helpers.** `src/lib/roster/accessEditor.ts` (new, client-safe, 19 tests in
+`accessEditor.test.ts`): `isAccessRole`, `addableDepartmentIds`,
+`sortGrantsByTreeOrder` (unknown ids last, stable), `nextGrantsAfterAdd`,
+`setGrantRole`, `removeGrant`, `resolveOwnRolePatch` and `grantSummaryLabel`.
+`UserFormValues` gains `ownDepartmentRole?: ManagedGrantRole | null` — client
+supplied, always re-validated server-side.
+
+**Left alone (noted).** `NoKeyboardMultiSelect` has no consumer after this change
+(kept; removing it is a separate call), and `NoKeyboardSelect`'s deferred read-only
+trick only engages for `searchable` selects — on a plain select it is a no-op,
+because Mantine already renders that input read-only.
+
+**Files.** `src/components/AccessRows.tsx` (new),
+`src/lib/roster/accessEditor.ts` + `accessEditor.test.ts` (new),
+`src/app/(protected)/settings/users/UserForm.tsx` (rewritten),
+`src/app/(protected)/settings/users/UserTable.tsx` (labels, grants tooltip, discard
+guard), `src/app/(protected)/settings/departments/DepartmentDetailBody.tsx` (rows
+through the shared recipe, one role vocabulary), `src/lib/roster/actions.ts`
+(`getAssignedAccessRole` + `applyAssignedRoleOverride`, both user actions apply the
+override), `src/lib/roster/validate.ts` (`ownDepartmentRole`), docs:
+`roster-sharing.md` §1.5/§1.10/§1.11/§1.12/§1.13.
+
+**Verification.** `tsc --noEmit` clean apart from the two pre-existing Windows-only
+`EventFormSteps` casing errors; ESLint clean; `pnpm test` green with the 19 new
+`accessEditor` cases; `pnpm db:generate` reports no schema drift (no migration).
+Device check still to be signed off by the user: add a user with no email (the
+own-department row explains itself and its select is disabled), type an email (the
+row reads the live level), add three departments in one dialog, change one level,
+remove one, close before saving (the discard dialog appears), then save and confirm
+the Google ACLs and the audit rows; and open a department modal to confirm its three
+access groups now look like the user modal's rows.
+
+## 1.380 Dev-server origin allowlist (allowedDevOrigins)
+
+**Problem.** Opening the dev server through anything but `http://localhost:<port>` —
+here `http://127.0.0.1:<port>`, the host the local tooling surfaces the port under —
+rendered the page but never hot-reloaded. The console showed `Blocked cross-origin
+request to Next.js dev resource /_next/hmr from "127.0.0.1"` and the HMR websocket and
+`/_next/*` manifests came back `403 Unauthorized`.
+
+**Why.** Next 16 guards the dev server's own resources (it compiles and executes
+arbitrary local code, so a random page must not be able to drive it): every internal
+request — `/_next/*` or `/__nextjs*`, except `/_next/image` and the static media
+paths — is checked before routing by `blockCrossSiteDEV`, on the request, upgrade and
+websocket paths alike. A request with no `Origin` is same-site and passes; one that
+carries an `Origin` (or, for a `no-cors` cross-site load, a `Referer`) is refused
+unless its **hostname** is allowlisted. The built-in list is `localhost`,
+`**.localhost` and the server's own bind host — the loopback **IP** is not in it, so
+`127.0.0.1` counts as cross-origin despite being this same machine. Ports are dropped
+before the comparison and `*.host` wildcards are supported, so the allowlist is a list
+of bare hostnames.
+
+**Fix.** `next.config.ts` gains the top-level `allowedDevOrigins: ["127.0.0.1",
+...extraDevOrigins]`. `extraDevOrigins` parses the optional comma-separated
+`DEV_ALLOWED_ORIGINS` env var (documented in `.env.example`) for the other legitimate
+cross-host dev cases — a phone on the LAN, an emulator, a tunnel — so no one has to
+edit the config to test on a device. The key is dev-only (a production build never
+reads it, so deploys gain no surface), it belongs at the top level and not under
+`experimental`, and it survives the `withSerwist` wrapper, which spreads the config it
+is given.
+
+```mermaid
+flowchart LR
+    E["DEV_ALLOWED_ORIGINS<br/>(comma-separated hosts, optional)"] --> F["next.config.ts<br/>allowedDevOrigins"]
+    A["Request to /_next/* or /__nextjs*<br/>(hmr, manifests, websocket)"] --> B{"Origin host in<br/>localhost · **.localhost ·<br/>bind host · allowedDevOrigins?"}
+    F --> B
+    B -->|yes| C["Serve normally"]
+    B -->|"no / Origin: null"| D["403 Unauthorized<br/>+ one console warning"]
+    A -->|"no Origin header"| C
+```
+
+**Files.** `next.config.ts`, `.env.example`, `src/lib/appVersion.ts`.
+
+**Verification.** ESLint clean; `tsc --noEmit` unchanged (only the two pre-existing
+Windows-only `EventFormSteps` casing errors). `next.config` is read once at startup, so
+the change needs a `pnpm dev` restart; `localhost` URLs were never affected.
 

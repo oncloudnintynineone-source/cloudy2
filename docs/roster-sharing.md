@@ -213,6 +213,10 @@ department modal's "Additional access"). The department modal shows exactly
 these three groups; a roster user's email typed into "Additional access" is
 **blocked** by `grantDepartmentAccess` with a message pointing at Users, so a
 user-managed person can never be represented by an anonymous rule going forward.
+A **fourth** kind has no row anywhere: an elevated rule on the user's **own**
+department (writer/owner instead of the membership reader) exists only in
+Google — there is no column for it — so the user form stages it and
+`applyAssignedRoleOverride` writes the ACL after the reconcile (§1.10).
 
 **Inherent owners** — `isInherentOwnerEmail` (`shares.ts`) — three email
 identities are owner rules that are **never revoked and never surfaced as
@@ -336,10 +340,10 @@ flowchart TB
 
 **Managing the hierarchy** (Settings → Departments)
 
-- The detail modal carries a **Parent department** field (plain
-  `NoKeyboardSelect` — the department list is short, no search) offering
-  "No parent (top level)" plus every department except the row itself and its
-  descendants.
+- The detail modal carries a **Parent department** field rendered through the
+  shared `PickerField` + `UserSelectModal` badge dialog (`docs/user-picker.md`)
+  — never an inline dropdown — offering "No parent (top level)" plus every
+  department except the row itself and its descendants, as nested tree rows.
 - The list shows the tree: children indented under their parent (desktop
   table: indent + a Parent column; mobile cards: indent + an "In
   {parent}" line).
@@ -571,6 +575,19 @@ The rules, precisely:
   yellow toast — the roster change already committed and is not rolled back.
 - **Short-circuit**: Google unconfigured → the grant-row diff still applies (the
   rows are the intent) but no ACL work runs and no warnings are produced.
+- **Own-department override** runs last, after the reconcile and the adoption:
+  the user form can stage a level for the user's **own** department (membership
+  is reader by default, and an elevated rule there has **no DB column** — Google
+  holds it alone). `applyAssignedRoleOverride(departmentId, email, role)`
+  (`actions.ts`) writes that one ACL rule, so the elevation lands *on top of*
+  the reconciled reader rule and survives every later reconcile (which never
+  downgrades an elevated rule). It is called only when the client actually sent
+  a change (`resolveOwnRolePatch` client-side, `isManagedGrantRole` re-validated
+  server-side), skips silently with no warning when there is no email, Google is
+  unconfigured, or the calendar is unknown, and no-ops when the live rule
+  already matches. Audit: `access.update` on the calendar with a `role` diff.
+  Concurrent admin edits are last-write-wins — the department modal's own
+  override (§1.11) and this one write the same rule.
 
 ## 1.11 Access-level actions
 
@@ -596,6 +613,19 @@ then re-grants/revokes the ACL). Inherent owners can't be removed
 through the UI (they aren't listed), and the admin account's owner rule is shown
 in a separate "Owner access" section, not as a removable row.
 
+**One row recipe for both managers.** The department modal's three groups and
+the user modal's "Department access" rows list the same thing — *someone × a
+calendar × a level* — so both render through `src/components/AccessRows.tsx`:
+`AccessRow` (bordered `Paper`, title + optional dimmed subtitle + optional
+badge, optional remove `ActionIcon`), `AccessLevelSelect` (the level dropdown,
+`NoKeyboardSelect` under the hood) and `AccessRoleBadge` (the read-only chip),
+with `ACCESS_ROLE_OPTIONS` / `accessRoleLabel` as the single vocabulary
+("Read only / Can edit / Owner"). The role labels used to be hand-copied into
+each file, which is exactly how the two modals drifted apart. The difference
+between them is only *when* the write happens: here every row action is an
+immediate server call, in the user form every row action is staged until Save
+(§1.12).
+
 ## 1.12 Pure helpers & testing
 
 | Helper | Module | Tests |
@@ -606,12 +636,16 @@ in a separate "Owner access" section, not as a removable row.
 | `buildDepartmentTree` (cycle-safe), `findDepartmentNode`, `flattenDepartmentTree` (preorder), `descendantIds` (cycle-safe), `parentOptionsFor` (self + descendants excluded), `moveAvailability`, `moveInTreeOrder` (sibling swap, subtree moves, null at ends) | `roster/hierarchy.ts` (§1.7) | `roster/hierarchy.test.ts` |
 | `departmentHeadcount` (direct), `departmentTreeHeadcount` (aggregated over sub-departments) | `parade-state/headcount.ts` (§1.7) | `parade-state/headcount.test.ts` |
 | `buildAttendanceReport` (tree in → flat preorder blocks out, aggregated headers) | `parade-state/attendanceReport.ts` (§1.7) | `parade-state/attendanceReport.test.ts` |
+| `isAccessRole`, `addableDepartmentIds` (tree order, own department + staged rows excluded), `sortGrantsByTreeOrder` (unknown ids last, stable), `nextGrantsAfterAdd` (dedupe, new rows `reader`, existing roles kept), `setGrantRole`, `removeGrant`, `resolveOwnRolePatch` (the own-department patch: nothing without an email, nothing when the level still matches Google, everything when the department moved), `grantSummaryLabel` (list-card chip text) | `roster/accessEditor.ts` (§1.11) | `roster/accessEditor.test.ts` |
 | `EVENT_COLORS`, `isEventColor`, `normalizeEventColor` (accept/fallback, §1.8), `colorForId` (deterministic id hash), `effectiveEventTypeColor` (type: pinned or name-derived default), `effectiveCalendarColor` (untyped/external: pinned or id-derived default), `formatColorLabel` (audit/UI labels) | `events/eventColors.ts` | `events/eventColors.test.ts` |
 | `getServiceAccountConfig`, `hasGoogleCredentials`, `getAdminGoogleEmail` | `google/config.ts` | `google/config.test.ts` |
 
 I/O-bound (not unit-tested, per the repo convention): `resolveGoogleCalendarId`,
 `accessExpectationsForCalendar`, `listDepartmentAccess`, `reconcileUserAccessChange`,
-`adoptExternalAccessForEmail`, all of `roster/queries.ts`
+`adoptExternalAccessForEmail`, `getAssignedAccessRole` (the user form's own-department
+level read — `reader` without an email, `null` when the calendar is unknown or Google
+fails, so the row can say "couldn't read it"), `applyAssignedRoleOverride` (§1.10),
+all of `roster/queries.ts`
 (`listUsers`, `getUsersByIds`, `listDepartments`, `listUserAccess`), the eleven server actions in
 `roster/actions.ts`, and the `events/queries.ts` department lookups
 (`getUserDepartmentId(s)`).
@@ -624,12 +658,14 @@ I/O-bound (not unit-tested, per the repo convention): `resolveGoogleCalendarId`,
 | `src/lib/roster/shares.ts` | ACL model, pure diff/grant helpers, managed expectations, both reconcile paths, legacy adoption |
 | `src/lib/roster/hierarchy.ts` | Pure department-hierarchy helpers: tree build, preorder flatten, descendants, parent options, sibling move (§1.7) |
 | `src/lib/roster/validate.ts` | Phone/user/calendar validation (pure) |
+| `src/lib/roster/accessEditor.ts` | Pure editor of the staged "Department access" section: addable ids in tree order, add/role-change/remove on the staged list, the own-department patch, the list-card summary label (§1.11) |
+| `src/components/AccessRows.tsx` | The shared access-row recipe both managers render: `AccessRow` / `AccessLevelSelect` / `AccessRoleBadge` + the one role vocabulary (`ACCESS_ROLE_OPTIONS`, `accessRoleLabel`) (§1.11) |
 | `src/lib/roster/queries.ts` | Roster reads (users, departments, by-ids, cross-department grants by user) |
-| `src/lib/roster/actions.ts` | User/department/sharing server actions (incl. parent create/rename, sibling move, existing-user block on additional access) |
+| `src/lib/roster/actions.ts` | User/department/sharing server actions (incl. parent create/rename, sibling move, existing-user block on additional access, and the staged own-department override §1.10) |
 | `src/lib/events/eventColors.ts` | Event-color palette, normalization, deterministic defaults, labels (pure, §1.8) |
 | `src/components/ColorSwatchPicker.tsx` | Shared color swatch picker + `ColorDot` chip (event type & department forms, §1.8) |
-| `src/app/(protected)/settings/users/` | Users page: `UserTable`, `UserForm` (badge role/department fields + a "Department access" add/remove/role section per cross-department grant), deactivate |
-| `src/app/(protected)/settings/departments/` | Departments page: a tree list (name indented by depth + Parent column + external color) whose rows/cards open `DepartmentDetail` — one modal holding the name/parent/color form, the calendar ID, the Calendar-access management (owner, assigned-user role override, granted-access read-only group, external additional access) and the delete trigger (with sub-department promotion warning); sibling-scoped drag handles; the swatch picker + chip come from the shared `ColorSwatchPicker` (§1.7) |
+| `src/app/(protected)/settings/users/` | Users page: `UserTable` (list cards: ancestor-chain department label, "+N departments" chip with the names in a tooltip, discard-changes guard on close) and `UserForm` (Department through the shared `PickerField` + `UserSelectModal` dialog, Role as a `SegmentedControl`, and a staged "Department access" section — own-department row + grant rows from `AccessRows`, one dialog to add departments, everything applied on Save), deactivate |
+| `src/app/(protected)/settings/departments/` | Departments page: a tree list (name indented by depth + Parent column + external color) whose rows/cards open `DepartmentDetail` — one modal holding the name/parent/color form (Parent through `PickerField` + `UserSelectModal`), the calendar ID, the Calendar-access management (owner, assigned-user role override, granted-access read-only group, external additional access — all rows from the shared `AccessRows` recipe) and the delete trigger (with sub-department promotion warning); sibling-scoped drag handles; the swatch picker + chip come from the shared `ColorSwatchPicker` (§1.7) |
 | `src/app/(protected)/parade-state/` | Parade state: nested department sections with aggregated headcounts, attendance mode, the tree-ordered clipboard report (`attendanceReport.ts`, `headcount.ts`, both pure + tested, §1.7) |
 | `src/lib/google/` | The integration the ACL calls go through |
 
@@ -644,4 +680,5 @@ Related docs:
 - `progress-archive.md` — phase write-ups: 1.8 (roster & departments), 1.11 (calendars
   + sharing + audit), 1.41 (access levels), 1.61 (email-change ACL sync bugfix),
   1.62 (department selects), 1.95 (department event colors), 1.96 (event-type
-  event colors), 1.118 (departments detail modal + assigned-user role overrides).
+  event colors), 1.118 (departments detail modal + assigned-user role overrides),
+  1.379 (user modal redesign + the shared access-row recipe).

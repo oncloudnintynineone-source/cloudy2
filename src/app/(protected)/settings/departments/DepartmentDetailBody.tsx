@@ -40,32 +40,14 @@ import { LoadingStatus } from "@/components/LoadingStatus";
 import { MIN_SKELETON_HOLD_MS } from "@/lib/loading/minHoldLoading";
 import { PickerField, type PickerBadgeItem } from "@/components/PickerField";
 import { UserSelectModal } from "@/components/UserSelectModal";
+import {
+  ACCESS_ROLE_OPTIONS,
+  AccessLevelSelect,
+  AccessRoleBadge,
+  AccessRow,
+  accessRoleLabel,
+} from "@/components/AccessRows";
 import { departmentPickerOptions, selectionByGroup } from "@/lib/users/userSelect";
-
-/**
- * The department form + access manager body — the heavy half of the department
- * dialog, split into its own chunk so the departments route stays small. The
- * static chrome (`DepartmentDetail`) lazy-mounts this and dissolves the chunk
- * skeleton through `CrossfadeSwap`.
- */
-const ACCESS_ROLE_OPTIONS = [
-  { value: "reader", label: "Read only" },
-  { value: "writer", label: "Can edit" },
-  { value: "owner", label: "Owner" },
-];
-
-const ACCESS_ROLE_LABELS: Record<string, string> = {
-  reader: "Read only",
-  writer: "Can edit",
-  owner: "Owner",
-};
-
-function roleLabel(role: string | undefined): string {
-  if (!role) {
-    return "Read only";
-  }
-  return ACCESS_ROLE_LABELS[role] ?? role;
-}
 
 export interface DepartmentDetailBodyProps {
   calendar: Calendar | null;
@@ -75,6 +57,15 @@ export interface DepartmentDetailBodyProps {
   onRequestDelete: (calendar: Calendar) => void;
 }
 
+/**
+ * The department form + access manager body — the heavy half of the department
+ * dialog, split into its own chunk so the departments route stays small. The
+ * static chrome (`DepartmentDetail`) lazy-mounts this and dissolves the chunk
+ * skeleton through `CrossfadeSwap`.
+ *
+ * Its access rows are the shared `AccessRows` recipe — the very same rows the
+ * user modal renders, so the two managers can't drift apart again.
+ */
 export function DepartmentDetailBody({
   calendar,
   departments,
@@ -409,7 +400,9 @@ export function DepartmentDetailBody({
                       Owner access
                     </Text>
                     <Group gap={6}>
-                      <Badge color="brand">{data.admin} · owner</Badge>
+                      <Badge color="brand">
+                        {data.admin} · {accessRoleLabel("owner")}
+                      </Badge>
                     </Group>
                   </Stack>
                 ) : null}
@@ -426,29 +419,18 @@ export function DepartmentDetailBody({
                     data?.assigned.map((assignedEmail) => {
                       const currentRole = data?.assignedRoles[assignedEmail] ?? "reader";
                       return (
-                        <Paper key={assignedEmail} withBorder p="xs" radius="md">
-                          <Group justify="space-between" wrap="nowrap" align="center">
-                            <Text size="sm" style={{ wordBreak: "break-all" }}>
-                              {assignedEmail}
-                            </Text>
-                            <Select
-                              size="xs"
-                              aria-label={`Access level for ${assignedEmail}`}
-                              data={ACCESS_ROLE_OPTIONS}
+                        <AccessRow
+                          key={assignedEmail}
+                          title={assignedEmail}
+                          trailing={
+                            <AccessLevelSelect
                               value={currentRole}
+                              ariaLabel={`Access level for ${assignedEmail}`}
                               loading={updatingEmail === assignedEmail}
-                              style={{ width: 132, flexShrink: 0 }}
-                              onChange={(value) => {
-                                if (value) {
-                                  handleAssignedRoleChange(
-                                    assignedEmail,
-                                    value as DepartmentAccessRole,
-                                  );
-                                }
-                              }}
+                              onChange={(next) => handleAssignedRoleChange(assignedEmail, next)}
                             />
-                          </Group>
-                        </Paper>
+                          }
+                        />
                       );
                     })
                   )}
@@ -470,31 +452,14 @@ export function DepartmentDetailBody({
                     </Text>
                   ) : (
                     data?.granted.map((granted) => (
-                      <Paper key={granted.email} withBorder p="xs" radius="md">
-                        <Group justify="space-between" wrap="nowrap" align="center">
-                          <Stack gap={0} style={{ minWidth: 0, flex: 1 }}>
-                            <Text size="sm" fw={600}>
-                              {granted.name}
-                            </Text>
-                            <Text size="xs" c="dimmed" style={{ wordBreak: "break-all" }}>
-                              {granted.email}
-                              {granted.departmentName ? ` · ${granted.departmentName}` : ""}
-                            </Text>
-                          </Stack>
-                          <Badge
-                            variant="light"
-                            color={
-                              granted.role === "owner"
-                                ? "brand"
-                                : granted.role === "writer"
-                                  ? "blue"
-                                  : "gray"
-                            }
-                          >
-                            {roleLabel(granted.role)}
-                          </Badge>
-                        </Group>
-                      </Paper>
+                      <AccessRow
+                        key={granted.email}
+                        title={granted.name}
+                        subtitle={`${granted.email}${
+                          granted.departmentName ? ` · ${granted.departmentName}` : ""
+                        }`}
+                        badge={<AccessRoleBadge role={granted.role} />}
+                      />
                     ))
                   )}
                 </Stack>
@@ -513,43 +478,22 @@ export function DepartmentDetailBody({
                     </Text>
                   ) : (
                     data?.additional.map((rule) => (
-                      <Paper key={rule.email} withBorder p="xs" radius="md">
-                        <Stack gap={6}>
-                          <Group justify="space-between" wrap="nowrap">
-                            <Text size="sm" style={{ wordBreak: "break-all" }}>
-                              {rule.email}
-                              <Text span c="dimmed">
-                                {" "}
-                                · {roleLabel(rule.role)}
-                              </Text>
-                            </Text>
-                            <Button
-                              size="xs"
-                              variant="subtle"
-                              color="red"
-                              loading={removingEmail === rule.email}
-                              loaderProps={BUTTON_LOADER_PROPS}
-                              onClick={() => handleRemove(rule.email)}
-                            >
-                              Remove
-                            </Button>
-                          </Group>
-                          <Select
-                            size="xs"
-                            aria-label={`Access level for ${rule.email}`}
-                            data={ACCESS_ROLE_OPTIONS}
+                      <AccessRow
+                        key={rule.email}
+                        title={rule.email}
+                        trailing={
+                          <AccessLevelSelect
                             value={rule.role}
-                            placeholder={roleLabel(rule.role)}
+                            ariaLabel={`Access level for ${rule.email}`}
                             loading={updatingEmail === rule.email}
                             disabled={removingEmail === rule.email}
-                            onChange={(value) => {
-                              if (value) {
-                                handleRoleChange(rule.email, value as DepartmentAccessRole);
-                              }
-                            }}
+                            onChange={(next) => handleRoleChange(rule.email, next)}
                           />
-                        </Stack>
-                      </Paper>
+                        }
+                        onRemove={() => handleRemove(rule.email)}
+                        removeAriaLabel={`Remove ${rule.email}`}
+                        removeLoading={removingEmail === rule.email}
+                      />
                     ))
                   )}
                 </Stack>

@@ -3,7 +3,7 @@
  * screens. Kept free of I/O so they can be unit-tested without a database.
  */
 
-import type { UserCalendarGrant } from "@/lib/roster/shares";
+import type { ManagedGrantRole, UserCalendarGrant } from "@/lib/roster/shares";
 
 export const PHONE_DIGIT_COUNT = 8;
 
@@ -36,6 +36,13 @@ export interface UserFormValues {
    * user's own). Validated/normalized server-side against the live roster.
    */
   access?: UserCalendarGrant[];
+  /**
+   * The level to set on the user's OWN department calendar. Membership already
+   * shares it at `reader`, so this is a raw Google ACL override with no column
+   * of its own: it is staged with the rest of the save and applied after the
+   * reconcile. `null`/absent = leave whatever Google says alone.
+   */
+  ownDepartmentRole?: ManagedGrantRole | null;
 }
 
 export interface UserFormErrors {

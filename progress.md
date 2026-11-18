@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.378 (event time picker)** is shipped.
+- All work through changelog **1.380 (dev-server origin allowlist)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -2457,6 +2457,25 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   dialog with a red alert and a ringed cell instead of being silently clamped
   (`isTimeWithinBounds`), while `clampEventEnd` stays the date-change/server safety
   net. Docs: `event-lifecycle.md` §1.4.1/§1.11.1/§1.15.
+- 1.379 **User modal redesign + one access-row recipe**: the add/edit-user modal now
+  reads like the rest of the app — Department is a `PickerField` + `UserSelectModal`
+  dialog (was an inline badge cloud), Role a `SegmentedControl`, and the whole
+  "Department access" section is **staged until Save**: an own-department row (their
+  live Google level, read once an email is typed, written after the reconcile) plus one
+  row per grant, all rendered through the new shared `AccessRows` recipe the department
+  modal now uses too — one row shape, one role vocabulary, `NoKeyboardSelect` levels.
+  Adding departments is one multi-select dialog instead of a repurposed user picker with
+  hidden state; the copy says grants only change Google Calendar (never the app filters)
+  and land on save; closing with unsaved edits asks first; list cards show the
+  ancestor-chain department path and a "+N departments" chip with the names in a
+  tooltip. Pure editor in `roster/accessEditor.ts` (19 tests). Docs:
+  `roster-sharing.md` §1.5/§1.10/§1.11/§1.12/§1.13.
+- 1.380 **Dev-server origin allowlist**: Next 16 refuses `/_next/*` dev resources
+  (HMR included) from any host outside `localhost` + the bind host, so opening the dev
+  server as `127.0.0.1` silently killed hot reload. `next.config.ts` now sets the
+  top-level `allowedDevOrigins` with `127.0.0.1` plus the optional comma-separated
+  `DEV_ALLOWED_ORIGINS` env var (bare hostnames, `*.host` wildcards) for LAN devices,
+  emulators and tunnels; dev-only, never read by a production build.
 
 ## 1.4 Open items & next steps
 

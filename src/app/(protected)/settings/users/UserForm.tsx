@@ -5,49 +5,60 @@ import { useForm } from "@mantine/form";
 import {
   Badge,
   Button,
+  Divider,
   Grid,
   Group,
-  Paper,
-  Select,
+  SegmentedControl,
   Stack,
   Text,
   TextInput,
-  UnstyledButton,
 } from "@mantine/core";
-import { MotionModal } from "@/components/MotionModal";
-import { useDisclosure } from "@mantine/hooks";
+import { DatePickerInput } from "@mantine/dates";
+import { useDebouncedValue, useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { IconPlus, IconX } from "@tabler/icons-react";
+import { IconPlus } from "@tabler/icons-react";
 
+import { MotionModal } from "@/components/MotionModal";
+import { AccessLevelSelect, AccessRow } from "@/components/AccessRows";
+import { PickerField, type PickerBadgeItem } from "@/components/PickerField";
+import { UserSelectModal } from "@/components/UserSelectModal";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { showValidationFailure } from "@/lib/ui/validationFeedback";
-
 import {
   createUser,
   getAssignedAccessRole,
   setUserStatus,
-  updateDepartmentAccess,
   updateUser,
   type RosterActionResult,
 } from "@/lib/roster/actions";
+import {
+  addableDepartmentIds,
+  nextGrantsAfterAdd,
+  removeGrant,
+  resolveOwnRolePatch,
+  setGrantRole,
+} from "@/lib/roster/accessEditor";
 import type { RosterAccessGrant, RosterUser } from "@/lib/roster/queries";
-import type { ManagedGrantRole, UserCalendarGrant } from "@/lib/roster/shares";
-import { validateUserForm, type UserFormValues } from "@/lib/roster/validate";
+import type { ManagedGrantRole } from "@/lib/roster/shares";
 import { departmentTreeRows } from "@/lib/roster/hierarchy";
-import { NoKeyboardSelect } from "@/components/NoKeyboardSelect";
-import { UserSelectModal } from "@/components/UserSelectModal";
-import { departmentPickerOptions, selectionByGroup } from "@/lib/users/userSelect";
+import { validateUserForm, type UserFormValues, type UserRole } from "@/lib/roster/validate";
+import {
+  departmentPickerOptions,
+  selectionByGroup,
+  type PickerGroup,
+} from "@/lib/users/userSelect";
 
-const ACCESS_ROLE_OPTIONS: { value: ManagedGrantRole; label: string }[] = [
-  { value: "reader", label: "Read only" },
-  { value: "writer", label: "Can edit" },
-  { value: "owner", label: "Owner" },
-];
+/**
+ * The add/edit-user dialog body.
+ *
+ * Everything in it is **staged and applied on Save** — including the level of
+ * the user's own department, which is a raw Google ACL override rather than a
+ * column (see `docs/roster-sharing.md` §1.5). An earlier revision wrote that
+ * one override straight to Google the moment it was picked, which made a single
+ * form half-draft, half-live: closing lost the grants but not the level.
+ */
 
-function isAccessRole(value: string | null): value is ManagedGrantRole {
-  return value === "reader" || value === "writer" || value === "owner";
-}
-
+/** The department a user can be assigned to (the server page's projection). */
 export interface DepartmentOption {
   id: string;
   name: string;
@@ -57,56 +68,62 @@ export interface DepartmentOption {
   parentId: string | null;
 }
 
+const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
+  { value: "user", label: "User" },
+  { value: "admin", label: "Admin" },
+];
+
 interface UserFormProps {
   user: RosterUser | null;
   departments: DepartmentOption[];
   /** The user's current cross-department grants (from the server, per user). */
   access: RosterAccessGrant[];
+  /**
+   * Reports whether the form holds unsaved edits. The dialog lives in the
+   * parent, so the parent decides what closing means (and asks first).
+   */
+  onDirtyChange?: (dirty: boolean) => void;
   onDone: () => void;
 }
 
 function initialValues(user: RosterUser | null, access: RosterAccessGrant[]): UserFormValues {
-  const grants: UserCalendarGrant[] = access.map((grant) => ({
+  const grants: UserFormValues["access"] = access.map((grant) => ({
     calendarId: grant.calendarId,
     role: grant.role,
   }));
-  if (!user) {
-    return {
-      name: "",
-      shortname: "",
-      phone: "",
-      email: "",
-      birthday: "",
-      role: "user",
-      status: "active",
-      departmentId: null,
-      access: grants,
-    };
-  }
-  return {
-    name: user.name,
-    shortname: user.shortname ?? "",
-    phone: user.phone,
-    email: user.email ?? "",
-    birthday: user.birthday ?? "",
-    role: user.role,
-    status: user.status,
-    departmentId: user.department?.id ?? null,
+  const base: UserFormValues = {
+    name: user?.name ?? "",
+    shortname: user?.shortname ?? "",
+    phone: user?.phone ?? "",
+    email: user?.email ?? "",
+    birthday: user?.birthday ?? "",
+    role: user?.role ?? "user",
+    status: user?.status ?? "active",
+    departmentId: user?.department?.id ?? null,
     access: grants,
+    // Never seeded from the live ACL: the row shows the live level, and only an
+    // explicit pick counts as a change to write.
+    ownDepartmentRole: null,
   };
+  return base;
 }
 
-export function UserForm({ user, departments, access, onDone }: UserFormProps) {
+/**
+ * The live ACL level of the user's own department, as far as it is known. A read
+ * in flight is not a state of its own: it is simply "no result for this key yet"
+ * (see `ownRoleBusy`), which keeps the effect free of a cascading setState.
+ */
+type OwnRoleRead =
+  | { key: string; status: "ready"; role: ManagedGrantRole }
+  | { key: string; status: "failed" };
+
+export function UserForm({ user, departments, access, onDirtyChange, onDone }: UserFormProps) {
   const isEdit = user !== null;
   const [confirmOpened, { open: openConfirm, close: closeConfirm }] = useDisclosure(false);
   const [togglingStatus, setTogglingStatus] = useState(false);
-  const [addingCalendarId, setAddingCalendarId] = useState<string>("");
-  const [addingRole, setAddingRole] = useState<ManagedGrantRole>("reader");
-  const [addingPickerOpen, setAddingPickerOpen] = useState(false);
-  // The user's own department's live ACL level, for its non-removable row.
-  const [ownRole, setOwnRole] = useState<ManagedGrantRole | null>(null);
-  const [ownFetchedKey, setOwnFetchedKey] = useState<string | null>(null);
-  const [updatingOwnRole, setUpdatingOwnRole] = useState(false);
+  const [departmentPickerOpen, setDepartmentPickerOpen] = useState(false);
+  const [grantPickerOpen, setGrantPickerOpen] = useState(false);
+  const [ownRead, setOwnRead] = useState<OwnRoleRead | null>(null);
 
   const form = useForm<UserFormValues>({
     // The parent remounts this component (key) when the target user changes,
@@ -118,11 +135,38 @@ export function UserForm({ user, departments, access, onDone }: UserFormProps) {
     validateInputOnBlur: true,
   });
 
+  // Stable identity while the staged list is unchanged — `?? []` alone would hand
+  // a fresh array to every render and defeat the memos below.
+  const granted = useMemo(() => form.values.access ?? [], [form.values.access]);
+  const selectedDepartmentId = form.values.departmentId;
+  const emailDraft = (form.values.email ?? "").trim();
+  const savedDepartmentId = user?.department?.id ?? null;
+  const departmentChanged = isEdit && selectedDepartmentId !== savedDepartmentId;
+
+  // The parent owns the dialog, so it learns about unsaved edits from here —
+  // including the reset to false when the form remounts for another target.
+  // `isDirty()` is read during render: Mantine updates its dirty state with
+  // every value change, so this re-renders and the boolean is always current.
+  const dirty = form.isDirty();
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
+
   const onSubmit = form.onSubmit(
     async (values) => {
+      // The own-department level is only sent when it is an actual change, so
+      // the server never writes an ACL the admin did not ask for.
+      const ownDepartmentRole = resolveOwnRolePatch({
+        seededRole: ownRead?.status === "ready" ? ownRead.role : null,
+        stagedRole: values.ownDepartmentRole ?? null,
+        hasEmail: (values.email ?? "").trim() !== "",
+        departmentChanged,
+      });
+      const payload = { ...values, ownDepartmentRole };
+
       const result: RosterActionResult = isEdit
-        ? await updateUser(user.id, values)
-        : await createUser(values);
+        ? await updateUser(user.id, payload)
+        : await createUser(payload);
 
       if (result.ok) {
         const message = isEdit ? "User updated" : "User created";
@@ -174,23 +218,9 @@ export function UserForm({ user, departments, access, onDone }: UserFormProps) {
     }
   }
 
-  const granted = form.values.access ?? [];
-
-  /** Department display name for a grant (unknown ids fall back to the id). */
-  function departmentName(calendarId: string): string {
-    return departments.find((department) => department.id === calendarId)?.name ?? calendarId;
-  }
-
-  /** Departments that can still be granted (not the user's own, not added). */
-  const addableDepartments = departments.filter(
-    (department) =>
-      department.id !== form.values.departmentId &&
-      !granted.some((grant) => grant.calendarId === department.id),
-  );
-
-  // The whole department list as tree rows in preorder. Option labels carry the
-  // full ancestor chain ("HQ › Logistics"), so the own-department badges and
-  // the grant picker show the hierarchy inline inside each pill (no indentation).
+  // The whole department list as tree rows in preorder. Labels carry the full
+  // ancestor chain ("HQ › Logistics"), so a row or a picker pill shows the
+  // hierarchy inline instead of relying on indentation.
   const departmentRows = useMemo(
     () =>
       departmentTreeRows(
@@ -203,141 +233,142 @@ export function UserForm({ user, departments, access, onDone }: UserFormProps) {
       ),
     [departments],
   );
-  const departmentBadgeOptions = useMemo(
+  const departmentOptions = useMemo(
     () => departmentPickerOptions(departmentRows),
     [departmentRows],
   );
+  /** Department ids in display order — the order staged grant rows keep. */
+  const orderedDepartmentIds = useMemo(() => departmentRows.map((row) => row.id), [departmentRows]);
+  // A grant whose department has since been deleted still has to read as
+  // something: fall back to the name the server carried, then to the id.
+  const staleGrantNames = useMemo(() => {
+    const known = new Set(departments.map((department) => department.id));
+    return new Map(
+      access
+        .filter((grant) => !known.has(grant.calendarId))
+        .map((grant) => [grant.calendarId, grant.name]),
+    );
+  }, [access, departments]);
 
-  // The addable departments as one badge section for the single-select dialog;
-  // the staged candidate drives the Add row below.
-  const addablePickerGroups = useMemo(() => {
-    const addableIds = new Set(addableDepartments.map((department) => department.id));
-    return [
-      {
-        label: "Departments",
-        options: departmentBadgeOptions.filter((option) => addableIds.has(option.id)),
-      },
-    ];
-  }, [addableDepartments, departmentBadgeOptions]);
-  const addingPickerValues = useMemo(
-    () => selectionByGroup(addablePickerGroups, addingCalendarId ? [addingCalendarId] : []),
-    [addablePickerGroups, addingCalendarId],
+  /** Display label for a department id (ancestor chain, stale name, or the id). */
+  function departmentLabel(calendarId: string): string {
+    const option = departmentOptions.find((candidate) => candidate.id === calendarId);
+    return option?.label ?? staleGrantNames.get(calendarId) ?? calendarId;
+  }
+
+  // --- Department (their own) -------------------------------------------------
+
+  const departmentSummary: PickerBadgeItem[] = selectedDepartmentId
+    ? [{ key: selectedDepartmentId, label: departmentLabel(selectedDepartmentId), color: "brand" }]
+    : [];
+  const departmentPickerGroups = useMemo<PickerGroup[]>(
+    () => [{ label: "Departments", options: departmentOptions }],
+    [departmentOptions],
+  );
+  const departmentPickerValues = useMemo(
+    () =>
+      selectionByGroup(departmentPickerGroups, selectedDepartmentId ? [selectedDepartmentId] : []),
+    [departmentPickerGroups, selectedDepartmentId],
   );
 
-  /** A department was confirmed in the picker — stage it for the Add row. */
-  function pickDepartmentToGrant(values: Record<string, string[]>) {
-    setAddingCalendarId(Object.values(values).flat()[0] ?? "");
-  }
-
-  function addGrant(calendarId: string, role: ManagedGrantRole) {
-    if (!calendarId || granted.some((grant) => grant.calendarId === calendarId)) {
-      return;
-    }
-    form.setFieldValue("access", [...granted, { calendarId, role }]);
-    setAddingCalendarId("");
-    setAddingRole("reader");
-  }
-
-  function removeGrant(calendarId: string) {
-    form.setFieldValue(
-      "access",
-      granted.filter((grant) => grant.calendarId !== calendarId),
-    );
-  }
-
-  function changeGrantRole(calendarId: string, role: ManagedGrantRole) {
-    form.setFieldValue(
-      "access",
-      granted.map((grant) => (grant.calendarId === calendarId ? { calendarId, role } : grant)),
-    );
-  }
-
-  /** The selected department becomes the user's own — drop any matching grant. */
+  /**
+   * The selected department becomes their own: any grant for it is dropped (it
+   * would be a no-op the server strips anyway) and a level picked for the
+   * previous department is discarded — it belongs to a different calendar.
+   */
   function selectDepartment(departmentId: string | null) {
+    if (departmentId !== selectedDepartmentId) {
+      form.setFieldValue("ownDepartmentRole", null);
+    }
     form.setFieldValue("departmentId", departmentId);
     if (departmentId && granted.some((grant) => grant.calendarId === departmentId)) {
-      removeGrant(departmentId);
+      form.setFieldValue("access", removeGrant(granted, departmentId));
     }
   }
 
-  // The department picked in the form: the own-department row tracks it (there
-  // is never a remove button), but its level can only be raised while it IS the
-  // user's saved membership — a drafted move isn't a member of the new calendar
-  // yet, and ACL writes before Save would be premature.
-  const selectedDepartmentId = form.values.departmentId;
-  const ownDepartmentIsCurrent =
-    isEdit && user !== null && selectedDepartmentId === (user.department?.id ?? null);
-  const ownDepartmentOption = departments.find(
-    (department) => department.id === selectedDepartmentId,
-  );
+  // --- Their own department's level -------------------------------------------
 
-  // Whose live ACL level seeds the own-department row: only an existing
-  // membership (saved department + saved email). Clearing the fetched role when
-  // the target changes is a render-phase reset (never an effect) so no cascade.
+  // Its live level is only readable for an existing membership: same department
+  // as saved, and an email to look up. The email is debounced so typing it does
+  // not fire a read per keystroke; the row itself enables on the first character.
+  const [debouncedEmail] = useDebouncedValue(emailDraft, 400);
   const ownFetchKey =
-    isEdit && user?.email && ownDepartmentIsCurrent
-      ? `${selectedDepartmentId}|${user.email}`
+    isEdit && !departmentChanged && debouncedEmail && selectedDepartmentId
+      ? `${selectedDepartmentId}|${debouncedEmail}`
       : null;
-  if (ownFetchedKey !== ownFetchKey) {
-    setOwnFetchedKey(ownFetchKey);
-    setOwnRole(null);
+  // A target change is a render-phase reset (never an effect), so no cascade —
+  // and it makes "a read for this key is in flight" exactly "no result yet",
+  // which is why loading is derived here instead of stored as a state.
+  if (ownRead !== null && ownRead.key !== ownFetchKey) {
+    setOwnRead(null);
   }
+  const ownRoleBusy = ownFetchKey !== null && ownRead === null;
 
-  // Seed the row from the live Google ACL (a plain read — the full department
-  // reconcile would be heavier for an edit form). State only updates in the
-  // async callback; the row is disabled/loading until it lands.
   useEffect(() => {
-    if (ownFetchedKey === null) {
+    if (ownFetchKey === null || ownRead?.key === ownFetchKey) {
       return;
     }
-    const separator = ownFetchedKey.indexOf("|");
-    const departmentId = ownFetchedKey.slice(0, separator);
-    const email = ownFetchedKey.slice(separator + 1);
+    const separator = ownFetchKey.indexOf("|");
+    const departmentId = ownFetchKey.slice(0, separator);
+    const email = ownFetchKey.slice(separator + 1);
     let active = true;
     getAssignedAccessRole(departmentId, email)
       .then((role) => {
-        if (active) {
-          setOwnRole(role);
-        }
+        if (!active) return;
+        setOwnRead(
+          role === null
+            ? { key: ownFetchKey, status: "failed" }
+            : { key: ownFetchKey, status: "ready", role },
+        );
       })
       .catch(() => {
         if (active) {
-          setOwnRole("reader");
+          setOwnRead({ key: ownFetchKey, status: "failed" });
         }
       });
     return () => {
       active = false;
     };
-  }, [ownFetchedKey]);
+  }, [ownFetchKey, ownRead]);
 
-  const ownRoleValue = ownRole ?? "reader";
-  const ownRoleBusy = ownFetchKey !== null && ownRole === null;
+  const stagedOwnRole = form.values.ownDepartmentRole ?? null;
+  /** What the row shows: an explicit pick, else the live level, else the default. */
+  const ownRoleValue = stagedOwnRole ?? (ownRead?.status === "ready" ? ownRead.role : "reader");
+  const ownHint = !emailDraft
+    ? "Add an email address — Google Calendar shares calendars by email."
+    : ownRead?.status === "failed"
+      ? "Couldn't read their current level — pick one to set it."
+      : departmentChanged
+        ? "Not their department yet — the level is applied when you save the move."
+        : null;
 
-  /** Raising the own department's level writes straight to the Google ACL (same
-   *  mechanism and audit path as the department modal's assigned-user selector);
-   *  the row can never be removed — membership implies it. */
-  async function handleOwnRoleChange(nextRole: ManagedGrantRole) {
-    if (
-      !ownDepartmentIsCurrent ||
-      !user?.email ||
-      selectedDepartmentId === null ||
-      ownRoleBusy ||
-      updatingOwnRole
-    ) {
-      return;
-    }
-    setUpdatingOwnRole(true);
-    try {
-      const result = await updateDepartmentAccess(selectedDepartmentId, user.email, nextRole);
-      if (result.ok) {
-        notifications.show({ color: "green", message: "Access level updated" });
-        setOwnRole(nextRole);
-      } else {
-        notifications.show({ color: "red", message: result.error });
-      }
-    } finally {
-      setUpdatingOwnRole(false);
-    }
+  // --- Cross-department grants ------------------------------------------------
+
+  /** Departments the dialog may offer: not their own, not already granted. */
+  const addableIds = useMemo(
+    () => addableDepartmentIds(orderedDepartmentIds, selectedDepartmentId, granted),
+    [orderedDepartmentIds, selectedDepartmentId, granted],
+  );
+  const grantPickerGroups = useMemo<PickerGroup[]>(
+    () => [
+      {
+        label: "Departments",
+        options: departmentOptions.filter((option) => addableIds.includes(option.id)),
+      },
+    ],
+    [departmentOptions, addableIds],
+  );
+  // Always an empty draft: the dialog adds, it never re-presents the rows.
+  const grantPickerValues = useMemo(
+    () => selectionByGroup(grantPickerGroups, []),
+    [grantPickerGroups],
+  );
+
+  /** Confirmed in the dialog: every picked department becomes a reader row. */
+  function addGrants(values: Record<string, string[]>) {
+    const ids = Object.values(values).flat();
+    if (ids.length === 0) return;
+    form.setFieldValue("access", nextGrantsAfterAdd(granted, ids, orderedDepartmentIds));
   }
 
   return (
@@ -370,250 +401,170 @@ export function UserForm({ user, departments, access, onDone }: UserFormProps) {
             />
           </Grid.Col>
           <Grid.Col span={{ base: 12, lg: 6 }}>
-            <TextInput label="Email" placeholder="Optional" {...form.getInputProps("email")} />
+            <TextInput
+              label="Email"
+              placeholder="Optional — needed for calendar access"
+              inputMode="email"
+              {...form.getInputProps("email")}
+            />
           </Grid.Col>
           <Grid.Col span={{ base: 12, lg: 6 }}>
-            <TextInput label="Birthday" type="date" {...form.getInputProps("birthday")} />
+            {/* A calendar popover, never a native date input: the readOnly input
+                keeps the mobile keyboard down (the app's dropdown rule). */}
+            <DatePickerInput
+              label="Birthday"
+              placeholder="Optional"
+              clearable
+              valueFormat="YYYY-MM-DD"
+              value={form.values.birthday || null}
+              onChange={(value) => form.setFieldValue("birthday", value ?? "")}
+              attributes={{ input: { readOnly: true } }}
+            />
           </Grid.Col>
         </Grid>
-        {/* Role as toggleable badges, same pattern as Department: the two
-            options are always visible and tapping a badge never focuses an
-            input, so it can't raise the mobile keyboard. Role is required,
-            so tapping a badge always selects it (no toggle-off). Colors
-            mirror UserTable: admin = brand, user = gray. */}
+
         <Stack gap={4}>
           <Text fw={500} size="sm">
             Role
           </Text>
-          <Group gap={6} wrap="wrap">
-            {(
-              [
-                { value: "user", label: "User", color: "gray" },
-                { value: "admin", label: "Admin", color: "brand" },
-              ] as const
-            ).map((option) => {
-              const selected = form.values.role === option.value;
-              return (
-                // A real button (not an onClick Badge): keyboard-operable and
-                // announces its pressed state. The Badge keeps the visual.
-                <UnstyledButton
-                  key={option.value}
-                  aria-pressed={selected}
-                  aria-label={`Role: ${option.label}`}
-                  onClick={() => form.setFieldValue("role", option.value)}
-                  style={{ cursor: "pointer", borderRadius: "var(--mantine-radius-md)" }}
-                >
-                  <Badge
-                    color={option.color}
-                    variant={selected ? "filled" : "light"}
-                    size="lg"
-                    style={{ height: "calc(var(--badge-height-lg) * 1.5)" }}
-                  >
-                    {option.label}
-                  </Badge>
-                </UnstyledButton>
-              );
-            })}
-          </Group>
-        </Stack>
-        {/* Department as toggleable badges instead of a Select: the list is
-            short, always visible, and tapping a badge never focuses an input,
-            so it can't raise the mobile keyboard or trigger the browser's
-            focus-scroll (which the old Select did on Android/iOS). Tapping the
-            selected badge clears the field, mirroring the old clearable
-            Select. */}
-        <Stack gap={4}>
-          <Text fw={500} size="sm">
-            Department
+          <SegmentedControl
+            aria-label="Role"
+            data={ROLE_OPTIONS}
+            value={form.values.role}
+            onChange={(value) => form.setFieldValue("role", value)}
+          />
+          <Text size="xs" c="dimmed">
+            Admins manage settings, users and departments. Everyone else only gets the calendar.
           </Text>
-          {departments.length === 0 ? (
-            <Text size="sm" c="dimmed">
-              No departments yet
-            </Text>
-          ) : (
-            <Group gap={6} wrap="wrap">
-              {departmentBadgeOptions.map((department) => {
-                const selected = form.values.departmentId === department.id;
-                return (
-                  // Real toggle button (aria-pressed), Badge visual — same
-                  // keyboard/no-keyboard rationale as the Role badges above.
-                  // The label carries the full ancestor chain when nested.
-                  <UnstyledButton
-                    key={department.id}
-                    aria-pressed={selected}
-                    aria-label={`Department: ${department.label}`}
-                    onClick={() => selectDepartment(selected ? null : department.id)}
-                    style={{ cursor: "pointer", borderRadius: "var(--mantine-radius-md)" }}
-                  >
-                    <Badge
-                      variant={selected ? "filled" : "light"}
-                      size="lg"
-                      style={{ height: "calc(var(--badge-height-lg) * 1.5)" }}
-                    >
-                      {department.label}
-                    </Badge>
-                  </UnstyledButton>
-                );
-              })}
-            </Group>
-          )}
         </Stack>
 
-        {/* Department access: department calendars this user may see. Their own
-            department appears as a non-removable row (its level can be raised —
-            written straight to the Google ACL like the department modal — but
-            never revoked here). Cross-department grants are managed below (never
-            as anonymous emails in a department's Additional access); grants can
-            be removed, their own department cannot. Filter availability is
-            unrelated — every user can filter every department calendar anyway. */}
-        <Stack gap={6}>
-          <Stack gap={2}>
+        {departments.length === 0 ? (
+          <Stack gap={4}>
             <Text fw={500} size="sm">
-              Department access
+              Department
             </Text>
             <Text size="sm" c="dimmed">
-              Calendars this user can access — Read only, Can edit, or Owner. Their own department
-              can&apos;t be removed; the extra departments below can.
+              No departments yet — create one under Settings → Departments.
             </Text>
           </Stack>
+        ) : (
+          <PickerField
+            label="Department"
+            description="Their own department: members see its calendar automatically."
+            items={departmentSummary}
+            empty={
+              <Text size="sm" c="dimmed">
+                No department
+              </Text>
+            }
+            triggerLabel="Select"
+            onOpen={() => setDepartmentPickerOpen(true)}
+          />
+        )}
 
-          {isEdit && ownDepartmentOption ? (
-            <Paper withBorder p="xs" radius="md">
-              <Stack gap={4}>
-                <Group justify="space-between" wrap="nowrap" align="center">
-                  <Stack gap={2} style={{ minWidth: 0, flex: 1 }}>
-                    <Text size="sm" fw={500} style={{ minWidth: 0 }}>
-                      {ownDepartmentOption.name}
-                    </Text>
-                    {ownDepartmentIsCurrent ? (
-                      <Badge
-                        size="xs"
-                        variant="light"
-                        color="accent"
-                        style={{ width: "fit-content" }}
-                      >
-                        Their department
-                      </Badge>
-                    ) : null}
-                  </Stack>
-                  <Select
-                    size="sm"
-                    aria-label={`Access level for ${ownDepartmentOption.name}`}
-                    data={ACCESS_ROLE_OPTIONS}
-                    value={ownRoleValue}
-                    loading={ownRoleBusy || updatingOwnRole}
-                    disabled={!ownDepartmentIsCurrent || !user?.email || ownRoleBusy}
-                    style={{ width: 132, flexShrink: 0 }}
-                    onChange={(value) => {
-                      if (isAccessRole(value)) {
-                        handleOwnRoleChange(value);
-                      }
-                    }}
-                  />
-                </Group>
-                {ownDepartmentIsCurrent && !user?.email ? (
-                  <Text size="xs" c="orange">
-                    No email is linked to this user, so their department stays read-only — add an
-                    email to raise the level.
-                  </Text>
-                ) : null}
-                {ownDepartmentOption && !ownDepartmentIsCurrent ? (
-                  <Text size="xs" c="dimmed">
-                    Save the department change to make this their department.
-                  </Text>
-                ) : null}
-              </Stack>
-            </Paper>
+        {departmentPickerOpen && (
+          <UserSelectModal
+            opened
+            onClose={() => setDepartmentPickerOpen(false)}
+            title="Department"
+            confirmLabel="Select"
+            groups={departmentPickerGroups}
+            values={departmentPickerValues}
+            onConfirm={(values) => selectDepartment(Object.values(values).flat()[0] ?? null)}
+            single
+            allowEmptyConfirm
+            zIndex={300}
+          />
+        )}
+
+        {/* Department access: what this user sees in Google Calendar. Their own
+            department is always the first row and can never be removed (that
+            would mean removing them from it, which is the Department field's
+            job); the extra departments below can. Nothing here is written until
+            Save — including the own-department level. */}
+        <Divider label="Department access" labelPosition="left" my="sm" />
+        <Stack gap="xs">
+          <Text size="sm" c="dimmed">
+            Grants change what this user sees in Google Calendar — never the filters in the app.
+            Everything here is applied when you save.
+          </Text>
+
+          {selectedDepartmentId ? (
+            <AccessRow
+              title={departmentLabel(selectedDepartmentId)}
+              badge={
+                <Badge size="xs" variant="light" color="accent">
+                  Their department
+                </Badge>
+              }
+              subtitle={ownHint}
+              trailing={
+                <AccessLevelSelect
+                  ariaLabel={`Access level for ${departmentLabel(selectedDepartmentId)}`}
+                  value={ownRoleValue}
+                  loading={ownRoleBusy}
+                  disabled={emailDraft === "" || ownRoleBusy}
+                  onChange={(role) => form.setFieldValue("ownDepartmentRole", role)}
+                />
+              }
+            />
           ) : null}
+
+          {granted.map((grant) => (
+            <AccessRow
+              key={grant.calendarId}
+              title={departmentLabel(grant.calendarId)}
+              trailing={
+                <AccessLevelSelect
+                  ariaLabel={`Access level for ${departmentLabel(grant.calendarId)}`}
+                  value={grant.role}
+                  onChange={(role) =>
+                    form.setFieldValue("access", setGrantRole(granted, grant.calendarId, role))
+                  }
+                />
+              }
+              onRemove={() => form.setFieldValue("access", removeGrant(granted, grant.calendarId))}
+              removeAriaLabel={`Remove access to ${departmentLabel(grant.calendarId)}`}
+            />
+          ))}
 
           {granted.length === 0 ? (
             <Text size="sm" c="dimmed">
-              No extra access yet.
+              No extra departments — they only see their own.
             </Text>
+          ) : null}
+
+          {addableIds.length > 0 ? (
+            <Button
+              type="button"
+              size="xs"
+              variant="light"
+              leftSection={<IconPlus size={14} />}
+              onClick={() => setGrantPickerOpen(true)}
+            >
+              Add departments
+            </Button>
           ) : (
-            granted.map((grant) => (
-              <Paper key={grant.calendarId} withBorder p="xs" radius="md">
-                <Group justify="space-between" wrap="nowrap" align="center">
-                  <Text size="sm" fw={500} style={{ minWidth: 0, flex: 1 }}>
-                    {departmentName(grant.calendarId)}
-                  </Text>
-                  <Select
-                    size="sm"
-                    aria-label={`Access level for ${departmentName(grant.calendarId)}`}
-                    data={ACCESS_ROLE_OPTIONS}
-                    value={grant.role}
-                    style={{ width: 132, flexShrink: 0 }}
-                    onChange={(value) => {
-                      if (isAccessRole(value)) {
-                        changeGrantRole(grant.calendarId, value);
-                      }
-                    }}
-                  />
-                  <Button
-                    size="compact-xs"
-                    variant="subtle"
-                    color="red"
-                    px={4}
-                    aria-label={`Remove access to ${departmentName(grant.calendarId)}`}
-                    onClick={() => removeGrant(grant.calendarId)}
-                  >
-                    <IconX size={14} />
-                  </Button>
-                </Group>
-              </Paper>
-            ))
+            <Text size="xs" c="dimmed">
+              Every department is already on this user.
+            </Text>
           )}
 
-          {departments.length > 0 && (
-            <Group gap="xs" align="flex-end" wrap="wrap">
-              <Button
-                variant="default"
-                aria-label="Department to grant"
-                leftSection={<IconPlus size={16} />}
-                disabled={addableDepartments.length === 0}
-                onClick={() => setAddingPickerOpen(true)}
-                style={{ flex: 1, minWidth: 180 }}
-              >
-                {addingCalendarId ? departmentName(addingCalendarId) : "Add a department…"}
-              </Button>
-              <NoKeyboardSelect
-                aria-label="Access level to grant"
-                data={ACCESS_ROLE_OPTIONS}
-                value={addingRole}
-                size="sm"
-                onChange={(value) => {
-                  if (isAccessRole(value)) {
-                    setAddingRole(value);
-                  }
-                }}
-                style={{ width: 132, flexShrink: 0 }}
-              />
-              <Button
-                variant="light"
-                leftSection={<IconPlus size={16} />}
-                disabled={!addingCalendarId}
-                onClick={() => addGrant(addingCalendarId, addingRole)}
-              >
-                Add
-              </Button>
-              {addingPickerOpen && (
-                <UserSelectModal
-                  opened
-                  onClose={() => setAddingPickerOpen(false)}
-                  title="Add department access"
-                  confirmLabel="Select"
-                  groups={addablePickerGroups}
-                  values={addingPickerValues}
-                  onConfirm={pickDepartmentToGrant}
-                  single
-                  zIndex={300}
-                />
-              )}
-            </Group>
+          {grantPickerOpen && (
+            <UserSelectModal
+              opened
+              onClose={() => setGrantPickerOpen(false)}
+              title="Department access"
+              confirmLabel="Add"
+              groups={grantPickerGroups}
+              values={grantPickerValues}
+              onConfirm={addGrants}
+              zIndex={300}
+            />
           )}
         </Stack>
 
-        <Group justify="flex-end" mt="md">
+        <Group justify="flex-end" mt="md" wrap="nowrap">
           {isEdit && (
             <Button
               type="button"

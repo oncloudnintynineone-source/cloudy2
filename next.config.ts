@@ -1,6 +1,17 @@
 import { withSerwist } from "@serwist/turbopack";
 import type { NextConfig } from "next";
 
+/**
+ * Extra hosts (comma-separated bare hostnames) allowed to load the **dev** server's
+ * `/_next/*` resources — see `allowedDevOrigins` below. Optional: unset means just
+ * the defaults. Not a platform switch (production ignores the key entirely) — it
+ * exists so one config covers every way a developer reaches their own machine.
+ */
+const extraDevOrigins = (process.env.DEV_ALLOWED_ORIGINS ?? "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 const nextConfig: NextConfig = withSerwist({
   // Hosting: Cloud Run production on Google Cloud (see
   // docs/developer-guide.md §1.9.1) + Vercel dev previews. The Cloud Run Docker
@@ -27,6 +38,16 @@ const nextConfig: NextConfig = withSerwist({
       },
     ];
   },
+  // Next 16 blocks cross-origin requests to dev-only resources (`/_next/hmr`, the HMR
+  // websocket, manifests) unless the browser's Origin host is allowlisted — a CSRF
+  // guard for a server that runs arbitrary local code. `localhost` and the server's
+  // own bind host are allowed by default, so this lists only the other ways the dev
+  // server gets opened: the loopback IP (anything that reaches the port as
+  // `127.0.0.1` rather than `localhost`), plus `DEV_ALLOWED_ORIGINS` for a phone on
+  // the LAN, an emulator, or a tunnel. Entries are bare hostnames — no scheme, no
+  // port — and `*.host` wildcards are supported. Dev-only: a production build never
+  // reads it, so deploys gain no extra surface.
+  allowedDevOrigins: ["127.0.0.1", ...extraDevOrigins],
   experimental: {
     optimizePackageImports: [
       "@mantine/core",

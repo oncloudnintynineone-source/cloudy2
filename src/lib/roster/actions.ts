@@ -24,6 +24,7 @@ import {
   adoptExternalAccessForEmail,
   formatManagedGrants,
   isDepartmentAccessRole,
+  isManagedGrantRole,
   isValidEmail,
   listDepartmentAccess,
   normalizeAccessSelection,
@@ -159,6 +160,9 @@ export async function createUser(input: UserFormValues): Promise<RosterActionRes
   const phone = normalizePhone(input.phone)!;
   const departmentId = input.departmentId || null;
   const email = input.email?.trim() || null;
+  // Never trust the client: an own-department level is applied only when it is
+  // one of the three selectable levels.
+  const ownRole = isManagedGrantRole(input.ownDepartmentRole) ? input.ownDepartmentRole : null;
   const department = await calendarNameOrNull(departmentId);
   const { grants: access, names: accessNames } = await resolveAccessGrants(
     input.access,
@@ -228,6 +232,9 @@ export async function createUser(input: UserFormValues): Promise<RosterActionRes
   if (email) {
     warnings.push(...(await adoptExternalAccessForEmail(created.id, email, departmentId)));
   }
+  if (ownRole && email && departmentId) {
+    warnings.push(...(await applyAssignedRoleOverride(departmentId, email, ownRole)));
+  }
   return warnings.length > 0 ? { ok: true, warnings } : { ok: true };
 }
 
@@ -242,6 +249,9 @@ export async function updateUser(id: string, input: UserFormValues): Promise<Ros
   const phone = normalizePhone(input.phone)!;
   const newEmail = input.email?.trim() || null;
   const newDepartmentId = input.departmentId || null;
+  // Never trust the client: an own-department level is applied only when it is
+  // one of the three selectable levels.
+  const ownRole = isManagedGrantRole(input.ownDepartmentRole) ? input.ownDepartmentRole : null;
   const [before] = await db.select().from(users).where(eq(users.id, id)).limit(1);
   if (!before) {
     return { ok: false, error: "User not found", field: "name" };
@@ -323,22 +333,31 @@ export async function updateUser(id: string, input: UserFormValues): Promise<Ros
   const emailChanged = (before.email?.trim() || null) !== newEmail;
   const departmentChanged = (before.departmentId ?? null) !== newDepartmentId;
   const accessChanged = JSON.stringify(beforeAccess) !== JSON.stringify(afterAccess);
+
+  const warnings: string[] = [];
   if (emailChanged || departmentChanged || accessChanged) {
-    const warnings = await reconcileUserAccessChange({
-      oldEmail: before.email,
-      newEmail,
-      oldDepartmentId: before.departmentId,
-      newDepartmentId,
-      userId: id,
-      desiredAccess: afterGrants,
-    });
+    warnings.push(
+      ...(await reconcileUserAccessChange({
+        oldEmail: before.email,
+        newEmail,
+        oldDepartmentId: before.departmentId,
+        newDepartmentId,
+        userId: id,
+        desiredAccess: afterGrants,
+      })),
+    );
     if (newEmail && emailChanged) {
       warnings.push(...(await adoptExternalAccessForEmail(id, newEmail, newDepartmentId)));
     }
-    return warnings.length > 0 ? { ok: true, warnings } : { ok: true };
+  }
+  // The own-department level is an ACL override with no column of its own, so
+  // it rides on the save instead of writing Google immediately — and it goes
+  // last, after the reconcile re-asserted the membership default.
+  if (ownRole && newEmail && newDepartmentId) {
+    warnings.push(...(await applyAssignedRoleOverride(newDepartmentId, newEmail, ownRole)));
   }
 
-  return { ok: true };
+  return warnings.length > 0 ? { ok: true, warnings } : { ok: true };
 }
 
 export async function setUserStatus(id: string, status: UserStatus): Promise<RosterActionResult> {
@@ -790,13 +809,15 @@ export async function getDepartmentAccess(calendarId: string): Promise<Departmen
 
 /**
  * A roster user's live ACL role on their own department calendar, for the user
- * form's non-removable own-department row. Plain read (no reconcile): missing
- * rules and unknown roles fall back to the membership default, "reader".
+ * form's non-removable own-department row. Plain read (no reconcile): a missing
+ * rule or an unknown role is not a failure, it is the membership default,
+ * "reader". `null` means it could not be read at all (unknown calendar, or a
+ * Google error) — the form then asks for a level instead of guessing one.
  */
 export async function getAssignedAccessRole(
   calendarId: string,
   email: string,
-): Promise<ManagedGrantRole> {
+): Promise<ManagedGrantRole | null> {
   await requireAdmin();
   const trimmed = email.trim();
   if (!trimmed || !googleCalendarConfigured()) {
@@ -804,7 +825,7 @@ export async function getAssignedAccessRole(
   }
   const calendar = await getCalendarOrNull(calendarId);
   if (!calendar) {
-    return "reader";
+    return null;
   }
   try {
     const integration = await getGoogleIntegration();
@@ -812,8 +833,66 @@ export async function getAssignedAccessRole(
     const rule = acls.find((item) => item.email.toLowerCase() === trimmed.toLowerCase());
     return normalizeGrantRole(rule?.role);
   } catch {
-    return "reader";
+    return null;
   }
+}
+
+/**
+ * Set the access level a roster user holds on their **own** department calendar.
+ *
+ * Membership already shares that calendar at `reader`; anything above it is a
+ * raw Google ACL override — there is deliberately no column for it, because the
+ * membership row is the source of truth for who belongs to the department (and
+ * a direct Google edit stays authoritative). So the live rule is re-read first
+ * and written only when it actually differs, which keeps the `access.update`
+ * audit honest with a real prev → new diff even when another admin (or Google)
+ * moved the rule in the meantime.
+ *
+ * Called after {@link reconcileUserAccessChange}, which only ever sets the
+ * membership default and never downgrades an elevated rule. Like the reconcile,
+ * this degrades to human-readable warnings: the roster row is already committed,
+ * so a Google hiccup must not fail the save. No email, no department, or an
+ * unconfigured Google Calendar means there is nothing to write.
+ */
+async function applyAssignedRoleOverride(
+  calendarId: string,
+  email: string,
+  role: ManagedGrantRole,
+): Promise<string[]> {
+  const session = await requireAdmin();
+  const trimmed = email.trim();
+  if (!trimmed || !googleCalendarConfigured()) {
+    return [];
+  }
+  const calendar = await getCalendarOrNull(calendarId);
+  if (!calendar) {
+    return [];
+  }
+
+  let previousRole: string | null = null;
+  try {
+    const integration = await getGoogleIntegration();
+    const accessRules = await integration.listCalendarAccess(calendar.googleCalendarId);
+    previousRole =
+      accessRules.find((rule) => rule.email.toLowerCase() === trimmed.toLowerCase())?.role ?? null;
+    if (normalizeGrantRole(previousRole) === role) {
+      return [];
+    }
+    await integration.setCalendarAccess(calendar.googleCalendarId, trimmed, role);
+  } catch (error) {
+    return [describeError(error, "Google Calendar request failed")];
+  }
+
+  await logAction({
+    ...actorFrom(session),
+    action: AUDIT_ACTIONS.accessUpdate,
+    entityType: "calendar",
+    entityId: calendar.id,
+    entityName: calendar.name,
+    method: "applyAssignedRoleOverride",
+    details: { email: trimmed, ...diffFields({ role: previousRole }, { role }) },
+  });
+  return [];
 }
 
 export async function grantDepartmentAccess(

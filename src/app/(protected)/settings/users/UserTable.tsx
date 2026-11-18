@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
-import { Badge, Box, Group, Paper, Stack, Text } from "@mantine/core";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { Badge, Box, Button, Group, Paper, Stack, Text, Tooltip } from "@mantine/core";
 import { MotionModal } from "@/components/MotionModal";
 import { useDisclosure, useMediaQuery } from "@mantine/hooks";
 import { IconPlus, IconSearchOff, IconUsers } from "@tabler/icons-react";
@@ -13,6 +13,7 @@ import { SettingsListChrome } from "@/components/SettingsListChrome";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { type Rect } from "@/lib/motion/origin";
 import type { RosterAccessGrant, RosterUser } from "@/lib/roster/queries";
+import { grantSummaryLabel } from "@/lib/roster/accessEditor";
 import { departmentPathLabels, departmentTreeRows } from "@/lib/roster/hierarchy";
 import { fuzzyFilter } from "@/lib/search/fuzzy";
 import { formatFullName } from "@/lib/settings/formatName";
@@ -55,10 +56,18 @@ export function UserTable({ users, departments, accessByUser, nameTemplate }: Us
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [departmentFilter, setDepartmentFilter] = useState<string[]>([]);
   const [editingUser, setEditingUser] = useState<RosterUser | null>(null);
+  // The form lives in a lazy chunk and owns its `useForm`, so it reports whether
+  // anything is staged; closing the dialog then asks before throwing it away.
+  const dirtyRef = useRef(false);
+  const [discardOpened, { open: openDiscard, close: closeDiscard }] = useDisclosure(false);
+  const reportDirty = useCallback((dirty: boolean) => {
+    dirtyRef.current = dirty;
+  }, []);
 
-  // Department rows (preorder + full ancestor-path labels) for the Department
-  // chip filter — children read as "HQ › Logistics" inside the chip itself.
-  const departmentOptions = useMemo(() => {
+  // Department id → full ancestor-path label ("HQ › Logistics"), shared by the
+  // Department chip filter and the cards, so a nested department never reads as
+  // a bare name in one place and a path in the other.
+  const departmentLabels = useMemo(() => {
     const rows = departmentTreeRows(
       departments.map((department) => ({
         id: department.id,
@@ -68,7 +77,7 @@ export function UserTable({ users, departments, accessByUser, nameTemplate }: Us
       })),
     );
     const labels = departmentPathLabels(rows);
-    return rows.map((row) => ({ value: row.id, label: labels.get(row.id) ?? row.name }));
+    return new Map(rows.map((row) => [row.id, labels.get(row.id) ?? row.name]));
   }, [departments]);
 
   const filterGroups: FilterGroup[] = useMemo(
@@ -82,10 +91,10 @@ export function UserTable({ users, departments, accessByUser, nameTemplate }: Us
       },
       {
         label: "Department",
-        options: departmentOptions,
+        options: [...departmentLabels].map(([value, label]) => ({ value, label })),
       },
     ],
-    [departmentOptions],
+    [departmentLabels],
   );
 
   const filterValues: Record<string, string[]> = useMemo(
@@ -144,6 +153,22 @@ export function UserTable({ users, departments, accessByUser, nameTemplate }: Us
     open();
   }
 
+  /** The one exit path: closes the dialog and forgets the target. */
+  function closeEditor() {
+    dirtyRef.current = false;
+    close();
+    setEditingUser(null);
+  }
+
+  /** The X / backdrop / Esc path — staged edits are never dropped silently. */
+  function requestEditorClose() {
+    if (dirtyRef.current) {
+      openDiscard();
+      return;
+    }
+    closeEditor();
+  }
+
   return (
     <Stack ref={paneRef} gap="md" className={`${CONTENT_ENTER_CLASS} settings-pill-page-pad`}>
       <SettingsListChrome
@@ -187,60 +212,96 @@ export function UserTable({ users, departments, accessByUser, nameTemplate }: Us
         )
       ) : (
         <Box component="div" className="card-grid">
-          {filtered.map((user) => (
-            <Paper
-              key={user.id}
-              withBorder
-              p="sm"
-              className="c2-defer-render"
-              onClick={() => openEdit(user)}
-              {...activatable(() => openEdit(user))}
-              style={{ cursor: "pointer" }}
-            >
-              <Group justify="space-between" wrap="nowrap" align="flex-start">
-                <Stack gap={0}>
-                  <Text fw={600}>{user.name}</Text>
+          {filtered.map((user) => {
+            const grants = accessByUser[user.id] ?? [];
+            // The template line only says something when the recipe actually
+            // changes the name — the default "{name}" template would just
+            // repeat the bold line above it.
+            const templateName = formatFullName(
+              { name: user.name, departmentName: user.department?.name ?? null },
+              nameTemplate,
+            );
+            const departmentLabel = user.department
+              ? (departmentLabels.get(user.department.id) ?? user.department.name)
+              : null;
+            // Same labels as the department chip: a nested department reads as a
+            // path in the tooltip too, and a since-deleted one falls back to the
+            // name the server carried on the grant.
+            const grantNames = grants.map(
+              (grant) => departmentLabels.get(grant.calendarId) ?? grant.name,
+            );
+            return (
+              <Paper
+                key={user.id}
+                withBorder
+                p="sm"
+                className="c2-defer-render"
+                onClick={() => openEdit(user)}
+                {...activatable(() => openEdit(user))}
+                style={{ cursor: "pointer" }}
+              >
+                <Group justify="space-between" wrap="nowrap" align="flex-start">
+                  <Stack gap={0}>
+                    <Text fw={600}>{user.name}</Text>
+                    {templateName !== user.name ? (
+                      <Text size="sm" c="dimmed">
+                        {templateName}
+                      </Text>
+                    ) : null}
+                  </Stack>
+                  <Badge color={user.status === "active" ? "green" : "gray"}>
+                    {user.status === "active" ? "Active" : "Inactive"}
+                  </Badge>
+                </Group>
+                <Group gap={6} wrap="wrap" mt={4}>
+                  {user.shortname ? (
+                    <Badge variant="light" color="accent">
+                      {user.shortname}
+                    </Badge>
+                  ) : null}
                   <Text size="sm" c="dimmed">
-                    {formatFullName(
-                      { name: user.name, departmentName: user.department?.name ?? null },
-                      nameTemplate,
-                    )}
+                    {user.phone}
                   </Text>
-                </Stack>
-                <Badge color={user.status === "active" ? "green" : "gray"}>
-                  {user.status === "active" ? "Active" : "Inactive"}
-                </Badge>
-              </Group>
-              <Group gap={6} wrap="wrap" mt={4}>
-                {user.shortname ? (
-                  <Badge variant="light" color="accent">
-                    {user.shortname}
+                  <Badge color={user.role === "admin" ? "brand" : "gray"}>
+                    {user.role === "admin" ? "Admin" : "User"}
                   </Badge>
-                ) : null}
-                <Text size="sm" c="dimmed">
-                  {user.phone}
-                </Text>
-                <Badge color={user.role === "admin" ? "brand" : "gray"}>
-                  {user.role === "admin" ? "Admin" : "User"}
-                </Badge>
-                {user.department ? (
-                  <Badge variant="light" color="accent">
-                    {user.department.name}
-                  </Badge>
-                ) : (
-                  <Badge variant="outline" color="gray">
-                    No department
-                  </Badge>
-                )}
-              </Group>
-            </Paper>
-          ))}
+                  {departmentLabel ? (
+                    <Badge variant="light" color="accent">
+                      {departmentLabel}
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" color="gray">
+                      No department
+                    </Badge>
+                  )}
+                  {/* Cross-department grants are otherwise invisible until the
+                      card is opened. */}
+                  {grants.length > 0 ? (
+                    <Tooltip
+                      label={grantNames.join(", ")}
+                      multiline
+                      maw={240}
+                      withArrow
+                    >
+                      <Badge
+                        variant="outline"
+                        color="gray"
+                        aria-label={`Also has access to ${grantNames.join(", ")}`}
+                      >
+                        +{grantSummaryLabel(grants.length)}
+                      </Badge>
+                    </Tooltip>
+                  ) : null}
+                </Group>
+              </Paper>
+            );
+          })}
         </Box>
       )}
 
       <MotionModal
         opened={opened}
-        onClose={close}
+        onClose={requestEditorClose}
         title={editingUser ? "Edit user" : "Add user"}
         centered
         size={isDesktop ? "lg" : "md"}
@@ -250,20 +311,48 @@ export function UserTable({ users, departments, accessByUser, nameTemplate }: Us
           minHoldMs={MIN_SKELETON_HOLD_MS}
           mode="overlay"
           animateHeight
-          skeleton={<FormModalSkeleton rows={5} />}
+          skeleton={<FormModalSkeleton rows={7} />}
         >
           <UserForm
             key={editingUser?.id ?? "new"}
             user={editingUser}
             departments={departments}
             access={editingUser ? (accessByUser[editingUser.id] ?? []) : []}
+            onDirtyChange={reportDirty}
             onDone={() => {
-              close();
-              setEditingUser(null);
+              closeEditor();
               refreshAfterSave();
             }}
           />
         </CrossfadeSwap>
+      </MotionModal>
+
+      <MotionModal
+        opened={discardOpened}
+        onClose={closeDiscard}
+        title="Discard changes?"
+        centered
+        size="sm"
+        withCloseButton={false}
+        zIndex={400}
+      >
+        <Text size="sm">
+          Your unsaved changes to this user will be lost. This cannot be undone.
+        </Text>
+        <Group justify="flex-end" mt="md">
+          <Button variant="default" onClick={closeDiscard}>
+            Keep editing
+          </Button>
+          <Button
+            color="red"
+            onClick={() => {
+              closeDiscard();
+              closeEditor();
+            }}
+          >
+            Discard changes
+          </Button>
+        </Group>
       </MotionModal>
 
       <FilterModal
