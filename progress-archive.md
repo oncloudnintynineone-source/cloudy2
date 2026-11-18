@@ -10519,8 +10519,8 @@ scrolled inside the fixed-height wizard body.
 `src/components/TimeChipSelector.tsx`) renders a 44px input-look `Select time`
 button that shows the current `HH:mm` (or `Select time` when unset) and opens a
 centered `MotionModal` at `zIndex={300}` above the wizard. The dialog shows all 24
-hours as a 44px `auto-fit` grid (six columns, five in the narrow 320px tier — no
-scrolling) plus the 15-minute stops; an off-grid stored minute (e.g. an event
+hours in a fixed six-column grid — every row starts at 00 / 06 / 12 / 18, no
+scrolling — plus the 15-minute stops; an off-grid stored minute (e.g. an event
 edited in Google to `08:37`) is appended as an extra cell so an existing value is
 never lost. The user must pick both an hour and a minute: the second pick applies
 the time and closes the dialog, while X, backdrop and Escape discard the picks.
@@ -10531,10 +10531,10 @@ Escape needed special care: the wizard closes on a **window-capture** Escape
 (`ModalBase/use-modal`), and its only opt-out is a
 `data-mantine-stop-propagation="true"` on the event target. That attribute is on
 every cell and on the header close button, so Escape closes the picker without
-minimizing the wizard. The dialog starts with no selection (the stored value is a
-`Current time:` hint) so the two-pick flow is unambiguous; the modal's focus trap
-puts initial focus on the first hour (`data-autofocus`), the hour grid uses a
-roving tabindex with arrow/Home/End navigation, and the default `returnFocus`
+minimizing the wizard. The dialog opens with the stored hour and minute
+highlighted (context only — the user still taps both halves), and the modal's
+focus trap puts initial focus on that hour (`data-autofocus`). The hour grid uses
+a roving tabindex with arrow/Home/End navigation, and the default `returnFocus`
 sends focus back to the button.
 
 ```mermaid
@@ -10559,7 +10559,8 @@ one `TimeSelectField` per side), `src/app/globals.css`
 
 **Verification.** `tsc --noEmit` clean; ESLint clean; `pnpm test` 136 files / 1771
 tests pass (6 new time-picker cases). Device check still to be signed off by the user:
-open the wizard at 320/360px, confirm the dialog fits above the wizard, every cell is
-≥44×44, two taps commit and close, Escape closes only the dialog (the wizard stays
-open), and an off-grid edit value (e.g. `08:37`) keeps its `37` cell.
+open the wizard at 320/360px, confirm the dialog fits above the wizard, the hour
+cells are 44px tall (about 40px wide at the narrowest), two taps commit and close,
+Escape closes only the dialog (the wizard stays open), and an off-grid edit value
+(e.g. `08:37`) keeps its `37` cell.
 

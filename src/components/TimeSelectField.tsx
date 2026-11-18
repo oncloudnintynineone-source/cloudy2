@@ -15,11 +15,11 @@ import { NARROW_MEDIA_QUERY } from "@/lib/theme";
  * wizard.
  *
  * The dialog shows all 24 hours at once plus the 15-minute stops, so no
- * scrolling or keyboard is involved. The user picks an hour and a minute — as
- * soon as both have been selected the time is applied and the dialog closes
- * itself (dismissing with the X, backdrop or Escape discards the picks).
- * `onChange` therefore runs once, on the second pick, so the wizard's
- * end-clamping runs once too.
+ * scrolling or keyboard is involved. It opens with the stored hour and minute
+ * highlighted; the user then picks an hour and a minute, and the second pick
+ * applies the time and closes the dialog (dismissing with the X, backdrop or
+ * Escape discards the picks). `onChange` therefore runs once, on the second
+ * pick, so the wizard's end-clamping runs once too.
  */
 
 /** Escape inside the dialog must close the dialog, not minimize the wizard. */
@@ -92,11 +92,16 @@ export function TimeSelectField({ label, value, onChange, error }: TimeSelectFie
   );
 }
 
+/** Hour columns per row: every row starts at 00 / 06 / 12 / 18. */
+const HOUR_COLUMNS = 6;
+
 /**
- * The picker body. It starts with no selection so the two-pick flow is
- * unambiguous, and the current value is shown as a hint. Its state resets on
- * every open because `MotionModal` is not `keepMounted`, so this component
- * unmounts with the dialog (the `UserSelectModalBody` pattern).
+ * The picker body. It opens with the stored hour and minute highlighted (so the
+ * current time is visible as context), then waits for the user to pick **both**
+ * halves: the second pick applies the time and closes the dialog. Dismissing
+ * with the X, backdrop or Escape discards the picks. Because `MotionModal` is
+ * not `keepMounted`, this component remounts on every open and its state
+ * re-seeds from `value` (the `UserSelectModalBody` pattern).
  */
 function TimeSelectDialogBody({
   value,
@@ -105,39 +110,35 @@ function TimeSelectDialogBody({
   value: string;
   onCommit: (time: string) => void;
 }) {
-  const [hour, setHour] = useState("");
-  const [minute, setMinute] = useState("");
-  const hourGridRef = useRef<HTMLDivElement>(null);
+  const [hour, setHour] = useState(() => value.slice(0, 2));
+  const [minute, setMinute] = useState(() => value.slice(3, 5));
+  // The highlighted stored value is context only: the dialog commits once the
+  // user has explicitly picked an hour and a minute in this session.
+  const [hourPicked, setHourPicked] = useState(false);
+  const [minutePicked, setMinutePicked] = useState(false);
   const hourRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const minutes = useMemo(() => timeMinuteOptions(value), [value]);
-  // Roving tabindex: the picked (or first) hour is the grid's only tab stop.
+  // Roving tabindex: the highlighted (or first) hour is the grid's only tab stop.
   const tabbableHour = hour || TIME_HOUR_OPTIONS[0];
 
   function pickHour(next: string) {
     setHour(next);
-    if (minute) {
+    setHourPicked(true);
+    if (minutePicked) {
       onCommit(`${next}:${minute}`);
     }
   }
 
   function pickMinute(next: string) {
     setMinute(next);
-    if (hour) {
+    setMinutePicked(true);
+    if (hourPicked) {
       onCommit(`${hour}:${next}`);
     }
   }
 
-  /** Actual rendered column count — the grid is responsive (6 cols, 5 narrow). */
-  function hourColumnCount(): number {
-    const template = hourGridRef.current
-      ? getComputedStyle(hourGridRef.current).gridTemplateColumns
-      : "";
-    return template.split(/\s+/).filter(Boolean).length || 6;
-  }
-
   function handleHourKeyDown(event: KeyboardEvent<HTMLButtonElement>, current: string) {
     const index = TIME_HOUR_OPTIONS.indexOf(current);
-    const step = hourColumnCount();
     let next: number;
     switch (event.key) {
       case "ArrowRight":
@@ -147,10 +148,10 @@ function TimeSelectDialogBody({
         next = index - 1;
         break;
       case "ArrowDown":
-        next = index + step;
+        next = index + HOUR_COLUMNS;
         break;
       case "ArrowUp":
-        next = index - step;
+        next = index - HOUR_COLUMNS;
         break;
       case "Home":
         next = 0;
@@ -169,24 +170,11 @@ function TimeSelectDialogBody({
 
   return (
     <Stack gap="sm">
-      <Stack gap={2}>
-        {value ? (
-          <Text size="sm" c="dimmed">
-            Current time:{" "}
-            <Text span fw={600} c="inherit">
-              {value}
-            </Text>
-          </Text>
-        ) : null}
-        <Text size="xs" c="dimmed">
-          Pick an hour and a minute — the time applies when both are chosen.
-        </Text>
-      </Stack>
       <div>
         <Text size="xs" c="dimmed" fw={600} mb={4}>
           Hour
         </Text>
-        <div ref={hourGridRef} className="c2-time-grid" role="group" aria-label="Hour">
+        <div className="c2-time-grid" role="group" aria-label="Hour">
           {TIME_HOUR_OPTIONS.map((option) => (
             <TimeCell
               key={option}

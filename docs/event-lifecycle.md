@@ -236,23 +236,23 @@ Mechanics worth knowing:
   (`src/components/TimeSelectField.tsx`): a 44px "Select time" button (showing the
   current `HH:mm`, or "Select time" when empty) opens a centered picker dialog
   stacked above the wizard (`MotionModal`, `zIndex={300}`). The dialog shows every
-  hour as a 44px grid — six columns, five in the narrow 320px tier, so nothing
-  scrolls — plus the 15-minute stops 00/15/30/45 (an off-grid stored minute such as
-  `08:37` is added as an extra cell). The user must pick **both** an hour and a
-  minute: the second pick applies the time and closes the dialog, while the X,
-  backdrop tap or Escape discards the picks. The dialog opens with no cell
-  selected (the stored time is a `Current time:` hint), so the two-pick flow is
-  unambiguous. `data-mantine-stop-propagation` on
-  every control keeps Escape from also minimizing the wizard, and the dialog
-  returns focus to the button. The picked `HH:mm` joins into the naive
-  `YYYY-MM-DD HH:mm:ss` string via `joinDateTimeParts`, a cleared time stores a bare
-  date, which `validateEventForm` rejects ("Start time is required" / "End time is
-  required"). `full` = two `DatePickerInput`s (plain dates, no half-day markers);
-  `half` = two `DatePickerInput`s plus an AM/PM `SegmentedControl` per side. Every
-  date input is made natively read-only via the styles-API `attributes`
-  (`attributes.input`) — **never** the component `readOnly` prop, which would also
-  disable its popover — so tapping opens only the calendar and never raises the
-  on-screen keyboard (the time field is a button, so it cannot raise one either).
+  hour in a fixed six-column grid — each row starts at 00 / 06 / 12 / 18, cells are
+  44px tall, so nothing scrolls — plus the 15-minute stops 00/15/30/45 (an off-grid
+  stored minute such as `08:37` is added as an extra cell). The user must pick
+  **both** an hour and a minute: the second pick applies the time and closes the
+  dialog, while the X, backdrop tap or Escape discards the picks. The dialog opens
+  with the stored hour and minute highlighted, so the current time is visible as
+  context. `data-mantine-stop-propagation` on every control keeps Escape from also
+  minimizing the wizard, and the dialog returns focus to the button. The picked
+  `HH:mm` joins into the naive `YYYY-MM-DD HH:mm:ss` string via
+  `joinDateTimeParts`, a cleared time stores a bare date, which `validateEventForm`
+  rejects ("Start time is required" / "End time is required"). `full` = two
+  `DatePickerInput`s (plain dates, no half-day markers); `half` = two
+  `DatePickerInput`s plus an AM/PM `SegmentedControl` per side. Every date input is
+  made natively read-only via the styles-API `attributes` (`attributes.input`) —
+  **never** the component `readOnly` prop, which would also disable its popover —
+  so tapping opens only the calendar and never raises the on-screen keyboard (the
+  time field is a button, so it cannot raise one either).
   `switchTimeOption` (`EventForm.tsx`) zeroes the time part to `00:00:00` when
   entering any day-based option and defaults the indicators to AM→PM on `half`, so a
   mixed span renders with no title suffix.

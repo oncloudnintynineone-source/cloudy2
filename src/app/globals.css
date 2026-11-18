@@ -1483,12 +1483,13 @@ html.c2-low-end::view-transition-group(*) {
   outline-color: var(--mantine-color-brand-4);
 }
 
-/* The time picker dialog's hour grid: `auto-fit` 44px columns so every hour is
-   visible at once — six columns in the 380px dialog, five in the narrow 320px
-   tier — with 44px-tall cells for thumbs and no horizontal scrolling. */
+/* The time picker dialog's hour grid: fixed six columns so every row starts at
+   00 / 06 / 12 / 18 (and all 24 hours are visible at once, with no horizontal
+   scrolling); the cells are 44px tall for thumbs and stay ~40px wide at the
+   narrowest 320px tier. */
 .c2-time-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(44px, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 4px;
 }
 .c2-time-cell {

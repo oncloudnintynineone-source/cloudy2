@@ -2447,9 +2447,11 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   `accessibility.md` §1.7 (new), `event-lifecycle.md` §1.4, `AGENTS.md`.
 - 1.378 **Event time picker**: the wizard's Start/End time controls become 44px
   "Select time" buttons that open a centered picker dialog (`TimeSelectField`,
-  `MotionModal` at z-index 300) with a 24-hour grid (6 columns, 5 in the narrow tier,
-  44px cells — no scrolling) and the 15-minute stops; picking both an hour and a minute
-  applies the time and auto-closes, and X/backdrop/Escape discard. Replaces the read-only
+  `MotionModal` at z-index 300) with a 24-hour grid (fixed 6 columns so every row
+  starts at 00/06/12/18, 44px-tall cells — no scrolling) and the 15-minute stops; the
+  dialog opens with the stored
+  time highlighted, and picking both an hour and a minute applies the time and
+  auto-closes, while X/backdrop/Escape discard. Replaces the read-only
   `TimePicker` + horizontally scrolling chip rows (26px targets). Off-grid stored minutes
   are preserved as an extra cell; end-clamping is unchanged. Docs:
   `event-lifecycle.md` §1.4.1/§1.11.1/§1.15.
