@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Badge, Group, Popover, Stack, Text, UnstyledButton } from "@mantine/core";
-import { IconCheck, IconChevronDown } from "@tabler/icons-react";
+import { IconChevronDown } from "@tabler/icons-react";
 
 import { SelectableBadge } from "@/components/SelectableBadge";
 import { useMotion } from "@/components/MotionProvider";
@@ -123,12 +123,14 @@ export function EventTypeGroupGrid({
  * One group as a content-width container chip: a brand **outline** badge (the
  * type badges inside its popup are borderless light/filled, so the container
  * and its options never read the same) with the group name and a right-edge
- * chevron that rotates with the popup. A light-brand fill appears once the
- * group holds a selection, **plus a visible marker**: a filled brand count pill
- * in multi mode (how many of this folder's types are filtered in) and a check
- * glyph in single mode (where the count is always one, so "which folder holds
- * my pick" is the only question). A folder that looks untouched while it holds
- * a selection is what made people re-pick types they had already filtered.
+ * chevron that rotates with the popup. The **border itself** carries the
+ * selection state — none: plain outline; **some**: **dotted yellow** outline;
+ * **all**: **solid yellow** outline (`.c2-event-type-group-tile[data-selected]`
+ * / `[data-partial]` in `globals.css`). No glyph, no count badge, no fill: a
+ * folder that looks untouched while it holds a selection is what made people
+ * re-pick types they had already filtered, and the dash/color says it at a
+ * glance in both select modes. The `aria-label` spells the count out for
+ * assistive tech.
  */
 function GroupTile({
   section,
@@ -147,6 +149,7 @@ function GroupTile({
     (count, option) => count + (isSelected(option.value) ? 1 : 0),
     0,
   );
+  const allSelected = selectedCount > 0 && selectedCount === section.options.length;
 
   function handleToggle(value: string) {
     onToggle(value);
@@ -173,7 +176,7 @@ function GroupTile({
           aria-expanded={open}
           aria-label={`${section.label}, ${section.options.length} type${
             section.options.length === 1 ? "" : "s"
-          }${selectedCount > 0 ? `, ${selectedCount} selected` : ""}`}
+          }${allSelected ? ", all selected" : selectedCount > 0 ? `, ${selectedCount} selected` : ""}`}
           style={{
             cursor: "pointer",
             borderRadius: "var(--mantine-radius-md)",
@@ -184,16 +187,15 @@ function GroupTile({
             size="lg"
             variant="outline"
             className="c2-event-type-group-tile"
+            data-selected={selectedCount > 0 ? "true" : undefined}
+            data-partial={selectedCount > 0 && !allSelected ? "true" : undefined}
             aria-hidden
             style={{
               gap: 6,
               height: "auto",
-              minHeight: "calc(var(--badge-height-lg) * 1.5)",
+              minHeight: "var(--c2-chip-height)",
               paddingBlock: 4,
               maxWidth: "100%",
-              ...(selectedCount > 0
-                ? { backgroundColor: "var(--mantine-color-brand-light)" }
-                : undefined),
             }}
           >
             <span
@@ -206,14 +208,6 @@ function GroupTile({
             >
               {section.label}
             </span>
-            {selectedCount > 0 &&
-              (mode === "single" ? (
-                <IconCheck size={14} stroke={2.5} style={{ flexShrink: 0 }} />
-              ) : (
-                <Badge size="xs" variant="filled" color="brand" aria-hidden>
-                  {selectedCount}
-                </Badge>
-              ))}
             <IconChevronDown
               size={14}
               style={{

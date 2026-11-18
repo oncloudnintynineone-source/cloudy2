@@ -3,7 +3,7 @@
 import { Button, Group, Menu, Stack, Stepper, Text, UnstyledButton } from "@mantine/core";
 import { IconCheck, IconChevronUp } from "@tabler/icons-react";
 
-import { STEP_LABELS, STEP_SHORT_LABELS, type StepDef } from "./eventFormSteps";
+import { STEP_LABELS, STEP_SHORT_LABELS, type StepDef } from "./eventFormStepLogic";
 import type { WizardStepIndicator } from "@/lib/settings/featureFlags";
 
 interface EventFormStepsProps {

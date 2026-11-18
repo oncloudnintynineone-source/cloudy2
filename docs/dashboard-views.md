@@ -511,8 +511,8 @@ then Ungrouped, then the folder groups; empty groups skipped. They render throug
 shared `EventTypeGroupGrid` (`src/components/EventTypeGroupGrid.tsx`): non-folder
 groups as labeled rows (category name above the badges, toggled directly), folder
 groups as content-width chips whose popups hold their badges (multi-select — the popup
-stays open while toggling); a folder chip with picks inside carries a visible marker —
-a brand count pill (single-select callers: a check) — so a collapsed folder never
+stays open while toggling); a folder chip holding picks wears a **yellow outline** —
+**dotted** while some of its types are picked, **solid** when all are — so a collapsed folder never
 hides that it is filtering; the single group-level All/None
 selects or clears every type across all categories. The group's flat `options`
 remain the canonical value list for apply/count logic; sections are presentation
@@ -601,7 +601,7 @@ flowchart LR
  FB["FilterButton (nav row)<br/>icon + active-group badge"] --> FM["FilterModal"]
  FM --> CAL["Calendars<br/>(badge grid + All/None)"]
  FM --> US["Users<br/>(grouped badge picker + Myself)"]
- FM --> ET["Event Types<br/>(inline labeled rows + folder chips w/ count pill, behind Show/Hide)"]
+ FM --> ET["Event Types<br/>(inline rows + folder chips: yellow outline —<br/>dotted=some, solid=all; behind Show/Hide)"]
  FM --> HINT["Scope hint<br/>(these filters apply to {tab} only)"]
  HINT --> APPLY["saveDashboardViewFilters<br/>(server action)"]
  APPLY --> ROW["active tab row<br/>(cal/users/types, NULL = role default)"]
@@ -1372,7 +1372,7 @@ flowchart LR
 | `src/lib/ui/monthZoom.ts` | Pure Month fit-width zoom levels + stepping (`clampMonthZoom`, `stepMonthZoom`) + the fit-height fill + chip-count math (`monthFillEvents`, `monthFitChipCount`, §1.8.1) |
 | `src/components/GridNavControls.tsx` | Day/Week (H) + Month right-edge cluster: zoom +/− + right pan, plus left-edge pan |
 | `src/components/FilterButton.tsx` | Dedicated filter button (icon + active-group badge) replacing the kebab's filter menu |
-| `src/components/FilterModal.tsx` | Filters dialog (unified group headers + state chips, badge grids, labeled rows + folder chips w/ count pill, removable summary chips, "Showing:" line, Reset filters, collapsible groups, per-tab scope hint) |
+| `src/components/FilterModal.tsx` | Filters dialog (unified group headers + state chips, badge grids, labeled rows + folder chips with yellow dotted/solid outline, removable summary chips, "Showing:" line, Reset filters, collapsible groups, per-tab scope hint) |
 
 Related docs:
 

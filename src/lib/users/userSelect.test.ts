@@ -9,9 +9,7 @@ import {
   mergeInviteeSelection,
   optionMatchesQuery,
   removeInvitee,
-  removeSelectedId,
   selectionByGroup,
-  selectedChips,
   sortOptionsInGroups,
   splitInvitees,
   toggleInviteeUser,
@@ -413,87 +411,6 @@ describe("toggleInviteeUser", () => {
     const input = ["user:u1"];
     expect(toggleInviteeUser(input, "u1")).not.toBe(input);
     expect(toggleInviteeUser(input, "u2")).not.toBe(input);
-  });
-});
-
-describe("selectedChips", () => {
-  const CHIP_GROUPS: PickerGroup[] = [
-    {
-      label: "Departments",
-      options: [
-        { id: "d1", label: "HQ" },
-        { id: "d2", label: "HQ › Logistics" },
-      ],
-    },
-    {
-      label: "Logistics",
-      options: [
-        { id: "u1", label: "Ahmad Faiz" },
-        { id: "u2", label: "Chng Ai Ling", self: true },
-      ],
-    },
-  ];
-
-  it("lists the drafted options in section order with their labels", () => {
-    expect(
-      selectedChips(CHIP_GROUPS, {
-        Departments: ["d2", "d1"],
-        Logistics: ["u2"],
-      }),
-    ).toEqual([
-      { id: "d1", label: "HQ", self: undefined, sectionLabel: "Departments" },
-      { id: "d2", label: "HQ › Logistics", self: undefined, sectionLabel: "Departments" },
-      { id: "u2", label: "Chng Ai Ling", self: true, sectionLabel: "Logistics" },
-    ]);
-  });
-
-  it("carries the self flag so the chip keeps the amber (You) treatment", () => {
-    const [chip] = selectedChips(CHIP_GROUPS, { Logistics: ["u2"] });
-    expect(chip.self).toBe(true);
-  });
-
-  it("dedupes an id selected through two sections into one chip", () => {
-    const chips = selectedChips(
-      [
-        { label: "A", options: [{ id: "x", label: "X" }] },
-        { label: "B", options: [{ id: "x", label: "X" }] },
-      ],
-      { A: ["x"], B: ["x"] },
-    );
-    expect(chips).toHaveLength(1);
-  });
-
-  it("drops ids that no longer resolve to an option and ignores unknown sections", () => {
-    expect(
-      selectedChips(CHIP_GROUPS, { Departments: ["d1", "gone"], Removed: ["u9"] }),
-    ).toEqual([{ id: "d1", label: "HQ", self: undefined, sectionLabel: "Departments" }]);
-  });
-
-  it("is empty for an empty draft", () => {
-    expect(selectedChips(CHIP_GROUPS, {})).toEqual([]);
-  });
-});
-
-describe("removeSelectedId", () => {
-  it("drops the id from the section that named it", () => {
-    expect(removeSelectedId({ Departments: ["d1", "d2"], Logistics: ["u1"] }, "d2")).toEqual({
-      Departments: ["d1"],
-      Logistics: ["u1"],
-    });
-  });
-
-  it("drops the id from every section so no ghost pick survives a deduped chip", () => {
-    expect(removeSelectedId({ A: ["x"], B: ["x", "y"] }, "x")).toEqual({
-      A: [],
-      B: ["y"],
-    });
-  });
-
-  it("leaves the draft untouched for an unknown id and never mutates it", () => {
-    const draft = { Departments: ["d1"] };
-    expect(removeSelectedId(draft, "ghost")).toEqual({ Departments: ["d1"] });
-    expect(removeSelectedId(draft, "ghost")).not.toBe(draft);
-    expect(draft.Departments).toEqual(["d1"]);
   });
 });
 

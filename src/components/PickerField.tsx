@@ -56,9 +56,12 @@ export function PickerBadges({
   const visible = cap === undefined ? items : items.slice(0, cap);
   const overflow = items.length - visible.length;
   const removable = onRemove !== undefined;
-  // A removable chip carries a ✕, so every chip in the row grows to a
-  // comfortable 28px together — one even row, and a real touch target.
-  const chipStyles = removable ? { root: { minHeight: 28 } } : undefined;
+  // Every chip — removable or not, including the +N — rides the app-wide
+  // interactive-chip height (--c2-chip-height, globals.css), so picker rows
+  // line up with the dialog pool and the filter summaries everywhere.
+  const chipStyles = {
+    root: { minHeight: "var(--c2-chip-height)", height: "auto", paddingBlock: 4 },
+  } as const;
   return (
     <Group gap={6} wrap="wrap">
       {visible.map((item) => {

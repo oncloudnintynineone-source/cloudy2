@@ -2825,6 +2825,17 @@ html.c2-low-end::view-transition-group(*) {
 }
 
 /*
+  One height for every interactive/selectable user & department chip —
+  `SelectableBadge` pool badges, folder container chips, removable summary
+  chips (`PickerBadges`), the wizard's Type banner and recent-location chips
+  (docs/user-picker.md §1.6). Chips set `height: auto` + this `min-height`
+  so multi-line ancestor-path labels wrap and grow.
+*/
+:root {
+  --c2-chip-height: calc(2.25rem * var(--mantine-scale)); /* 36px */
+}
+
+/*
   Selected selectable badge (docs/user-picker.md §1.7): selection is a COLOR,
   not a glyph — brand amber (#FBC02D, accent-6) with near-black text (~9.6:1)
   in both schemes; the dark scheme's existing currentColor badge ring (above)
@@ -2841,24 +2852,6 @@ html.c2-low-end::view-transition-group(*) {
 }
 
 /*
-  UserSelectModal's pinned Selected strip (docs/user-picker.md §1.2): a
-  bordered, tinted container so the running selection reads as a different
-  area from the pool of selectable badges below it — its chips are amber
-  (the selected language), the pool's are gray. Scheme-scoped per the app's
-  dark-override convention.
-*/
-.c2-picker-selected-strip {
-  background-color: var(--mantine-color-gray-0);
-  border: 1px solid var(--mantine-color-gray-3);
-  border-radius: var(--mantine-radius-sm);
-  padding: 8px 10px;
-}
-[data-mantine-color-scheme="dark"] .c2-picker-selected-strip {
-  background-color: var(--mantine-color-dark-6);
-  border-color: var(--mantine-color-dark-4);
-}
-
-/*
   Event-type folder chip (the wizard Type step + the filter dialog's Event
   Types group, `EventTypeGroupGrid`'s GroupTile): `variant="outline"` paints
   its text and border in `--mantine-color-brand-outline` = brand-4 in the dark
@@ -2870,6 +2863,25 @@ html.c2-low-end::view-transition-group(*) {
 [data-mantine-color-scheme="dark"] .mantine-Badge-root.c2-event-type-group-tile {
   color: var(--mantine-color-brand-3);
   border-color: var(--mantine-color-brand-3);
+}
+
+/*
+  Event-type folder chip holding a selection (docs/event-lifecycle.md §1.10):
+  the YELLOW outline carries the state — 2px gold (accent-7; bright accent-6
+  in the dark scheme, where plain yellow pops on the body) so it reads on the
+  card, **dotted** while only some of the folder's types are picked, **solid**
+  when all are. No fill, no glyph, no count badge; the aria-label spells the
+  count out. Placed after the dark brand-3 rule so the border wins there too.
+*/
+.mantine-Badge-root.c2-event-type-group-tile[data-selected] {
+  border-width: 2px;
+  border-color: var(--mantine-color-accent-7);
+}
+.mantine-Badge-root.c2-event-type-group-tile[data-partial] {
+  border-style: dotted;
+}
+[data-mantine-color-scheme="dark"] .mantine-Badge-root.c2-event-type-group-tile[data-selected] {
+  border-color: var(--mantine-color-accent-6);
 }
 
 /*

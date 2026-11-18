@@ -3,7 +3,6 @@
 import "@mantine/dates/styles.css";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import {
-  ActionIcon,
   Badge,
   Button,
   Grid,
@@ -29,7 +28,6 @@ import {
   IconChevronRight,
   IconUserMinus,
   IconUserPlus,
-  IconX,
 } from "@tabler/icons-react";
 
 import { PickerField, type PickerBadgeItem } from "@/components/PickerField";
@@ -49,7 +47,7 @@ import { fetchRecentLocations } from "@/lib/events/recentLocations";
 import { EventClashCheck } from "./EventClashCheck";
 import { EventFormSteps } from "./EventFormSteps";
 import { WIZARD_BODY_HEIGHT_DESKTOP, WIZARD_BODY_HEIGHT_MOBILE } from "./eventFormLayout";
-import { STEP_LABELS, buildSteps, type StepId } from "./eventFormSteps";
+import { STEP_LABELS, buildSteps, type StepId } from "./eventFormStepLogic";
 import { subOneDay } from "@/lib/events/datetime";
 import {
   buildOptimisticEvent,
@@ -537,21 +535,6 @@ export function EventForm({
       })),
     [pickerSections],
   );
-
-  // The chosen type's own group, named beside it in the type step's banner: with
-  // the types split across folders, "which one did I pick" is only half the
-  // question people re-ask themselves.
-  const selectedTypeGroupLabel = useMemo(() => {
-    const value = form.values.eventType;
-    if (!value) {
-      return null;
-    }
-    return (
-      pickerSections.find((section) =>
-        section.types.some((type) => type.name === value),
-      )?.name ?? null
-    );
-  }, [pickerSections, form.values.eventType]);
 
   const allowedOptions: TimeOption[] = selectedType ? selectedType.timeOptions : ["range"];
   const effectiveTimeOption = resolveTimeOption(allowedOptions, form.values.timeOption);
@@ -1552,45 +1535,10 @@ export function EventForm({
                 </Text>
               ) : (
                 <>
-                  {/* Persistent selection banner: the grid scrolls and a single
-                      filled badge among twenty is exactly what people lose track
-                      of, so the step keeps naming the chosen type — with a ✕ that
-                      clears it, instead of hunting for the badge to un-tap. */}
-                  <Group gap="xs" align="center" wrap="wrap">
-                    {form.values.eventType ? (
-                      <>
-                        <Text size="xs" fw={600} c="dimmed">
-                          Selected
-                        </Text>
-                        <Badge
-                          variant="filled"
-                          color="brand"
-                          size="lg"
-                          styles={{ root: { minHeight: 28 } }}
-                          rightSection={
-                            <ActionIcon
-                              className="c2-picker-chip-remove"
-                              variant="subtle"
-                              color="gray"
-                              size="sm"
-                              aria-label="Clear event type"
-                              title="Clear event type"
-                              onClick={() => handleEventTypeChange(null)}
-                            >
-                              <IconX size={14} />
-                            </ActionIcon>
-                          }
-                        >
-                          {form.values.eventType}
-                          {selectedTypeGroupLabel ? ` · ${selectedTypeGroupLabel}` : ""}
-                        </Badge>
-                      </>
-                    ) : (
-                      <Text size="xs" c="dimmed">
-                        No event type selected — tap one below.
-                      </Text>
-                    )}
-                  </Group>
+                  {/* No "currently selected" banner: the chosen type is the one
+                      amber badge in the grid, and tapping it again clears the
+                      pick (the folder pills' yellow outline says which group
+                      holds it). */}
                   {/* Inline groups -> labeled rows; folder groups -> chips with a
                       popup of that group's types (shared with the filter dialog). */}
                   <EventTypeGroupGrid
@@ -1689,7 +1637,17 @@ export function EventForm({
                           onClick={() => form.setFieldValue("location", location)}
                           style={{ cursor: "pointer", borderRadius: "var(--mantine-radius-md)" }}
                         >
-                          <Badge variant={selected ? "filled" : "light"} size="lg">
+                          <Badge
+                            variant={selected ? "filled" : "light"}
+                            size="lg"
+                            styles={{
+                              root: {
+                                minHeight: "var(--c2-chip-height)",
+                                height: "auto",
+                                paddingBlock: 4,
+                              },
+                            }}
+                          >
                             {location}
                           </Badge>
                         </UnstyledButton>

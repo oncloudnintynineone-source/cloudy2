@@ -56,14 +56,9 @@ of toggleable badges with a search box on top:
 - Multi-select section headers show the option count plus an **All / Clear** pair
   scoped to that section; the footer carries a global **Select all / Clear**. The
   controls are hidden in `single` mode (where one pick replaces the whole draft).
-- A pinned **"Selected (N)"** strip sits between the search box and the scrolling
-  list — a bordered, tinted container (`.c2-picker-selected-strip`) so it reads as a
-  different area from the pool below: the current draft as removable **amber** chips
-  (the shared `PickerBadges`), so what is picked stays visible while the search
-  filters the list. Chips follow section /
-  option order (pure `selectedChips`); a chip's ✕ drops that id from **every** section
-  of the draft (`removeSelectedId` — no ghost pick), and an empty draft shows a dimmed
-  hint instead.
+- There is **no dedicated "Selected" area** inside the dialog: picks are
+  unmistakable in the pool (amber fill, §1.7) and the footer keeps a live
+  "N selected" count — a second summary of the same draft was redundant chrome.
 - The footer shows a dimmed **"N selected"** beside the global Clear / All-None pair,
   and the confirm button defaults to **"Done"** — the dialog both adds and removes, so
   an "Add"/"Select" label made users believe re-tapping a name added it again. Callers
@@ -91,9 +86,7 @@ of toggleable badges with a search box on top:
 | `departmentPickerOptions(rows)` | builds the options for a department-as-option list (wrapped badges / chip filters) from preorder `departmentTreeRows` (`roster/hierarchy.ts`); each option's label carries its **full ancestor chain** ("HQ › Logistics › Stores", via `departmentPathLabels`), top level = its plain name, and its `depth` is kept only as the "keep tree preorder, don't re-alphabetize" marker |
 | `filterPickerGroups` | narrows fuzzily; keeps a whole section when its label matches; drops empties |
 | `selectionByGroup` | seeds a draft from a flat selection |
-| `selectedChips(groups, draft)` | resolves a draft into `PickerChip[]` for the dialog's Selected strip — section order, then option order (matching the badge grid), deduped across sections; ids no longer in the option set drop out of the UI (never silently deleted from the caller's value) |
-| `removeSelectedId(draft, id)` | drops an id from **every** section of a draft (a chip's ✕ can never leave a ghost pick in another section); never mutates |
-| `removeInvitee(invitees, key)` | removes one prefixed (`user:`/`dept:`) invitee key from a flat invitee list — the wizard chip's ✕ handler |
+| `removeInvitee` | removes one prefixed (`user:`/`dept:`) invitee key from a flat invitee list — the wizard chip's ✕ handler |
 | `splitInvitees` / `mergeInviteeSelection` | split/merge the `user:<id>` / `dept:<id>` prefixed invitee list (keeps now-unlistable ids so edits don't drop them; nothing is auto-added by the helpers — a fresh create's form seeds the acting user as a participant, but that is `buildInitialValues`, not the picker) |
 
 ## 1.4 Callers
@@ -152,8 +145,12 @@ standalone as `PickerBadges`:
   picked, and `self` uses the amber "mine" treatment with "(You)". With `onRemove`
   every visible chip carries a ✕ that removes that pick in place (the `+N` badge
   stays inert — §1.7); `removeLabel` overrides the ✕'s accessible name (default
-  `Remove <label>`). Pure presentation — callers resolve their own id domains into
-  items.
+  `Remove <label>`). Every chip — removable or not, `+N` included — rides the
+  app-wide interactive-chip height `--c2-chip-height` (36px, `globals.css`), the
+  same height `SelectableBadge`, the folder container chips, the wizard's Type
+  banner and the recent-location chips use, so every row of selectable/clickable
+  user & department chips lines up. Pure presentation — callers resolve their own
+  id domains into items.
 - **`PickerTrigger`** is the shared trigger button: **Add** + `IconPlus` while nothing
   is picked, **Edit** + `IconPencil` afterwards; `triggerLabel` wins over the pair and
   `addLabel`/`editLabel` customize it.
@@ -202,22 +199,20 @@ selection state visible everywhere and removal one tap:
   parent) keep an explicit `triggerLabel="Select"`.
 - **Summary chips:** `PickerBadges onRemove` puts a ✕ (`ActionIcon`, ≥22px via
   `.c2-picker-chip-remove` in `globals.css`, visible focus ring on the brand ramp) on
-  every visible chip; a removable row grows all its chips to 28px together so the row
+  every visible chip; chips ride the shared 36px `--c2-chip-height` so the row
   stays even. The `+N` overflow badge stays **inert** — its hidden picks are removed
   inside the dialog, where they are named. `PickerField` adds the dimmed hint "Tap the
   ✕ on a chip to remove it." under the row.
-- **Inside the dialog:** the pinned Selected strip — a bordered, tinted container
-  (`.c2-picker-selected-strip`) with amber chips, visually apart from the gray pool —
-  plus the footer "N selected" (§1.2), so the draft is visible while the search
-  filters the option list.
+- **Inside the dialog:** no dedicated Selected area — picks show as amber
+  badges in the pool itself, and the footer keeps a live "N selected" count
+  beside Clear (§1.2).
 - **Copy discipline:** group-level **All / None** (None = an explicit empty selection),
   search-group **All / Clear**, and the filter footer's **Reset filters** (back to role
   defaults) are three different actions with three names — never merge them.
 
 The copy decisions live in pure helpers (`src/lib/ui/picker.ts`: `pickerTriggerLabel`,
 `pickerRemovalHint`, `pickerChipRemovable`) and the removal math in `userSelect.ts`
-(`selectedChips`, `removeSelectedId`, `removeInvitee`) — all unit-tested. Removal UI
-never silently deletes an id the user cannot see: chips resolve from the current option
-set (stale ids stay out of the summary), while `mergeInviteeSelection` still preserves
-unlistable ids on commit.
+(`removeInvitee`) — unit-tested. Removal UI never silently deletes an id the user cannot
+see: summary chips resolve from the current option set (stale ids stay out of the
+summary), while `mergeInviteeSelection` still preserves unlistable ids on commit.
 

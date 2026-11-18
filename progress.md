@@ -18,8 +18,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.382 (amber selected badges + distinct Selected
-  strip)** is shipped.
+- All work through changelog **1.386 (Type step: no Selected banner; folder pills
+  go yellow)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -2501,6 +2501,35 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   In `UserSelectModal` the pinned Selected strip becomes a bordered, tinted container
   (`.c2-picker-selected-strip`) with amber chips, clearly apart from the gray pool.
   Docs: `user-picker.md` §1.2/§1.7.
+- 1.383 **One chip height app-wide**: selectable/clickable user & department chips
+  had four heights (39px pool badges, 28px removable summaries, 28px Type banner,
+  26px recent-location chips) — now every interactive chip rides a single
+  `--c2-chip-height` (36px) token in `globals.css`: `SelectableBadge`, the folder
+  container chips, `PickerBadges` (all chips + the `+N`), the wizard's Type-step
+  banner and the recent-location chips. `height: auto` + `min-height` keeps
+  multi-line ancestor-path labels wrapping. Docs: `user-picker.md` §1.6/§1.7.
+- 1.384 **No Selected strip; folder pills outline their state**: the dialog's pinned
+  Selected area was redundant chrome — picks are amber in the pool and the footer
+  keeps the "N selected" count (dead helpers `selectedChips`/`removeSelectedId` +
+  8 tests removed). Event-type folder pills drop the check glyph / count badge:
+  the **border** carries the state — dotted outline = some of the folder's types
+  picked, solid outline + light brand tint = all (`.c2-event-type-group-tile[data-partial]`;
+  the `aria-label` still spells the count). Docs: `user-picker.md` §1.2/§1.3/§1.7,
+  `dashboard-views.md` §1.2, `event-lifecycle.md` §1.10.
+- 1.385 **Case collision removed — build unblocked**: `eventFormSteps.ts` (pure step
+  logic) and `EventFormSteps.tsx` (the step strip) sat in one folder, and on a
+  case-insensitive filesystem TypeScript resolved `./EventFormSteps` to the `.ts`
+  file — `pnpm typecheck` failed (TS2305/TS1149), which fails CI and blocks every
+  deploy (why the picker changes "did not apply"). The pure module is now
+  `eventFormStepLogic.ts` (test renamed too), both importers repointed; typecheck
+  is fully clean and `pnpm build` passes end to end.
+- 1.386 **Type step: no Selected banner; folder pills go yellow**: the wizard's
+  persistent "Selected …" chip above the type grid was the last "currently
+  selected" section — removed (the chosen type is the amber badge in the grid;
+  re-tapping it clears the pick). Folder pills now carry the state in a
+  **yellow outline**: 2px gold (bright accent-6 in dark), **dotted** = some of
+  the folder's types picked, **solid** = all; the brand tint fill is gone too.
+  Docs: `event-lifecycle.md` §1.4.1/§1.10, `dashboard-views.md` §1.2.
 
 ## 1.4 Open items & next steps
 

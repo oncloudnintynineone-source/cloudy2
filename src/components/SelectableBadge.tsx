@@ -58,7 +58,7 @@ export function SelectableBadge({
         data-selected={selected || undefined}
         style={{
           height: "auto",
-          minHeight: "calc(var(--badge-height-lg) * 1.5)",
+          minHeight: "var(--c2-chip-height)",
           paddingBlock: 4,
           maxWidth: "100%",
         }}

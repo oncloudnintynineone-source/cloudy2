@@ -309,64 +309,6 @@ export function mergeInviteeSelection(
   return [...departmentIds.map((id) => `dept:${id}`), ...userIds.map((id) => `user:${id}`)];
 }
 
-/** One chip of a picker's "Selected (N)" summary. */
-export interface PickerChip {
-  id: string;
-  label: string;
-  /** True for the signed-in user's option (amber "mine" chip). */
-  self?: boolean;
-  /** The section the option came from (a department name, "Departments", …). */
-  sectionLabel: string;
-}
-
-/**
- * Resolve a picker draft into the chips of its "Selected (N)" summary: option
- * labels in section order, deduped across sections. Ids that no longer resolve
- * to an option are dropped — a now-inactive user keeps their id in the caller's
- * stored value (`mergeInviteeSelection` never silently drops it), but a chip
- * cannot name someone the picker no longer lists.
- */
-export function selectedChips(
-  groups: readonly PickerGroup[],
-  draft: Record<string, readonly string[]>,
-): PickerChip[] {
-  const chips: PickerChip[] = [];
-  const seen = new Set<string>();
-  for (const group of groups) {
-    const selected = new Set(draft[group.label] ?? []);
-    for (const option of group.options) {
-      if (!selected.has(option.id) || seen.has(option.id)) {
-        continue;
-      }
-      seen.add(option.id);
-      chips.push({
-        id: option.id,
-        label: option.label,
-        self: option.self,
-        sectionLabel: group.label,
-      });
-    }
-  }
-  return chips;
-}
-
-/**
- * Remove one id from a picker draft — the ✕ on a chip in the dialog's own
- * "Selected (N)" strip. The id is dropped from **every** section, so a draft can
- * never keep a ghost pick in a section the chip did not name. The draft object
- * is never mutated.
- */
-export function removeSelectedId(
-  draft: Record<string, readonly string[]>,
-  id: string,
-): Record<string, string[]> {
-  const next: Record<string, string[]> = {};
-  for (const [label, ids] of Object.entries(draft)) {
-    next[label] = ids.filter((value) => value !== id);
-  }
-  return next;
-}
-
 /**
  * Remove one chip from the prefixed invitee list. `key` is the chip's own
  * `user:<id>` / `dept:<id>` value, so removing a person or a department straight

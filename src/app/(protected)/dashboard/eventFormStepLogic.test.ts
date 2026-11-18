@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { STEP_LABELS, STEP_SHORT_LABELS, buildSteps, type StepId } from "./eventFormSteps";
+import {
+  STEP_LABELS,
+  STEP_SHORT_LABELS,
+  buildSteps,
+  type StepId,
+} from "./eventFormStepLogic";
 
 const ALL_STEP_IDS: StepId[] = [
   "type",

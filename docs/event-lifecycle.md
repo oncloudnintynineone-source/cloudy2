@@ -225,13 +225,12 @@ Mechanics worth knowing:
 ### 1.4.1 Step details
 
 - **Type** (`EventForm.tsx`): the type list renders through the shared
-  `EventTypeGroupGrid` in `single` mode (§1.10). A persistent **Selected** banner sits
-  above the grid: the current type as a filled brand chip (`Type · Group` when grouped)
-  with a ✕ that clears it, or a dimmed "No event type selected — tap one below." — so
-  the pick is visible without hunting the grid for the one filled badge. Selecting a
-  type re-resolves the time option against the type's allowed set and re-clamps the
-  location category against the type's allowed locations (`handleEventTypeChange`,
-  `EventForm.tsx`).
+  `EventTypeGroupGrid` in `single` mode (§1.10). There is **no "currently selected"
+  banner** — the chosen type is the one amber badge in the grid, its folder pill
+  wears the yellow outline, and tapping the selected badge again clears the pick.
+  Selecting a type re-resolves the time option against the type's allowed set and
+  re-clamps the location category against the type's allowed locations
+  (`handleEventTypeChange`, `EventForm.tsx`).
 - **Timestamp** (`EventForm.tsx`): when the type allows more than one
   option the step shows a `Tabs` control ("Start & End" / "Full Day" / "Half Day");
   otherwise the single option's fields render directly. `range` = a `DatePickerInput`
@@ -911,10 +910,10 @@ flowchart LR
   content-width **container chips** in a wrapping row after the inline rows: a
   brand-outline badge (the type badges in the popup are borderless light/filled, so
   container and options never read the same) showing the group name plus a right-edge
-  chevron that rotates with the popup; a light-brand fill appears once the group holds a
-  selection, with a visible marker on the chip — a brand **count pill** (multi) or a
-  check icon (single) — so a collapsed folder never hides that it holds picks (the
-  `aria-label` carries the same). Tapping a chip
+  chevron that rotates with the popup; once the group holds a selection a **yellow
+  outline** carries the state — **dotted** while only some of the folder's types are
+  picked, **solid** when all are (2px gold, bright yellow in the dark scheme; no
+  fill, no glyph, no count badge — the `aria-label` carries the count). Tapping a chip
   opens a Mantine `Popover`
   (zIndex 300, above the modals, standard `popoverTransitionProps` pop) with the
   group's `SelectableBadge`s. `mode="single"` (the wizard) closes the popup on select;
