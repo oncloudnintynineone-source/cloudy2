@@ -1501,15 +1501,13 @@ html.c2-low-end::view-transition-group(*) {
 }
 /* An out-of-order time (a same-date range whose other side currently precedes /
    follows it): fully selectable — either side may be set first — but marked
-   with a thick solid amber ring so the pending inversion is visible. The
-   caption and the cell's accessible name identify the other side, so the cue
-   never reads as "disabled". */
+   with a thick solid red ring (the app's error colour, matching the field
+   validation border) so the pending inversion is visible. The caption and the
+   cell's accessible name identify the other side, so the cue never reads as
+   "disabled" and is not colour-only. */
 .c2-time-cell[data-out-of-order] .c2-time-cell-badge {
-  outline: 2px solid var(--mantine-color-yellow-9);
+  outline: 2px solid var(--mantine-color-error);
   outline-offset: -2px;
-}
-[data-mantine-color-scheme="dark"] .c2-time-cell[data-out-of-order] .c2-time-cell-badge {
-  outline-color: var(--mantine-color-yellow-4);
 }
 .c2-time-cell .c2-time-cell-badge {
   width: 100%;

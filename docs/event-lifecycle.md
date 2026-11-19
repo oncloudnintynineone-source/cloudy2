@@ -249,11 +249,11 @@ Mechanics worth knowing:
   Both sides are freely editable — either the Start or the End may be moved
   past the other, so a user can set one first and fix the other afterwards.
   When both sides share a date, the time pickers mark every cell that would
-  invert the current range with a thick solid amber ring (and an `aria-label` suffix
+  invert the current range with a thick solid red ring (and an `aria-label` suffix
   naming the other side) but leave it **fully selectable** — no cell is
   disabled, and arrow/Home/End navigation visits every hour. The selected value
   is never marked, so the control always shows its current state. A dimmed
-  caption explains the mark (`Times before the current start are marked amber —
+  caption explains the mark (`Times before the current start are marked red —
   you can still pick one and adjust the start.`), and the ordering error
   ("End must be on or after start") is synced onto the End control immediately
   as the invalid pair is created; Next and Submit stay blocked until it is
@@ -1043,7 +1043,7 @@ markers, switching to `half` (prefilled from the stored notes) keeps them.
   the **in-order** cells for the current bounds — an hour while *some* offered
   minute is in order, and a minute that fits the staged hour (or, while no hour
   is staged, that some hour could complete). The wizard renders the complement
-  with the thick solid amber advisory ring but never disables a cell; both return
+  with the thick solid red advisory ring but never disables a cell; both return
   everything when no bounds are set, so a cross-date range marks nothing.
 - The picker's state is a pair: the selected value is never marked out of order,
   and a pick on either side is applied immediately, so the user can set a Start

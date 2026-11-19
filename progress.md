@@ -2547,8 +2547,9 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   freely editable in either direction — both date pickers drop their cross-side
   `minDate`/`maxDate`, both Half Day AM/PM segments stay enabled, and no edit setter
   calls `clampEventEnd` (removed from the option switch too). A same-date out-of-order
-  time keeps a thick solid amber advisory ring and an aria-label suffix but stays fully
-  selectable (the selected value is never marked; arrow/Home/End visit every hour).
+  time keeps a thick solid red advisory ring (the shared error colour) and an
+  aria-label suffix but stays fully selectable (the selected value is never marked;
+  arrow/Home/End visit every hour).
   The validator's ordering error is synced onto the End control immediately and
   Next/Submit stay blocked until the pair is fixed. `clampEventEnd` +
   `validateEventForm` remain the write-path safety nets; `needsClamp` now drives the

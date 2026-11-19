@@ -194,10 +194,10 @@ Mechanics:
   gray.
 - The wizard's **out-of-order time cells** (either side may be edited past the
   other; §1.4.1 of [`event-lifecycle.md`](event-lifecycle.md)) use a 2px solid
-  `yellow-9` outline in the light scheme and `yellow-4` in the dark scheme. The
-  cell is never disabled, and the cue is not colour-only: the picker caption says
-  those times are still selectable, and the cell's `aria-label` names the side it
-  conflicts with.
+  `--mantine-color-error` outline (red-6 light / red-8 dark), matching the field
+  error border. The cell is never disabled, and the cue is not colour-only: the
+  picker caption says those times are still selectable, the cell's `aria-label`
+  names the side it conflicts with, and the form error message says how to fix it.
 
 ```mermaid
 flowchart LR
