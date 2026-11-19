@@ -193,11 +193,11 @@ Mechanics:
   `.c2-wizard-step-caption` class; its light branch is exactly the old `dimmed`
   gray.
 - The wizard's **out-of-order time cells** (either side may be edited past the
-  other; §1.4.1 of [`event-lifecycle.md`](event-lifecycle.md)) use a
-  `yellow-9` dashed outline in the light scheme and `yellow-4` in the dark
-  scheme. The cell is never disabled, and the cue is not colour-only: the ring is
-  dashed, the picker caption says those times are still selectable, and the
-  cell's `aria-label` names the side it conflicts with.
+  other; §1.4.1 of [`event-lifecycle.md`](event-lifecycle.md)) use a 2px solid
+  `yellow-9` outline in the light scheme and `yellow-4` in the dark scheme. The
+  cell is never disabled, and the cue is not colour-only: the picker caption says
+  those times are still selectable, and the cell's `aria-label` names the side it
+  conflicts with.
 
 ```mermaid
 flowchart LR

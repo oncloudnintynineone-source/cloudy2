@@ -27,7 +27,7 @@ import { NARROW_MEDIA_QUERY } from "@/lib/theme";
  * Escape, or the automatic close after a minute pick — keeps the change.
  * `minTime`/`maxTime` (same-date ranges) are **advisory**: every cell stays
  * selectable (either side may be set first), but times outside the current
- * window get a dashed amber ring and an aria-label suffix naming the other side;
+ * window get a thick solid amber ring and an aria-label suffix naming the other side;
  * the selected value is never marked. A dimmed caption explains the mark.
  * `onChange` therefore fires on every applied pick, exactly once per tap.
  */
@@ -132,7 +132,7 @@ const HOUR_COLUMNS = 6;
  *
  * Same-date bounds (the other side's current time) are **advisory**: every cell
  * stays selectable, because either side may be set first and the wizard flags an
- * inverted pair afterwards. Cells outside the bounds get a dashed amber ring
+ * inverted pair afterwards. Cells outside the bounds get a thick solid amber ring
  * (and an aria-label suffix) unless they are the selected value; a dimmed
  * caption explains the mark. Because `MotionModal` is not `keepMounted`, this
  * component remounts on every open and its state re-seeds from `value` (the
@@ -304,7 +304,7 @@ function TimeSelectDialogBody({
 /**
  * One hour/minute badge chip: a real 44px button, pressed-state aware. Every
  * cell is selectable — an out-of-order time (against the other side's current
- * value) keeps the normal badge and gains a dashed amber ring instead, and its
+ * value) keeps the normal badge and gains a thick solid amber ring instead, and its
  * accessible name says which side it conflicts with, so the cue is never
  * color-only and the cell never reads as unavailable.
  */
