@@ -1499,16 +1499,6 @@ html.c2-low-end::view-transition-group(*) {
   border-radius: var(--mantine-radius-md);
   cursor: pointer;
 }
-/* An out-of-order time (a same-date range whose other side currently precedes /
-   follows it): fully selectable — either side may be set first — but marked
-   with a thick solid red ring (the app's error colour, matching the field
-   validation border) so the pending inversion is visible. The caption and the
-   cell's accessible name identify the other side, so the cue never reads as
-   "disabled" and is not colour-only. */
-.c2-time-cell[data-out-of-order] .c2-time-cell-badge {
-  outline: 2px solid var(--mantine-color-error);
-  outline-offset: -2px;
-}
 .c2-time-cell .c2-time-cell-badge {
   width: 100%;
   height: 44px;

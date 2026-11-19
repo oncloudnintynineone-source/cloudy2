@@ -6,13 +6,7 @@ import { useMediaQuery } from "@mantine/hooks";
 import { IconChevronDown, IconClock } from "@tabler/icons-react";
 
 import { MotionModal } from "@/components/MotionModal";
-import {
-  enabledHourOptions,
-  enabledMinuteOptions,
-  TIME_HOUR_OPTIONS,
-  timeMinuteOptions,
-  type TimeBounds,
-} from "@/lib/events/timeOptions";
+import { TIME_HOUR_OPTIONS, timeMinuteOptions } from "@/lib/events/timeOptions";
 import { NARROW_MEDIA_QUERY } from "@/lib/theme";
 
 /**
@@ -22,13 +16,11 @@ import { NARROW_MEDIA_QUERY } from "@/lib/theme";
  *
  * The dialog shows all 24 hours at once plus the 15-minute stops, so no
  * scrolling or keyboard is involved. It opens with the stored hour and minute
- * highlighted and applies each valid pick immediately (an hour keeps the stored
+ * highlighted and applies every pick immediately (an hour keeps the stored
  * minute, a minute uses the stored hour), so closing it any way — X, backdrop,
- * Escape, or the automatic close after a minute pick — keeps the change.
- * `minTime`/`maxTime` (same-date ranges) are **advisory**: every cell stays
- * selectable (either side may be set first), but times outside the current
- * window get a thick solid red ring and an aria-label suffix naming the other side;
- * the selected value is never marked. A dimmed caption explains the mark.
+ * Escape, or the automatic close after a minute pick — keeps the change. No
+ * time is restricted: either side of a range may be moved past the other, and
+ * the wizard's ordering validation flags an inverted pair after the pick.
  * `onChange` therefore fires on every applied pick, exactly once per tap.
  */
 
@@ -47,26 +39,9 @@ export interface TimeSelectFieldProps {
   onChange: (time: string) => void;
   /** Validation message rendered under the button. */
   error?: ReactNode;
-  /**
-   * The other side's current start `HH:mm` (same-date ranges). Times before it
-   * are marked out of order but remain selectable.
-   */
-  minTime?: string;
-  /**
-   * The other side's current end `HH:mm` (same-date ranges). Times after it are
-   * marked out of order but remain selectable.
-   */
-  maxTime?: string;
 }
 
-export function TimeSelectField({
-  label,
-  value,
-  onChange,
-  error,
-  minTime,
-  maxTime,
-}: TimeSelectFieldProps) {
+export function TimeSelectField({ label, value, onChange, error }: TimeSelectFieldProps) {
   const [opened, setOpened] = useState(false);
   const errorId = useId();
   const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY);
@@ -107,13 +82,7 @@ export function TimeSelectField({
         zIndex={300}
         closeButtonProps={STOP_ESCAPE}
       >
-        <TimeSelectDialogBody
-          value={value}
-          minTime={minTime}
-          maxTime={maxTime}
-          onApply={onChange}
-          onClose={() => setOpened(false)}
-        />
+        <TimeSelectDialogBody value={value} onApply={onChange} onClose={() => setOpened(false)} />
       </MotionModal>
     </Stack>
   );
@@ -128,26 +97,16 @@ const HOUR_COLUMNS = 6;
  * minute uses the highlighted hour — so closing the dialog by any means keeps
  * what was picked. Picking a minute while an hour is set also applies the time
  * and closes the dialog (and picking an hour after a minute on an empty field
- * does the same).
- *
- * Same-date bounds (the other side's current time) are **advisory**: every cell
- * stays selectable, because either side may be set first and the wizard flags an
- * inverted pair afterwards. Cells outside the bounds get a thick solid red ring
- * (and an aria-label suffix) unless they are the selected value; a dimmed
- * caption explains the mark. Because `MotionModal` is not `keepMounted`, this
- * component remounts on every open and its state re-seeds from `value` (the
+ * does the same). Because `MotionModal` is not `keepMounted`, this component
+ * remounts on every open and its state re-seeds from `value` (the
  * `UserSelectModalBody` pattern).
  */
 function TimeSelectDialogBody({
   value,
-  minTime,
-  maxTime,
   onApply,
   onClose,
 }: {
   value: string;
-  minTime?: string;
-  maxTime?: string;
   onApply: (time: string) => void;
   onClose: () => void;
 }) {
@@ -158,30 +117,9 @@ function TimeSelectDialogBody({
   const [minutePicked, setMinutePicked] = useState(false);
   const hourRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const minutes = useMemo(() => timeMinuteOptions(value), [value]);
-  const bounds: TimeBounds = useMemo(() => ({ min: minTime, max: maxTime }), [minTime, maxTime]);
-  // In-order cells (advisory only — every cell stays selectable). The pure
-  // helpers still compute the window; the complement is what gets the ring.
-  const inOrderHours = useMemo(() => enabledHourOptions(minutes, bounds), [minutes, bounds]);
-  const inOrderHourSet = useMemo(() => new Set(inOrderHours), [inOrderHours]);
-  const inOrderMinuteSet = useMemo(
-    () => new Set(enabledMinuteOptions(minutes, hour, bounds)),
-    [minutes, hour, bounds],
-  );
-  // Roving tabindex: every hour is focusable now, so the tab stop follows the
-  // stored hour (or the first cell) and the arrow keys never skip a cell.
+  // Roving tabindex: the tab stop follows the stored hour (or the first cell)
+  // and the arrow keys never skip a cell.
   const tabbableHour = hour || TIME_HOUR_OPTIONS[0];
-  // Which current value the advisory bounds came from; used for the caption and
-  // each cell's accessible name.
-  const otherSide = minTime && !maxTime ? "start" : maxTime && !minTime ? "end" : null;
-  const outOfOrderLabel = otherSide ? `out of order with the current ${otherSide}` : undefined;
-  const boundsHint =
-    minTime && !maxTime
-      ? "Times before the current start are marked red — you can still pick one and adjust the start."
-      : maxTime && !minTime
-        ? "Times after the current end are marked red — you can still pick one and adjust the end."
-        : minTime && maxTime
-          ? "Times outside the current range are marked red — you can still pick one and adjust the other side."
-          : null;
 
   function pickHour(next: string) {
     setHour(next);
@@ -250,11 +188,6 @@ function TimeSelectDialogBody({
 
   return (
     <Stack gap="sm">
-      {boundsHint ? (
-        <Text size="xs" c="dimmed">
-          {boundsHint}
-        </Text>
-      ) : null}
       <div>
         <Text size="xs" c="dimmed" fw={600} mb={4}>
           Hour
@@ -266,8 +199,6 @@ function TimeSelectDialogBody({
               label={option}
               ariaLabel={`${Number(option)} o'clock`}
               selected={option === hour}
-              outOfOrder={option !== hour && !inOrderHourSet.has(option)}
-              outOfOrderLabel={outOfOrderLabel}
               tabIndex={option === tabbableHour ? 0 : -1}
               autoFocus={option === tabbableHour}
               cellRef={(node) => {
@@ -290,8 +221,6 @@ function TimeSelectDialogBody({
               label={option}
               ariaLabel={`${option} minutes past the hour`}
               selected={option === minute}
-              outOfOrder={option !== minute && !inOrderMinuteSet.has(option)}
-              outOfOrderLabel={outOfOrderLabel}
               onSelect={() => pickMinute(option)}
             />
           ))}
@@ -301,19 +230,11 @@ function TimeSelectDialogBody({
   );
 }
 
-/**
- * One hour/minute badge chip: a real 44px button, pressed-state aware. Every
- * cell is selectable — an out-of-order time (against the other side's current
- * value) keeps the normal badge and gains a thick solid red ring instead, and its
- * accessible name says which side it conflicts with, so the cue is never
- * color-only and the cell never reads as unavailable.
- */
+/** One hour/minute badge chip: a real 44px button, pressed-state aware. */
 function TimeCell({
   label,
   ariaLabel,
   selected,
-  outOfOrder = false,
-  outOfOrderLabel,
   tabIndex,
   autoFocus = false,
   cellRef,
@@ -323,8 +244,6 @@ function TimeCell({
   label: string;
   ariaLabel: string;
   selected: boolean;
-  outOfOrder?: boolean;
-  outOfOrderLabel?: string;
   tabIndex?: number;
   autoFocus?: boolean;
   cellRef?: (node: HTMLButtonElement | null) => void;
@@ -337,10 +256,9 @@ function TimeCell({
       type="button"
       className="c2-time-cell"
       aria-pressed={selected}
-      aria-label={outOfOrder && outOfOrderLabel ? `${ariaLabel}, ${outOfOrderLabel}` : ariaLabel}
+      aria-label={ariaLabel}
       tabIndex={tabIndex}
       data-autofocus={autoFocus ? "" : undefined}
-      data-out-of-order={outOfOrder ? "" : undefined}
       data-mantine-stop-propagation="true"
       onClick={onSelect}
       onKeyDown={onKeyDown}

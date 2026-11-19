@@ -248,16 +248,11 @@ Mechanics worth knowing:
   minute while an hour is set also applies the time and closes the dialog.
   Both sides are freely editable — either the Start or the End may be moved
   past the other, so a user can set one first and fix the other afterwards.
-  When both sides share a date, the time pickers mark every cell that would
-  invert the current range with a thick solid red ring (and an `aria-label` suffix
-  naming the other side) but leave it **fully selectable** — no cell is
-  disabled, and arrow/Home/End navigation visits every hour. The selected value
-  is never marked, so the control always shows its current state. A dimmed
-  caption explains the mark (`Times before the current start are marked red —
-  you can still pick one and adjust the start.`), and the ordering error
-  ("End must be on or after start") is synced onto the End control immediately
-  as the invalid pair is created; Next and Submit stay blocked until it is
-  fixed. `clampEventEnd` remains the write-path/server safety net, not an
+  The picker imposes no bounds and no out-of-order styling: every hour and
+  minute stays selectable, with arrow/Home/End visiting every cell. The ordering
+  error ("End must be on or after start") is synced onto the End control
+  immediately as the invalid pair is created; Next and Submit stay blocked until
+  it is fixed. `clampEventEnd` remains the write-path/server safety net, not an
   edit-time snap.
   `data-mantine-stop-propagation` on every control keeps Escape from also
   minimizing the wizard, and the dialog returns focus to the button. The picked
@@ -1037,17 +1032,9 @@ markers, switching to `half` (prefilled from the stored notes) keeps them.
   seeded value — the standard four plus the stored minute when it sits off-grid
   (e.g. an event edited in Google to `08:37`), so an existing value is always
   visible and re-selectable.
-- `isTimeWithinBounds(time, { min, max })` (`TimeBounds`):
-  inclusive `HH:mm` bounds check behind the picker's in-order (advisory) set.
-- `enabledHourOptions(minutes, bounds)` / `enabledMinuteOptions(minutes, hour, bounds)`:
-  the **in-order** cells for the current bounds — an hour while *some* offered
-  minute is in order, and a minute that fits the staged hour (or, while no hour
-  is staged, that some hour could complete). The wizard renders the complement
-  with the thick solid red advisory ring but never disables a cell; both return
-  everything when no bounds are set, so a cross-date range marks nothing.
-- The picker's state is a pair: the selected value is never marked out of order,
-  and a pick on either side is applied immediately, so the user can set a Start
-  past the End (or vice versa) and fix the other side afterwards.
+- The picker imposes **no time bounds and no out-of-order styling**: every hour
+  and minute is selectable, and the wizard's ordering validation handles a range
+  that crosses the other side (§1.4.1).
 - The title's `(AM)`/`(PM)` marker comes from the recipe's `time` segment (§1.8.1), not a
   hardcoded helper.
 
@@ -1130,7 +1117,7 @@ writes, headers) is thin and lives in `actions.ts` / `queries.ts`.
 | `normalizeAssignments` (whitelist keys, drop empties), `validateAssignments` (unknown ids) (§1.8.5)                                                                                | `settings/validate.ts`                            | `settings/validate.test.ts`                 |
 | `formatFullName`                                                                                                                                                                   | `settings/formatName.ts`                          | `formatName.test.ts`                        |
 | `clampOutOfCamp` (all allowed-location sets), `flagsFromCategory` / `categoryFromFlags`, `normalizeAllowedLocations`                                                               | `events/locationPolicy.ts`                        | `locationPolicy.test.ts`                    |
-| `resolveTimeOption(s)`, `normalizeTimeOptions`, `naiveDatePart` / `naiveTimePart` / `joinDateTimeParts`, `isTimeWithinBounds`, `enabledHourOptions` / `enabledMinuteOptions`                                                                 | `events/timeOptions.ts`                           | `timeOptions.test.ts`                       |
+| `resolveTimeOption(s)`, `normalizeTimeOptions`, `naiveDatePart` / `naiveTimePart` / `joinDateTimeParts`, `timeMinuteOptions`                                                                 | `events/timeOptions.ts`                           | `timeOptions.test.ts`                       |
 | `buildEventTypePickerSections` (groups in display order, empty-group skip, ungrouped last, dangling-id degrade), `sortEventTypeGroups`, `moveEventTypeGroupOrder` (§1.10)          | `eventTypes/groups.ts`                            | `groups.test.ts`                            |
 | `absEventRange` (timed + all-day exclusive end), naive↔instant, `weekDays`, `monthsInRange`, `shiftMonth`, `monthRange`, `monthGridRows`                                           | `events/datetime.ts`                              | `datetime.test.ts`                          |
 | `modifyGuard`, `canChangeLock`                                                                                                                                                     | `events/guards.ts`                                | `guards.test.ts`                            |
@@ -1177,7 +1164,7 @@ limitations live in [`registration-events.md`](registration-events.md).
 | `src/lib/settings/tokenTemplate.ts`               | Token engine for participant-notification content (pure)                                  |
 | `src/lib/settings/formatName.ts`                  | Display-name template (pure)                                                              |
 | `src/lib/events/locationPolicy.ts`                | Location categories / allowed-locations clamping (pure)                                   |
-| `src/lib/events/timeOptions.ts`                   | Time options + picker bounds + AM/PM marker (pure)                                        |
+| `src/lib/events/timeOptions.ts`                   | Time options + datetime part helpers + AM/PM marker (pure)                               |
 | `src/lib/events/datetime.ts`                      | UTC+8 datetime math (pure)                                                                |
 | `src/lib/events/calendarExport.ts`                | Add-to-calendar builders: Google template URL + `.ics` (pure, §1.12)                      |
 | `src/lib/events/guards.ts`                        | Creator/ownership guards (pure)                                                           |
@@ -1187,7 +1174,7 @@ limitations live in [`registration-events.md`](registration-events.md).
 | `src/lib/eventTypes/groupActions.ts`              | Group create/rename/delete/move server actions (§1.10)                                    |
 | `src/lib/events/queries.ts`                       | `mapCalendarItem` — read-back into `CalendarEvent`                                        |
 | `src/lib/events/recentLocations.ts`               | `fetchRecentLocations` — per-user location suggestions (server action)                    |
-| `src/components/TimeSelectField.tsx`              | "Select time" button + hour/minute picker dialog (out-of-order cells advisory)           |
+| `src/components/TimeSelectField.tsx`              | "Select time" button + hour/minute picker dialog (no time bounds)                        |
 | `src/lib/appUrl.ts`                               | App origin for the `Edit:` link                                                           |
 
 Related docs:

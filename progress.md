@@ -2542,18 +2542,19 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   that would invert a same-date range is disabled, making the silent `clampEventEnd`
   snap unreachable from the UI (`clampEventEnd` + `validateEventForm` stay the
   option-switch/server safety nets). Pure `enabledHourOptions` /
-  `enabledMinuteOptions` (13 tests). Docs: `event-lifecycle.md` §1.4.1/§1.11.1.
+  `enabledMinuteOptions` (13 tests; both helpers removed again in 1.388).
+  Docs: `event-lifecycle.md` §1.4.1/§1.11.1.
 - 1.388 **Both time sides cross while editing**: the wizard's Start and End are now
   freely editable in either direction — both date pickers drop their cross-side
   `minDate`/`maxDate`, both Half Day AM/PM segments stay enabled, and no edit setter
-  calls `clampEventEnd` (removed from the option switch too). A same-date out-of-order
-  time keeps a thick solid red advisory ring (the shared error colour) and an
-  aria-label suffix but stays fully selectable (the selected value is never marked;
-  arrow/Home/End visit every hour).
-  The validator's ordering error is synced onto the End control immediately and
-  Next/Submit stay blocked until the pair is fixed. `clampEventEnd` +
-  `validateEventForm` remain the write-path safety nets; `needsClamp` now drives the
-  inline sync (tests). Docs: `event-lifecycle.md` §1.4.1/§1.5.2/§1.11.1.
+  calls `clampEventEnd` (removed from the option switch too). The time picker applies
+  no bounds and no out-of-order styling: every hour/minute is selectable, and the
+  now-unused `isTimeWithinBounds` / `enabledHourOptions` / `enabledMinuteOptions`
+  helpers and their tests were removed. The validator's ordering error is synced onto
+  the End control immediately and Next/Submit stay blocked until the pair is fixed.
+  `clampEventEnd` + `validateEventForm` remain the write-path safety nets;
+  `needsClamp` drives the inline sync (tests).
+  Docs: `event-lifecycle.md` §1.4.1/§1.5.2/§1.11.1.
 
 ## 1.4 Open items & next steps
 

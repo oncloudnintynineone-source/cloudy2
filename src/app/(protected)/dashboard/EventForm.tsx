@@ -1221,10 +1221,9 @@ export function EventForm({
       }
       return form.values[field] ? form.errors[field] : undefined;
     };
-    // Date pickers carry no cross-side bounds: an out-of-order date is a valid
-    // intermediate step (the error above flags it). Same-date times keep their
-    // soft advisory bounds — the picker marks the out-of-order cells amber but
-    // still lets them be picked.
+    // Neither date pickers nor the time pickers carry cross-side bounds: an
+    // out-of-order value is a valid intermediate step (the error above flags
+    // it), so either side can be set first and the other fixed afterwards.
     const startField =
       option === "range" ? (
         <Stack gap="xs">
@@ -1241,7 +1240,6 @@ export function EventForm({
           <TimeSelectField
             label="Start time"
             value={startTime}
-            maxTime={sameDate && endTime ? endTime : undefined}
             onChange={(time) =>
               setStartField(joinDateTimeParts(naiveDatePart(form.values.start), time))
             }
@@ -1290,7 +1288,6 @@ export function EventForm({
           <TimeSelectField
             label="End time"
             value={endTime}
-            minTime={sameDate && startTime ? startTime : undefined}
             onChange={(time) =>
               setEndField(joinDateTimeParts(naiveDatePart(form.values.end), time))
             }

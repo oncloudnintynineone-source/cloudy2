@@ -192,12 +192,6 @@ Mechanics:
 - The step captions swapped Mantine's `c="dimmed"` (an inline style) for the
   `.c2-wizard-step-caption` class; its light branch is exactly the old `dimmed`
   gray.
-- The wizard's **out-of-order time cells** (either side may be edited past the
-  other; §1.4.1 of [`event-lifecycle.md`](event-lifecycle.md)) use a 2px solid
-  `--mantine-color-error` outline (red-6 light / red-8 dark), matching the field
-  error border. The cell is never disabled, and the cue is not colour-only: the
-  picker caption says those times are still selectable, the cell's `aria-label`
-  names the side it conflicts with, and the form error message says how to fix it.
 
 ```mermaid
 flowchart LR
