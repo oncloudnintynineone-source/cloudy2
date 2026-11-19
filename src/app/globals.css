@@ -1499,13 +1499,17 @@ html.c2-low-end::view-transition-group(*) {
   border-radius: var(--mantine-radius-md);
   cursor: pointer;
 }
-/* A cell that could not complete to an in-bounds time (an out-of-order start /
-   end on a same-date range): inert, and stripped of its chip — the Badge renders
-   with the `transparent` variant (no fill, gray label) and the cell is dimmed,
-   so an unavailable time never reads as a tappable chip. */
-.c2-time-cell:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
+/* An out-of-order time (a same-date range whose other side currently precedes /
+   follows it): fully selectable — either side may be set first — but marked
+   with a dashed amber ring so the pending inversion is visible. The ring is a
+   pattern plus a colour, and the cell's accessible name names the other side, so
+   the cue never reads as "disabled". */
+.c2-time-cell[data-out-of-order] .c2-time-cell-badge {
+  outline: 1px dashed var(--mantine-color-yellow-9);
+  outline-offset: -2px;
+}
+[data-mantine-color-scheme="dark"] .c2-time-cell[data-out-of-order] .c2-time-cell-badge {
+  outline-color: var(--mantine-color-yellow-4);
 }
 .c2-time-cell .c2-time-cell-badge {
   width: 100%;

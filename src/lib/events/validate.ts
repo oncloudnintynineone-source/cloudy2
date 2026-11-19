@@ -76,6 +76,13 @@ export interface EventFormErrors {
 }
 
 /**
+ * The cross-field chronology message. Exported so the wizard can surface the
+ * same text inline while the user builds an intentionally inverted range (the
+ * start and end sides are both freely editable; validation is the gate).
+ */
+export const END_ORDER_ERROR = "End must be on or after start";
+
+/**
  * Normalize a registration cap to a valid whole number >= 1, or null for
  * "no limit". Accepts untrusted values so the server can never persist a
  * fractional/negative/NaN cap from a stale or forged client payload.
@@ -121,8 +128,9 @@ function sortKey(values: EventFormValues, end: boolean): string {
  * errors still surface.
  *
  * Mirrors `validateEventForm`'s ordering check (`sortKey` comparison) so
- * client and server stay in sync. Intended for use on every start/end edit
- * and as a server-side safety net (like `clampOutOfCamp`).
+ * client and server stay in sync. It is the write path's (and the clash /
+ * optimistic previews') safety net — the wizard no longer calls it on edits, so
+ * either side can be changed first and the other fixed afterwards.
  */
 export function clampEventEnd(values: EventFormValues): EventFormValues {
   if (!values.start || !values.end) {
@@ -150,7 +158,10 @@ export function clampEventEnd(values: EventFormValues): EventFormValues {
   return { ...values, end: values.start };
 }
 
-/** Whether `values` would need clamping (`end` before `start`). Pure helper for UI affordances. */
+/**
+ * Whether `values` would need clamping (`end` before `start`). Drives the
+ * wizard's inline ordering-error sync; the write path uses `clampEventEnd`.
+ */
 export function needsClamp(values: EventFormValues): boolean {
   if (!values.start || !values.end) {
     return false;
@@ -224,7 +235,7 @@ export function validateEventForm(values: EventFormValues): EventFormErrors {
   const endComplete =
     !!values.end && (values.timeOption !== "range" || !!naiveTimePart(values.end));
   if (startComplete && endComplete && sortKey(values, false) > sortKey(values, true)) {
-    errors.end = "End must be on or after start";
+    errors.end = END_ORDER_ERROR;
   }
   if (
     values.registrationCap !== undefined &&

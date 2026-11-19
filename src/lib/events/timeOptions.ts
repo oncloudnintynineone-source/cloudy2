@@ -156,11 +156,10 @@ export function isTimeWithinBounds(time: string, bounds: TimeBounds): boolean {
 }
 
 /**
- * The hour cells a picker offers: every hour that still completes to at least
- * one in-bounds time with one of `minutes`. An hour stays enabled while *some*
- * minute makes it valid — the picker applies an hour and a minute
- * independently, so `max: "09:30"` keeps `09` pickable (with `:00`/`:15`/`:30`)
- * even while an off-grid `:45` is highlighted.
+ * The hour cells that are **in order** with the bounds (the wizard renders the
+ * complement with an advisory ring; every cell stays selectable). An hour counts
+ * while *some* minute is in order — the picker applies an hour and a minute
+ * independently, so `max: "09:30"` keeps `09` (with `:00`/`:15`/`:30`).
  */
 export function enabledHourOptions(minutes: readonly string[], bounds: TimeBounds): string[] {
   if (!bounds.min && !bounds.max) {
@@ -172,9 +171,10 @@ export function enabledHourOptions(minutes: readonly string[], bounds: TimeBound
 }
 
 /**
- * The minute cells a picker offers for the staged `hour` ("" when none is
- * staged yet): those already in bounds with that hour, or — while no hour is
- * staged — those some hour can still complete in bounds.
+ * The minute cells that are **in order** for the staged `hour` ("" when none is
+ * staged yet): those in bounds with that hour, or — while no hour is staged —
+ * those some hour could complete in bounds. The complement is the wizard's
+ * advisory set; no cell is disabled.
  */
 export function enabledMinuteOptions(
   minutes: readonly string[],

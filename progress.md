@@ -18,8 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.386 (Type step: no Selected banner; folder pills
-  go yellow)** is shipped.
+- All work through changelog **1.388 (both time sides cross while editing)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -2544,6 +2543,16 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   snap unreachable from the UI (`clampEventEnd` + `validateEventForm` stay the
   option-switch/server safety nets). Pure `enabledHourOptions` /
   `enabledMinuteOptions` (13 tests). Docs: `event-lifecycle.md` §1.4.1/§1.11.1.
+- 1.388 **Both time sides cross while editing**: the wizard's Start and End are now
+  freely editable in either direction — both date pickers drop their cross-side
+  `minDate`/`maxDate`, both Half Day AM/PM segments stay enabled, and no edit setter
+  calls `clampEventEnd` (removed from the option switch too). A same-date out-of-order
+  time keeps a dashed amber advisory ring and an aria-label suffix but stays fully
+  selectable (the selected value is never marked; arrow/Home/End visit every hour).
+  The validator's ordering error is synced onto the End control immediately and
+  Next/Submit stay blocked until the pair is fixed. `clampEventEnd` +
+  `validateEventForm` remain the write-path safety nets; `needsClamp` now drives the
+  inline sync (tests). Docs: `event-lifecycle.md` §1.4.1/§1.5.2/§1.11.1.
 
 ## 1.4 Open items & next steps
 

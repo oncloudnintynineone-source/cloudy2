@@ -78,7 +78,8 @@ import {
   type TimeOption,
 } from "@/lib/events/timeOptions";
 import {
-  clampEventEnd,
+  END_ORDER_ERROR,
+  needsClamp,
   stepRegistrationCap,
   validateEventForm,
   type EventFormValues,
@@ -93,7 +94,7 @@ import {
 import { BUTTON_LOADER_PROPS, DESKTOP_WIDE_MEDIA_QUERY } from "@/lib/theme";
 import type { SavedEventToastVariant, WizardStepIndicator } from "@/lib/settings/featureFlags";
 import { announce } from "@/lib/ui/announcer";
-import { showValidationFailure } from "@/lib/ui/validationFeedback";
+import { firstErrorField, showValidationFailure } from "@/lib/ui/validationFeedback";
 import {
   buildUserGroups,
   departmentPickerOptions,
@@ -186,12 +187,13 @@ const AMPM_OPTIONS = [
 ];
 
 /** Maps a server-reported error field to the wizard step that owns it. */
-const STEP_BY_FIELD: Partial<Record<EventResultField, StepId>> = {
+const STEP_BY_FIELD: Partial<Record<EventResultField | "registrationCap", StepId>> = {
   title: "remarks",
   start: "time",
   end: "time",
   startAmPm: "time",
   endAmPm: "time",
+  registrationCap: "settings",
 };
 
 /** Section label of the flat department list inside the invitee badge picker. */
@@ -698,95 +700,80 @@ export function EventForm({
     setStep((index) => Math.min(index + 1, steps.length - 1));
   }
 
-  // ---- date/time clamping helpers (end never before start) ----
-  function applyClamped(patch: Partial<EventFormValues>) {
-    const draft = { ...form.values, ...patch } as EventFormValues;
-    const clamped = clampEventEnd(draft);
-    // Apply the patch fields first, then any clamped end corrections.
-    (
-      Object.entries(patch) as [keyof EventFormValues, EventFormValues[keyof EventFormValues]][]
-    ).forEach(([key, value]) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      form.setFieldValue(key as string as any, value as any);
-    });
-    if (clamped.end !== draft.end) {
-      form.setFieldValue("end", clamped.end);
-    }
-    if (clamped.endAmPm !== draft.endAmPm) {
-      form.setFieldValue("endAmPm", clamped.endAmPm);
+  // ---- date/time ordering (both sides freely editable) ----
+  // Either side may be set first: an edit never moves the other side. The
+  // validator's ordering error is surfaced on the End control immediately and
+  // Next/Submit stay blocked until the pair is fixed (`clampEventEnd` remains
+  // the write path's safety net, not an edit-time snap).
+  function syncEndOrderError(values: EventFormValues) {
+    if (needsClamp(values)) {
+      form.setFieldError("end", END_ORDER_ERROR);
+    } else if (form.errors.end === END_ORDER_ERROR) {
+      form.clearFieldError("end");
     }
   }
 
   function setStartField(nextStart: string) {
-    applyClamped({ start: nextStart });
+    form.setFieldValue("start", nextStart);
+    syncEndOrderError({ ...form.values, start: nextStart });
   }
 
   function setEndField(nextEnd: string) {
-    // End edits clamp end to start (not start to end).
-    const draft = { ...form.values, end: nextEnd } as EventFormValues;
-    const clamped = clampEventEnd(draft);
-    form.setFieldValue("end", clamped.end);
-    if (clamped.endAmPm !== draft.endAmPm) {
-      form.setFieldValue("endAmPm", clamped.endAmPm);
-    }
+    form.setFieldValue("end", nextEnd);
+    syncEndOrderError({ ...form.values, end: nextEnd });
   }
 
   function setStartAmPmField(next: AmPm) {
-    applyClamped({ startAmPm: next });
+    form.setFieldValue("startAmPm", next);
+    syncEndOrderError({ ...form.values, startAmPm: next });
   }
 
   function setEndAmPmField(next: AmPm) {
-    const draft = { ...form.values, endAmPm: next } as EventFormValues;
-    const clamped = clampEventEnd(draft);
-    form.setFieldValue("endAmPm", clamped.endAmPm);
-    if (clamped.end !== draft.end) {
-      form.setFieldValue("end", clamped.end);
-    }
+    form.setFieldValue("endAmPm", next);
+    syncEndOrderError({ ...form.values, endAmPm: next });
   }
 
   function switchTimeOption(option: TimeOption) {
     form.setFieldValue("timeOption", option);
+    // Day-based options store a bare `00:00:00` time part; compute the target
+    // values up front (form.values is the pre-switch snapshot in this handler).
+    const nextStart =
+      option !== "range" && form.values.start
+        ? `${form.values.start.slice(0, 10)} 00:00:00`
+        : form.values.start;
+    const nextEnd =
+      option !== "range" && form.values.end
+        ? `${form.values.end.slice(0, 10)} 00:00:00`
+        : form.values.end;
     if (option !== "range") {
       if (form.values.start) {
-        form.setFieldValue("start", `${form.values.start.slice(0, 10)} 00:00:00`);
+        form.setFieldValue("start", nextStart);
       }
       if (form.values.end) {
-        form.setFieldValue("end", `${form.values.end.slice(0, 10)} 00:00:00`);
+        form.setFieldValue("end", nextEnd);
       }
     }
+    // Default to an AM→PM span (a mixed span renders with no title marker).
+    const nextStartAmPm = option === "half" ? form.values.startAmPm || "AM" : "";
+    const nextEndAmPm = option === "half" ? form.values.endAmPm || "PM" : "";
     if (option === "half") {
-      // Default to an AM→PM span (a mixed span renders with no title marker).
       if (!form.values.startAmPm) {
-        form.setFieldValue("startAmPm", "AM");
+        form.setFieldValue("startAmPm", nextStartAmPm);
       }
       if (!form.values.endAmPm) {
-        form.setFieldValue("endAmPm", "PM");
+        form.setFieldValue("endAmPm", nextEndAmPm);
       }
     }
-    // Re-clamp after the option switch (e.g. range 09:00→10:00 collapsed to
-    // full-day dates where start date might now be after end date).
-    const next = clampEventEnd({
+    // No clamp here either: the switch only normalizes the stored values and
+    // re-syncs the ordering error, so an inverted pair stays visible and fixable.
+    syncEndOrderError({
       ...form.values,
       timeOption: option,
-      start:
-        option !== "range" && form.values.start
-          ? `${form.values.start.slice(0, 10)} 00:00:00`
-          : form.values.start,
-      end:
-        option !== "range" && form.values.end
-          ? `${form.values.end.slice(0, 10)} 00:00:00`
-          : form.values.end,
-      startAmPm: option === "half" ? form.values.startAmPm || "AM" : "",
-      endAmPm: option === "half" ? form.values.endAmPm || "PM" : "",
+      start: nextStart,
+      end: nextEnd,
+      startAmPm: nextStartAmPm,
+      endAmPm: nextEndAmPm,
     } as EventFormValues);
-    if (next.end !== form.values.end) {
-      // Defer to next tick so the intermediate setFieldValue above has flushed.
-      // Directly setting here is safe because we compute from the pre-switch values.
-      form.setFieldValue("end", next.end);
-    }
-    if (next.endAmPm !== form.values.endAmPm && option === "half") {
-      form.setFieldValue("endAmPm", next.endAmPm);
-    }
   }
 
   function handleEventTypeChange(value: string | null) {
@@ -1180,8 +1167,21 @@ export function EventForm({
       notifications.show({ color: "red", message: result.error });
     },
     // Client-side failure on the final submit (e.g. end before start): toast,
-    // and scroll the first invalid field into view when it is on this step.
-    (errors) => showValidationFailure(errors, (field) => form.getInputNode(field)),
+    // and land the user on the step that owns the first failing field — a
+    // step-strip jump can skip the Time step, so the flagged control may not be
+    // mounted yet.
+    (errors) => {
+      showValidationFailure(errors, (field) => form.getInputNode(field));
+      const failedField = firstErrorField(errors);
+      const owner = failedField
+        ? STEP_BY_FIELD[failedField as keyof typeof STEP_BY_FIELD]
+        : undefined;
+      const target = owner ? steps.findIndex((s) => s.id === owner) : -1;
+      if (target >= 0) {
+        setDirection(target > step ? "forward" : "backward");
+        setStep(target);
+      }
+    },
   );
 
   const showTabs = allowedOptions.length > 1;
@@ -1189,47 +1189,42 @@ export function EventForm({
   const timeFields = (option: TimeOption) => {
     // Only Half Day carries half-of-day markers; Full Day is a plain range.
     const showAmPm = option === "half";
-    // Start & End stores date and time in one naive string per side, so the
-    // validator error lands on the widget at fault: a missing date under the
-    // date input, a missing time or an out-of-order end under the time input.
-    const dateError = (field: "start" | "end") =>
-      form.values[field] ? undefined : form.errors[field];
-    const timeError = (field: "start" | "end") =>
-      form.values[field] ? form.errors[field] : undefined;
-    // Neither side may cross the other: the End date picker floors at the start
-    // date and the Start date picker caps at the end date, so an out-of-order
-    // date is unavailable instead of silently snapping the other side
-    // (`clampEventEnd` stays the option-switch/server safety net).
-    const endMinDate = form.values.start
-      ? naiveToDate(`${form.values.start.slice(0, 10)} 00:00:00`)
-      : null;
-    const startMaxDate = form.values.end
-      ? naiveToDate(`${form.values.end.slice(0, 10)} 00:00:00`)
-      : null;
-    // Same-day ranges are the only ordering case a time pick can create: the
-    // Start picker disables every cell after the end time and the End picker
-    // every cell before the start time, so an out-of-order time simply cannot be
-    // picked — no rejected value, no message.
+    // Both sides are freely editable (set either one first, fix the other
+    // afterwards), so the validator's ordering error is the only chronology
+    // guard. Land it on the control that actually mismatches: a differing date
+    // under the End date, a same-date time under the End time, and a same-date
+    // Half Day marker under the End AM/PM.
     const startDate = naiveDatePart(form.values.start);
     const endDate = naiveDatePart(form.values.end);
     const startTime = naiveTimePart(form.values.start);
     const endTime = naiveTimePart(form.values.end);
     const sameDate = !!startDate && startDate === endDate;
-    /**
-     * The Half Day AM/PM segments, with the one that would invert the
-     * half-of-day order on a shared date disabled. The selected value is never
-     * disabled, so the control always shows its current state.
-     */
-    const amPmData = (side: "start" | "end") =>
-      AMPM_OPTIONS.map((item) => ({
-        ...item,
-        disabled:
-          sameDate &&
-          item.value !== form.values[`${side}AmPm`] &&
-          (side === "start"
-            ? item.value === "PM" && form.values.endAmPm === "AM"
-            : item.value === "AM" && form.values.startAmPm === "PM"),
-      }));
+    const endOrderError = form.errors.end === END_ORDER_ERROR ? END_ORDER_ERROR : undefined;
+    const endOrderOnTime = !!endOrderError && sameDate && option === "range";
+    const endOrderOnMarker = !!endOrderError && sameDate && showAmPm;
+    const endOrderOnDate = !!endOrderError && !endOrderOnTime && !endOrderOnMarker;
+    // Start & End stores date and time in one naive string per side, so the
+    // validator error lands on the widget at fault: a missing date under the
+    // date input, a missing time under the time input.
+    const dateError = (field: "start" | "end") => {
+      if (field === "end" && endOrderOnDate) {
+        return endOrderError;
+      }
+      return form.values[field] ? undefined : form.errors[field];
+    };
+    const timeError = (field: "start" | "end") => {
+      if (field === "end" && endOrderOnDate) {
+        return undefined;
+      }
+      if (field === "end" && endOrderOnTime) {
+        return endOrderError;
+      }
+      return form.values[field] ? form.errors[field] : undefined;
+    };
+    // Date pickers carry no cross-side bounds: an out-of-order date is a valid
+    // intermediate step (the error above flags it). Same-date times keep their
+    // soft advisory bounds — the picker marks the out-of-order cells amber but
+    // still lets them be picked.
     const startField =
       option === "range" ? (
         <Stack gap="xs">
@@ -1240,7 +1235,6 @@ export function EventForm({
               setStartField(joinDateTimeParts(value ?? "", naiveTimePart(form.values.start)))
             }
             error={dateError("start")}
-            maxDate={startMaxDate ?? undefined}
             attributes={{ input: { readOnly: true } }}
             popoverProps={{ trapFocus: false }}
           />
@@ -1261,14 +1255,13 @@ export function EventForm({
             value={naiveToDate(form.values.start)}
             onChange={(value) => setStartField(value ? `${value} 00:00:00` : "")}
             error={form.errors.start}
-            maxDate={startMaxDate ?? undefined}
             attributes={{ input: { readOnly: true } }}
           />
           {showAmPm && (
             <Stack gap={4}>
               <SegmentedControl
                 aria-label="Start AM or PM"
-                data={amPmData("start")}
+                data={AMPM_OPTIONS}
                 value={form.values.startAmPm || undefined}
                 onChange={(value) => setStartAmPmField(value as AmPm)}
               />
@@ -1291,7 +1284,6 @@ export function EventForm({
               setEndField(joinDateTimeParts(value ?? "", naiveTimePart(form.values.end)))
             }
             error={dateError("end")}
-            minDate={endMinDate ?? undefined}
             attributes={{ input: { readOnly: true } }}
             popoverProps={{ trapFocus: false }}
           />
@@ -1311,21 +1303,20 @@ export function EventForm({
             label="End date"
             value={naiveToDate(form.values.end)}
             onChange={(value) => setEndField(value ? `${value} 00:00:00` : "")}
-            error={form.errors.end}
-            minDate={endMinDate ?? undefined}
+            error={endOrderOnMarker ? undefined : form.errors.end}
             attributes={{ input: { readOnly: true } }}
           />
           {showAmPm && (
             <Stack gap={4}>
               <SegmentedControl
                 aria-label="End AM or PM"
-                data={amPmData("end")}
+                data={AMPM_OPTIONS}
                 value={form.values.endAmPm || undefined}
                 onChange={(value) => setEndAmPmField(value as AmPm)}
               />
-              {form.errors.endAmPm && (
+              {(endOrderOnMarker || form.errors.endAmPm) && (
                 <Text size="xs" c="red">
-                  {form.errors.endAmPm}
+                  {endOrderOnMarker ? endOrderError : form.errors.endAmPm}
                 </Text>
               )}
             </Stack>

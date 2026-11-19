@@ -242,35 +242,35 @@ Mechanics worth knowing:
   hour in a fixed six-column grid — each row starts at 00 / 06 / 12 / 18, cells are
   44px tall, so nothing scrolls — plus the 15-minute stops 00/15/30/45 (an off-grid
   stored minute such as `08:37` is added as an extra cell). The dialog opens with
-  the stored hour and minute highlighted and applies every valid pick immediately
+  the stored hour and minute highlighted and applies every pick immediately
   — an hour keeps the highlighted minute, a minute uses the highlighted hour — so
   closing it any way (X, backdrop tap or Escape) keeps the change. Picking a
   minute while an hour is set also applies the time and closes the dialog.
-  When both sides share a date, the Start picker **disables** every cell that
-  could not complete at or before the current end time and the End picker every
-  cell at or after the current start time, so an out-of-order time cannot be
-  picked at all — no rejected tap, no error message; a dimmed caption states the
-  window (`Start time can be 09:00 or later.`). An hour stays pickable while
-  *some* offered minute still completes it in bounds (`max: 09:30` keeps `09` for
-  `:00`/`:15`/`:30`); tapping such an hour while a now-invalid minute is
-  highlighted only **stages** it — the stale minute drops out and the minute row
-  narrows to the stops that finish the pair, so nothing invalid is ever applied.
-  Disabled cells are native disabled buttons: inert, out of the tab order, and
-  skipped by the grid's arrow/Home/End navigation; their badge drops to the
-   `transparent` Badge variant (no fill, gray label), so an unavailable time never
-   reads as a tappable chip. `clampEventEnd` remains the
-  option-switch/server safety net.
+  Both sides are freely editable — either the Start or the End may be moved
+  past the other, so a user can set one first and fix the other afterwards.
+  When both sides share a date, the time pickers mark every cell that would
+  invert the current range with a dashed amber ring (and an `aria-label` suffix
+  naming the other side) but leave it **fully selectable** — no cell is
+  disabled, and arrow/Home/End navigation visits every hour. The selected value
+  is never marked, so the control always shows its current state. A dimmed
+  caption explains the mark (`Times before the current start are marked amber —
+  you can still pick one and adjust the start.`), and the ordering error
+  ("End must be on or after start") is synced onto the End control immediately
+  as the invalid pair is created; Next and Submit stay blocked until it is
+  fixed. `clampEventEnd` remains the write-path/server safety net, not an
+  edit-time snap.
   `data-mantine-stop-propagation` on every control keeps Escape from also
   minimizing the wizard, and the dialog returns focus to the button. The picked
   `HH:mm` joins into the naive `YYYY-MM-DD HH:mm:ss` string via
   `joinDateTimeParts`, a cleared time stores a bare date, which `validateEventForm`
   rejects ("Start time is required" / "End time is required"). `full` = two
   `DatePickerInput`s (plain dates, no half-day markers); `half` = two
-  `DatePickerInput`s plus an AM/PM `SegmentedControl` per side. Neither side may cross the other: the End date input floors at the
-   start date (`minDate`) and the Start date input caps at the end date
-   (`maxDate`), and on `half` the AM/PM segment that would invert a same-date
-   range is disabled (the selected value never is) — so the silent
-   `clampEventEnd` snap is unreachable from this step. Every date input is
+  `DatePickerInput`s plus an AM/PM `SegmentedControl` per side. Neither date
+  picker carries a cross-side `minDate`/`maxDate`, and on `half` both AM/PM
+  segments are always enabled; an out-of-order date or marker is a valid
+  intermediate step, flagged by the inline ordering error (placed under the End
+  date when the dates differ and under the End AM/PM when the dates match).
+  Every date input is
   made natively read-only via the styles-API `attributes` (`attributes.input`) —
   **never** the component `readOnly` prop, which would also disable its popover —
   so tapping opens only the calendar and never raises the on-screen keyboard (the
@@ -494,7 +494,9 @@ department (and only the organizer/admin when the lock is on).
    half-of-day indicator is folded into the sort key (`YYYY-MM-DD AM` < `YYYY-MM-DD PM`,
    since the time part is always `00:00:00`), so same-day AM→PM is valid and PM→AM is not;
    for `range` the full naive strings compare. Violation → "End must be on or after
-   start".
+   start". The wizard keeps both sides freely editable and syncs this error onto the
+   End control as soon as an edit inverts the pair; Next/Submit stay blocked until it
+   is fixed. The write path still clamps a bypassed submit via `clampEventEnd`.
 
 Deliberately **not** validated in `validateEventForm`: `title` (may be blank — the
 template produces the title), `eventType` (the wizard's custom gate covers it), invitee
@@ -1036,12 +1038,16 @@ markers, switching to `half` (prefilled from the stored notes) keeps them.
   (e.g. an event edited in Google to `08:37`), so an existing value is always
   visible and re-selectable.
 - `isTimeWithinBounds(time, { min, max })` (`TimeBounds`):
-  inclusive `HH:mm` bounds check behind the picker's disabled cells.
+  inclusive `HH:mm` bounds check behind the picker's in-order (advisory) set.
 - `enabledHourOptions(minutes, bounds)` / `enabledMinuteOptions(minutes, hour, bounds)`:
-  the cells a bounded picker offers — an hour while *some* offered minute still
-  completes it in bounds, and a minute that fits the staged hour (or, while no
-  hour is staged, that some hour could complete). Both return everything when no
-  bounds are set, so a cross-date range disables nothing.
+  the **in-order** cells for the current bounds — an hour while *some* offered
+  minute is in order, and a minute that fits the staged hour (or, while no hour
+  is staged, that some hour could complete). The wizard renders the complement
+  with the dashed amber advisory ring but never disables a cell; both return
+  everything when no bounds are set, so a cross-date range marks nothing.
+- The picker's state is a pair: the selected value is never marked out of order,
+  and a pick on either side is applied immediately, so the user can set a Start
+  past the End (or vice versa) and fix the other side afterwards.
 - The title's `(AM)`/`(PM)` marker comes from the recipe's `time` segment (§1.8.1), not a
   hardcoded helper.
 
@@ -1181,7 +1187,7 @@ limitations live in [`registration-events.md`](registration-events.md).
 | `src/lib/eventTypes/groupActions.ts`              | Group create/rename/delete/move server actions (§1.10)                                    |
 | `src/lib/events/queries.ts`                       | `mapCalendarItem` — read-back into `CalendarEvent`                                        |
 | `src/lib/events/recentLocations.ts`               | `fetchRecentLocations` — per-user location suggestions (server action)                    |
-| `src/components/TimeSelectField.tsx`              | "Select time" button + hour/minute picker dialog (out-of-bounds cells disabled)           |
+| `src/components/TimeSelectField.tsx`              | "Select time" button + hour/minute picker dialog (out-of-order cells advisory)           |
 | `src/lib/appUrl.ts`                               | App origin for the `Edit:` link                                                           |
 
 Related docs:

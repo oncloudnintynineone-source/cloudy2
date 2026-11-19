@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  clampEventEnd,
+  END_ORDER_ERROR,
+  needsClamp,
   normalizeRegistrationCap,
   resolveEventAuthor,
   stepRegistrationCap,
@@ -50,7 +53,7 @@ describe("validateEventForm", () => {
   it("rejects an end before the start", () => {
     expect(
       validateEventForm({ ...base, start: "2026-08-15 10:00:00", end: "2026-08-15 09:00:00" }).end,
-    ).toBe("End must be on or after start");
+    ).toBe(END_ORDER_ERROR);
   });
 
   it("requires a time part on both sides for Start & End events", () => {
@@ -169,7 +172,7 @@ describe("validateEventForm", () => {
         start: "2026-08-15 00:00:00",
         end: "2026-08-15 00:00:00",
       }).end,
-    ).toBe("End must be on or after start");
+    ).toBe(END_ORDER_ERROR);
   });
 
   it("folds the indicator into the sort key for multi-day spans", () => {
@@ -183,6 +186,100 @@ describe("validateEventForm", () => {
         end: "2026-08-15 00:00:00",
       }),
     ).toEqual({});
+  });
+
+  it("exposes the ordering message the wizard syncs onto the End control", () => {
+    expect(END_ORDER_ERROR).toBe("End must be on or after start");
+  });
+});
+
+describe("needsClamp", () => {
+  it("is false when the end is on or after the start", () => {
+    expect(needsClamp(base)).toBe(false);
+    expect(needsClamp({ ...base, start: "2026-08-15 09:00:00", end: "2026-08-15 09:00:00" })).toBe(
+      false,
+    );
+  });
+
+  it("is true when either side crosses the other", () => {
+    expect(needsClamp({ ...base, start: "2026-08-15 10:00:00", end: "2026-08-15 09:00:00" })).toBe(
+      true,
+    );
+    expect(needsClamp({ ...base, start: "2026-08-16 09:00:00", end: "2026-08-15 10:00:00" })).toBe(
+      true,
+    );
+  });
+
+  it("folds the half-day indicator into a same-date comparison", () => {
+    const half = {
+      ...base,
+      timeOption: "half" as const,
+      start: "2026-08-15 00:00:00",
+      end: "2026-08-15 00:00:00",
+    };
+    expect(needsClamp({ ...half, startAmPm: "AM", endAmPm: "PM" })).toBe(false);
+    expect(needsClamp({ ...half, startAmPm: "PM", endAmPm: "AM" })).toBe(true);
+    // A later start date wins regardless of the markers.
+    expect(
+      needsClamp({
+        ...half,
+        start: "2026-08-14 00:00:00",
+        startAmPm: "PM",
+        endAmPm: "AM",
+      }),
+    ).toBe(false);
+  });
+
+  it("is false while either side is incomplete", () => {
+    expect(needsClamp({ ...base, start: "" })).toBe(false);
+    expect(needsClamp({ ...base, end: "" })).toBe(false);
+    // A cleared time leaves a bare date (Start & End requires a time part).
+    expect(needsClamp({ ...base, start: "2026-08-15" })).toBe(false);
+    expect(needsClamp({ ...base, end: "2026-08-15" })).toBe(false);
+  });
+});
+
+describe("clampEventEnd", () => {
+  it("snaps only the end to the start for an inverted range", () => {
+    const inverted = {
+      ...base,
+      start: "2026-08-16 10:00:00",
+      end: "2026-08-15 09:00:00",
+    };
+    const clamped = clampEventEnd(inverted);
+    expect(clamped.start).toBe(inverted.start);
+    expect(clamped.end).toBe(inverted.start);
+    expect(clamped.endAmPm).toBe(inverted.endAmPm);
+  });
+
+  it("snaps the end date and indicator for an inverted half-day", () => {
+    const sameDate = clampEventEnd({
+      ...base,
+      timeOption: "half",
+      start: "2026-08-15 00:00:00",
+      end: "2026-08-15 00:00:00",
+      startAmPm: "PM",
+      endAmPm: "AM",
+    });
+    expect(sameDate.end).toBe("2026-08-15 00:00:00");
+    expect(sameDate.endAmPm).toBe("PM");
+
+    const crossDate = clampEventEnd({
+      ...base,
+      timeOption: "half",
+      start: "2026-08-16 00:00:00",
+      end: "2026-08-15 00:00:00",
+      startAmPm: "PM",
+      endAmPm: "AM",
+    });
+    expect(crossDate.end).toBe("2026-08-16 00:00:00");
+    expect(crossDate.endAmPm).toBe("PM");
+  });
+
+  it("returns the values unchanged when valid or incomplete", () => {
+    expect(clampEventEnd(base)).toBe(base);
+    const incomplete = { ...base, end: "2026-08-15" };
+    expect(clampEventEnd(incomplete)).toBe(incomplete);
   });
 });
 
