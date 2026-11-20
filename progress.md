@@ -2587,7 +2587,7 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   as `#c2-boot-lines` JSON, deep-equal drift-pinned to `COLD_START_WAIT_LINES` in
   `launchShell.test.ts`). Docs: `loading-transitions.md` §1.4.1 (new),
   `pwa-offline.md`, AGENTS.md loading checklist.
-- 1.391 **Time-range dropdowns scaled correctly**: the My Events **Range** and KAH Status
+- 1.392 **Time-range dropdowns scaled correctly**: the My Events **Range** and KAH Status
   **Look ahead** menus were two of the app's only three `size="xs"` selects. The theme pins
   field text to 16px for iOS zoom safety while Mantine derives option text from the
   component `size`, so they opened a list *smaller than their own field* — 12px options in

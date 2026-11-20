@@ -358,7 +358,7 @@ doc content here.
   live all-calendar read filtered to `payload.creatorId === me` (so it catches on-behalf
   and pre-retention events) plus deleted events from the user's own `event.create` rows
   with a paired `event.delete` row (Deleted badge, retention-bounded), over an adjustable
-  ±3/±6/±12-month window (`myEventsRange.ts`, `?range=`, KAH-style `NoKeyboardSelect`).
+  ±3/±6/±12-month window (`myEventsRange.ts`, `?range=`, shared `TimeRangeSelect`).
   Each row carries an inline change timeline (`changeTrail.ts` + `listEventAuditTrail`,
   one indexed read per page). My Events is `requireSession()` (no ACL — reads aren't
   gated) and **always-fresh** (`useLiveRouteRefresh`). Reads live in `src/lib/audit/queries.ts`;
