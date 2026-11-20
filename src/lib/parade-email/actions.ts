@@ -6,12 +6,12 @@ import { revalidatePath } from "next/cache";
 
 import { db } from "@/db";
 import { settings, users } from "@/db/schema";
-import { AUDIT_ACTIONS, actorFromUser } from "@/lib/audit/build";
+import { AUDIT_ACTIONS, actorFromSession } from "@/lib/audit/build";
 import { diffFields } from "@/lib/audit/diff";
 import { logAction } from "@/lib/audit/log";
 import { invalidateConfigCache } from "@/lib/configCache";
 import { requireAdmin, requireSession } from "@/lib/session";
-import { onlyUuidIds } from "@/lib/uuid";
+import { uniqueUuidIds } from "@/lib/uuid";
 
 import { runParadeStateEmail } from "./dispatch";
 import { validateParadeEmailForm, type ParadeEmailFormValues } from "./validate";
@@ -47,7 +47,7 @@ export async function saveParadeEmailSettings(
     return { ok: false, error: errors[firstInvalid]!, field: firstInvalid };
   }
 
-  const recipientIds = [...new Set(onlyUuidIds(values.recipientIds))];
+  const recipientIds = uniqueUuidIds(values.recipientIds);
   const sendTime = values.sendTime.trim();
   const days = [...new Set(values.days.filter((day) => day >= 1 && day <= 7))].sort(
     (a, b) => a - b,
@@ -71,11 +71,7 @@ export async function saveParadeEmailSettings(
     .where(eq(settings.id, "singleton"));
 
   await logAction({
-    ...actorFromUser({
-      id: session.user.id,
-      name: session.user.name ?? null,
-      role: session.user.role,
-    }),
+    ...actorFromSession(session),
     action: AUDIT_ACTIONS.settingsUpdate,
     entityType: "settings",
     entityName: "settings",

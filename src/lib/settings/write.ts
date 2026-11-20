@@ -13,7 +13,7 @@ import { revalidatePath } from "next/cache";
 
 import { db } from "@/db";
 import { settings } from "@/db/schema";
-import { AUDIT_ACTIONS, actorFromUser } from "@/lib/audit/build";
+import { AUDIT_ACTIONS, actorFromSession } from "@/lib/audit/build";
 import { diffFields } from "@/lib/audit/diff";
 import { logAction } from "@/lib/audit/log";
 import { invalidateConfigCache } from "@/lib/configCache";
@@ -72,11 +72,7 @@ export async function editSetting(
   await deps.update(patch);
 
   await deps.log({
-    ...actorFromUser({
-      id: session.user.id,
-      name: session.user.name ?? null,
-      role: session.user.role,
-    }),
+    ...actorFromSession(session),
     action: AUDIT_ACTIONS.settingsUpdate,
     entityType: "settings",
     entityName: "settings",

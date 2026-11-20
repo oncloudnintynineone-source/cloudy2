@@ -55,6 +55,14 @@ export function isChunkReady(loader: ChunkLoader): boolean {
 }
 
 /**
+ * Fire-and-forget warm-up for a modal body chunk. Safe to call repeatedly —
+ * `loadChunk` joins the in-flight load and caches the resolved module.
+ */
+export function preloadLazyBody(loader: ChunkLoader): void {
+  void loadChunk(loader).catch(() => {});
+}
+
+/**
  * True once `loader`'s chunk has resolved. The load starts when `enabled`
  * first turns true (the modal opening) — never at route mount, which is what
  * keeps these bodies out of the initial chunk. A failed load leaves this false

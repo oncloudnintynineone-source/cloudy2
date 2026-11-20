@@ -1,6 +1,4 @@
-import { NextResponse } from "next/server";
-
-import { API_NO_STORE, apiSession, unauthorized } from "@/lib/api/server";
+import { apiError, apiJson, withApiSession } from "@/lib/api/server";
 import { checkUserClashes } from "@/lib/events/clashActions";
 
 /**
@@ -11,19 +9,16 @@ import { checkUserClashes } from "@/lib/events/clashActions";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-export async function GET() {
-  const session = await apiSession();
-  if (!session) {
-    return unauthorized();
+export async function GET(request: Request) {
+  const auth = await withApiSession(request);
+  if (!auth.ok) {
+    return auth.response;
   }
 
   try {
     const result = await checkUserClashes({});
-    return NextResponse.json(result, { headers: API_NO_STORE });
+    return apiJson(result);
   } catch {
-    return NextResponse.json(
-      { ok: false, error: "Could not check for double bookings" },
-      { status: 500, headers: API_NO_STORE },
-    );
+    return apiError(500, "Could not check for double bookings");
   }
 }

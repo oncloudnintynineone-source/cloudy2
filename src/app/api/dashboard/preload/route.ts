@@ -1,14 +1,5 @@
-import { NextResponse } from "next/server";
-
 import { preloadDashboardTabs } from "@/lib/dashboard/actions";
-import {
-  API_NO_STORE,
-  apiSession,
-  isApiRequest,
-  optionalString,
-  readApiJson,
-  unauthorized,
-} from "@/lib/api/server";
+import { apiJson, optionalString, withApiJson } from "@/lib/api/server";
 
 /**
  * Background tab preload (docs/pwa-offline.md §1.18). A route handler so the
@@ -26,21 +17,11 @@ interface PreloadBody {
 }
 
 export async function POST(request: Request) {
-  if (!isApiRequest(request)) {
-    return unauthorized();
+  const auth = await withApiJson<PreloadBody>(request);
+  if (!auth.ok) {
+    return auth.response;
   }
-  const session = await apiSession();
-  if (!session) {
-    return unauthorized();
-  }
-
-  const body = await readApiJson<PreloadBody>(request);
-  if (body === null) {
-    return NextResponse.json(
-      { ok: false, error: "Invalid request" },
-      { status: 400, headers: API_NO_STORE },
-    );
-  }
+  const body = auth.body;
 
   const result = await preloadDashboardTabs({
     view: optionalString(body.view),
@@ -48,5 +29,5 @@ export async function POST(request: Request) {
     date: optionalString(body.date),
     adjacentOnly: body.adjacentOnly === true,
   });
-  return NextResponse.json(result, { headers: API_NO_STORE });
+  return apiJson(result);
 }

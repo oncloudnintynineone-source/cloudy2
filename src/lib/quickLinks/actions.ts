@@ -1,35 +1,22 @@
 "use server";
 
 import { eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 
 import { db } from "@/db";
 import { quickLinks, type QuickLink } from "@/db/schema";
-import { AUDIT_ACTIONS, actorFromUser } from "@/lib/audit/build";
+import { commitAdminWrite } from "@/lib/actions/adminWrite";
+import { applyWriteEffects } from "@/lib/actions/effects";
+import type { ActionResult } from "@/lib/actions/result";
+import { AUDIT_ACTIONS, actorFromSession } from "@/lib/audit/build";
 import { diffFields } from "@/lib/audit/diff";
 import { logAction } from "@/lib/audit/log";
-import { invalidateConfigCache } from "@/lib/configCache";
 import { requireAdmin } from "@/lib/session";
 import { listQuickLinks } from "./queries";
 import { normalizeQuickLinkForm } from "./validate";
 import type { QuickLinkFormValues } from "./validate";
 import { formatQuickLinkIconLabel } from "./icons";
 
-export type QuickLinkActionResult =
-  | { ok: true }
-  | {
-      ok: false;
-      error: string;
-      field?: "label" | "url";
-    };
-
-function actorFrom(session: Awaited<ReturnType<typeof requireAdmin>>) {
-  return actorFromUser({
-    id: session.user.id,
-    name: session.user.name ?? null,
-    role: session.user.role,
-  });
-}
+export type QuickLinkActionResult = ActionResult<Record<never, never>, "label" | "url">;
 
 async function getQuickLinkOrNull(id: string): Promise<QuickLink | null> {
   const [row] = await db.select().from(quickLinks).where(eq(quickLinks.id, id)).limit(1);
@@ -51,12 +38,6 @@ function auditValues(values: {
     color: values.color ? values.color.charAt(0).toUpperCase() + values.color.slice(1) : "Auto",
     enabled: values.enabled,
   };
-}
-
-function revalidateQuickLinks(): void {
-  invalidateConfigCache(["quickLinks"]);
-  revalidatePath("/settings/quick-links");
-  revalidatePath("/dashboard");
 }
 
 export async function createQuickLink(input: QuickLinkFormValues): Promise<QuickLinkActionResult> {
@@ -83,17 +64,16 @@ export async function createQuickLink(input: QuickLinkFormValues): Promise<Quick
     })
     .returning({ id: quickLinks.id });
 
-  await logAction({
-    ...actorFrom(session),
+  await commitAdminWrite({
+    session,
     action: AUDIT_ACTIONS.quickLinkCreate,
     entityType: "quickLink",
     entityId: created.id,
     entityName: normalized.values.label,
     method: "createQuickLink",
     details: auditValues({ ...normalized.values, enabled: input.enabled }),
+    effect: "quickLinks",
   });
-
-  revalidateQuickLinks();
   return { ok: true };
 }
 
@@ -122,8 +102,8 @@ export async function updateQuickLink(
     .set({ ...normalized.values, enabled: input.enabled, updatedAt: new Date() })
     .where(eq(quickLinks.id, id));
 
-  await logAction({
-    ...actorFrom(session),
+  await commitAdminWrite({
+    session,
     action: AUDIT_ACTIONS.quickLinkUpdate,
     entityType: "quickLink",
     entityId: id,
@@ -139,9 +119,8 @@ export async function updateQuickLink(
       }),
       auditValues({ ...normalized.values, enabled: input.enabled }),
     ),
+    effect: "quickLinks",
   });
-
-  revalidateQuickLinks();
   return { ok: true };
 }
 
@@ -155,8 +134,8 @@ export async function deleteQuickLink(id: string): Promise<QuickLinkActionResult
 
   await db.delete(quickLinks).where(eq(quickLinks.id, id));
 
-  await logAction({
-    ...actorFrom(session),
+  await commitAdminWrite({
+    session,
     action: AUDIT_ACTIONS.quickLinkDelete,
     entityType: "quickLink",
     entityId: id,
@@ -171,9 +150,8 @@ export async function deleteQuickLink(id: string): Promise<QuickLinkActionResult
         : "Auto",
       enabled: existing.enabled,
     },
+    effect: "quickLinks",
   });
-
-  revalidateQuickLinks();
   return { ok: true };
 }
 
@@ -210,8 +188,8 @@ export async function moveQuickLink(
     await tx.update(quickLinks).set({ sortOrder: index }).where(eq(quickLinks.id, neighbor.id));
   });
 
-  await logAction({
-    ...actorFrom(session),
+  await commitAdminWrite({
+    session,
     action: AUDIT_ACTIONS.quickLinkUpdate,
     entityType: "quickLink",
     entityId: id,
@@ -221,9 +199,8 @@ export async function moveQuickLink(
       { order: index + 1, label: moved.label },
       { order: neighborIndex + 1, label: moved.label },
     ),
+    effect: "quickLinks",
   });
-
-  revalidateQuickLinks();
   return { ok: true };
 }
 
@@ -260,7 +237,7 @@ export async function reorderQuickLinks(
   const from = movedId ? beforeIndex.get(movedId) : undefined;
   if (moved && movedId && from !== undefined) {
     await logAction({
-      ...actorFrom(session),
+      ...actorFromSession(session),
       action: AUDIT_ACTIONS.quickLinkUpdate,
       entityType: "quickLink",
       entityId: movedId,
@@ -273,6 +250,6 @@ export async function reorderQuickLinks(
     });
   }
 
-  revalidateQuickLinks();
+  applyWriteEffects("quickLinks");
   return { ok: true };
 }

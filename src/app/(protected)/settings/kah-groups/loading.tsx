@@ -1,37 +1,5 @@
-import { Group, Paper, Skeleton, Stack } from "@mantine/core";
-
-import { LoadingStatus } from "@/components/LoadingStatus";
-
-import { SettingsTableSkeleton } from "../SettingsTableSkeleton";
+import { CrudTabSkeleton } from "@/components/SettingsTableSkeleton";
 
 export default function KahGroupsLoading() {
-  return (
-    <Stack pb="xl" gap="sm">
-      <LoadingStatus label="Loading KAH groups" />
-      {/* Mobile: card list */}
-      <Stack gap="sm" hiddenFrom="lg">
-        {Array.from({ length: 3 }).map((_, i) => (
-          <Paper key={i} withBorder p="sm">
-            <Stack gap="xs">
-              <Skeleton height={20} width="40%" />
-              <Group gap={6}>
-                <Skeleton height={22} width={64} radius="xl" />
-                <Skeleton height={22} width={120} radius="xl" />
-              </Group>
-            </Stack>
-          </Paper>
-        ))}
-      </Stack>
-
-      {/* Desktop: toolbar row with the "Add group" button */}
-      <Paper withBorder p="sm" visibleFrom="lg">
-        <Group justify="flex-end" wrap="nowrap">
-          <Skeleton width={140} height={43} />
-        </Group>
-      </Paper>
-
-      {/* Desktop: data table (Name / Required in country / Members) */}
-      <SettingsTableSkeleton columns={[2, 2, 4]} rows={4} visibleFrom="lg" />
-    </Stack>
-  );
+  return <CrudTabSkeleton label="Loading KAH groups" columns={[2, 2, 4]} rows={4} addWidth={140} />;
 }

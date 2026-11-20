@@ -1,11 +1,4 @@
-import { NextResponse } from "next/server";
-
-import {
-  API_NO_STORE,
-  apiSession,
-  isApiRequest,
-  unauthorized,
-} from "@/lib/api/server";
+import { apiJson, withApiSession } from "@/lib/api/server";
 import { maybeDispatchParadeEmail } from "@/lib/parade-email/actions";
 
 /**
@@ -17,14 +10,11 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
-  if (!isApiRequest(request)) {
-    return unauthorized();
-  }
-  const session = await apiSession();
-  if (!session) {
-    return unauthorized();
+  const auth = await withApiSession(request, { requireApiHeader: true });
+  if (!auth.ok) {
+    return auth.response;
   }
 
   await maybeDispatchParadeEmail();
-  return NextResponse.json({ ok: true }, { headers: API_NO_STORE });
+  return apiJson({ ok: true });
 }

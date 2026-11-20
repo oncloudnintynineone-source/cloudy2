@@ -1,19 +1,13 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useMantineTheme } from "@mantine/core";
-import { useMediaQuery, useViewportSize } from "@mantine/hooks";
 
-import { CrossfadeSwap } from "@/components/CrossfadeSwap";
 import { FormModalSkeleton } from "@/components/FormModalSkeleton";
-import { MotionModal } from "@/components/MotionModal";
-import { useMotion } from "@/components/MotionProvider";
+import { LazyModal } from "@/components/LazyModal";
 import type { WeekStart } from "@/lib/events/datetime";
-import { loadChunk, useChunkReady } from "@/lib/loading/chunkReady";
-import { MIN_SKELETON_HOLD_MS } from "@/lib/loading/minHoldLoading";
-import { modalContentWidth, type Rect } from "@/lib/motion/origin";
-import { modalZoomTransitionProps } from "@/lib/motion/transitions";
-import { NARROW_MEDIA_QUERY } from "@/lib/theme";
+import { preloadLazyBody, useChunkReady } from "@/lib/loading/chunkReady";
+import type { Rect } from "@/lib/motion/origin";
+import { useModalZoom } from "@/lib/motion/useModalZoom";
 
 import type { DateSelectorKind } from "./DateSelectorModalBody";
 
@@ -32,7 +26,7 @@ const DateSelectorModalBodyLazy = dynamic(loadDateSelectorBody, {
 
 /** Warm the picker body chunk on trigger intent or an idle pass. */
 export function preloadDateSelectorBody() {
-  void loadChunk(loadDateSelectorBody).catch(() => {});
+  preloadLazyBody(loadDateSelectorBody);
 }
 
 interface DateSelectorModalProps {
@@ -61,46 +55,36 @@ export function DateSelectorModal({
   originRect = null,
   weekStartsOn = "monday",
 }: DateSelectorModalProps) {
-  const theme = useMantineTheme();
-  const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
-  const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY);
   const bodyReady = useChunkReady(loadDateSelectorBody, opened);
 
   const title = kind === "month" ? "Select month" : kind === "week" ? "Select week" : "Select date";
 
   // The modal zooms out of / shrinks back into the trigger button (the app's
   // standard grow/shrink animation; mirror the filter dialog).
-  const motion = useMotion();
-  const viewportSize = useViewportSize();
-  const viewport = { w: viewportSize.width, h: viewportSize.height };
-  const contentWidth = modalContentWidth(viewport, isNarrow ? 300 : isDesktop ? 440 : 380);
-  const transitionProps = modalZoomTransitionProps(motion, originRect, viewport, contentWidth);
+  const { size, transitionProps } = useModalZoom({
+    originRect,
+    spec: { narrow: "xs", mobile: "sm", desktop: "md" },
+    contentWidthPx: { narrow: 300 },
+  });
 
   return (
-    <MotionModal
+    <LazyModal
       opened={opened}
       onClose={onClose}
       title={title}
-      centered
-      size={isNarrow ? "xs" : isDesktop ? "md" : "sm"}
+      size={size}
       transitionProps={transitionProps}
+      ready={bodyReady}
+      skeleton={<FormModalSkeleton rows={6} label="Loading date picker" />}
     >
-      <CrossfadeSwap
-        loading={opened && !bodyReady}
-        minHoldMs={MIN_SKELETON_HOLD_MS}
-        mode="overlay"
-        animateHeight
-        skeleton={<FormModalSkeleton rows={6} label="Loading date picker" />}
-      >
-        <DateSelectorModalBodyLazy
-          kind={kind}
-          date={date}
-          onPick={onPick}
-          onToday={onToday}
-          onClose={onClose}
-          weekStartsOn={weekStartsOn}
-        />
-      </CrossfadeSwap>
-    </MotionModal>
+      <DateSelectorModalBodyLazy
+        kind={kind}
+        date={date}
+        onPick={onPick}
+        onToday={onToday}
+        onClose={onClose}
+        weekStartsOn={weekStartsOn}
+      />
+    </LazyModal>
   );
 }

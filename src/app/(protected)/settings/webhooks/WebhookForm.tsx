@@ -4,12 +4,11 @@ import { useState } from "react";
 import {
   Switch,
   Button,
-  Group,
   Stack,
-  Text,
   TextInput,
 } from "@mantine/core";
-import { MotionModal } from "@/components/MotionModal";
+import { ConfirmModal } from "@/components/ConfirmModal";
+import { FormFooterActions } from "@/components/FormFooterActions";
 import { useForm } from "@mantine/form";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
@@ -18,10 +17,10 @@ import {
   createWebhook,
   deleteWebhook,
   updateWebhook,
-  type WebhookActionResult,
 } from "@/lib/webhooks/actions";
 import { validateWebhookForm, type WebhookFormValues } from "@/lib/webhooks/validate";
-import { BUTTON_LOADER_PROPS } from "@/lib/theme";
+import { runConfirm } from "@/lib/ui/runConfirm";
+import { submitCrudForm } from "@/lib/ui/submitCrudForm";
 import { showValidationFailure } from "@/lib/ui/validationFeedback";
 
 interface WebhookFormProps {
@@ -52,29 +51,15 @@ export function WebhookForm({ webhook, onDone }: WebhookFormProps) {
   });
 
   const onSubmit = form.onSubmit(
-    async (values) => {
-      const result: WebhookActionResult = isEdit
-        ? await updateWebhook(webhook.id, values)
-        : await createWebhook(values);
-
-      if (result.ok) {
-        notifications.show({
-          color: "green",
-          message: isEdit ? "Webhook endpoint updated" : "Webhook endpoint created",
-        });
-        onDone();
-        return;
-      }
-
-      if (result.field === "name") {
-        form.setFieldError("name", result.error);
-      } else if (result.field === "url") {
-        form.setFieldError("url", result.error);
-      } else if (result.field === "secret") {
-        form.setFieldError("secret", result.error);
-      }
-      notifications.show({ color: "red", message: result.error });
-    },
+    submitCrudForm({
+      form,
+      isEdit,
+      create: createWebhook,
+      update: (values) => updateWebhook(webhook!.id, values),
+      success: { create: "Webhook endpoint created", update: "Webhook endpoint updated" },
+      fieldMap: { name: "name", url: "url", secret: "secret" },
+      onSuccess: () => onDone(),
+    }),
     (errors) => showValidationFailure(errors, (field) => form.getInputNode(field)),
   );
 
@@ -84,14 +69,15 @@ export function WebhookForm({ webhook, onDone }: WebhookFormProps) {
     }
     setDeletingWebhook(true);
     try {
-      const result = await deleteWebhook(webhook.id);
+      await runConfirm({
+        call: () => deleteWebhook(webhook.id),
+        onSuccess: () => {
+          notifications.show({ color: "green", message: "Webhook endpoint deleted" });
+          onDone();
+        },
+        onError: (message) => notifications.show({ color: "red", message }),
+      });
       closeConfirm();
-      if (result.ok) {
-        notifications.show({ color: "green", message: "Webhook endpoint deleted" });
-        onDone();
-      } else {
-        notifications.show({ color: "red", message: result.error });
-      }
     } finally {
       setDeletingWebhook(false);
     }
@@ -127,49 +113,33 @@ export function WebhookForm({ webhook, onDone }: WebhookFormProps) {
           description="Disabled endpoints receive no deliveries; their configuration is kept."
           {...form.getInputProps("enabled", { type: "checkbox" })}
         />
-        <Group justify="flex-end" mt="md" wrap="nowrap">
-          {isEdit && (
-            <Button type="button" color="red" variant="light" onClick={openConfirm}>
-              Delete
-            </Button>
-          )}
-          <Button
-            type="submit"
-            fullWidth={!isEdit}
-            loading={form.submitting}
-            loaderProps={BUTTON_LOADER_PROPS}
-          >
-            {isEdit ? "Save changes" : "Create endpoint"}
-          </Button>
-        </Group>
+        <FormFooterActions
+          isEdit={isEdit}
+          loading={form.submitting}
+          submitLabel={isEdit ? "Save changes" : "Create endpoint"}
+          fullWidthOnCreate
+          secondary={
+            isEdit ? (
+              <Button type="button" color="red" variant="light" onClick={openConfirm}>
+                Delete
+              </Button>
+            ) : null
+          }
+        />
 
-        <MotionModal
+        <ConfirmModal
           opened={confirmOpened}
           onClose={closeConfirm}
           title="Delete webhook endpoint"
-          centered
-          size="sm"
-        >
-          <Stack>
-            <Text>
+          message={
+            <>
               Delete &quot;{webhook?.name}&quot;? External systems using this endpoint will stop
               receiving notifications.
-            </Text>
-            <Group justify="flex-end" mt="md">
-              <Button variant="default" onClick={closeConfirm}>
-                Cancel
-              </Button>
-              <Button
-                color="red"
-                loading={deletingWebhook}
-                loaderProps={BUTTON_LOADER_PROPS}
-                onClick={confirmDelete}
-              >
-                Delete
-              </Button>
-            </Group>
-          </Stack>
-        </MotionModal>
+            </>
+          }
+          loading={deletingWebhook}
+          onConfirm={confirmDelete}
+        />
       </Stack>
     </form>
   );

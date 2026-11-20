@@ -6,6 +6,8 @@ import { userPreferences, type UserPreference } from "@/db/schema";
 import { normalizeWeekStart, type WeekStart } from "@/lib/events/datetime";
 import { isUuid } from "@/lib/uuid";
 
+import { normalizeStringArray } from "@/lib/validation/arrays";
+
 /**
  * Per-user application preferences stored server-side so they follow the
  * account across devices (see docs/ui-state.md): the Parade State
@@ -28,10 +30,7 @@ export interface UserPreferencesView {
 
 /** Non-empty strings only; garbage entries drop out of a remembered list. */
 function toStringList(value: unknown): string[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return value.filter((entry): entry is string => typeof entry === "string" && entry.length > 0);
+  return normalizeStringArray(value) ?? [];
 }
 
 async function readRow(userId: string): Promise<UserPreference | null> {

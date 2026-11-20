@@ -1,5 +1,4 @@
-import { NextResponse } from "next/server";
-
+import { apiError, apiJson } from "@/lib/api/server";
 import {
   deletePushSubscriptionForUser,
   upsertPushSubscription,
@@ -36,13 +35,13 @@ export async function POST(request: Request) {
   try {
     body = (await request.json()) as ReconcileBody;
   } catch {
-    return NextResponse.json({ ok: false, error: "Invalid JSON body" }, { status: 400 });
+    return apiError(400, "Invalid JSON body");
   }
 
   const session = await getSession();
   const userId = session?.user?.id;
   if (!userId || !isUuid(userId)) {
-    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    return apiError(401, "Unauthorized");
   }
 
   const oldEndpoint =
@@ -54,18 +53,18 @@ export async function POST(request: Request) {
       if (oldEndpoint) {
         await deletePushSubscriptionForUser(userId, oldEndpoint);
       }
-      return NextResponse.json({ ok: true });
+      return apiJson({ ok: true });
     }
     if (!isValidClientSubscription(subscription)) {
-      return NextResponse.json({ ok: false, error: "Invalid push subscription" }, { status: 400 });
+      return apiError(400, "Invalid push subscription");
     }
     if (oldEndpoint && oldEndpoint !== subscription.endpoint) {
       await deletePushSubscriptionForUser(userId, oldEndpoint);
     }
     await upsertPushSubscription(userId, subscription.endpoint, subscription.keys);
-    return NextResponse.json({ ok: true });
+    return apiJson({ ok: true });
   } catch (error) {
     console.error("[push] Failed to reconcile push subscription", error);
-    return NextResponse.json({ ok: false, error: "Server error" }, { status: 500 });
+    return apiError(500, "Server error");
   }
 }

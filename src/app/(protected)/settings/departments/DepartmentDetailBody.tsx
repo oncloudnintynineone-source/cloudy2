@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   Anchor,
   Badge,
@@ -27,16 +27,19 @@ import {
   renameDepartment,
   revokeDepartmentAccess,
   updateDepartmentAccess,
-  type RosterActionResult,
 } from "@/lib/roster/actions";
 import { departmentTreeRows, parentOptionsFor } from "@/lib/roster/hierarchy";
 import type { DepartmentAccess, DepartmentAccessRole } from "@/lib/roster/shares";
 import { validateCalendarForm, type CalendarFormValues } from "@/lib/roster/validate";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
+import { submitCrudForm } from "@/lib/ui/submitCrudForm";
 import { showValidationFailure } from "@/lib/ui/validationFeedback";
 import { ColorSwatchPicker } from "@/components/ColorSwatchPicker";
+import { FormFooterActions } from "@/components/FormFooterActions";
 import { CrossfadeSwap } from "@/components/CrossfadeSwap";
+import { InlineError } from "@/components/InlineError";
 import { LoadingStatus } from "@/components/LoadingStatus";
+import { useOpenQuery } from "@/lib/loading/useOpenQuery";
 import { MIN_SKELETON_HOLD_MS } from "@/lib/loading/minHoldLoading";
 import { PickerField, type PickerBadgeItem } from "@/components/PickerField";
 import { UserSelectModal } from "@/components/UserSelectModal";
@@ -48,6 +51,8 @@ import {
   accessRoleLabel,
 } from "@/components/AccessRows";
 import { departmentPickerOptions, selectionByGroup } from "@/lib/users/userSelect";
+
+const mapDepartmentAccessError = () => "Couldn't load department access.";
 
 export interface DepartmentDetailBodyProps {
   calendar: Calendar | null;
@@ -99,13 +104,21 @@ export function DepartmentDetailBody({
     [departments, calendarId],
   );
 
-  const [data, setData] = useState<DepartmentAccess | null>(null);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<DepartmentAccessRole>("reader");
   const [adding, setAdding] = useState(false);
   const [removingEmail, setRemovingEmail] = useState<string | null>(null);
   const [updatingEmail, setUpdatingEmail] = useState<string | null>(null);
   const [parentPickerOpen, setParentPickerOpen] = useState(false);
+  const loadAccess = useCallback(() => getDepartmentAccess(calendarId!), [calendarId]);
+  const accessQuery = useOpenQuery<DepartmentAccess>({
+    enabled: Boolean(calendarId),
+    key: calendarId,
+    load: loadAccess,
+    mapError: mapDepartmentAccessError,
+  });
+  const data = accessQuery.data;
+  const { reload: reloadAccess } = accessQuery;
 
   // The same option set as a badge-picker section for the Parent dialog:
   // parentable departments (self + descendants excluded) as nested tree rows,
@@ -149,36 +162,20 @@ export function DepartmentDetailBody({
     form.setFieldValue("parentId", Object.values(values).flat()[0] ?? "");
   }
 
-  useEffect(() => {
-    if (calendarId) {
-      getDepartmentAccess(calendarId).then(setData);
-    }
-  }, [calendarId]);
-
-  async function reload() {
-    if (!calendarId) {
-      return;
-    }
-    setData(await getDepartmentAccess(calendarId));
-  }
+  const reload = useCallback(async () => {
+    reloadAccess();
+  }, [reloadAccess]);
 
   const onSubmit = form.onSubmit(
-    async (values) => {
-      const result: RosterActionResult = isEdit
-        ? await renameDepartment(calendar.id, values)
-        : await createDepartment(values);
-
-      if (result.ok) {
-        const message = isEdit ? "Department updated" : "Department created";
-        if (result.warnings && result.warnings.length > 0) {
-          notifications.show({
-            color: "yellow",
-            title: message,
-            message: result.warnings.join(" · "),
-          });
-        } else {
-          notifications.show({ color: "green", message });
-        }
+    submitCrudForm({
+      form,
+      isEdit,
+      create: createDepartment,
+      update: (values) => renameDepartment(calendar!.id, values),
+      success: { create: "Department created", update: "Department updated" },
+      fieldMap: { name: "name", parentId: "parentId" },
+      warnings: true,
+      onSuccess: (_result, values) => {
         if (isEdit && calendar) {
           onSaved({
             ...calendar,
@@ -189,17 +186,8 @@ export function DepartmentDetailBody({
         } else {
           onCreate();
         }
-        return;
-      }
-
-      if (result.field === "name") {
-        form.setFieldError("name", result.error);
-      }
-      if (result.field === "parentId") {
-        form.setFieldError("parentId", result.error);
-      }
-      notifications.show({ color: "red", message: result.error });
-    },
+      },
+    }),
     (errors) => showValidationFailure(errors, (field) => form.getInputNode(field)),
   );
 
@@ -389,20 +377,29 @@ export function DepartmentDetailBody({
               give a user more access, or add other people with any access level.
             </Text>
 
-            <CrossfadeSwap
-              loading={Boolean(calendarId) && !data}
-              minHoldMs={MIN_SKELETON_HOLD_MS}
-              mode="overlay"
-              animateHeight
-              skeleton={
-                <Stack gap="sm">
-                  <LoadingStatus label="Loading calendar access" />
-                  <Skeleton height={40} radius="sm" />
-                  <Skeleton height={40} radius="sm" />
-                  <Skeleton height={40} radius="sm" />
-                </Stack>
-              }
-            >
+            {accessQuery.status === "error" ? (
+              <InlineError
+                message={accessQuery.error ?? "Couldn't load department access."}
+                onRetry={accessQuery.reload}
+              />
+            ) : (
+              <CrossfadeSwap
+                loading={
+                  Boolean(calendarId) &&
+                  accessQuery.status !== "ready"
+                }
+                minHoldMs={MIN_SKELETON_HOLD_MS}
+                mode="overlay"
+                animateHeight
+                skeleton={
+                  <Stack gap="sm">
+                    <LoadingStatus label="Loading calendar access" />
+                    <Skeleton height={40} radius="sm" />
+                    <Skeleton height={40} radius="sm" />
+                    <Skeleton height={40} radius="sm" />
+                  </Stack>
+                }
+              >
               <>
                 {data?.admin ? (
                   <Stack gap={6}>
@@ -545,24 +542,27 @@ export function DepartmentDetailBody({
                 </Stack>
               </>
             </CrossfadeSwap>
+            )}
           </>
         )}
 
-        <Group justify="flex-end" mt="md" wrap="nowrap">
-          {isEdit && calendar && (
-            <Button
-              type="button"
-              variant="light"
-              color="red"
-              onClick={() => onRequestDelete(calendar)}
-            >
-              Delete department
-            </Button>
-          )}
-          <Button type="submit" loading={form.submitting} loaderProps={BUTTON_LOADER_PROPS}>
-            {isEdit ? "Save changes" : "Create department"}
-          </Button>
-        </Group>
+        <FormFooterActions
+          isEdit={isEdit}
+          loading={form.submitting}
+          submitLabel={isEdit ? "Save changes" : "Create department"}
+          secondary={
+            isEdit && calendar ? (
+              <Button
+                type="button"
+                variant="light"
+                color="red"
+                onClick={() => onRequestDelete(calendar)}
+              >
+                Delete department
+              </Button>
+            ) : null
+          }
+        />
       </Stack>
     </form>
   );

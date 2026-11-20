@@ -13,6 +13,7 @@ import {
   TextInput,
   useMantineTheme,
 } from "@mantine/core";
+import { ConfirmModal } from "@/components/ConfirmModal";
 import { MotionModal } from "@/components/MotionModal";
 import { useMotion } from "@/components/MotionProvider";
 import { useMediaQuery } from "@mantine/hooks";
@@ -503,33 +504,18 @@ export function EditViewsModalBody({
 
       <ShareViewDialog tab={sharing} onClose={() => setSharing(null)} />
 
-      <MotionModal
+      <ConfirmModal
         opened={deleting !== null}
         onClose={() => setDeleting(null)}
         title="Delete view"
-        centered
-        size="sm"
+        message={<>Delete &ldquo;{deleting?.name}&rdquo;?</>}
+        loading={deletingBusy}
+        onConfirm={() => void confirmDelete()}
       >
-        <Stack>
-          <Text>Delete &ldquo;{deleting?.name}&rdquo;?</Text>
-          <Text size="sm" c="dimmed">
-            This only removes the view — your events and their filters are untouched.
-          </Text>
-          <Group justify="flex-end" mt="md">
-            <Button variant="default" onClick={() => setDeleting(null)}>
-              Cancel
-            </Button>
-            <Button
-              color="red"
-              loading={deletingBusy}
-              loaderProps={BUTTON_LOADER_PROPS}
-              onClick={() => void confirmDelete()}
-            >
-              Delete
-            </Button>
-          </Group>
-        </Stack>
-      </MotionModal>
+        <Text size="sm" c="dimmed">
+          This only removes the view — your events and their filters are untouched.
+        </Text>
+      </ConfirmModal>
     </>
   );
 }

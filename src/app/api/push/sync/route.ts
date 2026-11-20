@@ -1,12 +1,4 @@
-import { NextResponse } from "next/server";
-
-import {
-  API_NO_STORE,
-  apiSession,
-  isApiRequest,
-  readApiJson,
-  unauthorized,
-} from "@/lib/api/server";
+import { apiJson, withApiJson } from "@/lib/api/server";
 import {
   syncPushSubscription,
   type ClientPushSubscription,
@@ -22,22 +14,11 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
-  if (!isApiRequest(request)) {
-    return unauthorized();
-  }
-  const session = await apiSession();
-  if (!session) {
-    return unauthorized();
+  const auth = await withApiJson<ClientPushSubscription>(request);
+  if (!auth.ok) {
+    return auth.response;
   }
 
-  const body = await readApiJson<ClientPushSubscription>(request);
-  if (body === null) {
-    return NextResponse.json(
-      { ok: false, error: "Invalid request" },
-      { status: 400, headers: API_NO_STORE },
-    );
-  }
-
-  const result = await syncPushSubscription(body);
-  return NextResponse.json(result, { headers: API_NO_STORE });
+  const result = await syncPushSubscription(auth.body);
+  return apiJson(result);
 }

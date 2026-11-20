@@ -31,7 +31,7 @@ import {
 import { CrossfadeSwap } from "@/components/CrossfadeSwap";
 import { EventDetailSkeleton } from "./EventDetailSkeleton";
 import { EventHistoryModal } from "@/components/EventHistoryModal";
-import { MotionModal } from "@/components/MotionModal";
+import { ConfirmModal } from "@/components/ConfirmModal";
 import { deleteEvent, setEventRegistration, type EventActionOk } from "@/lib/events/actions";
 import { buildEventIcs, buildGoogleCalendarUrl, icsFileName } from "@/lib/events/calendarExport";
 import { subOneDay } from "@/lib/events/datetime";
@@ -44,10 +44,7 @@ import {
 } from "@/lib/events/optimistic";
 import { eventRefFromCalendarEvent } from "@/lib/events/targets";
 import type { Rect } from "@/lib/motion/origin";
-import {
-  fadeTransitionProps,
-  popoverTransitionProps,
-} from "@/lib/motion/transitions";
+import { popoverTransitionProps } from "@/lib/motion/transitions";
 import { useMotion } from "@/components/MotionProvider";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { formatDateTime } from "./clientDateTime";
@@ -143,8 +140,6 @@ export function EventDetailBody({
     setRegistrationPatch(null);
     setShareEvent(null);
   }
-
-  const motion = useMotion();
 
   const showEvent = event ?? displayEvent;
   const payload = showEvent?.payload;
@@ -556,29 +551,14 @@ export function EventDetailBody({
       </CrossfadeSwap>
 
       {!readOnly && showEvent && (
-        <MotionModal
+        <ConfirmModal
           opened={confirmOpen}
           onClose={close}
           title="Delete event"
-          centered
-          size="sm"
-          transitionProps={fadeTransitionProps(motion)}
-        >
-          <Text>Delete &quot;{showEvent.title}&quot;?</Text>
-          <Group justify="flex-end" mt="md">
-            <Button variant="default" onClick={close}>
-              Cancel
-            </Button>
-            <Button
-              color="red"
-              loading={deleting}
-              loaderProps={BUTTON_LOADER_PROPS}
-              onClick={handleDelete}
-            >
-              Delete
-            </Button>
-          </Group>
-        </MotionModal>
+          message={<>Delete &quot;{showEvent.title}&quot;?</>}
+          loading={deleting}
+          onConfirm={handleDelete}
+        />
       )}
 
       <EventHistoryModal

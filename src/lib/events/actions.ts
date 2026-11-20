@@ -1,7 +1,7 @@
 "use server";
 
 import { describeError } from "@/db/pgErrors";
-import { AUDIT_ACTIONS, actorFromUser } from "@/lib/audit/build";
+import { AUDIT_ACTIONS, actorFromSession } from "@/lib/audit/build";
 import { diffFields } from "@/lib/audit/diff";
 import { logAction } from "@/lib/audit/log";
 import { appBaseUrl } from "@/lib/appUrl";
@@ -119,14 +119,6 @@ function timePartsOf(values: EventFormValues): EventTimeParts {
     startAmPm: values.startAmPm,
     endAmPm: values.endAmPm,
   };
-}
-
-function actorFrom(session: Awaited<ReturnType<typeof requireSession>>) {
-  return actorFromUser({
-    id: session.user.id,
-    name: session.user.name ?? null,
-    role: session.user.role,
-  });
 }
 
 /** Actor fields of the outbound event webhook payload. */
@@ -439,7 +431,7 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
   // and must not see a pre-mutation cache row.
   await Promise.all([
     logAction({
-      ...actorFrom(session),
+      ...actorFromSession(session),
       action: AUDIT_ACTIONS.eventCreate,
       entityType: "calendar",
       entityId: targets[0],
@@ -480,13 +472,13 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
     windowEnd: createdWindow.end,
     allDay: effectiveInput.timeOption !== "range",
     eventTitle: renderedTitle,
-    actor: actorFrom(session),
+    actor: actorFromSession(session),
     savedEventOverseas: effectiveInput.outOfCamp && effectiveInput.overseas,
     savedEventUserIds: effectiveInput.inviteeUserIds,
   });
   // Notify everyone newly included in this event as a participant (best-effort
   // Web Push via after(); the organizer/actor is never notified).
-  const notifyActor = actorFrom(session);
+  const notifyActor = actorFromSession(session);
   dispatchParticipantNotifications({
     actorId: notifyActor.actorId,
     actorName: notifyActor.actorName,
@@ -849,7 +841,7 @@ async function performEventUpdate({
   // pre-mutation cache row.
   await Promise.all([
     logAction({
-      ...actorFrom(session),
+      ...actorFromSession(session),
       action: AUDIT_ACTIONS.eventUpdate,
       entityType: "calendar",
       entityId: newTargets[0] ?? ref.calendarId,
@@ -895,14 +887,14 @@ async function performEventUpdate({
     windowEnd: updatedWindow.end,
     allDay: effectiveInput.timeOption !== "range",
     eventTitle: renderedTitle,
-    actor: actorFrom(session),
+    actor: actorFromSession(session),
     savedEventOverseas: effectiveInput.outOfCamp && effectiveInput.overseas,
     savedEventUserIds: effectiveInput.inviteeUserIds,
   });
   // Notify users newly added as participants by this edit (best-effort Web Push
   // via after(); never the acting user). A no-op participant change resolves to
   // an empty added set inside the dispatch and sends nothing.
-  const notifyActor = actorFrom(session);
+  const notifyActor = actorFromSession(session);
   dispatchParticipantNotifications({
     actorId: notifyActor.actorId,
     actorName: notifyActor.actorName,
@@ -1154,7 +1146,7 @@ export async function deleteEvent(ref: EventRef): Promise<EventActionResult> {
   // client's post-delete re-read cannot race a pre-delete cache row.
   await Promise.all([
     logAction({
-      ...actorFrom(session),
+      ...actorFromSession(session),
       action: AUDIT_ACTIONS.eventDelete,
       entityType: "calendar",
       entityId: ref.calendarId,

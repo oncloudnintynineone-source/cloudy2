@@ -1,5 +1,7 @@
 import type { MantineColor } from "@mantine/core";
 
+import { trimToMax } from "@/lib/validation/text";
+
 /**
  * Pure helpers for the announcement banner (Settings → Banner). Kept free of
  * I/O so they can be unit-tested without a database.
@@ -92,11 +94,7 @@ export function formatBannerColorLabel(color: string | null | undefined): string
  * allowed only while the banner is disabled — `validateBannerForm` gates that.
  */
 export function normalizeBannerText(raw: string): string | null {
-  const value = raw.trim();
-  if (!value || value.length > BANNER_TEXT_MAX_LENGTH) {
-    return null;
-  }
-  return value;
+  return trimToMax(raw, BANNER_TEXT_MAX_LENGTH);
 }
 
 /**

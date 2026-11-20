@@ -1161,17 +1161,20 @@ out of the client graph (a ~230 KB polyfill chunk otherwise).
 ### 1.15.1 Chunk reveals crossfade too
 
 `next/dynamic` swaps its fallback for the real component the instant the chunk
-resolves — a hard cut that contradicts §1.6. The recipe for every lazy modal
-body (the wizard, the settings forms, the search body, the department detail):
+resolves — a hard cut that contradicts §1.6. Every lazy modal body now goes
+through the shared `LazyModal` (`src/components/LazyModal.tsx`), which packages
+the recipe:
 
 1. keep the `dynamic()` call at **module level** with `loading: () => null`
    (rendering a hook-returned component trips `react-hooks/static-components`);
-2. gate a `CrossfadeSwap` on `useChunkReady(loadX, opened)`
+   `LazyModal` accepts the already-created component — it never calls
+   `dynamic()` itself, so the chunk split is preserved;
+2. pass `ready={useChunkReady(loadX, opened)}`
    (`src/lib/loading/chunkReady.ts`) — the same load as a boolean, keyed by the
    loader function in a `WeakMap`, so the dynamic component, the idle/intent
-   preloads (`loadChunk`) and the gate share one in-flight promise;
-3. `mode="overlay"` + `minHoldMs={MIN_SKELETON_HOLD_MS}` so the skeleton sizes
-   the dialog, holds its beat, and dissolves in place.
+   preloads (`preloadLazyBody`) and the gate share one in-flight promise;
+3. `LazyModal` renders `mode="overlay"` + `minHoldMs={MIN_SKELETON_HOLD_MS}` so
+   the skeleton sizes the dialog, holds its beat, and dissolves in place.
 
 Every modal follows the same split: a static `MotionModal` chrome plus a lazy
 `…Body` (the wizard, the settings forms, the search/filter dialogs, the date
@@ -1181,7 +1184,8 @@ while the body chunk downloads; the chrome never unmounts/replays its entrance
 when the chunk lands. A failed chunk load leaves the flag false (skeleton
 stays, next open retries). Body-only imports (heavy pickers, actions, nested
 dialogs) stay in the lazy module so the page's initial chunk keeps only the
-chrome.
+chrome. `EventDetail`, `EventForm`, `FilterModal` and `UserSelectModal` keep
+their bespoke composition where mount/flex/size semantics are unique.
 
 **Viewport reads.** Modal "grow from tapped element" origin math reads the
 viewport through `useViewportSize` (resize-subscribed) rather than
@@ -1210,7 +1214,11 @@ re-render the whole dashboard view.
 | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `src/lib/loading/minHoldLoading.ts`                              | `useMinSkeletonHold` + `MIN_SKELETON_HOLD_MS`                                                                                                                                                                                                                                                                                 |
 | `src/lib/loading/contentEnter.ts`                                | `CONTENT_ENTER_CLASS` + `useContentEnter` (cold-mount fades only; in-place swaps use `CrossfadeSwap`)                                                                                                                                                                                                                         |
-| `src/lib/loading/chunkReady.ts`                                  | `loadChunk`/`useChunkReady` — lazy modal-chunk loads as a boolean so the chunk skeleton dissolves through `CrossfadeSwap` (§1.15.1)                                                                                                                                                                                           |
+| `src/lib/loading/chunkReady.ts`                                  | `loadChunk`/`useChunkReady`/`preloadLazyBody` — lazy modal-chunk loads as a boolean so the chunk skeleton dissolves through `CrossfadeSwap` (§1.15.1)                                                                                                                                                                        |
+| `src/components/LazyModal.tsx`                                   | The shared chrome + chunk-gate + crossfade composition for lazy modal bodies (§1.15.1)                                                                                                                                                                                                                                      |
+| `src/lib/loading/useOpenQuery.ts`                                | Load-on-open state machine: render-phase reset, stale-response guard, terminal ready/error + `reload` (§1.6.3 of [`component-framework.md`](component-framework.md))                                                                                                                                                          |
+| `src/components/ConfirmModal.tsx`                                | The shared small confirmation dialog (§1.6.1 of [`component-framework.md`](component-framework.md))                                                                                                                                                                                                                         |
+| `src/components/InlineError.tsx`                                 | Inline dialog failure line + optional retry                                                                                                                                                                                                                                                                                  |
 | `src/components/CrossfadeSwap.tsx`                               | The shared skeleton → content swap (retains the outgoing skeleton for one motion beat; `minHoldMs`, `mode="stack"/"overlay"`) — §1.6.1                                                                                                                                                                                        |
 | `src/components/LoadingStatus.tsx`                               | Sr-only `role="status"` announcement included with every skeleton block (§1.4, [`accessibility.md`](accessibility.md) §1.3)                                                                                                                                                                                                   |
 | `src/app/globals.css`                                            | `content-enter` / `c2-crossfade-*` / `agenda-slide-*` / `c2-page-in`/`c2-page-out` / `c2-grid-*` period-slide keyframes, `::view-transition-*` page + named-group rules, reduced-motion guard                                                                                                                                |

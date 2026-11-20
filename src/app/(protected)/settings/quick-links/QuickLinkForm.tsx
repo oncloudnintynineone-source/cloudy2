@@ -4,12 +4,12 @@ import { useState } from "react";
 import {
   Switch,
   Button,
-  Group,
   Stack,
   Text,
   TextInput,
 } from "@mantine/core";
-import { MotionModal } from "@/components/MotionModal";
+import { ConfirmModal } from "@/components/ConfirmModal";
+import { FormFooterActions } from "@/components/FormFooterActions";
 import { useForm } from "@mantine/form";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
@@ -20,11 +20,11 @@ import {
   createQuickLink,
   deleteQuickLink,
   updateQuickLink,
-  type QuickLinkActionResult,
 } from "@/lib/quickLinks/actions";
 import { DEFAULT_QUICK_LINK_ICON } from "@/lib/quickLinks/icons";
 import { validateQuickLinkForm, type QuickLinkFormValues } from "@/lib/quickLinks/validate";
-import { BUTTON_LOADER_PROPS } from "@/lib/theme";
+import { runConfirm } from "@/lib/ui/runConfirm";
+import { submitCrudForm } from "@/lib/ui/submitCrudForm";
 import { showValidationFailure } from "@/lib/ui/validationFeedback";
 
 interface QuickLinkFormProps {
@@ -57,27 +57,15 @@ export function QuickLinkForm({ link, onDone }: QuickLinkFormProps) {
   });
 
   const onSubmit = form.onSubmit(
-    async (values) => {
-      const result: QuickLinkActionResult = isEdit
-        ? await updateQuickLink(link.id, values)
-        : await createQuickLink(values);
-
-      if (result.ok) {
-        notifications.show({
-          color: "green",
-          message: isEdit ? "Quick link updated" : "Quick link created",
-        });
-        onDone();
-        return;
-      }
-
-      if (result.field === "label") {
-        form.setFieldError("label", result.error);
-      } else if (result.field === "url") {
-        form.setFieldError("url", result.error);
-      }
-      notifications.show({ color: "red", message: result.error });
-    },
+    submitCrudForm({
+      form,
+      isEdit,
+      create: createQuickLink,
+      update: (values) => updateQuickLink(link!.id, values),
+      success: { create: "Quick link created", update: "Quick link updated" },
+      fieldMap: { label: "label", url: "url" },
+      onSuccess: () => onDone(),
+    }),
     (errors) => showValidationFailure(errors, (field) => form.getInputNode(field)),
   );
 
@@ -87,14 +75,15 @@ export function QuickLinkForm({ link, onDone }: QuickLinkFormProps) {
     }
     setDeleting(true);
     try {
-      const result = await deleteQuickLink(link.id);
+      await runConfirm({
+        call: () => deleteQuickLink(link.id),
+        onSuccess: () => {
+          notifications.show({ color: "green", message: "Quick link deleted" });
+          onDone();
+        },
+        onError: (message) => notifications.show({ color: "red", message }),
+      });
       closeConfirm();
-      if (result.ok) {
-        notifications.show({ color: "green", message: "Quick link deleted" });
-        onDone();
-      } else {
-        notifications.show({ color: "red", message: result.error });
-      }
     } finally {
       setDeleting(false);
     }
@@ -149,48 +138,32 @@ export function QuickLinkForm({ link, onDone }: QuickLinkFormProps) {
           description="Disabled links are hidden from the menu; their configuration is kept."
           {...form.getInputProps("enabled", { type: "checkbox" })}
         />
-        <Group justify="flex-end" mt="md" wrap="nowrap">
-          {isEdit && (
-            <Button type="button" color="red" variant="light" onClick={openConfirm}>
-              Delete
-            </Button>
-          )}
-          <Button
-            type="submit"
-            fullWidth={!isEdit}
-            loading={form.submitting}
-            loaderProps={BUTTON_LOADER_PROPS}
-          >
-            {isEdit ? "Save changes" : "Create quick link"}
-          </Button>
-        </Group>
+        <FormFooterActions
+          isEdit={isEdit}
+          loading={form.submitting}
+          submitLabel={isEdit ? "Save changes" : "Create quick link"}
+          fullWidthOnCreate
+          secondary={
+            isEdit ? (
+              <Button type="button" color="red" variant="light" onClick={openConfirm}>
+                Delete
+              </Button>
+            ) : null
+          }
+        />
 
-        <MotionModal
+        <ConfirmModal
           opened={confirmOpened}
           onClose={closeConfirm}
           title="Delete quick link"
-          centered
-          size="sm"
-        >
-          <Stack>
-            <Text>
+          message={
+            <>
               Delete &quot;{link?.label}&quot;? It will no longer appear in the quick-links menu.
-            </Text>
-            <Group justify="flex-end" mt="md">
-              <Button variant="default" onClick={closeConfirm}>
-                Cancel
-              </Button>
-              <Button
-                color="red"
-                loading={deleting}
-                loaderProps={BUTTON_LOADER_PROPS}
-                onClick={confirmDelete}
-              >
-                Delete
-              </Button>
-            </Group>
-          </Stack>
-        </MotionModal>
+            </>
+          }
+          loading={deleting}
+          onConfirm={confirmDelete}
+        />
       </Stack>
     </form>
   );

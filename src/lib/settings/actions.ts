@@ -5,10 +5,10 @@ import { revalidatePath } from "next/cache";
 
 import { db } from "@/db";
 import { eventTitleTemplates, settings } from "@/db/schema";
-import { AUDIT_ACTIONS, actorFromUser } from "@/lib/audit/build";
+import { applyWriteEffects } from "@/lib/actions/effects";
+import { AUDIT_ACTIONS, actorFromSession } from "@/lib/audit/build";
 import { diffFields } from "@/lib/audit/diff";
 import { logAction } from "@/lib/audit/log";
-import { invalidateConfigCache } from "@/lib/configCache";
 import { invalidatePinnedCache } from "@/lib/events/pinned";
 import { purgeGcalCache } from "@/lib/google/eventsCache";
 import { requireAdmin } from "@/lib/session";
@@ -142,11 +142,7 @@ export async function createEventTitleTemplate(
     .returning();
 
   await logAction({
-    ...actorFromUser({
-      id: session.user.id,
-      name: session.user.name ?? null,
-      role: session.user.role,
-    }),
+    ...actorFromSession(session),
     action: AUDIT_ACTIONS.settingsUpdate,
     entityType: "settings",
     entityName: "settings",
@@ -154,10 +150,7 @@ export async function createEventTitleTemplate(
     details: { label: created.label, recipe: prepared.recipe, id: created.id },
   });
 
-  invalidateConfigCache(["eventTitleTemplates"]);
-  revalidatePath("/settings/templates");
-  revalidatePath("/dashboard");
-  revalidatePath("/parade-state");
+  applyWriteEffects("templates");
   return { ok: true };
 }
 
@@ -190,11 +183,7 @@ export async function updateEventTitleTemplateById(
     .where(eq(eventTitleTemplates.id, id));
 
   await logAction({
-    ...actorFromUser({
-      id: session.user.id,
-      name: session.user.name ?? null,
-      role: session.user.role,
-    }),
+    ...actorFromSession(session),
     action: AUDIT_ACTIONS.settingsUpdate,
     entityType: "settings",
     entityName: "settings",
@@ -202,10 +191,7 @@ export async function updateEventTitleTemplateById(
     details: diffFields(before, { label: label.trim(), recipe: prepared.recipe }),
   });
 
-  invalidateConfigCache(["eventTitleTemplates"]);
-  revalidatePath("/settings/templates");
-  revalidatePath("/dashboard");
-  revalidatePath("/parade-state");
+  applyWriteEffects("templates");
   return { ok: true };
 }
 
@@ -235,11 +221,7 @@ export async function deleteEventTitleTemplate(id: string): Promise<SettingsActi
   await db.delete(eventTitleTemplates).where(eq(eventTitleTemplates.id, id));
 
   await logAction({
-    ...actorFromUser({
-      id: session.user.id,
-      name: session.user.name ?? null,
-      role: session.user.role,
-    }),
+    ...actorFromSession(session),
     action: AUDIT_ACTIONS.settingsUpdate,
     entityType: "settings",
     entityName: "settings",
@@ -247,10 +229,7 @@ export async function deleteEventTitleTemplate(id: string): Promise<SettingsActi
     details: { deletedId: id, label: existing[0].label },
   });
 
-  invalidateConfigCache(["eventTitleTemplates", "settings"]);
-  revalidatePath("/settings/templates");
-  revalidatePath("/dashboard");
-  revalidatePath("/parade-state");
+  applyWriteEffects("templates", { cache: ["settings"] });
   return { ok: true };
 }
 
@@ -272,11 +251,7 @@ export async function duplicateEventTitleTemplate(id: string): Promise<SettingsA
   const [created] = await db.insert(eventTitleTemplates).values({ label, recipe }).returning();
 
   await logAction({
-    ...actorFromUser({
-      id: session.user.id,
-      name: session.user.name ?? null,
-      role: session.user.role,
-    }),
+    ...actorFromSession(session),
     action: AUDIT_ACTIONS.settingsUpdate,
     entityType: "settings",
     entityName: "settings",
@@ -284,10 +259,7 @@ export async function duplicateEventTitleTemplate(id: string): Promise<SettingsA
     details: { fromId: id, copiedId: created.id, label: created.label },
   });
 
-  invalidateConfigCache(["eventTitleTemplates"]);
-  revalidatePath("/settings/templates");
-  revalidatePath("/dashboard");
-  revalidatePath("/parade-state");
+  applyWriteEffects("templates");
   return { ok: true };
 }
 
@@ -300,11 +272,7 @@ export async function purgeCalendarCache(): Promise<SettingsActionResult> {
     await purgeGcalCache();
     await invalidatePinnedCache();
     await logAction({
-      ...actorFromUser({
-        id: session.user.id,
-        name: session.user.name ?? null,
-        role: session.user.role,
-      }),
+      ...actorFromSession(session),
       action: AUDIT_ACTIONS.cachePurge,
       entityType: "cache",
       entityName: "googleEventCache",

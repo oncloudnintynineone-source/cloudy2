@@ -19,6 +19,7 @@ import {
   useMantineTheme,
   VisuallyHidden,
 } from "@mantine/core";
+import { ConfirmModal } from "@/components/ConfirmModal";
 import { MotionModal } from "@/components/MotionModal";
 import { DatePickerInput } from "@mantine/dates";
 import { useDisclosure, useMediaQuery } from "@mantine/hooks";
@@ -43,12 +44,11 @@ import { useLiveRouteRefresh } from "@/lib/loading/liveRefresh";
 import { type Rect } from "@/lib/motion/origin";
 import { useMotion } from "@/components/MotionProvider";
 import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
-import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import type { AuditLog } from "@/db/schema";
 
 import { useActivityRefresh, useReportActivity } from "@/components/ActivityBar";
 import { AuditLogRowSkeleton } from "./AuditLogRowSkeleton";
-import { SettingsTableSkeleton } from "../SettingsTableSkeleton";
+import { SettingsTableSkeleton } from "@/components/SettingsTableSkeleton";
 
 interface AuditLogViewProps {
   initialRows: AuditLog[];
@@ -789,54 +789,26 @@ export function AuditLogView({
         originRect={filtersOriginRect}
       />
 
-      <MotionModal
+      <ConfirmModal
         opened={purgeOpened}
         onClose={closePurge}
         title="Delete old audit logs"
-        centered
-        size="sm"
-      >
-        <Text size="sm">
-          Permanently delete all log entries older than {retentionDays} days? This cannot be undone.
-        </Text>
-        <Group justify="flex-end" mt="md">
-          <Button variant="default" onClick={closePurge}>
-            Cancel
-          </Button>
-          <Button
-            color="red"
-            loading={purging}
-            loaderProps={BUTTON_LOADER_PROPS}
-            onClick={handlePurge}
-          >
-            Delete
-          </Button>
-        </Group>
-      </MotionModal>
+        message={`Permanently delete all log entries older than ${retentionDays} days? This cannot be undone.`}
+        loading={purging}
+        onConfirm={handlePurge}
+      />
 
-      <MotionModal
+      <ConfirmModal
         opened={exportOpened}
         onClose={closeExport}
         title="Export audit log"
-        centered
-        size="sm"
-      >
-        <Text size="sm">Download the currently filtered log entries as a CSV file?</Text>
-        <Group justify="flex-end" mt="md">
-          <Button variant="default" onClick={closeExport}>
-            Cancel
-          </Button>
-          <Button
-            color="brand"
-            loading={exporting}
-            loaderProps={BUTTON_LOADER_PROPS}
-            leftSection={<IconDownload size={18} />}
-            onClick={() => void handleExport()}
-          >
-            Download
-          </Button>
-        </Group>
-      </MotionModal>
+        message="Download the currently filtered log entries as a CSV file?"
+        confirmLabel="Download"
+        confirmColor="brand"
+        confirmIcon={<IconDownload size={18} />}
+        loading={exporting}
+        onConfirm={() => void handleExport()}
+      />
 
       {/* Mobile-only: at lg the "Export" button in the filter row replaces the
           FAB. hiddenFrom sits on the toolbar itself: its Affix portals to

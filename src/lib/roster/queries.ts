@@ -1,11 +1,11 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db";
+import { DEPARTMENT_ORDER } from "@/lib/db/order";
 import { calendars, userCalendarAccess, users } from "@/db/schema";
-import { getCachedValue } from "@/lib/cache";
-import { CONFIG_CACHE_KEYS, CONFIG_CACHE_TTL_MS } from "@/lib/configCache";
+import { cachedConfig } from "@/lib/configCache";
 import type { UserRole, UserStatus } from "@/lib/roster/validate";
-import { onlyUuidIds } from "@/lib/uuid";
+import { uniqueUuidIds } from "@/lib/uuid";
 
 export interface RosterDepartment {
   id: string;
@@ -32,7 +32,7 @@ export interface RosterUser {
  * edits appear within `CONFIG_CACHE_TTL_MS`.
  */
 export async function listUsers(): Promise<RosterUser[]> {
-  return getCachedValue(CONFIG_CACHE_KEYS.users, CONFIG_CACHE_TTL_MS, async () => {
+  return cachedConfig("users", async () => {
     const rows = await db
       .select({
         id: users.id,
@@ -83,7 +83,7 @@ export interface UserDisplayInfo {
  * rendering event title templates. Unknown ids are omitted from the result.
  */
 export async function getUsersByIds(userIds: string[]): Promise<UserDisplayInfo[]> {
-  const uniqueIds = [...new Set(onlyUuidIds(userIds))];
+  const uniqueIds = uniqueUuidIds(userIds);
   if (uniqueIds.length === 0) {
     return [];
   }
@@ -107,7 +107,7 @@ export async function getUsersByIds(userIds: string[]): Promise<UserDisplayInfo[
 
 /** All departments (Google Calendar registry), ordered for display (sortOrder then name). */
 export async function listDepartments() {
-  return db.select().from(calendars).orderBy(asc(calendars.sortOrder), asc(calendars.name));
+  return db.select().from(calendars).orderBy(...DEPARTMENT_ORDER);
 }
 
 /**
@@ -165,7 +165,7 @@ export async function listUserAccess(): Promise<(RosterAccessGrant & { userId: s
     })
     .from(userCalendarAccess)
     .leftJoin(calendars, eq(calendars.id, userCalendarAccess.calendarId))
-    .orderBy(asc(calendars.sortOrder), asc(calendars.name));
+    .orderBy(...DEPARTMENT_ORDER);
   return rows.map((row) => ({
     userId: row.userId,
     calendarId: row.calendarId,

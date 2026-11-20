@@ -1,15 +1,14 @@
 "use server";
 
 import { eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 
 import { db } from "@/db";
-import { findUniqueViolation } from "@/db/pgErrors";
+import { uniqueViolationResult } from "@/db/pgErrors";
 import { eventTypes, eventTypeGroups, type EventType } from "@/db/schema";
-import { AUDIT_ACTIONS, actorFromUser } from "@/lib/audit/build";
+import { commitAdminWrite } from "@/lib/actions/adminWrite";
+import type { ActionResult } from "@/lib/actions/result";
+import { AUDIT_ACTIONS } from "@/lib/audit/build";
 import { diffFields } from "@/lib/audit/diff";
-import { logAction } from "@/lib/audit/log";
-import { invalidateConfigCache } from "@/lib/configCache";
 import { requireAdmin } from "@/lib/session";
 import { validateEventTypeForm, type EventTypeFormValues } from "@/lib/eventTypes/validate";
 import { formatColorLabel, normalizeEventColor } from "@/lib/events/eventColors";
@@ -29,13 +28,10 @@ export interface EventTypeRenameMigrationHint {
   shortnameChanged: boolean;
 }
 
-export type EventTypeActionResult =
-  | { ok: true; migration?: EventTypeRenameMigrationHint }
-  | {
-      ok: false;
-      error: string;
-      field?: "name" | "shortname" | "timeOptions" | "allowedLocations" | "groupId";
-    };
+export type EventTypeActionResult = ActionResult<
+  { migration?: EventTypeRenameMigrationHint },
+  "name" | "shortname" | "timeOptions" | "allowedLocations" | "groupId"
+>;
 
 /** The display label a group id maps to in audit details (null = ungrouped). */
 async function getGroupNameOrNull(groupId: string | null): Promise<string | null> {
@@ -48,14 +44,6 @@ async function getGroupNameOrNull(groupId: string | null): Promise<string | null
     .where(eq(eventTypeGroups.id, groupId))
     .limit(1);
   return row ? row.name : null;
-}
-
-function actorFrom(session: Awaited<ReturnType<typeof requireAdmin>>) {
-  return actorFromUser({
-    id: session.user.id,
-    name: session.user.name ?? null,
-    role: session.user.role,
-  });
 }
 
 async function getEventTypeOrNull(id: string): Promise<EventType | null> {
@@ -114,8 +102,8 @@ export async function createEventType(input: EventTypeFormValues): Promise<Event
       })
       .returning({ id: eventTypes.id, name: eventTypes.name });
 
-    await logAction({
-      ...actorFrom(session),
+    await commitAdminWrite({
+      session,
       action: AUDIT_ACTIONS.eventTypeCreate,
       entityType: "eventType",
       entityId: created.id,
@@ -133,26 +121,27 @@ export async function createEventType(input: EventTypeFormValues): Promise<Event
         excludeFromClash,
         color: formatColorLabel(color, name),
       },
+      effect: "eventTypes",
     });
   } catch (error) {
     // Drizzle wraps the PostgresError in a DrizzleQueryError, so the
     // constraint name lives down the .cause chain (see src/db/pgErrors.ts).
-    const violation = findUniqueViolation(error);
-    if (violation?.constraintName === "event_types_shortname_idx") {
-      return {
-        ok: false,
-        error: "An event type with this shortname already exists",
-        field: "shortname",
-      };
-    }
-    if (violation !== null) {
-      return { ok: false, error: "An event type with this name already exists", field: "name" };
+    const mapped = uniqueViolationResult(
+      error,
+      {
+        event_types_shortname_idx: {
+          error: "An event type with this shortname already exists",
+          field: "shortname",
+        },
+      },
+      { error: "An event type with this name already exists", field: "name" },
+    );
+    if (mapped) {
+      return mapped;
     }
     throw error;
   }
 
-  invalidateConfigCache(["eventTypes"]);
-  revalidatePath("/settings/event-types");
   return { ok: true };
 }
 
@@ -205,8 +194,8 @@ export async function renameEventType(
       })
       .where(eq(eventTypes.id, id));
 
-    await logAction({
-      ...actorFrom(session),
+    await commitAdminWrite({
+      session,
       action: AUDIT_ACTIONS.eventTypeRename,
       entityType: "eventType",
       entityId: id,
@@ -240,26 +229,27 @@ export async function renameEventType(
           color: formatColorLabel(color, name),
         },
       ),
+      effect: "eventTypes",
     });
   } catch (error) {
     // Drizzle wraps the PostgresError in a DrizzleQueryError, so the
     // constraint name lives down the .cause chain (see src/db/pgErrors.ts).
-    const violation = findUniqueViolation(error);
-    if (violation?.constraintName === "event_types_shortname_idx") {
-      return {
-        ok: false,
-        error: "An event type with this shortname already exists",
-        field: "shortname",
-      };
-    }
-    if (violation !== null) {
-      return { ok: false, error: "An event type with this name already exists", field: "name" };
+    const mapped = uniqueViolationResult(
+      error,
+      {
+        event_types_shortname_idx: {
+          error: "An event type with this shortname already exists",
+          field: "shortname",
+        },
+      },
+      { error: "An event type with this name already exists", field: "name" },
+    );
+    if (mapped) {
+      return mapped;
     }
     throw error;
   }
 
-  invalidateConfigCache(["eventTypes"]);
-  revalidatePath("/settings/event-types");
   const nameChanged = existing.name !== name;
   const shortnameChanged = (existing.shortname ?? "") !== shortname;
   return {
@@ -281,16 +271,14 @@ export async function deleteEventType(id: string): Promise<EventTypeActionResult
 
   await db.delete(eventTypes).where(eq(eventTypes.id, id));
 
-  await logAction({
-    ...actorFrom(session),
+  await commitAdminWrite({
+    session,
     action: AUDIT_ACTIONS.eventTypeDelete,
     entityType: "eventType",
     entityId: id,
     entityName: existing.name,
     method: "deleteEventType",
+    effect: "eventTypes",
   });
-
-  invalidateConfigCache(["eventTypes"]);
-  revalidatePath("/settings/event-types");
   return { ok: true };
 }

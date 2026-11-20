@@ -16,6 +16,7 @@ import {
 import { notifications } from "@mantine/notifications";
 import { IconCheck, IconPencil, IconPlus, IconTrash, IconX } from "@tabler/icons-react";
 
+import { ConfirmModal } from "@/components/ConfirmModal";
 import { MotionModal } from "@/components/MotionModal";
 import { useMotion } from "@/components/MotionProvider";
 import { fadeTransitionProps } from "@/lib/motion/transitions";
@@ -428,37 +429,21 @@ export function EventTypeGroupsModal({
         )}
       </Stack>
 
-      <MotionModal
+      <ConfirmModal
         opened={deleting !== null}
         onClose={() => setDeleting(null)}
         title="Delete event type group"
-        centered
-        size="sm"
-        transitionProps={fadeTransitionProps(motion)}
+        message={<>Delete &quot;{deleting?.name}&quot;?</>}
+        loading={deletingInProgress}
+        onConfirm={() => void confirmDelete()}
       >
-        <Stack>
-          <Text>Delete &quot;{deleting?.name}&quot;?</Text>
-          {deleting && deleting.count > 0 && (
-            <Text size="sm" c="dimmed">
-              Its {deleting.count} event type{deleting.count === 1 ? "" : "s"} will move to the
-              {UNGROUPED_LABEL} section of the event form.
-            </Text>
-          )}
-          <Group justify="flex-end" mt="md">
-            <Button variant="default" onClick={() => setDeleting(null)}>
-              Cancel
-            </Button>
-            <Button
-              color="red"
-              loading={deletingInProgress}
-              loaderProps={BUTTON_LOADER_PROPS}
-              onClick={() => void confirmDelete()}
-            >
-              Delete
-            </Button>
-          </Group>
-        </Stack>
-      </MotionModal>
+        {deleting && deleting.count > 0 && (
+          <Text size="sm" c="dimmed">
+            Its {deleting.count} event type{deleting.count === 1 ? "" : "s"} will move to the
+            {UNGROUPED_LABEL} section of the event form.
+          </Text>
+        )}
+      </ConfirmModal>
     </MotionModal>
   );
 }

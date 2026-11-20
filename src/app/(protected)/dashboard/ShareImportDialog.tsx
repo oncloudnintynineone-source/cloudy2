@@ -2,10 +2,8 @@
 
 import dynamic from "next/dynamic";
 
-import { CrossfadeSwap } from "@/components/CrossfadeSwap";
-import { MotionModal } from "@/components/MotionModal";
+import { LazyModal } from "@/components/LazyModal";
 import { useChunkReady } from "@/lib/loading/chunkReady";
-import { MIN_SKELETON_HOLD_MS } from "@/lib/loading/minHoldLoading";
 import type { DashboardViewKind } from "@/lib/dashboardViews/views";
 
 import { ShareImportSkeleton } from "./ShareImportSkeleton";
@@ -31,16 +29,15 @@ export function ShareImportDialog({ opened, token, onClose, onAdded }: ShareImpo
   const bodyReady = useChunkReady(loadShareImportBody, opened);
 
   return (
-    <MotionModal opened={opened} onClose={onClose} title="Shared calendar view" centered size="sm">
-      <CrossfadeSwap
-        loading={opened && !bodyReady}
-        minHoldMs={MIN_SKELETON_HOLD_MS}
-        mode="overlay"
-        animateHeight
-        skeleton={<ShareImportSkeleton />}
-      >
-        <ShareImportDialogBody token={token} onClose={onClose} onAdded={onAdded} />
-      </CrossfadeSwap>
-    </MotionModal>
+    <LazyModal
+      opened={opened}
+      onClose={onClose}
+      title="Shared calendar view"
+      size="sm"
+      ready={bodyReady}
+      skeleton={<ShareImportSkeleton />}
+    >
+      <ShareImportDialogBody token={token} onClose={onClose} onAdded={onAdded} />
+    </LazyModal>
   );
 }

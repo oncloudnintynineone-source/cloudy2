@@ -1,28 +1,21 @@
 "use server";
 
 import { asc, eq, sql } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 
 import { db } from "@/db";
-import { findUniqueViolation } from "@/db/pgErrors";
+import { EVENT_TYPE_GROUP_ORDER } from "@/lib/db/order";
+import { uniqueViolationResult } from "@/db/pgErrors";
 import { eventTypes, eventTypeGroups } from "@/db/schema";
-import { AUDIT_ACTIONS, actorFromUser } from "@/lib/audit/build";
+import { commitAdminWrite } from "@/lib/actions/adminWrite";
+import { applyWriteEffects } from "@/lib/actions/effects";
+import type { ActionResult } from "@/lib/actions/result";
+import { AUDIT_ACTIONS, actorFromSession } from "@/lib/audit/build";
 import { diffFields } from "@/lib/audit/diff";
 import { logAction } from "@/lib/audit/log";
-import { invalidateConfigCache } from "@/lib/configCache";
 import { requireAdmin } from "@/lib/session";
 import { moveEventTypeGroupOrder } from "@/lib/eventTypes/groups";
 
-export type EventTypeGroupActionResult =
-  { ok: true } | { ok: false; error: string; field?: "name" };
-
-function actorFrom(session: Awaited<ReturnType<typeof requireAdmin>>) {
-  return actorFromUser({
-    id: session.user.id,
-    name: session.user.name ?? null,
-    role: session.user.role,
-  });
-}
+export type EventTypeGroupActionResult = ActionResult<Record<never, never>, "name">;
 
 export async function createEventTypeGroup(name: string): Promise<EventTypeGroupActionResult> {
   const session = await requireAdmin();
@@ -48,7 +41,7 @@ export async function createEventTypeGroup(name: string): Promise<EventTypeGroup
       .returning({ id: eventTypeGroups.id, name: eventTypeGroups.name });
 
     await logAction({
-      ...actorFrom(session),
+      ...actorFromSession(session),
       action: AUDIT_ACTIONS.eventTypeGroupCreate,
       entityType: "eventTypeGroup",
       entityId: created.id,
@@ -59,18 +52,18 @@ export async function createEventTypeGroup(name: string): Promise<EventTypeGroup
   } catch (error) {
     // Drizzle wraps the PostgresError in a DrizzleQueryError, so the
     // constraint name lives down the .cause chain (see src/db/pgErrors.ts).
-    if (findUniqueViolation(error)) {
-      return {
-        ok: false,
-        error: "An event type group with this name already exists",
-        field: "name",
-      };
+    const mapped = uniqueViolationResult(
+      error,
+      {},
+      { error: "An event type group with this name already exists", field: "name" },
+    );
+    if (mapped) {
+      return mapped;
     }
     throw error;
   }
 
-  invalidateConfigCache(["eventTypeGroups"]);
-  revalidatePath("/settings/event-types");
+  applyWriteEffects("eventTypeGroups");
   return { ok: true };
 }
 
@@ -101,7 +94,7 @@ export async function renameEventTypeGroup(
       .where(eq(eventTypeGroups.id, id));
 
     await logAction({
-      ...actorFrom(session),
+      ...actorFromSession(session),
       action: AUDIT_ACTIONS.eventTypeGroupUpdate,
       entityType: "eventTypeGroup",
       entityId: id,
@@ -112,18 +105,18 @@ export async function renameEventTypeGroup(
   } catch (error) {
     // Drizzle wraps the PostgresError in a DrizzleQueryError, so the
     // constraint name lives down the .cause chain (see src/db/pgErrors.ts).
-    if (findUniqueViolation(error)) {
-      return {
-        ok: false,
-        error: "An event type group with this name already exists",
-        field: "name",
-      };
+    const mapped = uniqueViolationResult(
+      error,
+      {},
+      { error: "An event type group with this name already exists", field: "name" },
+    );
+    if (mapped) {
+      return mapped;
     }
     throw error;
   }
 
-  invalidateConfigCache(["eventTypeGroups"]);
-  revalidatePath("/settings/event-types");
+  applyWriteEffects("eventTypeGroups");
   return { ok: true };
 }
 
@@ -154,18 +147,16 @@ export async function setEventTypeGroupCollapsible(
     .set({ collapsible, updatedAt: new Date() })
     .where(eq(eventTypeGroups.id, id));
 
-  await logAction({
-    ...actorFrom(session),
+  await commitAdminWrite({
+    session,
     action: AUDIT_ACTIONS.eventTypeGroupUpdate,
     entityType: "eventTypeGroup",
     entityId: id,
     entityName: existing.name,
     method: "setEventTypeGroupCollapsible",
     details: diffFields({ collapsible: existing.collapsible }, { collapsible }),
+    effect: "eventTypeGroups",
   });
-
-  invalidateConfigCache(["eventTypeGroups"]);
-  revalidatePath("/settings/event-types");
   return { ok: true };
 }
 
@@ -189,18 +180,17 @@ export async function deleteEventTypeGroup(id: string): Promise<EventTypeGroupAc
   // The FK is ON DELETE SET NULL, so this ungroups the group's types.
   await db.delete(eventTypeGroups).where(eq(eventTypeGroups.id, id));
 
-  await logAction({
-    ...actorFrom(session),
+  await commitAdminWrite({
+    session,
     action: AUDIT_ACTIONS.eventTypeGroupDelete,
     entityType: "eventTypeGroup",
     entityId: id,
     entityName: existing.name,
     method: "deleteEventTypeGroup",
     details: { ungroupedTypeCount: countRow.count },
+    effect: "eventTypeGroups",
+    extraEffect: { cache: ["eventTypes"] },
   });
-
-  invalidateConfigCache(["eventTypeGroups", "eventTypes"]);
-  revalidatePath("/settings/event-types");
   return { ok: true };
 }
 
@@ -218,7 +208,7 @@ export async function moveEventTypeGroup(
   const rows = await db
     .select()
     .from(eventTypeGroups)
-    .orderBy(asc(eventTypeGroups.sortOrder), asc(eventTypeGroups.name));
+    .orderBy(...EVENT_TYPE_GROUP_ORDER);
   const index = rows.findIndex((row) => row.id === id);
   if (index === -1) {
     return { ok: false, error: "Event type group not found", field: "name" };
@@ -241,8 +231,8 @@ export async function moveEventTypeGroup(
     }
   });
 
-  await logAction({
-    ...actorFrom(session),
+  await commitAdminWrite({
+    session,
     action: AUDIT_ACTIONS.eventTypeGroupUpdate,
     entityType: "eventTypeGroup",
     entityId: id,
@@ -252,10 +242,8 @@ export async function moveEventTypeGroup(
       { order: index + 1, name: rows[index].name },
       { order: neighborIndex + 1, name: rows[index].name },
     ),
+    effect: "eventTypeGroups",
   });
-
-  invalidateConfigCache(["eventTypeGroups"]);
-  revalidatePath("/settings/event-types");
   return { ok: true };
 }
 
@@ -273,7 +261,7 @@ export async function reorderEventTypeGroups(
   const rows = await db
     .select()
     .from(eventTypeGroups)
-    .orderBy(asc(eventTypeGroups.sortOrder), asc(eventTypeGroups.name));
+    .orderBy(...EVENT_TYPE_GROUP_ORDER);
   if (
     rows.length !== orderedIds.length ||
     new Set(orderedIds).size !== orderedIds.length ||
@@ -297,7 +285,7 @@ export async function reorderEventTypeGroups(
   const from = movedId ? beforeIndex.get(movedId) : undefined;
   if (moved && movedId && from !== undefined) {
     await logAction({
-      ...actorFrom(session),
+      ...actorFromSession(session),
       action: AUDIT_ACTIONS.eventTypeGroupUpdate,
       entityType: "eventTypeGroup",
       entityId: movedId,
@@ -310,7 +298,6 @@ export async function reorderEventTypeGroups(
     });
   }
 
-  invalidateConfigCache(["eventTypeGroups"]);
-  revalidatePath("/settings/event-types");
+  applyWriteEffects("eventTypeGroups");
   return { ok: true };
 }

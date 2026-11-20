@@ -15,8 +15,8 @@ import {
   useMantineTheme,
   VisuallyHidden,
 } from "@mantine/core";
-import { MotionModal } from "@/components/MotionModal";
-import { useDisclosure, useMediaQuery } from "@mantine/hooks";
+import { LazyModal } from "@/components/LazyModal";
+import { ConfirmModal } from "@/components/ConfirmModal";
 import { IconLink, IconPlus, IconTrash } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
 
@@ -27,20 +27,19 @@ import { QuickLinkIcon } from "@/components/QuickLinkIcon";
 import { ROW_ACTION_ICON_SIZE, ROW_ACTION_SIZE, ReorderUpDown } from "@/components/reorderUpDown";
 import { SortableList, SortableRow } from "@/components/SortableRow";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
+import { useIsDesktop } from "@/lib/ui/useBreakpoint";
 import { deleteQuickLink, moveQuickLink, reorderQuickLinks } from "@/lib/quickLinks/actions";
 import {
   isReorderArrowsEnabled,
   isReorderDragEnabled,
   type ReorderDrag,
 } from "@/lib/settings/featureFlags";
-import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { moveToIndex, swapAdjacent, useReorderRows } from "@/lib/ui/reorderRows";
+import { useEntityEditor } from "@/lib/ui/useEntityEditor";
 import { activatable } from "@/lib/ui/activatable";
 import dynamic from "next/dynamic";
-import { CrossfadeSwap } from "@/components/CrossfadeSwap";
 import { FormModalSkeleton } from "@/components/FormModalSkeleton";
 import { useChunkReady } from "@/lib/loading/chunkReady";
-import { MIN_SKELETON_HOLD_MS } from "@/lib/loading/minHoldLoading";
 
 // The add/edit quick-link form (with its icon picker) is only mounted on tap;
 // split it out of the quick-links route's initial chunk. The chunk reveal
@@ -58,12 +57,11 @@ interface QuickLinkTableProps {
 export function QuickLinkTable({ links, reorderDrag }: QuickLinkTableProps) {
   const refreshAfterSave = useActivityRefresh("quick-links:save");
   const theme = useMantineTheme();
-  const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
+  const isDesktop = useIsDesktop();
   const dragEnabled = isReorderDragEnabled(reorderDrag);
   const arrowsEnabled = isReorderArrowsEnabled(reorderDrag);
-  const [formOpened, { open: openForm, close: closeForm }] = useDisclosure(false);
-  const [editing, setEditing] = useState<QuickLink | null>(null);
-  const quickLinkFormReady = useChunkReady(loadQuickLinkForm, formOpened);
+  const editor = useEntityEditor<QuickLink>();
+  const quickLinkFormReady = useChunkReady(loadQuickLinkForm, editor.opened);
   const [pendingDelete, setPendingDelete] = useState<QuickLink | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -102,13 +100,11 @@ export function QuickLinkTable({ links, reorderDrag }: QuickLinkTableProps) {
   });
 
   function openCreate() {
-    setEditing(null);
-    openForm();
+    editor.openCreate();
   }
 
   function openEdit(link: QuickLink) {
-    setEditing(link);
-    openForm();
+    editor.openEdit(link);
   }
 
   function iconTint(color: string | null): string | undefined {
@@ -326,70 +322,48 @@ export function QuickLinkTable({ links, reorderDrag }: QuickLinkTableProps) {
         </>
       )}
 
-      <MotionModal
-        opened={formOpened}
-        onClose={closeForm}
-        title={editing ? "Edit quick link" : "Add quick link"}
-        centered
+      <LazyModal
+        opened={editor.opened}
+        onClose={editor.closeEditor}
+        title={editor.editing ? "Edit quick link" : "Add quick link"}
         size={isDesktop ? "md" : "sm"}
+        ready={quickLinkFormReady}
+        skeleton={<FormModalSkeleton rows={4} />}
       >
-        <CrossfadeSwap
-          loading={formOpened && !quickLinkFormReady}
-          minHoldMs={MIN_SKELETON_HOLD_MS}
-          mode="overlay"
-          animateHeight
-          skeleton={<FormModalSkeleton rows={4} />}
-        >
-          <QuickLinkForm
-            key={editing?.id ?? "new"}
-            link={
-              editing
-                ? {
-                    id: editing.id,
-                    label: editing.label,
-                    url: editing.url,
-                    icon: editing.icon,
-                    color: editing.color,
-                    enabled: editing.enabled,
-                  }
-                : null
-            }
-            onDone={() => {
-              closeForm();
-              setEditing(null);
-              refreshAfterSave();
-            }}
-          />
-        </CrossfadeSwap>
-      </MotionModal>
+        <QuickLinkForm
+          key={editor.editing?.id ?? "new"}
+          link={
+            editor.editing
+              ? {
+                  id: editor.editing.id,
+                  label: editor.editing.label,
+                  url: editor.editing.url,
+                  icon: editor.editing.icon,
+                  color: editor.editing.color,
+                  enabled: editor.editing.enabled,
+                }
+              : null
+          }
+          onDone={() => {
+            editor.closeEditor();
+            refreshAfterSave();
+          }}
+        />
+      </LazyModal>
 
-      <MotionModal
+      <ConfirmModal
         opened={pendingDelete !== null}
         onClose={() => setPendingDelete(null)}
         title="Delete quick link"
-        centered
-        size="sm"
-      >
-        <Stack>
-          <Text>
+        message={
+          <>
             Delete &quot;{pendingDelete?.label}&quot;? It will no longer appear in the quick-links
             menu.
-          </Text>
-          <Group justify="flex-end" mt="md">
-            <Button variant="default" onClick={() => setPendingDelete(null)}>
-              Cancel
-            </Button>
-            <Button
-              color="red"
-              loading={deleting}
-              loaderProps={BUTTON_LOADER_PROPS}
-              onClick={confirmDelete}
-            >
-              Delete
-            </Button>
-          </Group>
-        </Stack>
-      </MotionModal>
+          </>
+        }
+        loading={deleting}
+        onConfirm={confirmDelete}
+      />
 
       {/* Mobile-only: at lg the "Add quick link" button replaces the FAB.
           hiddenFrom sits on the toolbar itself: its Affix portals to <body>,

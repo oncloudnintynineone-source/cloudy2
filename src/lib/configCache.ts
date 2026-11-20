@@ -1,4 +1,4 @@
-import { invalidateCachedValue } from "@/lib/cache";
+import { getCachedValue, invalidateCachedValue } from "@/lib/cache";
 
 /**
  * TTL for the rarely-changing, user-independent reference reads: calendars
@@ -30,6 +30,20 @@ export const CONFIG_CACHE_KEYS = {
   eventTitleTemplates: "config:eventTitleTemplates",
   quickLinks: "config:quickLinks",
 } as const;
+
+/** A key of the config cache (the auditable set of cached reads). */
+export type ConfigCacheKey = keyof typeof CONFIG_CACHE_KEYS;
+
+/**
+ * Cached read for one config key. Uses the shared 60s TTL; callers that also
+ * need per-request dedupe wrap the returned promise with React's `cache()`.
+ */
+export function cachedConfig<K extends ConfigCacheKey, T>(
+  key: K,
+  loader: () => Promise<T>,
+): Promise<T> {
+  return getCachedValue(CONFIG_CACHE_KEYS[key], CONFIG_CACHE_TTL_MS, loader);
+}
 
 /**
  * Drop the in-memory TTL entries for the given config keys (all when omitted),

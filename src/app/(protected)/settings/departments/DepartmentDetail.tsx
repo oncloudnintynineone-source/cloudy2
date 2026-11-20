@@ -4,11 +4,9 @@ import { useMediaQuery } from "@mantine/hooks";
 import dynamic from "next/dynamic";
 
 import type { Calendar } from "@/db/schema";
-import { CrossfadeSwap } from "@/components/CrossfadeSwap";
 import { FormModalSkeleton } from "@/components/FormModalSkeleton";
-import { MotionModal } from "@/components/MotionModal";
+import { LazyModal } from "@/components/LazyModal";
 import { useChunkReady } from "@/lib/loading/chunkReady";
-import { MIN_SKELETON_HOLD_MS } from "@/lib/loading/minHoldLoading";
 import { DESKTOP_MEDIA_QUERY } from "@/lib/theme";
 
 // The department form + access manager is large and only mounted on tap; it
@@ -49,32 +47,25 @@ export function DepartmentDetail({
   const isDesktop = useMediaQuery(DESKTOP_MEDIA_QUERY);
   const bodyReady = useChunkReady(loadDepartmentDetailBody, opened);
   return (
-    <MotionModal
+    <LazyModal
       opened={opened}
       onClose={onClose}
       title={calendar ? "Edit department" : "Add department"}
-      centered
       size={isDesktop ? "lg" : "md"}
+      ready={bodyReady}
+      skeleton={<FormModalSkeleton rows={5} />}
     >
-      <CrossfadeSwap
-        loading={opened && !bodyReady}
-        minHoldMs={MIN_SKELETON_HOLD_MS}
-        mode="overlay"
-        animateHeight
-        skeleton={<FormModalSkeleton rows={5} />}
-      >
-        {/* Keyed per department: the body (form state + access data) is
-            remounted fresh on every open and seeded from the tapped row; the
-            key also covers a target switch while the modal is still mounted. */}
-        <DepartmentDetailBody
-          key={calendar?.id ?? "new"}
-          calendar={calendar}
-          departments={departments}
-          onSaved={onSaved}
-          onCreate={onCreate}
-          onRequestDelete={onRequestDelete}
-        />
-      </CrossfadeSwap>
-    </MotionModal>
+      {/* Keyed per department: the body (form state + access data) is
+          remounted fresh on every open and seeded from the tapped row; the
+          key also covers a target switch while the modal is still mounted. */}
+      <DepartmentDetailBody
+        key={calendar?.id ?? "new"}
+        calendar={calendar}
+        departments={departments}
+        onSaved={onSaved}
+        onCreate={onCreate}
+        onRequestDelete={onRequestDelete}
+      />
+    </LazyModal>
   );
 }

@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 
 import { db } from "@/db";
 import { userDashboardViews } from "@/db/schema";
-import { AUDIT_ACTIONS, actorFromUser } from "@/lib/audit/build";
+import { AUDIT_ACTIONS, actorFromSession } from "@/lib/audit/build";
 import { logAction } from "@/lib/audit/log";
 import { requireAdmin } from "@/lib/session";
 import { isDateOnly, replaceTypeNameInFilters } from "@/lib/eventTypes/migration";
@@ -63,11 +63,7 @@ export async function finalizeEventTypeMigration(
   }
 
   await logAction({
-    ...actorFromUser({
-      id: session.user.id,
-      name: session.user.name ?? null,
-      role: session.user.role,
-    }),
+    ...actorFromSession(session),
     action: AUDIT_ACTIONS.eventTypeMigrate,
     entityType: "eventType",
     entityId: input.toTypeId ?? null,

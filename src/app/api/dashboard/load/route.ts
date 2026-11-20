@@ -1,14 +1,5 @@
-import { NextResponse } from "next/server";
-
 import { loadDashboardData } from "@/lib/dashboard/actions";
-import {
-  API_NO_STORE,
-  apiSession,
-  isApiRequest,
-  optionalString,
-  readApiJson,
-  unauthorized,
-} from "@/lib/api/server";
+import { apiJson, optionalString, withApiJson } from "@/lib/api/server";
 
 /**
  * The dashboard's active-context read (docs/pwa-offline.md).
@@ -29,21 +20,11 @@ interface LoadBody {
 }
 
 export async function POST(request: Request) {
-  if (!isApiRequest(request)) {
-    return unauthorized();
+  const auth = await withApiJson<LoadBody>(request);
+  if (!auth.ok) {
+    return auth.response;
   }
-  const session = await apiSession();
-  if (!session) {
-    return unauthorized();
-  }
-
-  const body = await readApiJson<LoadBody>(request);
-  if (body === null) {
-    return NextResponse.json(
-      { ok: false, error: "Invalid request" },
-      { status: 400, headers: API_NO_STORE },
-    );
-  }
+  const body = auth.body;
 
   const result = await loadDashboardData({
     view: optionalString(body.view),
@@ -51,5 +32,5 @@ export async function POST(request: Request) {
     date: optionalString(body.date),
     refresh: optionalString(body.refresh),
   });
-  return NextResponse.json(result, { headers: API_NO_STORE });
+  return apiJson(result);
 }

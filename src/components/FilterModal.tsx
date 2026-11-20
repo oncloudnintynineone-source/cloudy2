@@ -2,18 +2,14 @@
 
 import dynamic from "next/dynamic";
 import type { ReactNode } from "react";
-import { useMantineTheme } from "@mantine/core";
-import { useMediaQuery, useViewportSize } from "@mantine/hooks";
 
 import { CrossfadeSwap } from "@/components/CrossfadeSwap";
 import { FormModalSkeleton } from "@/components/FormModalSkeleton";
 import { MotionModal } from "@/components/MotionModal";
-import { useMotion } from "@/components/MotionProvider";
-import { loadChunk, useChunkReady } from "@/lib/loading/chunkReady";
+import { preloadLazyBody, useChunkReady } from "@/lib/loading/chunkReady";
 import { MIN_SKELETON_HOLD_MS } from "@/lib/loading/minHoldLoading";
-import { modalContentWidth, type Rect } from "@/lib/motion/origin";
-import { modalZoomTransitionProps } from "@/lib/motion/transitions";
-import { NARROW_MEDIA_QUERY } from "@/lib/theme";
+import type { Rect } from "@/lib/motion/origin";
+import { useModalZoom } from "@/lib/motion/useModalZoom";
 
 // The body (badge grids, the event-type picker and the nested user picker) is
 // large and only needed once the dialog opens. The chrome stays static so the
@@ -27,7 +23,7 @@ const FilterModalBody = dynamic(loadFilterModalBody, { ssr: false, loading: () =
 
 /** Warm the filter body chunk on trigger intent (hover/focus/pointer-down). */
 export function preloadFilterModalBody() {
-  void loadChunk(loadFilterModalBody).catch(() => {});
+  preloadLazyBody(loadFilterModalBody);
 }
 
 export interface FilterOption {
@@ -197,18 +193,15 @@ export function FilterModal({
   hint,
   originRect = null,
 }: FilterModalProps) {
-  const theme = useMantineTheme();
-  const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
-  const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY);
-  const motion = useMotion();
   const bodyReady = useChunkReady(loadFilterModalBody, opened);
 
   // The modal zooms out of / shrinks back into the trigger button (the app's
   // standard grow/shrink animation; mirror the other zoom modals).
-  const viewportSize = useViewportSize();
-  const viewport = { w: viewportSize.width, h: viewportSize.height };
-  const contentWidth = modalContentWidth(viewport, isNarrow ? 300 : isDesktop ? 440 : 380);
-  const transitionProps = modalZoomTransitionProps(motion, originRect, viewport, contentWidth);
+  const { size, transitionProps } = useModalZoom({
+    originRect,
+    spec: { narrow: "xs", mobile: "sm", desktop: "md" },
+    contentWidthPx: { narrow: 300 },
+  });
 
   return (
     <MotionModal
@@ -216,7 +209,7 @@ export function FilterModal({
       onClose={onClose}
       title={title}
       centered
-      size={isNarrow ? "xs" : isDesktop ? "md" : "sm"}
+      size={size}
       transitionProps={transitionProps}
       styles={{
         content: {

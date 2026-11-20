@@ -10750,3 +10750,65 @@ flowchart LR
 Windows-only `EventFormSteps` casing errors). `next.config` is read once at startup, so
 the change needs a `pnpm dev` restart; `localhost` URLs were never affected.
 
+## 1.395 Shared composition framework
+
+**Problem.** The primitive layer was healthy (`MotionModal`, `CrossfadeSwap`,
+`useChunkReady`, `SettingsListChrome`, `EmptyState`, `activatable`, `LoadingStatus`), but the
+composition of those primitives was re-typed for every settings tab, entity form, dialog and
+admin action: 7 `actorFrom` helpers plus 9 inline copies, ~35 result-union declarations,
+~45 revalidate/invalidate literals, 16 lazy-modal gates, 10 open-on-demand fetch state
+machines, 8 modal-zoom trios and ~14 hand-rolled confirmation dialogs.
+
+**What became shared.** A four-audit pass (settings CRUD, dialogs, server actions/routes,
+views/loading) produced a staged, behavior-preserving extraction:
+
+| Layer | Primitive |
+| --- | --- |
+| Audit actor | `actorFromSession` (`audit/build.ts`) |
+| Action result | `ActionResult` aliases (`actions/result.ts`) |
+| Write tail | `WRITE_EFFECTS` + `applyWriteEffects` + `commitAdminWrite` |
+| Validation | `lib/validation/{url,text,arrays}.ts`, `uniqueUuidIds`, `uniqueViolationResult` |
+| Config reads | `cachedConfig`, `DEPARTMENT_ORDER`, `EVENT_TYPE_GROUP_ORDER` |
+| Routes | `withApiSession`, `withApiJson`, `apiJson`, `apiError` |
+| Settings CRUD | `useEntityEditor`, `LazyModal`, `submitCrudForm`, `FormFooterActions`, `ConfirmModal` + `runConfirm`, `CrudTabSkeleton` |
+| Dialogs | `useModalZoom`/`useModalSize`, `useOpenQuery` + `InlineError`, `preloadLazyBody` |
+
+```mermaid
+flowchart LR
+    S[Settings tables + forms] --> L[LazyModal + useEntityEditor]
+    S --> F[submitCrudForm + ConfirmModal]
+    D[Lazy dialogs] --> L
+    D --> O[useOpenQuery + InlineError]
+    A[Admin actions + routes] --> W[commitAdminWrite + applyWriteEffects]
+    A --> H[withApiSession/withApiJson + validation]
+```
+
+**Intentional fixes surfaced by the audit.** The shared `activatable` fixes the
+`TemplatesManager` row where Enter on an inner icon also opened the row; `useModalZoom`
+makes the event-history shrink scale match its rendered `lg` width (620, not 520);
+`useOpenQuery` gives Preferences/Notifications a skeleton + `LoadingStatus` instead of a
+bare `Loader`, and makes the department-access read terminal (error + retry) instead of an
+infinite skeleton; stale open-fetch responses are ignored; `push/subscription` responses now
+carry `Cache-Control: no-store`; and the webhook form reports an over-length URL explicitly.
+Audit payloads, toast copy, field-error mapping, idempotent delete semantics, the schema and
+the route contracts are unchanged.
+
+**Deferred.** The list/view composition layer (one `StickyChrome`/`ListChrome`,
+`ListCollection`, `EventListRow`, `chipHighlightClasses`, `rendererSkeleton`, the detail-host
+hooks, `paramNav`, dead locked-variant removal) is recorded in
+[`docs/component-framework.md`](docs/component-framework.md) §1.8 rather than mixed into this
+change, because it touches `DashboardView`, `ContactList` and `ParadeStateView`.
+
+**Files.** `src/lib/actions/*`, `src/lib/validation/*`, `src/lib/api/server.ts`,
+`src/lib/configCache.ts`, `src/lib/db/{order,pgErrors}.ts`, `src/lib/motion/useModalZoom.ts`,
+`src/lib/loading/{useOpenQuery,chunkReady}.ts`, `src/lib/ui/{runConfirm,submitCrudForm,useEntityEditor,useBreakpoint}.ts`,
+`src/components/{LazyModal,ConfirmModal,FormFooterActions,InlineError,SettingsTableSkeleton}.tsx`,
+the settings CRUD modules, the dialog components, `src/app/api/**/route.ts`, `docs/component-framework.md`,
+`docs/loading-transitions.md`, `docs/motion.md`, `AGENTS.md`, `progress.md`.
+
+**Verification.** `pnpm lint`, `pnpm typecheck` and `pnpm test` green (150 files / 1898
+tests); `pnpm build` green; `pnpm db:generate` shows no schema diff. Manual QA covers the
+settings tabs at 360/640/1024, every dialog's open → close → immediate reopen, nested
+z-index, reduced motion and the settings/loading/deep-link routes.
+
+

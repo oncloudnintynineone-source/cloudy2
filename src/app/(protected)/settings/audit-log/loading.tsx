@@ -2,7 +2,7 @@ import { Group, Skeleton, Stack } from "@mantine/core";
 
 import { LoadingStatus } from "@/components/LoadingStatus";
 
-import { SettingsTableSkeleton } from "../SettingsTableSkeleton";
+import { SettingsTableSkeleton } from "@/components/SettingsTableSkeleton";
 import { AuditLogRowSkeleton } from "./AuditLogRowSkeleton";
 
 export default function AuditLogLoading() {

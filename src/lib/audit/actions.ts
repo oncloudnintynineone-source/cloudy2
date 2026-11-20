@@ -1,6 +1,6 @@
 "use server";
 
-import { AUDIT_ACTIONS, actorFromUser } from "@/lib/audit/build";
+import { AUDIT_ACTIONS, actorFromSession } from "@/lib/audit/build";
 import { logAction } from "@/lib/audit/log";
 import { purgeExpiredAuditLogs } from "@/lib/audit/queries";
 import { requireAdmin } from "@/lib/session";
@@ -21,11 +21,7 @@ export async function purgeAuditLogs(days: number): Promise<AuditPurgeResult> {
   try {
     const deleted = await purgeExpiredAuditLogs(retentionDays);
     await logAction({
-      ...actorFromUser({
-        id: session.user.id,
-        name: session.user.name ?? null,
-        role: session.user.role,
-      }),
+      ...actorFromSession(session),
       action: AUDIT_ACTIONS.auditPurge,
       entityType: "auditLog",
       entityName: "auditLogs",

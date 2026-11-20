@@ -1,14 +1,5 @@
-import { NextResponse } from "next/server";
-
 import { resolveDeepLinkTargetAction } from "@/lib/dashboard/deepLinkActions";
-import {
-  API_NO_STORE,
-  apiSession,
-  isApiRequest,
-  optionalString,
-  readApiJson,
-  unauthorized,
-} from "@/lib/api/server";
+import { apiError, apiJson, optionalString, withApiJson } from "@/lib/api/server";
 
 /**
  * Lean `?event=`/`?edit=` target resolution, run alongside the grid read so a
@@ -29,21 +20,14 @@ interface DeepLinkBody {
 }
 
 export async function POST(request: Request) {
-  if (!isApiRequest(request)) {
-    return unauthorized();
+  const auth = await withApiJson<DeepLinkBody>(request);
+  if (!auth.ok) {
+    return auth.response;
   }
-  const session = await apiSession();
-  if (!session) {
-    return unauthorized();
-  }
-
-  const body = await readApiJson<DeepLinkBody>(request);
-  const eventId = optionalString(body?.eventId);
-  if (body === null || !eventId) {
-    return NextResponse.json(
-      { ok: false, error: "Invalid request" },
-      { status: 400, headers: API_NO_STORE },
-    );
+  const body = auth.body;
+  const eventId = optionalString(body.eventId);
+  if (!eventId) {
+    return apiError(400, "Invalid request");
   }
 
   const result = await resolveDeepLinkTargetAction({
@@ -54,5 +38,5 @@ export async function POST(request: Request) {
     viewKind: optionalString(body.viewKind),
     force: body.force === true,
   });
-  return NextResponse.json(result, { headers: API_NO_STORE });
+  return apiJson(result);
 }

@@ -1,20 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import {
-  Badge,
-  Button,
-  Code,
-  Group,
-  Paper,
-  Stack,
-  Table,
-  Text,
-  useMantineTheme,
-} from "@mantine/core";
-import { MotionModal } from "@/components/MotionModal";
+import { Badge, Button, Code, Group, Paper, Stack, Table, Text } from "@mantine/core";
+import { LazyModal } from "@/components/LazyModal";
 
-import { useDisclosure, useMediaQuery } from "@mantine/hooks";
 import { IconPlus, IconWebhook } from "@tabler/icons-react";
 
 import { EmptyState } from "@/components/EmptyState";
@@ -22,12 +10,12 @@ import { useActivityRefresh } from "@/components/ActivityBar";
 import type { Webhook } from "@/db/schema";
 import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
+import { useIsDesktop } from "@/lib/ui/useBreakpoint";
+import { useEntityEditor } from "@/lib/ui/useEntityEditor";
 import { activatable } from "@/lib/ui/activatable";
 import dynamic from "next/dynamic";
-import { CrossfadeSwap } from "@/components/CrossfadeSwap";
 import { FormModalSkeleton } from "@/components/FormModalSkeleton";
 import { useChunkReady } from "@/lib/loading/chunkReady";
-import { MIN_SKELETON_HOLD_MS } from "@/lib/loading/minHoldLoading";
 
 // The add/edit webhook form is only mounted on tap; split it out of the
 // webhooks route's initial chunk. The chunk reveal dissolves through
@@ -41,22 +29,10 @@ interface WebhookTableProps {
 }
 
 export function WebhookTable({ webhooks }: WebhookTableProps) {
-  const theme = useMantineTheme();
-  const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
-  const [formOpened, { open: openForm, close: closeForm }] = useDisclosure(false);
-  const [editing, setEditing] = useState<Webhook | null>(null);
-  const webhookFormReady = useChunkReady(loadWebhookForm, formOpened);
+  const isDesktop = useIsDesktop();
+  const editor = useEntityEditor<Webhook>();
+  const webhookFormReady = useChunkReady(loadWebhookForm, editor.opened);
   const refreshAfterSave = useActivityRefresh("webhooks:save");
-
-  function openCreate() {
-    setEditing(null);
-    openForm();
-  }
-
-  function openEdit(webhook: Webhook) {
-    setEditing(webhook);
-    openForm();
-  }
 
   return (
     <Stack pb="xl" className={CONTENT_ENTER_CLASS}>
@@ -68,7 +44,7 @@ export function WebhookTable({ webhooks }: WebhookTableProps) {
           <Button
             __vars={{ "--button-height": "43px" }}
             leftSection={<IconPlus size={16} />}
-            onClick={openCreate}
+            onClick={editor.openCreate}
           >
             Add webhook
           </Button>
@@ -80,7 +56,7 @@ export function WebhookTable({ webhooks }: WebhookTableProps) {
           icon={<IconWebhook size={18} />}
           description="No webhook endpoints yet. Every enabled endpoint is notified when an event is created, modified, or deleted."
           actionLabel="Add webhook"
-          onAction={openCreate}
+          onAction={editor.openCreate}
         />
       ) : (
         <>
@@ -91,8 +67,8 @@ export function WebhookTable({ webhooks }: WebhookTableProps) {
                 key={webhook.id}
                 withBorder
                 p="sm"
-                onClick={() => openEdit(webhook)}
-                {...activatable(() => openEdit(webhook))}
+                onClick={() => editor.openEdit(webhook)}
+                {...activatable(() => editor.openEdit(webhook))}
                 style={{ cursor: "pointer" }}
               >
                 <Stack gap={0}>
@@ -122,8 +98,8 @@ export function WebhookTable({ webhooks }: WebhookTableProps) {
                 {webhooks.map((webhook) => (
                   <Table.Tr
                     key={webhook.id}
-                    onClick={() => openEdit(webhook)}
-                    {...activatable(() => openEdit(webhook))}
+                    onClick={() => editor.openEdit(webhook)}
+                    {...activatable(() => editor.openEdit(webhook))}
                     style={{ cursor: "pointer" }}
                   >
                     <Table.Td>
@@ -145,41 +121,33 @@ export function WebhookTable({ webhooks }: WebhookTableProps) {
         </>
       )}
 
-      <MotionModal
-        opened={formOpened}
-        onClose={closeForm}
-        title={editing ? "Edit webhook endpoint" : "Add webhook endpoint"}
-        centered
+      <LazyModal
+        opened={editor.opened}
+        onClose={editor.closeEditor}
+        title={editor.editing ? "Edit webhook endpoint" : "Add webhook endpoint"}
         size={isDesktop ? "md" : "sm"}
+        ready={webhookFormReady}
+        skeleton={<FormModalSkeleton rows={3} />}
       >
-        <CrossfadeSwap
-          loading={formOpened && !webhookFormReady}
-          minHoldMs={MIN_SKELETON_HOLD_MS}
-          mode="overlay"
-          animateHeight
-          skeleton={<FormModalSkeleton rows={3} />}
-        >
-          <WebhookForm
-            key={editing?.id ?? "new"}
-            webhook={
-              editing
-                ? {
-                    id: editing.id,
-                    name: editing.name,
-                    url: editing.url,
-                    secret: editing.secret ?? "",
-                    enabled: editing.enabled,
-                  }
-                : null
-            }
-            onDone={() => {
-              closeForm();
-              setEditing(null);
-              refreshAfterSave();
-            }}
-          />
-        </CrossfadeSwap>
-      </MotionModal>
+        <WebhookForm
+          key={editor.editing?.id ?? "new"}
+          webhook={
+            editor.editing
+              ? {
+                  id: editor.editing.id,
+                  name: editor.editing.name,
+                  url: editor.editing.url,
+                  secret: editor.editing.secret ?? "",
+                  enabled: editor.editing.enabled,
+                }
+              : null
+          }
+          onDone={() => {
+            editor.closeEditor();
+            refreshAfterSave();
+          }}
+        />
+      </LazyModal>
 
       {/* Mobile-only: at lg the "Add webhook" button in the toolbar replaces
           the FAB. hiddenFrom sits on the toolbar itself: its Affix portals to
@@ -188,7 +156,7 @@ export function WebhookTable({ webhooks }: WebhookTableProps) {
         <FloatingActionButton
           aria-label="Add webhook endpoint"
           className="c2-glass-fab--brand"
-          onClick={openCreate}
+          onClick={editor.openCreate}
         >
           <IconPlus size={FAB_ICON_SIZE} />
         </FloatingActionButton>

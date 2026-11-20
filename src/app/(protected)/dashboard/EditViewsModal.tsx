@@ -1,15 +1,11 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useMantineTheme } from "@mantine/core";
-import { useMediaQuery } from "@mantine/hooks";
 
-import { CrossfadeSwap } from "@/components/CrossfadeSwap";
 import { FormModalSkeleton } from "@/components/FormModalSkeleton";
-import { MotionModal } from "@/components/MotionModal";
-import { loadChunk, useChunkReady } from "@/lib/loading/chunkReady";
-import { MIN_SKELETON_HOLD_MS } from "@/lib/loading/minHoldLoading";
-import { NARROW_MEDIA_QUERY } from "@/lib/theme";
+import { LazyModal } from "@/components/LazyModal";
+import { preloadLazyBody, useChunkReady } from "@/lib/loading/chunkReady";
+import { useModalSize } from "@/lib/motion/useModalZoom";
 import type { DashboardViewTab } from "@/lib/dashboardViews/views";
 import type { ReorderDrag } from "@/lib/settings/featureFlags";
 
@@ -23,7 +19,7 @@ const EditViewsModalBody = dynamic(loadEditViewsBody, { ssr: false, loading: () 
 
 /** Warm the manage-views body chunk on trigger intent or an idle pass. */
 export function preloadEditViewsBody() {
-  void loadChunk(loadEditViewsBody).catch(() => {});
+  preloadLazyBody(loadEditViewsBody);
 }
 
 interface EditViewsModalProps {
@@ -64,38 +60,29 @@ export function EditViewsModal({
   onAddView,
   reorderDrag,
 }: EditViewsModalProps) {
-  const theme = useMantineTheme();
-  const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
-  const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY);
   const bodyReady = useChunkReady(loadEditViewsBody, opened);
+  const size = useModalSize({ narrow: "xs", mobile: "sm", desktop: "md" });
 
   return (
-    <MotionModal
+    <LazyModal
       opened={opened}
       onClose={onClose}
       title="Manage views"
-      centered
-      size={isNarrow ? "xs" : isDesktop ? "md" : "sm"}
+      size={size}
+      ready={bodyReady}
+      skeleton={<FormModalSkeleton rows={4} label="Loading views" />}
     >
-      <CrossfadeSwap
-        loading={opened && !bodyReady}
-        minHoldMs={MIN_SKELETON_HOLD_MS}
-        mode="overlay"
-        animateHeight
-        skeleton={<FormModalSkeleton rows={4} label="Loading views" />}
-      >
-        <EditViewsModalBody
-          onClose={onClose}
-          tabs={tabs}
-          activeView={activeView}
-          onMutated={onMutated}
-          onApplyViewTab={onApplyViewTab}
-          onNavigateToView={onNavigateToView}
-          onEditFilters={onEditFilters}
-          onAddView={onAddView}
-          reorderDrag={reorderDrag}
-        />
-      </CrossfadeSwap>
-    </MotionModal>
+      <EditViewsModalBody
+        onClose={onClose}
+        tabs={tabs}
+        activeView={activeView}
+        onMutated={onMutated}
+        onApplyViewTab={onApplyViewTab}
+        onNavigateToView={onNavigateToView}
+        onEditFilters={onEditFilters}
+        onAddView={onAddView}
+        reorderDrag={reorderDrag}
+      />
+    </LazyModal>
   );
 }

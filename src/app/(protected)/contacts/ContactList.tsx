@@ -14,7 +14,7 @@ import {
   Text,
   TextInput,
 } from "@mantine/core";
-import { MotionModal } from "@/components/MotionModal";
+import { ConfirmModal } from "@/components/ConfirmModal";
 import { useClipboard, useDisclosure, useMediaQuery } from "@mantine/hooks";
 import {
   IconCheck,
@@ -39,7 +39,7 @@ import type { Rect } from "@/lib/motion/origin";
 import { departmentPathLabels, departmentTreeRows } from "@/lib/roster/hierarchy";
 import type { RosterUser } from "@/lib/roster/queries";
 import { formatFullName } from "@/lib/settings/formatName";
-import { BUTTON_LOADER_PROPS, DESKTOP_MEDIA_QUERY } from "@/lib/theme";
+import { DESKTOP_MEDIA_QUERY } from "@/lib/theme";
 
 /** Minimal department shape the Contacts filter needs (hierarchy-aware). */
 export interface ContactDepartment {
@@ -426,32 +426,22 @@ export function ContactList({
         hint="Filters combine with the search box."
       />
 
-      <MotionModal
+      <ConfirmModal
         opened={confirmOpened}
         onClose={closeConfirm}
         title="Export contacts"
-        centered
-        size="sm"
-      >
-        <Text>
-          Download {filtered.length} contact{filtered.length === 1 ? "" : "s"} as a .vcf file
-          {isNarrowed ? " (current search & filters only)" : ""}?
-        </Text>
-        <Group justify="flex-end" mt="md">
-          <Button variant="default" onClick={closeConfirm}>
-            Cancel
-          </Button>
-          <Button
-            color="brand"
-            loading={downloading}
-            loaderProps={BUTTON_LOADER_PROPS}
-            leftSection={<IconDownload size={16} />}
-            onClick={downloadVcf}
-          >
-            Download
-          </Button>
-        </Group>
-      </MotionModal>
+        message={
+          <>
+            Download {filtered.length} contact{filtered.length === 1 ? "" : "s"} as a .vcf file
+            {isNarrowed ? " (current search & filters only)" : ""}?
+          </>
+        }
+        confirmLabel="Download"
+        confirmColor="brand"
+        confirmIcon={<IconDownload size={16} />}
+        loading={downloading}
+        onConfirm={downloadVcf}
+      />
     </Stack>
   );
 }

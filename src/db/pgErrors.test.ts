@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { describeError, findUniqueViolation, isDbQueryError } from "./pgErrors";
+import { describeError, findUniqueViolation, isDbQueryError, uniqueViolationResult } from "./pgErrors";
 
 /** postgres-js-style PostgresError (code + constraint_name copied onto it). */
 function postgresError(code: string, constraintName?: string): Error {
@@ -86,6 +86,37 @@ describe("isDbQueryError", () => {
   });
 });
 
+describe("uniqueViolationResult", () => {
+  it("maps a named constraint to its field error", () => {
+    expect(
+      uniqueViolationResult(postgresError("23505", "users_shortname_idx"), {
+        users_shortname_idx: {
+          error: "A user with this shortname already exists",
+          field: "shortname",
+        },
+      }),
+    ).toEqual({ ok: false, error: "A user with this shortname already exists", field: "shortname" });
+  });
+
+  it("falls back for an unknown constraint", () => {
+    expect(
+      uniqueViolationResult(
+        postgresError("23505", "users_phone_idx"),
+        {},
+        { error: "A user with this phone number already exists", field: "phone" },
+      ),
+    ).toEqual({ ok: false, error: "A user with this phone number already exists", field: "phone" });
+  });
+
+  it("returns null for a non-unique error", () => {
+    expect(uniqueViolationResult(new Error("boom"), {}, { error: "x", field: "name" })).toBeNull();
+  });
+
+  it("returns null when no mapping or fallback matches", () => {
+    expect(uniqueViolationResult(postgresError("23505", "x_idx"), {})).toBeNull();
+  });
+});
+
 describe("describeError", () => {
   it("returns the fallback for drizzle-wrapped errors (raw SQL hidden)", () => {
     expect(
@@ -105,3 +136,4 @@ describe("describeError", () => {
     expect(describeError(null, "fallback")).toBe("fallback");
   });
 });
+

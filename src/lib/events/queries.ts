@@ -5,9 +5,9 @@ import { after } from "next/server";
 import { cache } from "react";
 
 import { db } from "@/db";
+import { DEPARTMENT_ORDER } from "@/lib/db/order";
 import { calendars, users } from "@/db/schema";
-import { getCachedValue } from "@/lib/cache";
-import { CONFIG_CACHE_KEYS, CONFIG_CACHE_TTL_MS } from "@/lib/configCache";
+import { cachedConfig } from "@/lib/configCache";
 import { effectiveCalendarColor, effectiveEventTypeColor } from "@/lib/events/eventColors";
 import { formatInstantToNaive, shiftMonth, utcToDateString } from "@/lib/events/datetime";
 import { listEventTypes } from "@/lib/eventTypes/queries";
@@ -18,7 +18,7 @@ import {
   type MultiMonthEventsResult,
 } from "@/lib/google/eventsCache";
 import type { GcalEventItem } from "@/lib/google/types";
-import { onlyUuidIds } from "@/lib/uuid";
+import { uniqueUuidIds } from "@/lib/uuid";
 import { parseEventDescription } from "@/lib/events/notes";
 import type { TimeOption } from "@/lib/events/timeOptions";
 import { dedupeEventsByGroupId } from "@/lib/events/targets";
@@ -91,8 +91,8 @@ function scheduleTime(date: Date, allDay: boolean): string {
  * within `CONFIG_CACHE_TTL_MS`.
  */
 export const listCalendars = cache(() =>
-  getCachedValue(CONFIG_CACHE_KEYS.calendars, CONFIG_CACHE_TTL_MS, async () =>
-    db.select().from(calendars).orderBy(calendars.sortOrder, calendars.name),
+  cachedConfig("calendars", async () =>
+    db.select().from(calendars).orderBy(...DEPARTMENT_ORDER),
   ),
 );
 
@@ -110,7 +110,7 @@ export async function getUserDepartmentId(userId: string): Promise<string | null
 export async function getUserDepartmentIds(
   userIds: string[],
 ): Promise<Record<string, string | null>> {
-  const uniqueIds = [...new Set(onlyUuidIds(userIds))];
+  const uniqueIds = uniqueUuidIds(userIds);
   if (uniqueIds.length === 0) {
     return {};
   }

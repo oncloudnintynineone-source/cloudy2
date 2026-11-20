@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.394 (page pinch-to-zoom off app-wide)** is shipped.
+- All work through changelog **1.395 (shared composition framework)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -2633,6 +2633,24 @@ mirror them (four such entries: 1.106.1, 1.122.1, 1.316.1, 1.331.1).
   `Ctrl`/`Cmd` + `+`, OS text scaling and Android's Force-enable-zoom still work. Docs:
   `accessibility.md` §1.8 (new), `dashboard-views.md` §1.7, `grid-pan.md` §1.3,
   `pwa-offline.md` §1.9.
+- 1.395 **Shared composition framework**: the settings/dialog scaffolding that had been
+  re-typed per feature now uses one set of primitives — `actorFromSession` (7 helper + 9
+  inline copies), `ActionResult` aliases, `WRITE_EFFECTS`/`applyWriteEffects` and
+  `commitAdminWrite` (6 presets, ~45 literals), `uniqueViolationResult` (6 catches),
+  `cachedConfig` (7 wrappers), `withApiSession`/`withApiJson`/`apiJson`/`apiError` (12
+  routes; the push-subscription responses now carry `no-store`), shared URL/text/array
+  validation, `uniqueUuidIds`, and the shared `DEPARTMENT_ORDER`/`EVENT_TYPE_GROUP_ORDER`
+  orderings. Settings CRUD uses `useEntityEditor` + `LazyModal`, `submitCrudForm` +
+  `FormFooterActions`, `ConfirmModal`/`runConfirm` and `CrudTabSkeleton`; trigger dialogs
+  use `useModalZoom` (fixing the event-history 520→620 shrink width) and `LazyModal`;
+  load-on-open bodies use `useOpenQuery` + `InlineError` (fixing the Preferences /
+  Notifications bare `Loader` and the department-access infinite skeleton), and
+  `preloadLazyBody` replaces 7 preload wrappers. The `TemplatesManager` keyboard
+  double-fire (local `activatable` lacking the child-target guard) is fixed by using the
+  shared helper. Behavior, audit payloads, schema and route contracts are unchanged; the
+  deferred list/view-layer candidates are recorded in `docs/component-framework.md` §1.8.
+  Docs: `component-framework.md` (new), `loading-transitions.md` §1.15.1/§1.16,
+  `motion.md` §1.8, `AGENTS.md` conventions.
 
 ## 1.4 Open items & next steps
 

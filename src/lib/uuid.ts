@@ -10,6 +10,11 @@ export function isUuid(value: string): boolean {
 }
 
 /** Drop non-UUID entries from an id list before querying a uuid column. */
-export function onlyUuidIds(ids: string[]): string[] {
+export function onlyUuidIds(ids: readonly string[]): string[] {
   return ids.filter(isUuid);
+}
+
+/** Well-formed, de-duplicated UUID ids (order of first appearance). */
+export function uniqueUuidIds(ids: readonly string[]): string[] {
+  return [...new Set(onlyUuidIds(ids))];
 }

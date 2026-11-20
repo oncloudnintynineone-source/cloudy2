@@ -1,24 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import {
   Anchor,
   Badge,
-  Button,
   Group,
   Paper,
   Skeleton,
   Stack,
   Text,
-  useMantineTheme,
 } from "@mantine/core";
 import { MotionModal } from "@/components/MotionModal";
-import { useMediaQuery } from "@mantine/hooks";
 
 import { CrossfadeSwap } from "@/components/CrossfadeSwap";
+import { InlineError } from "@/components/InlineError";
 import { LoadingStatus } from "@/components/LoadingStatus";
+import { useOpenQuery } from "@/lib/loading/useOpenQuery";
 import { MIN_SKELETON_HOLD_MS } from "@/lib/loading/minHoldLoading";
-import { NARROW_MEDIA_QUERY } from "@/lib/theme";
+import { useModalSize } from "@/lib/motion/useModalZoom";
 import {
   getMyCalendarAccess,
   type MyCalendarAccessResult,
@@ -80,35 +78,16 @@ interface CalendarAccessModalProps {
   onClose: () => void;
 }
 
+const mapCalendarAccessError = () => "Couldn't load your calendar access";
+
 export function CalendarAccessModal({ opened, onClose }: CalendarAccessModalProps) {
-  const theme = useMantineTheme();
-  const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
-  const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY);
-  const [data, setData] = useState<MyCalendarAccessResult | null>(null);
-
-  // Render-phase reset on every open (same pattern as DateSelectorModal): the
-  // fresh open must start from a loading state, not the last fetch's result.
-  const [lastOpened, setLastOpened] = useState(opened);
-  if (lastOpened !== opened) {
-    setLastOpened(opened);
-    if (opened) {
-      setData(null);
-    }
-  }
-
-  const [requestKey, setRequestKey] = useState(0);
-
-  // Fetch on every open — the access can change while the app stays mounted.
-  // Only asynchronous state updates happen here (setData resolves after the
-  // awaited server action), so no cascading render. Bumping `requestKey`
-  // (the retry button) refetches while the modal stays open.
-  useEffect(() => {
-    if (opened) {
-      getMyCalendarAccess()
-        .then(setData)
-        .catch(() => setData({ ok: false, error: "Couldn't load your calendar access" }));
-    }
-  }, [opened, requestKey]);
+  const size = useModalSize({ narrow: "xs", mobile: "sm", desktop: "md" });
+  const query = useOpenQuery<MyCalendarAccessResult>({
+    enabled: opened,
+    load: getMyCalendarAccess,
+    mapError: mapCalendarAccessError,
+  });
+  const data = query.data;
 
   return (
     <MotionModal
@@ -116,10 +95,10 @@ export function CalendarAccessModal({ opened, onClose }: CalendarAccessModalProp
       onClose={onClose}
       title="Calendar access"
       centered
-      size={isNarrow ? "xs" : isDesktop ? "md" : "sm"}
+      size={size}
     >
       <CrossfadeSwap
-        loading={!data}
+        loading={query.status === "loading" || query.status === "idle"}
         minHoldMs={MIN_SKELETON_HOLD_MS}
         mode="overlay"
         animateHeight
@@ -133,8 +112,14 @@ export function CalendarAccessModal({ opened, onClose }: CalendarAccessModalProp
           </Stack>
         }
       >
-        {data === null ? null : data.ok ? (
-          data.hasProfile ? (
+        {query.status === "error" ? (
+          <InlineError
+            message={query.error ?? "Couldn't load your calendar access"}
+            onRetry={query.reload}
+          />
+        ) : data === null ? null : !data.ok ? (
+          <InlineError message={data.error} onRetry={query.reload} />
+        ) : data.hasProfile ? (
             <Stack gap="md">
               <Stack gap={2}>
                 <Text fw={500} size="sm">
@@ -178,23 +163,7 @@ export function CalendarAccessModal({ opened, onClose }: CalendarAccessModalProp
               calendar here.
             </Text>
           )
-        ) : (
-          <Stack gap="sm" align="flex-start">
-            <Text size="sm" c="red">
-              {data.error}
-            </Text>
-            <Button
-              size="xs"
-              variant="light"
-              onClick={() => {
-                setData(null);
-                setRequestKey((key) => key + 1);
-              }}
-            >
-              Try again
-            </Button>
-          </Stack>
-        )}
+        }
       </CrossfadeSwap>
     </MotionModal>
   );

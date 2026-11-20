@@ -1,13 +1,13 @@
 "use server";
 
 import { eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 
 import { db } from "@/db";
 import { webhooks, type Webhook } from "@/db/schema";
-import { AUDIT_ACTIONS, actorFromUser } from "@/lib/audit/build";
+import { commitAdminWrite } from "@/lib/actions/adminWrite";
+import type { ActionResult } from "@/lib/actions/result";
+import { AUDIT_ACTIONS } from "@/lib/audit/build";
 import { diffFields } from "@/lib/audit/diff";
-import { logAction } from "@/lib/audit/log";
 import { requireAdmin } from "@/lib/session";
 import {
   normalizeWebhookName,
@@ -17,21 +17,7 @@ import {
   type WebhookFormValues,
 } from "./validate";
 
-export type WebhookActionResult =
-  | { ok: true }
-  | {
-      ok: false;
-      error: string;
-      field?: "name" | "url" | "secret";
-    };
-
-function actorFrom(session: Awaited<ReturnType<typeof requireAdmin>>) {
-  return actorFromUser({
-    id: session.user.id,
-    name: session.user.name ?? null,
-    role: session.user.role,
-  });
-}
+export type WebhookActionResult = ActionResult<Record<never, never>, "name" | "url" | "secret">;
 
 async function getWebhookOrNull(id: string): Promise<Webhook | null> {
   const [row] = await db.select().from(webhooks).where(eq(webhooks.id, id)).limit(1);
@@ -92,17 +78,16 @@ export async function createWebhook(input: WebhookFormValues): Promise<WebhookAc
     .values({ ...normalized.values, enabled: input.enabled })
     .returning({ id: webhooks.id });
 
-  await logAction({
-    ...actorFrom(session),
+  await commitAdminWrite({
+    session,
     action: AUDIT_ACTIONS.webhookCreate,
     entityType: "webhook",
     entityId: created.id,
     entityName: normalized.values.name,
     method: "createWebhook",
     details: auditValues({ ...normalized.values, enabled: input.enabled }),
+    effect: "webhooks",
   });
-
-  revalidatePath("/settings/webhooks");
   return { ok: true };
 }
 
@@ -130,8 +115,8 @@ export async function updateWebhook(
     .set({ ...normalized.values, enabled: input.enabled, updatedAt: new Date() })
     .where(eq(webhooks.id, id));
 
-  await logAction({
-    ...actorFrom(session),
+  await commitAdminWrite({
+    session,
     action: AUDIT_ACTIONS.webhookUpdate,
     entityType: "webhook",
     entityId: id,
@@ -141,9 +126,8 @@ export async function updateWebhook(
       auditValues({ name: existing.name, url: existing.url, enabled: existing.enabled }),
       auditValues({ ...normalized.values, enabled: input.enabled }),
     ),
+    effect: "webhooks",
   });
-
-  revalidatePath("/settings/webhooks");
   return { ok: true };
 }
 
@@ -157,8 +141,8 @@ export async function deleteWebhook(id: string): Promise<WebhookActionResult> {
 
   await db.delete(webhooks).where(eq(webhooks.id, id));
 
-  await logAction({
-    ...actorFrom(session),
+  await commitAdminWrite({
+    session,
     action: AUDIT_ACTIONS.webhookDelete,
     entityType: "webhook",
     entityId: id,
@@ -169,8 +153,7 @@ export async function deleteWebhook(id: string): Promise<WebhookActionResult> {
       url: existing.url,
       enabled: existing.enabled,
     }),
+    effect: "webhooks",
   });
-
-  revalidatePath("/settings/webhooks");
   return { ok: true };
 }

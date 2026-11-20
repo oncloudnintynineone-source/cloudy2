@@ -2,9 +2,9 @@ import { asc, inArray } from "drizzle-orm";
 import { cache } from "react";
 
 import { db } from "@/db";
+import { EVENT_TYPE_GROUP_ORDER } from "@/lib/db/order";
 import { eventTypes, eventTypeGroups } from "@/db/schema";
-import { getCachedValue } from "@/lib/cache";
-import { CONFIG_CACHE_KEYS, CONFIG_CACHE_TTL_MS } from "@/lib/configCache";
+import { cachedConfig } from "@/lib/configCache";
 import { normalizeAllowedLocations, type LocationCategory } from "@/lib/events/locationPolicy";
 import {
   normalizeTimeOptions,
@@ -20,7 +20,7 @@ import {
  * still appear on the next request.
  */
 export const listEventTypes = cache(() =>
-  getCachedValue(CONFIG_CACHE_KEYS.eventTypes, CONFIG_CACHE_TTL_MS, async () => {
+  cachedConfig("eventTypes", async () => {
     const rows = await db.select().from(eventTypes).orderBy(asc(eventTypes.name));
     return rows.map((row) => ({
       ...row,
@@ -36,7 +36,7 @@ export const listEventTypes = cache(() =>
  * per-request `cache()` as `listEventTypes`.
  */
 export const listEventTypeGroups = cache(() =>
-  getCachedValue(CONFIG_CACHE_KEYS.eventTypeGroups, CONFIG_CACHE_TTL_MS, async () =>
+  cachedConfig("eventTypeGroups", async () =>
     db
       .select({
         id: eventTypeGroups.id,
@@ -45,7 +45,7 @@ export const listEventTypeGroups = cache(() =>
         collapsible: eventTypeGroups.collapsible,
       })
       .from(eventTypeGroups)
-      .orderBy(asc(eventTypeGroups.sortOrder), asc(eventTypeGroups.name)),
+      .orderBy(...EVENT_TYPE_GROUP_ORDER),
   ),
 );
 

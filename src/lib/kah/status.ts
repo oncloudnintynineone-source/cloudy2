@@ -32,19 +32,7 @@ import {
 import type { TimeOption } from "@/lib/events/timeOptions";
 import { getCachedMonthEventsForCalendars } from "@/lib/google/eventsCache";
 import { inCountryPercentage, type KahGroupCheck } from "@/lib/kah/check";
-
-/**
- * Whether the id is a real roster-user UUID. Session identities are not always
- * roster rows — the bootstrap admin password signs in as the synthetic
- * `id: "admin"` (`auth.ts` authorize), and a uuid-typed column query (e.g.
- * `kah_group_members.user_id`) would fail Postgres's cast on such an id.
- * Pure so it can be unit-tested without a database.
- */
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-export function isUuid(id: string): boolean {
-  return UUID_RE.test(id);
-}
+import { isUuid } from "@/lib/uuid";
 
 /**
  * Whether an event's notes mark it as taking its tagged people out of the

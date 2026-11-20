@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
   Badge,
   Box,
@@ -12,19 +12,19 @@ import {
   Text,
   Textarea,
   TextInput,
-  useMantineTheme,
 } from "@mantine/core";
-import { MotionModal } from "@/components/MotionModal";
+import { LazyModal } from "@/components/LazyModal";
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
 
-import { useDisclosure, useMediaQuery } from "@mantine/hooks";
 import { IconPlus, IconUsersGroup } from "@tabler/icons-react";
 
 import { EmptyState } from "@/components/EmptyState";
 import type { KahGroupWithMembers } from "@/lib/kah/queries";
 import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
+import { useIsDesktop } from "@/lib/ui/useBreakpoint";
+import { useEntityEditor } from "@/lib/ui/useEntityEditor";
 import type { UserGroupInput } from "@/lib/users/userSelect";
 import { activatable } from "@/lib/ui/activatable";
 import { updateKahNotifications, type SettingsActionResult } from "@/lib/settings/actions";
@@ -41,10 +41,8 @@ import {
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { showValidationFailure } from "@/lib/ui/validationFeedback";
 import dynamic from "next/dynamic";
-import { CrossfadeSwap } from "@/components/CrossfadeSwap";
 import { FormModalSkeleton } from "@/components/FormModalSkeleton";
 import { useChunkReady } from "@/lib/loading/chunkReady";
-import { MIN_SKELETON_HOLD_MS } from "@/lib/loading/minHoldLoading";
 
 // The add/edit KAH group form is only mounted on tap; split it out of the
 // kah-groups route's initial chunk. The chunk reveal dissolves through
@@ -70,11 +68,9 @@ export function KahGroupTable({
   kahEmailBodyTemplate,
 }: KahGroupTableProps) {
   const refreshAfterSave = useActivityRefresh("kah:save");
-  const theme = useMantineTheme();
-  const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
-  const [formOpened, { open: openForm, close: closeForm }] = useDisclosure(false);
-  const [editing, setEditing] = useState<KahGroupWithMembers | null>(null);
-  const kahGroupFormReady = useChunkReady(loadKahGroupForm, formOpened);
+  const isDesktop = useIsDesktop();
+  const editor = useEntityEditor<KahGroupWithMembers>();
+  const kahGroupFormReady = useChunkReady(loadKahGroupForm, editor.opened);
 
   const kahForm = useForm<KahNotificationsFormValues>({
     initialValues: {
@@ -114,13 +110,11 @@ export function KahGroupTable({
   );
 
   function openCreate() {
-    setEditing(null);
-    openForm();
+    editor.openCreate();
   }
 
   function openEdit(group: KahGroupWithMembers) {
-    setEditing(group);
-    openForm();
+    editor.openEdit(group);
   }
 
   return (
@@ -274,42 +268,34 @@ export function KahGroupTable({
         </form>
       </Paper>
 
-      <MotionModal
-        opened={formOpened}
-        onClose={closeForm}
-        title={editing ? "Edit KAH group" : "Add KAH group"}
-        centered
+      <LazyModal
+        opened={editor.opened}
+        onClose={editor.closeEditor}
+        title={editor.editing ? "Edit KAH group" : "Add KAH group"}
         size={isDesktop ? "md" : "sm"}
+        ready={kahGroupFormReady}
+        skeleton={<FormModalSkeleton rows={4} />}
       >
-        <CrossfadeSwap
-          loading={formOpened && !kahGroupFormReady}
-          minHoldMs={MIN_SKELETON_HOLD_MS}
-          mode="overlay"
-          animateHeight
-          skeleton={<FormModalSkeleton rows={4} />}
-        >
-          <KahGroupForm
-            key={editing?.id ?? "new"}
-            group={
-              editing
-                ? {
-                    id: editing.id,
-                    name: editing.name,
-                    minPercentage: editing.minPercentage,
-                    memberIds: editing.members.map((member) => member.id),
-                  }
-                : null
-            }
-            defaultPercentage={defaultPercentage}
-            pickerUsers={pickerUsers}
-            onDone={() => {
-              closeForm();
-              setEditing(null);
-              refreshAfterSave();
-            }}
-          />
-        </CrossfadeSwap>
-      </MotionModal>
+        <KahGroupForm
+          key={editor.editing?.id ?? "new"}
+          group={
+            editor.editing
+              ? {
+                  id: editor.editing.id,
+                  name: editor.editing.name,
+                  minPercentage: editor.editing.minPercentage,
+                  memberIds: editor.editing.members.map((member) => member.id),
+                }
+              : null
+          }
+          defaultPercentage={defaultPercentage}
+          pickerUsers={pickerUsers}
+          onDone={() => {
+            editor.closeEditor();
+            refreshAfterSave();
+          }}
+        />
+      </LazyModal>
 
       {/* Mobile-only: at lg the "Add group" button in the toolbar replaces
           the FAB. hiddenFrom sits on the toolbar itself: its Affix portals to

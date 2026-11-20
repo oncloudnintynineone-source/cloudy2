@@ -9,7 +9,7 @@ import {
   Stack,
   Text,
 } from "@mantine/core";
-import { MotionModal } from "@/components/MotionModal";
+import { ConfirmModal } from "@/components/ConfirmModal";
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
 import { IconAlertTriangle } from "@tabler/icons-react";
@@ -140,31 +140,15 @@ export function SettingsForm({ retentionDays }: SettingsFormProps) {
         </Stack>
       </Paper>
 
-      <MotionModal
+      <ConfirmModal
         opened={purgeOpened}
         onClose={() => setPurgeOpened(false)}
         title="Purge calendar cache"
-        centered
-        size="sm"
-      >
-        <Text size="sm">
-          Permanently delete all cached Google Calendar data? It will be re-fetched from Google on
-          the next dashboard view. This cannot be undone.
-        </Text>
-        <Group justify="flex-end" mt="md">
-          <Button variant="default" onClick={() => setPurgeOpened(false)}>
-            Cancel
-          </Button>
-          <Button
-            color="red"
-            loading={purging}
-            loaderProps={BUTTON_LOADER_PROPS}
-            onClick={handlePurge}
-          >
-            Purge
-          </Button>
-        </Group>
-      </MotionModal>
+        message="Permanently delete all cached Google Calendar data? It will be re-fetched from Google on the next dashboard view. This cannot be undone."
+        confirmLabel="Purge"
+        loading={purging}
+        onConfirm={handlePurge}
+      />
     </>
   );
 }

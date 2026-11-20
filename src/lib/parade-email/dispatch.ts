@@ -20,7 +20,7 @@ import { AUDIT_ACTIONS } from "@/lib/audit/build";
 import { logAction } from "@/lib/audit/log";
 import { sendNotificationEmail } from "@/lib/email/send";
 import { getSettings } from "@/lib/settings/queries";
-import { onlyUuidIds } from "@/lib/uuid";
+import { uniqueUuidIds } from "@/lib/uuid";
 
 import { loadParadeSnapshot } from "./context";
 import { buildParadeStateEmail } from "./report";
@@ -66,7 +66,7 @@ export interface ParadeEmailRunResult {
 
 /** Resolve deduplicated, non-empty emails for a set of user ids. */
 async function resolveRecipientEmails(userIds: string[]): Promise<string[]> {
-  const ids = [...new Set(onlyUuidIds(userIds))];
+  const ids = uniqueUuidIds(userIds);
   if (ids.length === 0) {
     return [];
   }

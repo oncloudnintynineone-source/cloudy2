@@ -39,6 +39,28 @@ export function findUniqueViolation(error: unknown): UniqueViolation | null {
 }
 
 /**
+ * Map a unique-constraint violation to a form error. `byConstraint` handles the
+ * named indexes; `fallback` covers any other unique violation (the entity's
+ * usual "already exists" field). Returns null when the error is not a unique
+ * violation, so the caller can rethrow or use its generic error path.
+ */
+export function uniqueViolationResult<F extends string>(
+  error: unknown,
+  byConstraint: Record<string, { error: string; field: F }>,
+  fallback?: { error: string; field: F },
+): { ok: false; error: string; field: F } | null {
+  const violation = findUniqueViolation(error);
+  if (violation === null) {
+    return null;
+  }
+  const mapped = violation.constraintName
+    ? byConstraint[violation.constraintName]
+    : undefined;
+  const chosen = mapped ?? fallback;
+  return chosen ? { ok: false, ...chosen } : null;
+}
+
+/**
  * True when `error` or anything in its `.cause` chain is a drizzle-orm query
  * error. Such messages contain the raw SQL and must not be shown to users.
  */

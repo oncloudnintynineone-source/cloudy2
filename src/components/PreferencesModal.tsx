@@ -1,11 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { Button, Group, Loader, SegmentedControl, Stack, Text } from "@mantine/core";
+import { useCallback, useState } from "react";
+import { SegmentedControl, Skeleton, Stack, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 
+import { InlineError } from "@/components/InlineError";
 import { clearAllDashboardSnapshots } from "@/lib/dashboard/localStore";
 import type { WeekStart } from "@/lib/events/datetime";
+import { useOpenQuery } from "@/lib/loading/useOpenQuery";
 import { getWeekStart, setWeekStart } from "@/lib/userPrefs/actions";
 import { MotionModal } from "@/components/MotionModal";
 import { useMotion } from "@/components/MotionProvider";
@@ -16,6 +18,8 @@ interface PreferencesModalProps {
   onClose: () => void;
 }
 
+const mapWeekStartError = () => "Couldn't load your preference.";
+
 /**
  * Profile-menu dialog for account-wide preferences that follow the user across
  * devices. Currently one: which day the calendar week starts on, which every
@@ -24,40 +28,20 @@ interface PreferencesModalProps {
  */
 export function PreferencesModal({ opened, onClose }: PreferencesModalProps) {
   const motion = useMotion();
-  const [value, setValue] = useState<WeekStart | null>(null);
   const [busy, setBusy] = useState(false);
-  const [loadError, setLoadError] = useState(false);
+  const query = useOpenQuery<WeekStart>({
+    enabled: opened,
+    load: getWeekStart,
+    mapError: mapWeekStartError,
+  });
+  const value = query.data;
+  const { setData } = query;
 
-  // Render-phase reset on every open (NotificationSettings pattern): a fresh
-  // open starts from a loading state, not the last fetch's result.
-  const [lastOpened, setLastOpened] = useState(opened);
-  if (lastOpened !== opened) {
-    setLastOpened(opened);
-    if (opened) {
-      setValue(null);
-      setLoadError(false);
-    }
-  }
-
-  const load = useCallback(() => {
-    getWeekStart()
-      .then((current) => setValue(current))
-      .catch((error) => {
-        console.error("[prefs] Failed to load week start", error);
-        setLoadError(true);
-      });
-  }, []);
-
-  useEffect(() => {
-    if (opened) {
-      load();
-    }
-  }, [opened, load]);
-
-  const handleChange = useCallback(async (next: string) => {
-    if (next !== "monday" && next !== "sunday") return;
-    setValue(next);
-    setBusy(true);
+  const handleChange = useCallback(
+    async (next: string) => {
+      if (next !== "monday" && next !== "sunday") return;
+      setData(next);
+      setBusy(true);
     try {
       const result = await setWeekStart(next);
       if (!result.ok) {
@@ -83,7 +67,7 @@ export function PreferencesModal({ opened, onClose }: PreferencesModalProps) {
       });
       setBusy(false);
     }
-  }, []);
+  }, [setData]);
 
   return (
     <MotionModal
@@ -103,28 +87,13 @@ export function PreferencesModal({ opened, onClose }: PreferencesModalProps) {
             Applies to every week and month view on your account, on all your devices.
           </Text>
         </Stack>
-        {loadError ? (
-          <Group justify="space-between" align="center">
-            <Text size="sm" c="red">
-              Couldn&apos;t load your preference.
-            </Text>
-            <Button
-              size="xs"
-              variant="light"
-              loading={busy}
-              loaderProps={{ type: "oval" }}
-              onClick={() => {
-                setLoadError(false);
-                load();
-              }}
-            >
-              Try again
-            </Button>
-          </Group>
+        {query.status === "error" ? (
+          <InlineError
+            message={query.error ?? "Couldn't load your preference."}
+            onRetry={query.reload}
+          />
         ) : value === null ? (
-          <Group justify="center" py="sm">
-            <Loader size="sm" />
-          </Group>
+          <Skeleton height={34} radius="sm" />
         ) : (
           <SegmentedControl
             fullWidth

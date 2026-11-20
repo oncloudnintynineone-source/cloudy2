@@ -2,8 +2,7 @@ import { cache } from "react";
 
 import { db } from "@/db";
 import { eventTitleTemplates, settings } from "@/db/schema";
-import { getCachedValue } from "@/lib/cache";
-import { CONFIG_CACHE_KEYS, CONFIG_CACHE_TTL_MS } from "@/lib/configCache";
+import { cachedConfig } from "@/lib/configCache";
 import {
   BANNER_DEFAULT_COLOR,
   isBannerColor,
@@ -25,6 +24,7 @@ import {
 import { PARADE_EMAIL_SEND_TIME_PATTERN } from "@/lib/parade-email/validate";
 import { sanitizeTitleRecipe, type TitleRecipe } from "@/lib/settings/titleRecipe";
 import { normalizeFeatureFlags, type FeatureFlagKey } from "@/lib/settings/featureFlags";
+import { normalizeStringArray } from "@/lib/validation/arrays";
 import {
   normalizeAssignments,
   type EventTitleAssignmentTarget,
@@ -71,12 +71,9 @@ export interface SettingsView {
   featureFlags: Record<FeatureFlagKey, string>;
 }
 
-/** Coerce a jsonb value to a string array (unknown/blank entries dropped). */
+/** Coerce a jsonb value to a string array (unknown entries dropped). */
 function normalizeIdArray(value: unknown): string[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return value.filter((id): id is string => typeof id === "string");
+  return normalizeStringArray(value, { keepEmpty: true }) ?? [];
 }
 
 /** Coerce a jsonb value to a sorted, unique ISO-weekday array (1–7); empty → default Mon–Fri. */
@@ -105,7 +102,7 @@ function normalizeSendTime(value: unknown): string {
  * view cannot affect env reconciliation or login.
  */
 const readSettingsRow = cache(() =>
-  getCachedValue(CONFIG_CACHE_KEYS.settings, CONFIG_CACHE_TTL_MS, async () => {
+  cachedConfig("settings", async () => {
     const [row] = await db.select().from(settings).limit(1);
     return row ?? null;
   }),
@@ -157,7 +154,7 @@ export async function getFeatureFlags(): Promise<Record<FeatureFlagKey, string>>
 }
 
 export async function listEventTitleTemplates(): Promise<EventTitleTemplateView[]> {
-  return getCachedValue(CONFIG_CACHE_KEYS.eventTitleTemplates, CONFIG_CACHE_TTL_MS, async () => {
+  return cachedConfig("eventTitleTemplates", async () => {
     const rows = await db
       .select()
       .from(eventTitleTemplates)

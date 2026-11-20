@@ -132,7 +132,7 @@ import { eventMatchesUserFilter } from "@/lib/events/userFilter";
 import { buildEventTypePickerSections } from "@/lib/eventTypes/groups";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { MIN_SKELETON_HOLD_MS, useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
-import { loadChunk, useChunkReady } from "@/lib/loading/chunkReady";
+import { preloadLazyBody, useChunkReady } from "@/lib/loading/chunkReady";
 import { canPreloadTabs, canWarmRoutes } from "@/lib/pwa/warmup";
 import { departmentPathLabels, departmentTreeRows } from "@/lib/roster/hierarchy";
 import { useColdStartContent } from "@/components/ColdStartReady";
@@ -238,7 +238,7 @@ const WeekMatrixView = dynamic(() => import("./WeekMatrixView").then((mod) => mo
 type Preloadable = { preload?: () => Promise<unknown> };
 
 const preloadEventFormChunk = () => {
-  void loadChunk(loadEventForm).catch(() => {});
+  preloadLazyBody(loadEventForm);
 };
 const preloadEventDetailChunk = () => preloadEventDetailBody();
 

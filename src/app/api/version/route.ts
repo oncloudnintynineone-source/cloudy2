@@ -1,5 +1,4 @@
-import { NextResponse } from "next/server";
-
+import { apiJson } from "@/lib/api/server";
 import { APP_VERSION } from "@/lib/appVersion";
 
 /**
@@ -16,8 +15,5 @@ import { APP_VERSION } from "@/lib/appVersion";
 export const dynamic = "force-dynamic";
 
 export function GET() {
-  return NextResponse.json(
-    { version: APP_VERSION },
-    { headers: { "Cache-Control": "no-store" } },
-  );
+  return apiJson({ version: APP_VERSION });
 }

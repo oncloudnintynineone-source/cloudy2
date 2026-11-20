@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Badge, Group, Stack, Text, useMantineTheme } from "@mantine/core";
-import { useMediaQuery, useViewportSize } from "@mantine/hooks";
+import { Badge, Group, Stack, Text } from "@mantine/core";
 import { IconHistory } from "@tabler/icons-react";
 
 import { CrossfadeSwap } from "@/components/CrossfadeSwap";
@@ -10,7 +9,6 @@ import { EmptyState } from "@/components/EmptyState";
 import { EventHistoryEntries } from "@/components/EventHistoryEntries";
 import { EventHistorySkeleton } from "@/components/EventHistorySkeleton";
 import { MotionModal } from "@/components/MotionModal";
-import { useMotion } from "@/components/MotionProvider";
 import { createdEventSummary } from "@/lib/events/history";
 import { getEventHistory, type EventHistoryResult } from "@/lib/events/historyActions";
 import {
@@ -25,9 +23,8 @@ import {
 } from "@/lib/events/changeTrail";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { MIN_SKELETON_HOLD_MS } from "@/lib/loading/minHoldLoading";
-import { modalContentWidth, type Rect } from "@/lib/motion/origin";
-import { modalZoomTransitionProps } from "@/lib/motion/transitions";
-import { NARROW_MEDIA_QUERY } from "@/lib/theme";
+import type { Rect } from "@/lib/motion/origin";
+import { useModalZoom } from "@/lib/motion/useModalZoom";
 import type { AuditLog } from "@/db/schema";
 
 /** A row's already-on-screen trail, used to paint the modal instantly. */
@@ -75,14 +72,10 @@ export function EventHistoryModal({
   title: titleProp,
   retentionDays: retentionDaysProp,
 }: EventHistoryModalProps) {
-  const theme = useMantineTheme();
-  const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
-  const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY);
-  const motion = useMotion();
-  const viewportSize = useViewportSize();
-  const viewport = { w: viewportSize.width, h: viewportSize.height };
-  const contentWidth = modalContentWidth(viewport, isNarrow ? 320 : isDesktop ? 520 : 380);
-  const transitionProps = modalZoomTransitionProps(motion, originRect, viewport, contentWidth);
+  const { size, transitionProps } = useModalZoom({
+    originRect,
+    spec: { narrow: "xs", mobile: "sm", desktop: "lg" },
+  });
 
   // Loaded rows carry the event id they belong to; the last content stays
   // mounted through a close so the exit animation has data.
@@ -168,7 +161,7 @@ export function EventHistoryModal({
       onClose={onClose}
       title="Event history"
       centered
-      size={isNarrow ? "xs" : isDesktop ? "lg" : "sm"}
+      size={size}
       keepMounted
       zIndex={zIndex}
       transitionProps={transitionProps}

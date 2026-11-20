@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Badge, Box, Button, Group, Paper, Stack, Text, Tooltip } from "@mantine/core";
+import { LazyModal } from "@/components/LazyModal";
 import { MotionModal } from "@/components/MotionModal";
 import { useDisclosure, useMediaQuery } from "@mantine/hooks";
 import { IconPlus, IconSearchOff, IconUsers } from "@tabler/icons-react";
@@ -19,11 +20,10 @@ import { fuzzyFilter } from "@/lib/search/fuzzy";
 import { formatFullName } from "@/lib/settings/formatName";
 import { DESKTOP_MEDIA_QUERY } from "@/lib/theme";
 import { activatable } from "@/lib/ui/activatable";
+import { useEntityEditor } from "@/lib/ui/useEntityEditor";
 import dynamic from "next/dynamic";
-import { CrossfadeSwap } from "@/components/CrossfadeSwap";
 import { FormModalSkeleton } from "@/components/FormModalSkeleton";
 import { useChunkReady } from "@/lib/loading/chunkReady";
-import { MIN_SKELETON_HOLD_MS } from "@/lib/loading/minHoldLoading";
 import type { DepartmentOption } from "./UserForm";
 
 // The edit-user form is large (roster fields, department access, pickers) and
@@ -46,16 +46,15 @@ export function UserTable({ users, departments, accessByUser, nameTemplate }: Us
   const refreshAfterSave = useActivityRefresh("users:save");
   const isDesktop = useMediaQuery(DESKTOP_MEDIA_QUERY);
   const paneRef = useRef<HTMLDivElement>(null);
-  const [opened, { open, close }] = useDisclosure(false);
+  const editor = useEntityEditor<RosterUser>();
   const [filterOpened, { open: openFilter, close: closeFilter }] = useDisclosure(false);
-  const userFormReady = useChunkReady(loadUserForm, opened);
+  const userFormReady = useChunkReady(loadUserForm, editor.opened);
   // Where the filter trigger sat on screen; the dialog grows out of / shrinks
   // back into it (see src/lib/motion/origin.ts).
   const [filterOriginRect, setFilterOriginRect] = useState<Rect | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [departmentFilter, setDepartmentFilter] = useState<string[]>([]);
-  const [editingUser, setEditingUser] = useState<RosterUser | null>(null);
   // The form lives in a lazy chunk and owns its `useForm`, so it reports whether
   // anything is staged; closing the dialog then asks before throwing it away.
   const dirtyRef = useRef(false);
@@ -144,20 +143,17 @@ export function UserTable({ users, departments, accessByUser, nameTemplate }: Us
   }
 
   function openCreate() {
-    setEditingUser(null);
-    open();
+    editor.openCreate();
   }
 
   function openEdit(user: RosterUser) {
-    setEditingUser(user);
-    open();
+    editor.openEdit(user);
   }
 
   /** The one exit path: closes the dialog and forgets the target. */
   function closeEditor() {
     dirtyRef.current = false;
-    close();
-    setEditingUser(null);
+    editor.closeEditor();
   }
 
   /** The X / backdrop / Esc path — staged edits are never dropped silently. */
@@ -299,33 +295,26 @@ export function UserTable({ users, departments, accessByUser, nameTemplate }: Us
         </Box>
       )}
 
-      <MotionModal
-        opened={opened}
+      <LazyModal
+        opened={editor.opened}
         onClose={requestEditorClose}
-        title={editingUser ? "Edit user" : "Add user"}
-        centered
+        title={editor.editing ? "Edit user" : "Add user"}
         size={isDesktop ? "lg" : "md"}
+        ready={userFormReady}
+        skeleton={<FormModalSkeleton rows={7} />}
       >
-        <CrossfadeSwap
-          loading={opened && !userFormReady}
-          minHoldMs={MIN_SKELETON_HOLD_MS}
-          mode="overlay"
-          animateHeight
-          skeleton={<FormModalSkeleton rows={7} />}
-        >
-          <UserForm
-            key={editingUser?.id ?? "new"}
-            user={editingUser}
-            departments={departments}
-            access={editingUser ? (accessByUser[editingUser.id] ?? []) : []}
-            onDirtyChange={reportDirty}
-            onDone={() => {
-              closeEditor();
-              refreshAfterSave();
-            }}
-          />
-        </CrossfadeSwap>
-      </MotionModal>
+        <UserForm
+          key={editor.editing?.id ?? "new"}
+          user={editor.editing}
+          departments={departments}
+          access={editor.editing ? (accessByUser[editor.editing.id] ?? []) : []}
+          onDirtyChange={reportDirty}
+          onDone={() => {
+            closeEditor();
+            refreshAfterSave();
+          }}
+        />
+      </LazyModal>
 
       <MotionModal
         opened={discardOpened}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { actorFromUser, AUDIT_ACTIONS, buildAuditLog, pathFromReferer } from "./build";
+import { actorFromSession, actorFromUser, AUDIT_ACTIONS, buildAuditLog, pathFromReferer } from "./build";
 import { diffFields } from "./diff";
 
 describe("buildAuditLog", () => {
@@ -96,6 +96,36 @@ describe("actorFromUser", () => {
       actorId: "abc",
       actorName: null,
       actorRole: "user",
+    });
+  });
+});
+
+describe("actorFromSession", () => {
+  it("maps a session user to the audit actor columns", () => {
+    expect(
+      actorFromSession({
+        user: { id: "11111111-1111-1111-1111-111111111111", name: "Alice", role: "admin" },
+      }),
+    ).toEqual({
+      actorId: "11111111-1111-1111-1111-111111111111",
+      actorName: "Alice",
+      actorRole: "admin",
+    });
+  });
+
+  it("normalizes an undefined session name to null", () => {
+    expect(actorFromSession({ user: { id: "abc", role: "user" } })).toEqual({
+      actorId: "abc",
+      actorName: null,
+      actorRole: "user",
+    });
+  });
+
+  it("still maps the admin pseudo-account to a null actor id", () => {
+    expect(actorFromSession({ user: { id: "admin", name: "Admin", role: "admin" } })).toEqual({
+      actorId: null,
+      actorName: "Admin",
+      actorRole: "admin",
     });
   });
 });

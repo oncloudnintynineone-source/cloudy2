@@ -1,10 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useMantineTheme } from "@mantine/core";
-import { useMediaQuery, useViewportSize } from "@mantine/hooks";
 import { canPreloadTabs } from "@/lib/pwa/warmup";
-import { NARROW_MEDIA_QUERY } from "@/lib/theme";
 
 import { addSearchHistoryEntry, removeSearchHistoryEntry } from "@/lib/events/searchHistory";
 import {
@@ -13,14 +10,11 @@ import {
   removeSearchHistory,
 } from "@/lib/events/searchHistoryActions";
 import dynamic from "next/dynamic";
-import { loadChunk, useChunkReady } from "@/lib/loading/chunkReady";
-import { MIN_SKELETON_HOLD_MS } from "@/lib/loading/minHoldLoading";
-import { modalContentWidth, type Rect } from "@/lib/motion/origin";
-import { modalZoomTransitionProps } from "@/lib/motion/transitions";
-import { useMotion } from "@/components/MotionProvider";
+import { preloadLazyBody, useChunkReady } from "@/lib/loading/chunkReady";
+import type { Rect } from "@/lib/motion/origin";
+import { useModalZoom } from "@/lib/motion/useModalZoom";
 
-import { CrossfadeSwap } from "./CrossfadeSwap";
-import { MotionModal } from "./MotionModal";
+import { LazyModal } from "@/components/LazyModal";
 import EventSearchBodySkeleton from "./EventSearchBodySkeleton";
 
 // Only the search body (its `@mantine/dates` DatePickerInputs and the result
@@ -34,7 +28,7 @@ const EventSearchBody = dynamic(loadEventSearchBody, { ssr: false, loading: () =
 // The shell calls this on near signals (hover/focus/pointer-down on the search
 // trigger) so the first open paints real content instead of the body skeleton.
 export function preloadEventSearchBody() {
-  void loadChunk(loadEventSearchBody).catch(() => {});
+  preloadLazyBody(loadEventSearchBody);
 }
 
 interface EventSearchModalProps {
@@ -44,9 +38,6 @@ interface EventSearchModalProps {
 }
 
 export default function EventSearchModal({ opened, onClose, originRect }: EventSearchModalProps) {
-  const theme = useMantineTheme();
-  const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
-  const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY);
   const searchBodyReady = useChunkReady(loadEventSearchBody, opened);
 
   // The user's recent queries (`null` = not yet fetched). Owned by the chrome
@@ -136,38 +127,28 @@ export default function EventSearchModal({ opened, onClose, originRect }: EventS
 
   // The modal zooms out of / shrinks back into the tapped search trigger (the
   // app's standard grow/shrink animation; mirror PinnedEventsPanel).
-  // Resize-subscribed viewport (Mantine hook) rather than a raw window read
-  // during render.
-  const motion = useMotion();
-  const viewportSize = useViewportSize();
-  const viewport = { w: viewportSize.width, h: viewportSize.height };
-  const contentWidth = modalContentWidth(viewport, isNarrow ? 380 : isDesktop ? 620 : 440);
-  const transitionProps = modalZoomTransitionProps(motion, originRect, viewport, contentWidth);
+  const { size, transitionProps } = useModalZoom({
+    originRect,
+    spec: { narrow: "xs", mobile: "md", desktop: "lg" },
+  });
 
   return (
-    <MotionModal
+    <LazyModal
       opened={opened}
       onClose={onClose}
       title="Search events"
-      centered
-      size={isNarrow ? "xs" : isDesktop ? "lg" : "md"}
+      size={size}
       transitionProps={transitionProps}
-      closeButtonProps={{ "aria-label": "Close search" }}
+      closeLabel="Close search"
+      ready={searchBodyReady}
+      skeleton={<EventSearchBodySkeleton />}
     >
-      <CrossfadeSwap
-        loading={opened && !searchBodyReady}
-        minHoldMs={MIN_SKELETON_HOLD_MS}
-        mode="overlay"
-        animateHeight
-        skeleton={<EventSearchBodySkeleton />}
-      >
-        <EventSearchBody
-          history={history}
-          onRecordSearch={recordSearch}
-          onRemoveSearch={removeSearch}
-          onClose={onClose}
-        />
-      </CrossfadeSwap>
-    </MotionModal>
+      <EventSearchBody
+        history={history}
+        onRecordSearch={recordSearch}
+        onRemoveSearch={removeSearch}
+        onClose={onClose}
+      />
+    </LazyModal>
   );
 }

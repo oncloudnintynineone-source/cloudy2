@@ -3,6 +3,8 @@
  * I/O so they can be unit-tested without a database.
  */
 
+import { trimToMax, validateRequiredText } from "@/lib/validation/text";
+
 export const KAH_GROUP_NAME_MAX_LENGTH = 80;
 export const KAH_PERCENTAGE_MIN = 1;
 export const KAH_PERCENTAGE_MAX = 100;
@@ -20,11 +22,7 @@ export interface KahGroupFormErrors {
 
 /** Trim a group name, or null when empty/too long. */
 export function normalizeKahGroupName(raw: string): string | null {
-  const name = raw.trim();
-  if (!name || name.length > KAH_GROUP_NAME_MAX_LENGTH) {
-    return null;
-  }
-  return name;
+  return trimToMax(raw, KAH_GROUP_NAME_MAX_LENGTH);
 }
 
 /**
@@ -50,10 +48,12 @@ export function normalizeKahPercentage(value: unknown): number {
 export function validateKahGroupForm(values: KahGroupFormValues): KahGroupFormErrors {
   const errors: KahGroupFormErrors = {};
 
-  if (!values.name.trim()) {
-    errors.name = "Name is required";
-  } else if (values.name.trim().length > KAH_GROUP_NAME_MAX_LENGTH) {
-    errors.name = `Name must be ${KAH_GROUP_NAME_MAX_LENGTH} characters or fewer`;
+  const nameError = validateRequiredText(values.name, KAH_GROUP_NAME_MAX_LENGTH, {
+    requiredMessage: "Name is required",
+    maxMessage: `Name must be ${KAH_GROUP_NAME_MAX_LENGTH} characters or fewer`,
+  });
+  if (nameError) {
+    errors.name = nameError;
   }
 
   if (!Number.isFinite(values.minPercentage)) {

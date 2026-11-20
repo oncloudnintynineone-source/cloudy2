@@ -7,6 +7,7 @@ import { userPreferences } from "@/db/schema";
 import { normalizeWeekStart, type WeekStart } from "@/lib/events/datetime";
 import { requireSession } from "@/lib/session";
 import { isUuid } from "@/lib/uuid";
+import { normalizeStringArray } from "@/lib/validation/arrays";
 
 import { getUserPreferences } from "./queries";
 
@@ -14,10 +15,7 @@ export type UserPrefsActionResult = { ok: true } | { ok: false; error: string };
 
 /** Non-empty strings only; the remembered lists never carry junk ids. */
 function cleanStringList(raw: unknown): string[] {
-  if (!Array.isArray(raw)) {
-    return [];
-  }
-  return raw.filter((entry): entry is string => typeof entry === "string" && entry.length > 0);
+  return normalizeStringArray(raw) ?? [];
 }
 
 /**

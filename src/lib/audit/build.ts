@@ -56,6 +56,11 @@ export interface AuditActor {
   role: string;
 }
 
+/** Structural session shape accepted by {@link actorFromSession}. */
+export interface SessionActorLike {
+  user: { id: string; name?: string | null; role: string };
+}
+
 export interface AuditLogInput {
   actorId: string | null;
   actorName: string | null;
@@ -85,6 +90,23 @@ export function actorFromUser(user: AuditActor): {
     actorName: user.name,
     actorRole: user.role,
   };
+}
+
+/**
+ * Map a NextAuth session user (from `requireAdmin` or `requireSession`) to the
+ * audit-row actor columns. Structural typing keeps both session flavours
+ * compatible without a shared generic.
+ */
+export function actorFromSession(session: SessionActorLike): {
+  actorId: string | null;
+  actorName: string | null;
+  actorRole: string;
+} {
+  return actorFromUser({
+    id: session.user.id,
+    name: session.user.name ?? null,
+    role: session.user.role,
+  });
 }
 
 /** Extract a pathname from a referer header, or null when not a URL. */

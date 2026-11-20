@@ -7,7 +7,6 @@ import {
   Button,
   Divider,
   Grid,
-  Group,
   SegmentedControl,
   Stack,
   Text,
@@ -18,18 +17,18 @@ import { useDebouncedValue, useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { IconPlus } from "@tabler/icons-react";
 
-import { MotionModal } from "@/components/MotionModal";
+import { ConfirmModal } from "@/components/ConfirmModal";
+import { FormFooterActions } from "@/components/FormFooterActions";
 import { AccessLevelSelect, AccessRow } from "@/components/AccessRows";
 import { PickerField, type PickerBadgeItem } from "@/components/PickerField";
 import { UserSelectModal } from "@/components/UserSelectModal";
-import { BUTTON_LOADER_PROPS } from "@/lib/theme";
+import { submitCrudForm } from "@/lib/ui/submitCrudForm";
 import { showValidationFailure } from "@/lib/ui/validationFeedback";
 import {
   createUser,
   getAssignedAccessRole,
   setUserStatus,
   updateUser,
-  type RosterActionResult,
 } from "@/lib/roster/actions";
 import {
   addableDepartmentIds,
@@ -152,45 +151,29 @@ export function UserForm({ user, departments, access, onDirtyChange, onDone }: U
     onDirtyChange?.(dirty);
   }, [dirty, onDirtyChange]);
 
+  function buildPayload(values: UserFormValues) {
+    // The own-department level is only sent when it is an actual change, so
+    // the server never writes an ACL the admin did not ask for.
+    const ownDepartmentRole = resolveOwnRolePatch({
+      seededRole: ownRead?.status === "ready" ? ownRead.role : null,
+      stagedRole: values.ownDepartmentRole ?? null,
+      hasEmail: (values.email ?? "").trim() !== "",
+      departmentChanged,
+    });
+    return { ...values, ownDepartmentRole };
+  }
+
   const onSubmit = form.onSubmit(
-    async (values) => {
-      // The own-department level is only sent when it is an actual change, so
-      // the server never writes an ACL the admin did not ask for.
-      const ownDepartmentRole = resolveOwnRolePatch({
-        seededRole: ownRead?.status === "ready" ? ownRead.role : null,
-        stagedRole: values.ownDepartmentRole ?? null,
-        hasEmail: (values.email ?? "").trim() !== "",
-        departmentChanged,
-      });
-      const payload = { ...values, ownDepartmentRole };
-
-      const result: RosterActionResult = isEdit
-        ? await updateUser(user.id, payload)
-        : await createUser(payload);
-
-      if (result.ok) {
-        const message = isEdit ? "User updated" : "User created";
-        if (result.warnings && result.warnings.length > 0) {
-          notifications.show({
-            color: "yellow",
-            title: message,
-            message: result.warnings.join(" · "),
-          });
-        } else {
-          notifications.show({ color: "green", message });
-        }
-        onDone();
-        return;
-      }
-
-      if (result.field === "phone") {
-        form.setFieldError("phone", result.error);
-      }
-      if (result.field === "shortname") {
-        form.setFieldError("shortname", result.error);
-      }
-      notifications.show({ color: "red", message: result.error });
-    },
+    submitCrudForm({
+      form,
+      isEdit,
+      create: (values) => createUser(buildPayload(values)),
+      update: (values) => updateUser(user!.id, buildPayload(values)),
+      success: { create: "User created", update: "User updated" },
+      fieldMap: { phone: "phone", shortname: "shortname" },
+      warnings: true,
+      onSuccess: () => onDone(),
+    }),
     // Client-side validation failure: inline field errors alone are easy to
     // miss (submit button is far from the invalid fields), so also toast and
     // scroll the first invalid field into view.
@@ -566,54 +549,40 @@ export function UserForm({ user, departments, access, onDirtyChange, onDone }: U
           )}
         </Stack>
 
-        <Group justify="flex-end" mt="md" wrap="nowrap">
-          {isEdit && (
-            <Button
-              type="button"
-              color={user.status === "active" ? "red" : "teal"}
-              variant="light"
-              onClick={openConfirm}
-            >
-              {user.status === "active" ? "Deactivate user" : "Activate user"}
-            </Button>
-          )}
-          <Button
-            type="submit"
-            fullWidth={!isEdit}
-            loading={form.submitting}
-            loaderProps={BUTTON_LOADER_PROPS}
-          >
-            {isEdit ? "Save changes" : "Create user"}
-          </Button>
-        </Group>
+        <FormFooterActions
+          isEdit={isEdit}
+          loading={form.submitting}
+          submitLabel={isEdit ? "Save changes" : "Create user"}
+          fullWidthOnCreate
+          secondary={
+            isEdit ? (
+              <Button
+                type="button"
+                color={user.status === "active" ? "red" : "teal"}
+                variant="light"
+                onClick={openConfirm}
+              >
+                {user.status === "active" ? "Deactivate user" : "Activate user"}
+              </Button>
+            ) : null
+          }
+        />
 
-        <MotionModal
+        <ConfirmModal
           opened={confirmOpened}
           onClose={closeConfirm}
           title={isEdit && user.status === "active" ? "Deactivate user" : "Activate user"}
-          centered
-          size="sm"
-        >
-          <Stack>
-            <Text>
+          message={
+            <>
               Are you sure you want to {user?.status === "active" ? "deactivate" : "activate"}{" "}
               {user?.name}?
-            </Text>
-            <Group justify="flex-end" mt="md">
-              <Button variant="default" onClick={closeConfirm}>
-                Cancel
-              </Button>
-              <Button
-                color={user?.status === "active" ? "red" : "teal"}
-                loading={togglingStatus}
-                loaderProps={BUTTON_LOADER_PROPS}
-                onClick={handleToggleStatus}
-              >
-                Confirm
-              </Button>
-            </Group>
-          </Stack>
-        </MotionModal>
+            </>
+          }
+          confirmLabel="Confirm"
+          confirmColor={user?.status === "active" ? "red" : "teal"}
+          loading={togglingStatus}
+          onConfirm={handleToggleStatus}
+        />
       </Stack>
     </form>
   );

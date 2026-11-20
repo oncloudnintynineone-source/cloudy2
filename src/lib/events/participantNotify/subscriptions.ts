@@ -11,7 +11,7 @@ import { and, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db";
 import { pushSubscriptions, type PushSubscription } from "@/db/schema";
-import { onlyUuidIds } from "@/lib/uuid";
+import { uniqueUuidIds } from "@/lib/uuid";
 import type { PushSubscriptionKeys } from "./subscriptionInput";
 
 /** A stored push subscription with its keys validated/decoded. */
@@ -48,7 +48,7 @@ function toStored(row: PushSubscription): StoredPushSubscription | null {
 export async function listSubscriptionsByUserIds(
   userIds: readonly string[],
 ): Promise<StoredPushSubscription[]> {
-  const ids = onlyUuidIds([...new Set(userIds)]);
+  const ids = uniqueUuidIds(userIds);
   if (ids.length === 0) {
     return [];
   }

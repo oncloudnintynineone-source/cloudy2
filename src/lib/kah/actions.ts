@@ -1,13 +1,13 @@
 "use server";
 
 import { eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 
 import { db } from "@/db";
 import { kahGroupMembers, kahGroups, users } from "@/db/schema";
-import { AUDIT_ACTIONS, actorFromUser } from "@/lib/audit/build";
+import { commitAdminWrite } from "@/lib/actions/adminWrite";
+import type { ActionResult } from "@/lib/actions/result";
+import { AUDIT_ACTIONS } from "@/lib/audit/build";
 import { diffFields } from "@/lib/audit/diff";
-import { logAction } from "@/lib/audit/log";
 import {
   normalizeKahGroupName,
   normalizeKahPercentage,
@@ -18,21 +18,7 @@ import { getUsersByIds } from "@/lib/roster/queries";
 import { requireAdmin } from "@/lib/session";
 import { onlyUuidIds } from "@/lib/uuid";
 
-export type KahGroupActionResult =
-  | { ok: true }
-  | {
-      ok: false;
-      error: string;
-      field?: "name" | "minPercentage";
-    };
-
-function actorFrom(session: Awaited<ReturnType<typeof requireAdmin>>) {
-  return actorFromUser({
-    id: session.user.id,
-    name: session.user.name ?? null,
-    role: session.user.role,
-  });
-}
+export type KahGroupActionResult = ActionResult<Record<never, never>, "name" | "minPercentage">;
 
 /** Audit details for a group: flat, display-ready, human-readable. */
 function auditValues(values: { name: string; minPercentage: number; memberNames: string[] }) {
@@ -131,8 +117,8 @@ export async function createKahGroup(
     .returning({ id: kahGroups.id });
   await replaceMembers(created.id, normalized.values.memberIds);
 
-  await logAction({
-    ...actorFrom(session),
+  await commitAdminWrite({
+    session,
     action: AUDIT_ACTIONS.kahGroupCreate,
     entityType: "kah_group",
     entityId: created.id,
@@ -142,9 +128,8 @@ export async function createKahGroup(
       ...normalized.values,
       memberNames: await namesForIds(normalized.values.memberIds),
     }),
+    effect: "kahGroups",
   });
-
-  revalidatePath("/settings/kah-groups");
   return { ok: true };
 }
 
@@ -177,8 +162,8 @@ export async function updateKahGroup(
     .where(eq(kahGroups.id, id));
   await replaceMembers(id, normalized.values.memberIds);
 
-  await logAction({
-    ...actorFrom(session),
+  await commitAdminWrite({
+    session,
     action: AUDIT_ACTIONS.kahGroupUpdate,
     entityType: "kah_group",
     entityId: id,
@@ -195,9 +180,8 @@ export async function updateKahGroup(
         memberNames: await namesForIds(normalized.values.memberIds),
       }),
     ),
+    effect: "kahGroups",
   });
-
-  revalidatePath("/settings/kah-groups");
   return { ok: true };
 }
 
@@ -212,8 +196,8 @@ export async function deleteKahGroup(id: string): Promise<KahGroupActionResult> 
   const memberNames = await currentMemberNames(id);
   await db.delete(kahGroups).where(eq(kahGroups.id, id)); // members cascade
 
-  await logAction({
-    ...actorFrom(session),
+  await commitAdminWrite({
+    session,
     action: AUDIT_ACTIONS.kahGroupDelete,
     entityType: "kah_group",
     entityId: id,
@@ -224,8 +208,7 @@ export async function deleteKahGroup(id: string): Promise<KahGroupActionResult> 
       minPercentage: existing.minPercentage,
       memberNames,
     }),
+    effect: "kahGroups",
   });
-
-  revalidatePath("/settings/kah-groups");
   return { ok: true };
 }

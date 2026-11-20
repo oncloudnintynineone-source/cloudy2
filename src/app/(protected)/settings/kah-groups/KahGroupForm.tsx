@@ -3,13 +3,13 @@
 import { useState } from "react";
 import {
   Button,
-  Group,
   NumberInput,
   Stack,
   Text,
   TextInput,
 } from "@mantine/core";
-import { MotionModal } from "@/components/MotionModal";
+import { ConfirmModal } from "@/components/ConfirmModal";
+import { FormFooterActions } from "@/components/FormFooterActions";
 import { useForm } from "@mantine/form";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
@@ -20,7 +20,6 @@ import {
   createKahGroup,
   deleteKahGroup,
   updateKahGroup,
-  type KahGroupActionResult,
 } from "@/lib/kah/actions";
 import {
   KAH_GROUP_NAME_MAX_LENGTH,
@@ -28,8 +27,9 @@ import {
   KAH_PERCENTAGE_MAX,
   validateKahGroupForm,
 } from "@/lib/kah/validate";
-import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { buildUserGroups, selectionByGroup, type UserGroupInput } from "@/lib/users/userSelect";
+import { runConfirm } from "@/lib/ui/runConfirm";
+import { submitCrudForm } from "@/lib/ui/submitCrudForm";
 import { showValidationFailure } from "@/lib/ui/validationFeedback";
 
 interface KahGroupFormProps {
@@ -82,27 +82,15 @@ export function KahGroupForm({ group, defaultPercentage, pickerUsers, onDone }: 
     .map((option) => ({ key: option.id, label: option.label }));
 
   const onSubmit = form.onSubmit(
-    async (values) => {
-      const result: KahGroupActionResult = isEdit
-        ? await updateKahGroup(group.id, values)
-        : await createKahGroup(values);
-
-      if (result.ok) {
-        notifications.show({
-          color: "green",
-          message: isEdit ? "KAH group updated" : "KAH group created",
-        });
-        onDone();
-        return;
-      }
-
-      if (result.field === "name") {
-        form.setFieldError("name", result.error);
-      } else if (result.field === "minPercentage") {
-        form.setFieldError("minPercentage", result.error);
-      }
-      notifications.show({ color: "red", message: result.error });
-    },
+    submitCrudForm<FormValues, "name" | "minPercentage">({
+      form,
+      isEdit,
+      create: createKahGroup,
+      update: (values) => updateKahGroup(group!.id, values),
+      success: { create: "KAH group created", update: "KAH group updated" },
+      fieldMap: { name: "name", minPercentage: "minPercentage" },
+      onSuccess: () => onDone(),
+    }),
     (errors) => showValidationFailure(errors, (field) => form.getInputNode(field)),
   );
 
@@ -112,14 +100,15 @@ export function KahGroupForm({ group, defaultPercentage, pickerUsers, onDone }: 
     }
     setDeletingGroup(true);
     try {
-      const result = await deleteKahGroup(group.id);
+      await runConfirm({
+        call: () => deleteKahGroup(group.id),
+        onSuccess: () => {
+          notifications.show({ color: "green", message: "KAH group deleted" });
+          onDone();
+        },
+        onError: (message) => notifications.show({ color: "red", message }),
+      });
       closeConfirm();
-      if (result.ok) {
-        notifications.show({ color: "green", message: "KAH group deleted" });
-        onDone();
-      } else {
-        notifications.show({ color: "red", message: result.error });
-      }
     } finally {
       setDeletingGroup(false);
     }
@@ -171,49 +160,33 @@ export function KahGroupForm({ group, defaultPercentage, pickerUsers, onDone }: 
           )}
         </Stack>
 
-        <Group justify="flex-end" mt="md" wrap="nowrap">
-          {isEdit && (
-            <Button type="button" color="red" variant="light" onClick={openConfirm}>
-              Delete
-            </Button>
-          )}
-          <Button
-            type="submit"
-            fullWidth={!isEdit}
-            loading={form.submitting}
-            loaderProps={BUTTON_LOADER_PROPS}
-          >
-            {isEdit ? "Save changes" : "Create group"}
-          </Button>
-        </Group>
+        <FormFooterActions
+          isEdit={isEdit}
+          loading={form.submitting}
+          submitLabel={isEdit ? "Save changes" : "Create group"}
+          fullWidthOnCreate
+          secondary={
+            isEdit ? (
+              <Button type="button" color="red" variant="light" onClick={openConfirm}>
+                Delete
+              </Button>
+            ) : null
+          }
+        />
 
-        <MotionModal
+        <ConfirmModal
           opened={confirmOpened}
           onClose={closeConfirm}
           title="Delete KAH group"
-          centered
-          size="sm"
-        >
-          <Stack>
-            <Text>
+          message={
+            <>
               Delete &quot;{group?.name}&quot;? Its members stay on the roster; only the group and
               its membership are removed.
-            </Text>
-            <Group justify="flex-end" mt="md">
-              <Button variant="default" onClick={closeConfirm}>
-                Cancel
-              </Button>
-              <Button
-                color="red"
-                loading={deletingGroup}
-                loaderProps={BUTTON_LOADER_PROPS}
-                onClick={confirmDelete}
-              >
-                Delete
-              </Button>
-            </Group>
-          </Stack>
-        </MotionModal>
+            </>
+          }
+          loading={deletingGroup}
+          onConfirm={confirmDelete}
+        />
 
         {/* Rendered only while open so the draft re-seeds from the current
             selection every time (the FilterModalBody pattern); z-300 stacks

@@ -163,6 +163,7 @@ the tokens.
 | `src/lib/motion/tokens.ts` | base durations/easings/distances/scales + `cubicBezier` evaluator |
 | `src/lib/motion/profile.ts` | profiles, `resolveMotion`, `motionCssText`, `motionStyleVars`, `STANDARD_MOTION` |
 | `src/lib/motion/transitions.ts` | shared Mantine transition factories (`fade`, `pop`, zoom) |
+| `src/lib/motion/useModalZoom.ts` | responsive modal size + viewport/content-width + zoom transition props in one call (`useModalSize` for non-zoom dialogs) |
 | `src/lib/motion/useEnterTransitionReady.ts` | defers a first-mount-open overlay one frame so its enter transition plays |
 | `src/components/MotionProvider.tsx` | `useMotion()` context |
 | `src/components/MotionModal.tsx` | the app's standalone-modal wrapper: profile fade by default + first-mount-open guard |

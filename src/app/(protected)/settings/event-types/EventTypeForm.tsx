@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { useForm } from "@mantine/form";
-import { Button, Checkbox, Grid, Group, Stack, Text, TextInput } from "@mantine/core";
-import { MotionModal } from "@/components/MotionModal";
+import { Button, Checkbox, Grid, Stack, Text, TextInput } from "@mantine/core";
+import { ConfirmModal } from "@/components/ConfirmModal";
+import { FormFooterActions } from "@/components/FormFooterActions";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 
@@ -11,12 +12,12 @@ import {
   createEventType,
   deleteEventType,
   renameEventType,
-  type EventTypeActionResult,
   type EventTypeRenameMigrationHint,
 } from "@/lib/eventTypes/actions";
 import { validateEventTypeForm, type EventTypeFormValues } from "@/lib/eventTypes/validate";
 import { NoKeyboardSelect } from "@/components/NoKeyboardSelect";
-import { BUTTON_LOADER_PROPS } from "@/lib/theme";
+import { runConfirm } from "@/lib/ui/runConfirm";
+import { submitCrudForm } from "@/lib/ui/submitCrudForm";
 import { showValidationFailure } from "@/lib/ui/validationFeedback";
 import {
   LOCATION_CATEGORIES,
@@ -85,33 +86,25 @@ export function EventTypeForm({ eventType, groups, onDone }: EventTypeFormProps)
   });
 
   const onSubmit = form.onSubmit(
-    async (values) => {
-      const result: EventTypeActionResult = isEdit
-        ? await renameEventType(eventType.id, values)
-        : await createEventType(values);
-
-      if (result.ok) {
-        notifications.show({
-          color: "green",
-          message: isEdit ? "Event type updated" : "Event type created",
-        });
-        onDone(result.migration);
-        return;
-      }
-
-      if (result.field === "name") {
-        form.setFieldError("name", result.error);
-      } else if (result.field === "shortname") {
-        form.setFieldError("shortname", result.error);
-      } else if (result.field === "groupId") {
-        form.setFieldError("groupId", result.error);
-      } else if (result.field === "timeOptions") {
-        form.setFieldError("timeOptions", result.error);
-      } else if (result.field === "allowedLocations") {
-        form.setFieldError("allowedLocations", result.error);
-      }
-      notifications.show({ color: "red", message: result.error });
-    },
+    submitCrudForm<
+      EventTypeFormValues,
+      "name" | "shortname" | "timeOptions" | "allowedLocations" | "groupId",
+      { migration?: EventTypeRenameMigrationHint }
+    >({
+      form,
+      isEdit,
+      create: createEventType,
+      update: (values) => renameEventType(eventType!.id, values),
+      success: { create: "Event type created", update: "Event type updated" },
+      fieldMap: {
+        name: "name",
+        shortname: "shortname",
+        timeOptions: "timeOptions",
+        allowedLocations: "allowedLocations",
+        groupId: "groupId",
+      },
+      onSuccess: (result) => onDone(result.migration),
+    }),
     (errors) => showValidationFailure(errors, (field) => form.getInputNode(field)),
   );
 
@@ -121,14 +114,15 @@ export function EventTypeForm({ eventType, groups, onDone }: EventTypeFormProps)
     }
     setDeletingType(true);
     try {
-      const result = await deleteEventType(eventType.id);
+      await runConfirm({
+        call: () => deleteEventType(eventType.id),
+        onSuccess: () => {
+          notifications.show({ color: "green", message: "Event type deleted" });
+          onDone();
+        },
+        onError: (message) => notifications.show({ color: "red", message }),
+      });
       closeConfirm();
-      if (result.ok) {
-        notifications.show({ color: "green", message: "Event type deleted" });
-        onDone();
-      } else {
-        notifications.show({ color: "red", message: result.error });
-      }
     } finally {
       setDeletingType(false);
     }
@@ -292,46 +286,28 @@ export function EventTypeForm({ eventType, groups, onDone }: EventTypeFormProps)
             type name.
           </Text>
         </Stack>
-        <Group justify="flex-end" mt="md" wrap="nowrap">
-          {isEdit && (
-            <Button type="button" color="red" variant="light" onClick={openConfirm}>
-              Delete
-            </Button>
-          )}
-          <Button
-            type="submit"
-            fullWidth={!isEdit}
-            loading={form.submitting}
-            loaderProps={BUTTON_LOADER_PROPS}
-          >
-            {isEdit ? "Save changes" : "Create event type"}
-          </Button>
-        </Group>
+        <FormFooterActions
+          isEdit={isEdit}
+          loading={form.submitting}
+          submitLabel={isEdit ? "Save changes" : "Create event type"}
+          fullWidthOnCreate
+          secondary={
+            isEdit ? (
+              <Button type="button" color="red" variant="light" onClick={openConfirm}>
+                Delete
+              </Button>
+            ) : null
+          }
+        />
 
-        <MotionModal
+        <ConfirmModal
           opened={confirmOpened}
           onClose={closeConfirm}
           title="Delete event type"
-          centered
-          size="sm"
-        >
-          <Stack>
-            <Text>Delete &quot;{eventType?.name}&quot;?</Text>
-            <Group justify="flex-end" mt="md">
-              <Button variant="default" onClick={closeConfirm}>
-                Cancel
-              </Button>
-              <Button
-                color="red"
-                loading={deletingType}
-                loaderProps={BUTTON_LOADER_PROPS}
-                onClick={confirmDelete}
-              >
-                Delete
-              </Button>
-            </Group>
-          </Stack>
-        </MotionModal>
+          message={<>Delete &quot;{eventType?.name}&quot;?</>}
+          loading={deletingType}
+          onConfirm={confirmDelete}
+        />
       </Stack>
     </form>
   );

@@ -1,15 +1,16 @@
 "use server";
 
-import { asc, eq, inArray, sql } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
+import { eq, inArray, sql } from "drizzle-orm";
 
 import { db } from "@/db";
-import { describeError, findUniqueViolation } from "@/db/pgErrors";
+import { DEPARTMENT_ORDER } from "@/lib/db/order";
+import { describeError, uniqueViolationResult } from "@/db/pgErrors";
 import { calendars, userCalendarAccess, users, type Calendar, type User } from "@/db/schema";
-import { AUDIT_ACTIONS, actorFromUser } from "@/lib/audit/build";
+import { applyWriteEffects } from "@/lib/actions/effects";
+import type { ActionResult } from "@/lib/actions/result";
+import { AUDIT_ACTIONS, actorFromSession } from "@/lib/audit/build";
 import { diffFields } from "@/lib/audit/diff";
 import { logAction } from "@/lib/audit/log";
-import { invalidateConfigCache } from "@/lib/configCache";
 import { normalizeEventColor } from "@/lib/events/eventColors";
 import { getGoogleIntegration, googleCalendarConfigured } from "@/lib/google";
 import { requireAdmin, requireSession } from "@/lib/session";
@@ -44,24 +45,12 @@ import {
   type UserStatus,
 } from "@/lib/roster/validate";
 
-export type RosterActionResult =
-  | { ok: true; warnings?: string[] }
-  | {
-      ok: false;
-      error: string;
-      field?: "phone" | "shortname" | "name" | "email" | "parentId";
-    };
+export type RosterActionResult = ActionResult<
+  { warnings?: string[] },
+  "phone" | "shortname" | "name" | "email" | "parentId"
+>;
 
 export type ShareActionResult = { ok: true } | { ok: false; error: string };
-
-/** Actor columns for an audit row from the current admin session. */
-function actorFrom(session: Awaited<ReturnType<typeof requireAdmin>>) {
-  return actorFromUser({
-    id: session.user.id,
-    name: session.user.name ?? null,
-    role: session.user.role,
-  });
-}
 
 /** Sanitized user snapshot for audit details (never includes the password hash). */
 function userSnapshot(user: User, departmentNames: Record<string, string>, access: string[] = []) {
@@ -186,7 +175,7 @@ export async function createUser(input: UserFormValues): Promise<RosterActionRes
     created = row;
 
     await logAction({
-      ...actorFrom(session),
+      ...actorFromSession(session),
       action: AUDIT_ACTIONS.userCreate,
       entityType: "user",
       entityId: created.id,
@@ -207,19 +196,23 @@ export async function createUser(input: UserFormValues): Promise<RosterActionRes
   } catch (error) {
     // Drizzle wraps the PostgresError in a DrizzleQueryError, so the
     // constraint name lives down the .cause chain (see src/db/pgErrors.ts).
-    const violation = findUniqueViolation(error);
-    if (violation?.constraintName === "users_shortname_idx") {
-      return { ok: false, error: "A user with this shortname already exists", field: "shortname" };
-    }
-    if (violation !== null) {
-      return { ok: false, error: "A user with this phone number already exists", field: "phone" };
+    const mapped = uniqueViolationResult(
+      error,
+      {
+        users_shortname_idx: {
+          error: "A user with this shortname already exists",
+          field: "shortname",
+        },
+      },
+      { error: "A user with this phone number already exists", field: "phone" },
+    );
+    if (mapped) {
+      return mapped;
     }
     throw error;
   }
 
-  invalidateConfigCache(["users"]);
-  revalidatePath("/settings/users");
-  revalidatePath("/settings/departments");
+  applyWriteEffects("users");
 
   const warnings = await reconcileUserAccessChange({
     oldEmail: null,
@@ -305,7 +298,7 @@ export async function updateUser(id: string, input: UserFormValues): Promise<Ros
       .where(eq(users.id, id));
 
     await logAction({
-      ...actorFrom(session),
+      ...actorFromSession(session),
       action: AUDIT_ACTIONS.userUpdate,
       entityType: "user",
       entityId: id,
@@ -316,19 +309,23 @@ export async function updateUser(id: string, input: UserFormValues): Promise<Ros
   } catch (error) {
     // Drizzle wraps the PostgresError in a DrizzleQueryError, so the
     // constraint name lives down the .cause chain (see src/db/pgErrors.ts).
-    const violation = findUniqueViolation(error);
-    if (violation?.constraintName === "users_shortname_idx") {
-      return { ok: false, error: "A user with this shortname already exists", field: "shortname" };
-    }
-    if (violation !== null) {
-      return { ok: false, error: "A user with this phone number already exists", field: "phone" };
+    const mapped = uniqueViolationResult(
+      error,
+      {
+        users_shortname_idx: {
+          error: "A user with this shortname already exists",
+          field: "shortname",
+        },
+      },
+      { error: "A user with this phone number already exists", field: "phone" },
+    );
+    if (mapped) {
+      return mapped;
     }
     throw error;
   }
 
-  invalidateConfigCache(["users"]);
-  revalidatePath("/settings/users");
-  revalidatePath("/settings/departments");
+  applyWriteEffects("users");
 
   const emailChanged = (before.email?.trim() || null) !== newEmail;
   const departmentChanged = (before.departmentId ?? null) !== newDepartmentId;
@@ -371,7 +368,7 @@ export async function setUserStatus(id: string, status: UserStatus): Promise<Ros
   await db.update(users).set({ status, updatedAt: new Date() }).where(eq(users.id, id));
 
   await logAction({
-    ...actorFrom(session),
+    ...actorFromSession(session),
     action: AUDIT_ACTIONS.userStatusChange,
     entityType: "user",
     entityId: id,
@@ -380,8 +377,7 @@ export async function setUserStatus(id: string, status: UserStatus): Promise<Ros
     details: diffFields({ status: user.status }, { status }),
   });
 
-  invalidateConfigCache(["users"]);
-  revalidatePath("/settings/users");
+  applyWriteEffects("userStatus");
   return { ok: true };
 }
 
@@ -413,7 +409,7 @@ export async function createDepartment(input: CalendarFormValues): Promise<Roste
       parentId: calendars.parentId,
     })
     .from(calendars)
-    .orderBy(asc(calendars.sortOrder), asc(calendars.name));
+    .orderBy(...DEPARTMENT_ORDER);
 
   let parentName: string | null = null;
   if (parentId) {
@@ -482,7 +478,7 @@ export async function createDepartment(input: CalendarFormValues): Promise<Roste
     });
 
     await logAction({
-      ...actorFrom(session),
+      ...actorFromSession(session),
       action: AUDIT_ACTIONS.calendarCreate,
       entityType: "calendar",
       entityId: row.id,
@@ -491,12 +487,13 @@ export async function createDepartment(input: CalendarFormValues): Promise<Roste
       details: { googleCalendarId: created.calendarId, color, parent: parentName },
     });
   } catch (error) {
-    if (findUniqueViolation(error) !== null) {
-      return {
-        ok: false,
-        error: "A department with this Google Calendar already exists",
-        field: "name",
-      };
+    const mapped = uniqueViolationResult(
+      error,
+      {},
+      { error: "A department with this Google Calendar already exists", field: "name" },
+    );
+    if (mapped) {
+      return mapped;
     }
     return {
       ok: false,
@@ -505,11 +502,7 @@ export async function createDepartment(input: CalendarFormValues): Promise<Roste
     };
   }
 
-  invalidateConfigCache(["calendars", "users"]);
-  revalidatePath("/settings/departments");
-  revalidatePath("/settings/users");
-  revalidatePath("/dashboard");
-  revalidatePath("/parade-state");
+  applyWriteEffects("departments");
   return { ok: true };
 }
 
@@ -561,7 +554,7 @@ export async function renameDepartment(
         parentId: calendars.parentId,
       })
       .from(calendars)
-      .orderBy(asc(calendars.sortOrder), asc(calendars.name));
+      .orderBy(...DEPARTMENT_ORDER);
     if (!rows.some((row) => row.id === targetParentId)) {
       return { ok: false, error: "Parent department not found", field: "parentId" };
     }
@@ -610,7 +603,7 @@ export async function renameDepartment(
     );
     const parentNames = await calendarNamesByIds([...new Set(parentIds)]);
     await logAction({
-      ...actorFrom(session),
+      ...actorFromSession(session),
       action: AUDIT_ACTIONS.calendarUpdate,
       entityType: "calendar",
       entityId: id,
@@ -633,11 +626,7 @@ export async function renameDepartment(
     };
   }
 
-  invalidateConfigCache(["calendars", "users"]);
-  revalidatePath("/settings/departments");
-  revalidatePath("/settings/users");
-  revalidatePath("/dashboard");
-  revalidatePath("/parade-state");
+  applyWriteEffects("departments");
   return { ok: true };
 }
 
@@ -657,7 +646,7 @@ export async function deleteDepartment(id: string): Promise<RosterActionResult> 
     await db.delete(calendars).where(eq(calendars.id, id));
 
     await logAction({
-      ...actorFrom(session),
+      ...actorFromSession(session),
       action: AUDIT_ACTIONS.calendarDelete,
       entityType: "calendar",
       entityId: id,
@@ -669,11 +658,7 @@ export async function deleteDepartment(id: string): Promise<RosterActionResult> 
     return { ok: false, error: describeError(error, "Could not delete the department") };
   }
 
-  invalidateConfigCache(["calendars", "users"]);
-  revalidatePath("/settings/departments");
-  revalidatePath("/settings/users");
-  revalidatePath("/dashboard");
-  revalidatePath("/parade-state");
+  applyWriteEffects("departments");
   return { ok: true };
 }
 
@@ -694,7 +679,7 @@ export async function moveDepartment(
   const rows = await db
     .select()
     .from(calendars)
-    .orderBy(asc(calendars.sortOrder), asc(calendars.name));
+    .orderBy(...DEPARTMENT_ORDER);
   const index = rows.findIndex((row) => row.id === id);
   if (index === -1) {
     return { ok: false, error: "Department not found", field: "name" };
@@ -718,7 +703,7 @@ export async function moveDepartment(
   });
 
   await logAction({
-    ...actorFrom(session),
+    ...actorFromSession(session),
     action: AUDIT_ACTIONS.calendarUpdate,
     entityType: "calendar",
     entityId: id,
@@ -730,10 +715,7 @@ export async function moveDepartment(
     ),
   });
 
-  invalidateConfigCache(["calendars"]);
-  revalidatePath("/settings/departments");
-  revalidatePath("/dashboard");
-  revalidatePath("/parade-state");
+  applyWriteEffects("departmentOrder");
   return { ok: true };
 }
 
@@ -753,7 +735,7 @@ export async function reorderDepartments(
   const rows = await db
     .select()
     .from(calendars)
-    .orderBy(asc(calendars.sortOrder), asc(calendars.name));
+    .orderBy(...DEPARTMENT_ORDER);
   if (
     rows.length !== orderedIds.length ||
     new Set(orderedIds).size !== orderedIds.length ||
@@ -777,7 +759,7 @@ export async function reorderDepartments(
   const from = movedId ? beforeIndex.get(movedId) : undefined;
   if (moved && movedId && from !== undefined) {
     await logAction({
-      ...actorFrom(session),
+      ...actorFromSession(session),
       action: AUDIT_ACTIONS.calendarUpdate,
       entityType: "calendar",
       entityId: movedId,
@@ -790,10 +772,7 @@ export async function reorderDepartments(
     });
   }
 
-  invalidateConfigCache(["calendars"]);
-  revalidatePath("/settings/departments");
-  revalidatePath("/dashboard");
-  revalidatePath("/parade-state");
+  applyWriteEffects("departmentOrder");
   return { ok: true };
 }
 
@@ -884,7 +863,7 @@ async function applyAssignedRoleOverride(
   }
 
   await logAction({
-    ...actorFrom(session),
+    ...actorFromSession(session),
     action: AUDIT_ACTIONS.accessUpdate,
     entityType: "calendar",
     entityId: calendar.id,
@@ -944,7 +923,7 @@ export async function grantDepartmentAccess(
   }
 
   await logAction({
-    ...actorFrom(session),
+    ...actorFromSession(session),
     action: AUDIT_ACTIONS.accessGrant,
     entityType: "calendar",
     entityId: calendar.id,
@@ -992,7 +971,7 @@ export async function updateDepartmentAccess(
   }
 
   await logAction({
-    ...actorFrom(session),
+    ...actorFromSession(session),
     action: AUDIT_ACTIONS.accessUpdate,
     entityType: "calendar",
     entityId: calendar.id,
@@ -1031,7 +1010,7 @@ export async function revokeDepartmentAccess(
   }
 
   await logAction({
-    ...actorFrom(session),
+    ...actorFromSession(session),
     action: AUDIT_ACTIONS.accessRevoke,
     entityType: "calendar",
     entityId: calendar.id,
@@ -1127,7 +1106,7 @@ export async function getMyCalendarAccess(): Promise<MyCalendarAccessResult> {
       .from(userCalendarAccess)
       .leftJoin(calendars, eq(calendars.id, userCalendarAccess.calendarId))
       .where(eq(userCalendarAccess.userId, user.id))
-      .orderBy(asc(calendars.sortOrder), asc(calendars.name));
+      .orderBy(...DEPARTMENT_ORDER);
 
     for (const grant of grants) {
       if (grant.calendarId === user.departmentId || !grant.googleCalendarId) {

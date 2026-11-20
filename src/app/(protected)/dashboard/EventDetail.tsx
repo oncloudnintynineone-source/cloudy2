@@ -2,17 +2,12 @@
 
 import dynamic from "next/dynamic";
 import { useState } from "react";
-import { useMantineTheme } from "@mantine/core";
-import { useMediaQuery, useViewportSize } from "@mantine/hooks";
 
 import { CrossfadeSwap } from "@/components/CrossfadeSwap";
 import { MotionModal } from "@/components/MotionModal";
-import { useMotion } from "@/components/MotionProvider";
-import { loadChunk, useChunkReady } from "@/lib/loading/chunkReady";
+import { preloadLazyBody, useChunkReady } from "@/lib/loading/chunkReady";
 import { MIN_SKELETON_HOLD_MS } from "@/lib/loading/minHoldLoading";
-import { modalContentWidth } from "@/lib/motion/origin";
-import { modalZoomTransitionProps } from "@/lib/motion/transitions";
-import { NARROW_MEDIA_QUERY } from "@/lib/theme";
+import { useModalZoom } from "@/lib/motion/useModalZoom";
 
 import type { EventDetailProps } from "./EventDetailBody";
 import { EventDetailSkeleton } from "./EventDetailSkeleton";
@@ -27,7 +22,7 @@ const EventDetailBody = dynamic(loadEventDetailBody, { ssr: false, loading: () =
 
 /** Warm the event-detail body chunk on chip intent or the idle pass. */
 export function preloadEventDetailBody() {
-  void loadChunk(loadEventDetailBody).catch(() => {});
+  preloadLazyBody(loadEventDetailBody);
 }
 
 export function EventDetail({
@@ -51,10 +46,6 @@ export function EventDetail({
   loading = false,
   zIndex,
 }: EventDetailProps) {
-  const theme = useMantineTheme();
-  const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
-  const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY);
-  const motion = useMotion();
   const bodyReady = useChunkReady(loadEventDetailBody, loading || event !== null);
 
   // The modal is `centered` with a fixed size, so its content center is the
@@ -62,10 +53,10 @@ export function EventDetail({
   // the clicked element's rect (see src/lib/motion/origin.ts). The modal
   // widens xs (320px) -> sm (380px) -> md (440px): xs on very small phones,
   // sm on regular mobile, md at lg, matching the shrink scale.
-  const viewportSize = useViewportSize();
-  const viewport = { w: viewportSize.width, h: viewportSize.height };
-  const contentWidth = modalContentWidth(viewport, isNarrow ? 320 : isDesktop ? 440 : 380);
-  const transitionProps = modalZoomTransitionProps(motion, originRect, viewport, contentWidth);
+  const { size, transitionProps } = useModalZoom({
+    originRect,
+    spec: { narrow: "xs", mobile: "sm", desktop: "md" },
+  });
 
   const opened = loading || event !== null;
   // Some pages mount this modal while closed (Double Booking / KAH / Parade).
@@ -83,7 +74,7 @@ export function EventDetail({
       onClose={onClose}
       title="Event"
       centered
-      size={isNarrow ? "xs" : isDesktop ? "md" : "sm"}
+      size={size}
       keepMounted
       zIndex={zIndex}
       transitionProps={transitionProps}

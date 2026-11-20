@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { Badge, Box, Group, Paper, Stack, Text } from "@mantine/core";
-import { MotionModal } from "@/components/MotionModal";
+import { LazyModal } from "@/components/LazyModal";
 
 import { useDisclosure, useMediaQuery } from "@mantine/hooks";
 import {
@@ -29,11 +29,10 @@ import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { fuzzyFilter } from "@/lib/search/fuzzy";
 import { DESKTOP_MEDIA_QUERY } from "@/lib/theme";
 import { activatable } from "@/lib/ui/activatable";
+import { useEntityEditor } from "@/lib/ui/useEntityEditor";
 import dynamic from "next/dynamic";
-import { CrossfadeSwap } from "@/components/CrossfadeSwap";
 import { FormModalSkeleton } from "@/components/FormModalSkeleton";
 import { useChunkReady } from "@/lib/loading/chunkReady";
-import { MIN_SKELETON_HOLD_MS } from "@/lib/loading/minHoldLoading";
 import { EventTypeGroupsModal } from "./EventTypeGroupsModal";
 import { useActivityRefresh } from "@/components/ActivityBar";
 import type { EventTypeRenameMigrationHint } from "@/lib/eventTypes/actions";
@@ -57,12 +56,11 @@ export function EventTypeTable({ types, groups, reorderDrag }: EventTypeTablePro
   const isDesktop = useMediaQuery(DESKTOP_MEDIA_QUERY);
   const paneRef = useRef<HTMLDivElement>(null);
   const [search, setSearch] = useState("");
-  const [formOpened, { open: openForm, close: closeForm }] = useDisclosure(false);
-  const [editing, setEditing] = useState<EventType | null>(null);
+  const editor = useEntityEditor<EventType>();
   const [groupsOpened, { open: openGroups, close: closeGroups }] = useDisclosure(false);
   const [migrationOpened, { open: openMigration, close: closeMigration }] = useDisclosure(false);
   const [migrationPrefill, setMigrationPrefill] = useState<EventTypeMigrationPrefill | null>(null);
-  const eventTypeFormReady = useChunkReady(loadEventTypeForm, formOpened);
+  const eventTypeFormReady = useChunkReady(loadEventTypeForm, editor.opened);
 
   const groupById = useMemo(() => new Map(groups.map((group) => [group.id, group])), [groups]);
 
@@ -87,13 +85,11 @@ export function EventTypeTable({ types, groups, reorderDrag }: EventTypeTablePro
   );
 
   function openCreate() {
-    setEditing(null);
-    openForm();
+    editor.openCreate();
   }
 
   function openEdit(eventType: EventType) {
-    setEditing(eventType);
-    openForm();
+    editor.openEdit(eventType);
   }
 
   function openMigrationTool() {
@@ -102,8 +98,7 @@ export function EventTypeTable({ types, groups, reorderDrag }: EventTypeTablePro
   }
 
   function handleFormDone(migration?: EventTypeRenameMigrationHint) {
-    closeForm();
-    setEditing(null);
+    editor.closeEditor();
     refreshAfterSave();
     if (migration) {
       setMigrationPrefill(migration);
@@ -230,28 +225,21 @@ export function EventTypeTable({ types, groups, reorderDrag }: EventTypeTablePro
         </Box>
       )}
 
-      <MotionModal
-        opened={formOpened}
-        onClose={closeForm}
-        title={editing ? "Edit event type" : "Add event type"}
-        centered
+      <LazyModal
+        opened={editor.opened}
+        onClose={editor.closeEditor}
+        title={editor.editing ? "Edit event type" : "Add event type"}
         size={isDesktop ? "lg" : "sm"}
+        ready={eventTypeFormReady}
+        skeleton={<FormModalSkeleton rows={5} />}
       >
-        <CrossfadeSwap
-          loading={formOpened && !eventTypeFormReady}
-          minHoldMs={MIN_SKELETON_HOLD_MS}
-          mode="overlay"
-          animateHeight
-          skeleton={<FormModalSkeleton rows={5} />}
-        >
-          <EventTypeForm
-            key={editing?.id ?? "new"}
-            eventType={editing}
-            groups={groups}
-            onDone={handleFormDone}
-          />
-        </CrossfadeSwap>
-      </MotionModal>
+        <EventTypeForm
+          key={editor.editing?.id ?? "new"}
+          eventType={editor.editing}
+          groups={groups}
+          onDone={handleFormDone}
+        />
+      </LazyModal>
 
       <EventTypeGroupsModal
         opened={groupsOpened}

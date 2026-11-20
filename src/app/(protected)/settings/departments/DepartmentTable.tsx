@@ -1,18 +1,16 @@
 "use client";
 
 import { type KeyboardEvent, type ReactNode, useMemo, useState } from "react";
-import { Box, Button, Group, Paper, Stack, Text } from "@mantine/core";
+import { Box, Group, Paper, Stack, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { IconPlus, IconSearchOff, IconSitemap } from "@tabler/icons-react";
 
 import { EmptyState } from "@/components/EmptyState";
-import { MotionModal } from "@/components/MotionModal";
-import { useMotion } from "@/components/MotionProvider";
+import { ConfirmModal } from "@/components/ConfirmModal";
 import { SettingsListChrome } from "@/components/SettingsListChrome";
 import type { Calendar } from "@/db/schema";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
-import { fadeTransitionProps } from "@/lib/motion/transitions";
 import { deleteDepartment, moveDepartment, reorderDepartments } from "@/lib/roster/actions";
 import {
   buildDepartmentTree,
@@ -24,7 +22,6 @@ import {
   type DepartmentTreeNode,
 } from "@/lib/roster/hierarchy";
 import { fuzzyFilter } from "@/lib/search/fuzzy";
-import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import {
   isReorderArrowsEnabled,
   isReorderDragEnabled,
@@ -49,7 +46,6 @@ interface DepartmentTableProps {
 }
 
 export function DepartmentTable({ departments, reorderDrag }: DepartmentTableProps) {
-  const motion = useMotion();
   const refreshAfterSave = useActivityRefresh("departments:save");
   const dragEnabled = isReorderDragEnabled(reorderDrag);
   const arrowsEnabled = isReorderArrowsEnabled(reorderDrag);
@@ -368,38 +364,26 @@ export function DepartmentTable({ departments, reorderDrag }: DepartmentTablePro
         onRequestDelete={requestDelete}
       />
 
-      <MotionModal
+      <ConfirmModal
         opened={confirmOpened}
         onClose={closeConfirm}
         title="Delete department"
-        centered
-        transitionProps={fadeTransitionProps(motion)}
-      >
-        <Text>
-          Delete &quot;{deleting?.name}&quot;? This removes the Google Calendar and unassigns its
-          users.
-          {deleting && deletingChildCount > 0 && (
-            <>
-              {" "}
-              Its {deletingChildCount} sub-department{deletingChildCount > 1 ? "s" : ""} will become
-              top level.
-            </>
-          )}
-        </Text>
-        <Group justify="flex-end" mt="md">
-          <Button variant="default" onClick={closeConfirm}>
-            Cancel
-          </Button>
-          <Button
-            color="red"
-            loading={deletingInProgress}
-            loaderProps={BUTTON_LOADER_PROPS}
-            onClick={confirmDelete}
-          >
-            Delete
-          </Button>
-        </Group>
-      </MotionModal>
+        message={
+          <>
+            Delete &quot;{deleting?.name}&quot;? This removes the Google Calendar and unassigns its
+            users.
+            {deleting && deletingChildCount > 0 && (
+              <>
+                {" "}
+                Its {deletingChildCount} sub-department{deletingChildCount > 1 ? "s" : ""} will
+                become top level.
+              </>
+            )}
+          </>
+        }
+        loading={deletingInProgress}
+        onConfirm={confirmDelete}
+      />
     </Stack>
   );
 }

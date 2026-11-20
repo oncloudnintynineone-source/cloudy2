@@ -553,10 +553,10 @@ none` so taps pass through to the clipped tile, and it hides on a side once
   Every in-place skeleton→content swap goes through `CrossfadeSwap` — never a bare
   `loading ? <Skeleton/> : <Content/>` ternary — with `mode="overlay"` for modal/detail
   bodies and `minHoldMs={MIN_SKELETON_HOLD_MS}` unless the caller already holds
-  (`docs/loading-transitions.md` §1.6/§1.6.1). Lazy modal chunk skeletons gate on
-  `useChunkReady` (keep `dynamic()` at module level with `loading: () => null`) so chunk
-  reveals crossfade too (§1.15.1); cold-mount-only surfaces fade in via
-  `CONTENT_ENTER_CLASS`.
+  (`docs/loading-transitions.md` §1.6/§1.6.1). Lazy modal chunk skeletons compose
+  through `LazyModal` (`ready` from `useChunkReady`; keep `dynamic()` at module level with
+  `loading: () => null`) so chunk reveals crossfade too (§1.15.1); cold-mount-only surfaces
+  fade in via `CONTENT_ENTER_CLASS`.
   The in-page calendar-grid skeletons are **static** (`animate={false}`) — a
   Month placeholder animates ~100–170 composited blocks otherwise, forcing a
   backdrop-filter recompute every frame beneath the frosted chrome — while the
@@ -583,6 +583,14 @@ none` so taps pass through to the clipped tile, and it hides on a side once
   `.c2-ready-bar`); each dashboard **tab** also shows its own view's load state
   (fresh solid / loading spinner top-right / not-loaded faded) via `tabStatus`. Design:
   [docs/loading-transitions.md](docs/loading-transitions.md) §1.13/§1.13.1/§1.13.2.
+- **Admin CRUD and dialog scaffolding is shared, not hand-rolled:** settings tables/forms use
+  `useEntityEditor` + `LazyModal`, `submitCrudForm` + `FormFooterActions`, and `ConfirmModal`
+  (+ `runConfirm`); trigger-origin dialogs use `useModalZoom`; load-on-open dialog bodies use
+  `useOpenQuery` + `InlineError`; admin server actions use `commitAdminWrite` +
+  `applyWriteEffects`; read APIs use `withApiSession`/`withApiJson`. Do not re-type the
+  open/edit/close, confirm, submit or revalidate wiring. Entity validation, DB writes,
+  Google/ACL effects and audit payloads stay at each call site. Design:
+  [docs/component-framework.md](docs/component-framework.md).
 - **Buttons triggering async work show loading in the button itself:** Mantine `loading`
   prop + shared `loaderProps={BUTTON_LOADER_PROPS}` (`src/lib/theme.ts`);
   `loading={form.submitting}` for useForm submits; local `loading` state set before /

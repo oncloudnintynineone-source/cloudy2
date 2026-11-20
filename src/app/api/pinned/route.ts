@@ -1,6 +1,4 @@
-import { NextResponse } from "next/server";
-
-import { API_NO_STORE, apiSession, unauthorized } from "@/lib/api/server";
+import { apiError, apiJson, withApiSession } from "@/lib/api/server";
 import { fetchPinnedEvents } from "@/lib/events/pinned";
 
 /**
@@ -11,19 +9,16 @@ import { fetchPinnedEvents } from "@/lib/events/pinned";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-export async function GET() {
-  const session = await apiSession();
-  if (!session) {
-    return unauthorized();
+export async function GET(request: Request) {
+  const auth = await withApiSession(request);
+  if (!auth.ok) {
+    return auth.response;
   }
 
   try {
     const events = await fetchPinnedEvents();
-    return NextResponse.json({ ok: true, events }, { headers: API_NO_STORE });
+    return apiJson({ ok: true, events });
   } catch {
-    return NextResponse.json(
-      { ok: false, error: "Could not load pinned events" },
-      { status: 500, headers: API_NO_STORE },
-    );
+    return apiError(500, "Could not load pinned events");
   }
 }

@@ -1,12 +1,4 @@
-import { NextResponse } from "next/server";
-
-import {
-  API_NO_STORE,
-  apiSession,
-  isApiRequest,
-  readApiJson,
-  unauthorized,
-} from "@/lib/api/server";
+import { apiError, apiJson, readApiJson, withApiSession } from "@/lib/api/server";
 import { validateMigrationRange } from "@/lib/eventTypes/migration";
 import { runMigrationChunk } from "@/lib/eventTypes/migrationRun";
 import type { MigrationCursor } from "@/lib/eventTypes/migration";
@@ -25,43 +17,27 @@ interface MigrationBody {
   cursor?: unknown;
 }
 
-function jsonError(error: string, status: number) {
-  return NextResponse.json({ ok: false, error }, { status, headers: API_NO_STORE });
-}
-
-/**
- * One bounded chunk of the admin event-type reference migration (Settings →
- * Event Types → Migrate events). A route handler rather than a server action
- * so the long client-driven scan can be aborted between chunks and never
- * queues ahead of the admin's other saves. Auth is re-checked on every chunk.
- */
 export async function POST(request: Request) {
-  if (!isApiRequest(request)) {
-    return unauthorized();
-  }
-  const session = await apiSession();
-  if (!session) {
-    return unauthorized();
-  }
-  if (session.user.role !== "admin") {
-    return jsonError("Admins only", 403);
+  const auth = await withApiSession(request, { requireApiHeader: true, admin: true });
+  if (!auth.ok) {
+    return auth.response;
   }
 
   const body = await readApiJson<MigrationBody>(request);
   if (!body) {
-    return jsonError("Invalid request body", 400);
+    return apiError(400, "Invalid request body");
   }
   const fromName = typeof body.fromName === "string" ? body.fromName.trim() : "";
   const toTypeId = typeof body.toTypeId === "string" ? body.toTypeId : "";
   const fromDate = typeof body.fromDate === "string" ? body.fromDate : "";
   const toDate = typeof body.toDate === "string" ? body.toDate : "";
   if (!fromName || fromName.length > 200 || !toTypeId) {
-    return jsonError("Choose a source name and target event type", 400);
+    return apiError(400, "Choose a source name and target event type");
   }
 
   const rangeErrors = validateMigrationRange(fromDate, toDate);
   if (Object.keys(rangeErrors).length > 0) {
-    return jsonError(rangeErrors.fromDate ?? rangeErrors.toDate ?? "Invalid range", 400);
+    return apiError(400, rangeErrors.fromDate ?? rangeErrors.toDate ?? "Invalid range");
   }
 
   const result = await runMigrationChunk({
@@ -74,7 +50,7 @@ export async function POST(request: Request) {
   });
 
   if (!result.ok) {
-    return jsonError(result.error, result.retryable ? 502 : 400);
+    return apiError(result.retryable ? 502 : 400, result.error);
   }
-  return NextResponse.json(result, { headers: API_NO_STORE });
+  return apiJson(result);
 }

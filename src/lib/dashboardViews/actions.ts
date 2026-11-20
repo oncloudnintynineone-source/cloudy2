@@ -6,6 +6,7 @@ import { db } from "@/db";
 import { userDashboardViews, type UserDashboardView } from "@/db/schema";
 import { requireSession } from "@/lib/session";
 import { isUuid } from "@/lib/uuid";
+import { normalizeStringArray } from "@/lib/validation/arrays";
 import { appendDashboardView } from "./mutate";
 import { toDashboardViewTab } from "./queries";
 import {
@@ -153,15 +154,7 @@ export async function saveDashboardViewFilters(
   if (!isUuid(id)) {
     return { ok: false, error: "View not found" };
   }
-  const clean = (raw: unknown): string[] | null => {
-    if (raw === null || raw === undefined) {
-      return null;
-    }
-    if (!Array.isArray(raw)) {
-      return null;
-    }
-    return raw.filter((entry): entry is string => typeof entry === "string" && entry.length > 0);
-  };
+  const clean = (raw: unknown): string[] | null => normalizeStringArray(raw);
   // One statement for ownership + write: this runs inside the filter dialog's
   // Apply spinner, and the old owned-view SELECT followed by the UPDATE paid two
   // Neon round trips for one write. A missing/foreign row returns nothing.

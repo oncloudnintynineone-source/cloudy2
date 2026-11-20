@@ -19,6 +19,8 @@
 
 /** The dashboard view renderer kinds a tab can be. Order is the display order
  *  of the type picker (both Add-view and Edit-view dialogs). */
+import { normalizeStringArray } from "@/lib/validation/arrays";
+
 export const DASHBOARD_VIEW_KINDS = [
   "dual",
   "month",
@@ -199,10 +201,7 @@ export function sanitizeDashboardViewName(raw: unknown): DashboardViewNameResult
  * array is preserved — it records a genuine "cleared" selection.
  */
 export function normalizeFilterOverride(raw: unknown): string[] | null {
-  if (!Array.isArray(raw)) {
-    return null;
-  }
-  return raw.filter((entry): entry is string => typeof entry === "string" && entry.length > 0);
+  return normalizeStringArray(raw);
 }
 
 /**

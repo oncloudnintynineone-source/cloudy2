@@ -1,17 +1,11 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { Text, useMantineTheme } from "@mantine/core";
-import { useMediaQuery, useViewportSize } from "@mantine/hooks";
+import { Text } from "@mantine/core";
 
-import { CrossfadeSwap } from "@/components/CrossfadeSwap";
-import { MotionModal } from "@/components/MotionModal";
-import { useMotion } from "@/components/MotionProvider";
-import { loadChunk, useChunkReady } from "@/lib/loading/chunkReady";
-import { MIN_SKELETON_HOLD_MS } from "@/lib/loading/minHoldLoading";
-import { modalContentWidth } from "@/lib/motion/origin";
-import { modalZoomTransitionProps } from "@/lib/motion/transitions";
-import { NARROW_MEDIA_QUERY } from "@/lib/theme";
+import { LazyModal } from "@/components/LazyModal";
+import { preloadLazyBody, useChunkReady } from "@/lib/loading/chunkReady";
+import { useModalZoom } from "@/lib/motion/useModalZoom";
 import type { PinnedEvent } from "@/lib/events/pinned";
 import { usePinnedPanel } from "@/lib/ui/pinnedPanel";
 
@@ -30,7 +24,7 @@ const PinnedEventsPanelBody = dynamic(loadPinnedEventsBody, {
 
 /** Warm the pinned-panel body chunk on trigger intent / open. */
 export function preloadPinnedPanelBody() {
-  void loadChunk(loadPinnedEventsBody).catch(() => {});
+  preloadLazyBody(loadPinnedEventsBody);
 }
 
 interface PinnedEventsPanelProps {
@@ -47,42 +41,28 @@ interface PinnedEventsPanelProps {
 
 export function PinnedEventsPanel({ seedEvents = null, onLoaded }: PinnedEventsPanelProps) {
   const { open, originRect, closePanel } = usePinnedPanel();
-  const theme = useMantineTheme();
-  const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
-  const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY);
   const bodyReady = useChunkReady(loadPinnedEventsBody, open);
 
   // The modal zooms out of / shrinks back into the header pin button — the
-  // app's standard grow/shrink animation. It is `centered` with a fixed size,
-  // so the content center is the viewport center and the transform-origin can
-  // derive purely from the trigger's rect (see src/lib/motion/origin.ts).
-  const motion = useMotion();
-  const viewportSize = useViewportSize();
-  const viewport = { w: viewportSize.width, h: viewportSize.height };
-  // The panel widens md (440px) -> lg (620px) at lg, so the shrink-to-target
-  // scale must use the matching content width.
-  const contentWidth = modalContentWidth(viewport, isNarrow ? 380 : isDesktop ? 620 : 440);
-  const transitionProps = modalZoomTransitionProps(motion, originRect, viewport, contentWidth);
+  // app's standard grow/shrink animation.
+  const { size, transitionProps } = useModalZoom({
+    originRect,
+    spec: { narrow: "xs", mobile: "md", desktop: "lg" },
+    contentWidthPx: { narrow: 380 },
+  });
 
   return (
-    <MotionModal
+    <LazyModal
       opened={open}
       onClose={closePanel}
-      centered
-      size={isNarrow ? "xs" : isDesktop ? "lg" : "md"}
+      size={size}
       title={<Text fw={600}>Pinned Events</Text>}
-      closeButtonProps={{ "aria-label": "Close pinned events" }}
+      closeLabel="Close pinned events"
       transitionProps={transitionProps}
+      ready={bodyReady}
+      skeleton={<PinnedEventsSkeleton />}
     >
-      <CrossfadeSwap
-        loading={open && !bodyReady}
-        minHoldMs={MIN_SKELETON_HOLD_MS}
-        mode="overlay"
-        animateHeight
-        skeleton={<PinnedEventsSkeleton />}
-      >
-        <PinnedEventsPanelBody seedEvents={seedEvents} onLoaded={onLoaded} />
-      </CrossfadeSwap>
-    </MotionModal>
+      <PinnedEventsPanelBody seedEvents={seedEvents} onLoaded={onLoaded} />
+    </LazyModal>
   );
 }

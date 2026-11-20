@@ -1,18 +1,23 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import {
   Button,
   Group,
-  Loader,
+  Skeleton,
   Stack,
   Switch,
   Text,
   useMantineTheme,
 } from "@mantine/core";
 import { MotionModal } from "@/components/MotionModal";
+
 import { useMediaQuery } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
+
+import { InlineError } from "@/components/InlineError";
+import { LoadingStatus } from "@/components/LoadingStatus";
+import { useOpenQuery } from "@/lib/loading/useOpenQuery";
 
 import {
   getParticipantPushSettings,
@@ -39,6 +44,9 @@ interface NotificationSettingsProps {
   opened: boolean;
   onClose: () => void;
 }
+
+const mapNotificationSettingsError = () =>
+  "Couldn't load your notification settings. Check your connection and try again.";
 
 interface BrowserState {
   supported: boolean;
@@ -122,55 +130,22 @@ export function NotificationSettings({ opened, onClose }: NotificationSettingsPr
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
   const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY);
-  const [settings, setSettings] = useState<ParticipantPushSettings | null>(null);
-  const [browser, setBrowser] = useState<BrowserState | null>(null);
+  const query = useOpenQuery<{
+    settings: ParticipantPushSettings;
+    browser: BrowserState;
+  }>({
+    enabled: opened,
+    load: fetchSettingsAndBrowser,
+    mapError: mapNotificationSettingsError,
+  });
+  const settings = query.data?.settings ?? null;
+  const browser = query.data?.browser ?? null;
+  const { reload: reloadQuery, data: queryData, setData } = query;
   const [busy, setBusy] = useState<BusyAction>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
-
-  // Render-phase reset on every open (CalendarAccessModal pattern): a fresh
-  // open starts from a loading state, not the last fetch's result.
-  const [lastOpened, setLastOpened] = useState(opened);
-  if (lastOpened !== opened) {
-    setLastOpened(opened);
-    if (opened) {
-      setSettings(null);
-      setBrowser(null);
-      setLoadError(null);
-    }
-  }
-
-  const applyResult = useCallback(
-    (result: { settings: ParticipantPushSettings; browser: BrowserState }) => {
-      setSettings(result.settings);
-      setBrowser(result.browser);
-      setLoadError(null);
-    },
-    [],
-  );
-
-  const showLoadError = useCallback(() => {
-    setLoadError("Couldn't load your notification settings. Check your connection and try again.");
-  }, []);
 
   const reload = useCallback(async (): Promise<void> => {
-    try {
-      applyResult(await fetchSettingsAndBrowser());
-    } catch (error) {
-      console.error("[push] Failed to load notification settings", error);
-      showLoadError();
-    }
-  }, [applyResult, showLoadError]);
-
-  useEffect(() => {
-    if (opened) {
-      fetchSettingsAndBrowser()
-        .then(applyResult)
-        .catch((error) => {
-          console.error("[push] Failed to load notification settings", error);
-          showLoadError();
-        });
-    }
-  }, [opened, applyResult, showLoadError]);
+    reloadQuery();
+  }, [reloadQuery]);
 
   const handleEnable = useCallback(async () => {
     if (busy) {
@@ -264,15 +239,21 @@ export function NotificationSettings({ opened, onClose }: NotificationSettingsPr
     }
   }, [browser, busy]);
 
-  const handleMasterToggle = useCallback(async (enabled: boolean) => {
-    setSettings((current) =>
-      current && current.ok ? { ...current, eventInvitePush: enabled } : current,
-    );
-    const result = await setEventInvitePush(enabled);
-    if (!result.ok) {
-      notifications.show({ color: "red", message: result.error });
-    }
-  }, []);
+  const handleMasterToggle = useCallback(
+    async (enabled: boolean) => {
+      if (queryData && queryData.settings.ok) {
+        setData({
+          ...queryData,
+          settings: { ...queryData.settings, eventInvitePush: enabled },
+        });
+      }
+      const result = await setEventInvitePush(enabled);
+      if (!result.ok) {
+        notifications.show({ color: "red", message: result.error });
+      }
+    },
+    [queryData, setData],
+  );
 
   const okSettings = settings?.ok ? settings : null;
   const readyForDevice =
@@ -296,19 +277,22 @@ export function NotificationSettings({ opened, onClose }: NotificationSettingsPr
       centered
       size={isNarrow ? "xs" : isDesktop ? "md" : "sm"}
     >
-      {loadError || (settings !== null && !settings.ok) ? (
-        <Stack gap="sm" align="flex-start">
-          <Text size="sm" c="red">
-            {settings && !settings.ok ? settings.error : loadError}
-          </Text>
-          <Button size="xs" variant="light" onClick={() => void reload()}>
-            Try again
-          </Button>
-        </Stack>
+      {query.status === "error" || (settings !== null && !settings.ok) ? (
+        <InlineError
+          message={
+            settings && !settings.ok
+              ? (settings.error ?? "Couldn't load your notification settings.")
+              : (query.error ?? "Couldn't load your notification settings.")
+          }
+          onRetry={query.reload}
+        />
       ) : !settings || !browser ? (
-        <Group justify="center" py="lg">
-          <Loader size="sm" />
-        </Group>
+        <Stack gap="sm" py="md">
+          <LoadingStatus label="Loading notification settings" />
+          <Skeleton height={20} radius="sm" width="70%" />
+          <Skeleton height={20} radius="sm" width="90%" />
+          <Skeleton height={36} radius="sm" />
+        </Stack>
       ) : (
         <Stack gap="lg">
           <Stack gap={2}>

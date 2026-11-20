@@ -12,18 +12,21 @@ import {
   Text,
   Textarea,
   Tooltip,
-  useMantineTheme,
 } from "@mantine/core";
-import { useDisclosure, useMediaQuery } from "@mantine/hooks";
+import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { IconCopy, IconPencil, IconTrash } from "@tabler/icons-react";
 
 import { useActivityRefresh } from "@/components/ActivityBar";
+import { ConfirmModal } from "@/components/ConfirmModal";
+import { LazyModal } from "@/components/LazyModal";
 import { MotionModal } from "@/components/MotionModal";
 import { useMotion } from "@/components/MotionProvider";
 import { NoKeyboardSelect } from "@/components/NoKeyboardSelect";
 import { ROW_ACTION_ICON_SIZE, ROW_ACTION_SIZE } from "@/components/reorderUpDown";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
+import { activatable } from "@/lib/ui/activatable";
+import { useIsDesktop } from "@/lib/ui/useBreakpoint";
 import { fadeTransitionProps } from "@/lib/motion/transitions";
 import { defaultNotificationRecipe } from "@/lib/events/notifyRecipes";
 import {
@@ -51,10 +54,8 @@ import {
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { AUTOSIZE_VERTICAL_SCROLL_PROPS } from "@/lib/ui/scrollArea";
 import dynamic from "next/dynamic";
-import { CrossfadeSwap } from "@/components/CrossfadeSwap";
 import { FormModalSkeleton } from "@/components/FormModalSkeleton";
 import { useChunkReady } from "@/lib/loading/chunkReady";
-import { MIN_SKELETON_HOLD_MS } from "@/lib/loading/minHoldLoading";
 
 // The title-recipe builder (chip rows, reorderable segments) is only mounted
 // when a template dialog opens; split it out of the templates route's initial
@@ -82,19 +83,6 @@ const FALLBACK_USERS = [
   { name: "John Lai", shortname: "JL", departmentName: "Engineering 1" },
   { name: "Mei Lin", shortname: "ML", departmentName: "Logistics" },
 ];
-
-function activatable(onActivate: () => void) {
-  return {
-    role: "button" as const,
-    tabIndex: 0,
-    onKeyDown: (e: React.KeyboardEvent) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        onActivate();
-      }
-    },
-  };
-}
 
 function Row({
   leading,
@@ -211,8 +199,7 @@ export function TemplatesManager({
   reorderDrag,
 }: TemplatesManagerProps) {
   const motion = useMotion();
-  const theme = useMantineTheme();
-  const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
+  const isDesktop = useIsDesktop();
   const refreshAfterSave = useActivityRefresh("templates:save");
 
   const [masterOpened, { open: openMaster, close: closeMaster }] = useDisclosure(false);
@@ -424,61 +411,47 @@ export function TemplatesManager({
       </Paper>
 
       {/* Master */}
-      <MotionModal
+      <LazyModal
         opened={masterOpened}
         onClose={closeMaster}
         title="Master event title"
-        centered
         size={isDesktop ? "md" : "sm"}
         transitionProps={fadeTransitionProps(motion)}
+        ready={recipeBuilderReady}
+        skeleton={<FormModalSkeleton rows={5} />}
       >
-        <CrossfadeSwap
-          loading={masterOpened && !recipeBuilderReady}
-          minHoldMs={MIN_SKELETON_HOLD_MS}
-          mode="overlay"
-          animateHeight
-          skeleton={<FormModalSkeleton rows={5} />}
-        >
-          <TitleRecipeBuilder
-            mode="master"
-            recipe={eventTitleRecipe}
-            sample={sample}
-            emptySample={emptySample}
-            reorderDrag={reorderDrag}
-            onDone={() => closeAndRefresh(closeMaster)}
-          />
-        </CrossfadeSwap>
-      </MotionModal>
+        <TitleRecipeBuilder
+          mode="master"
+          recipe={eventTitleRecipe}
+          sample={sample}
+          emptySample={emptySample}
+          reorderDrag={reorderDrag}
+          onDone={() => closeAndRefresh(closeMaster)}
+        />
+      </LazyModal>
 
       {/* Add / edit library template */}
-      <MotionModal
+      <LazyModal
         opened={editOpened}
         onClose={closeEdit}
         title={creating ? "Add template" : editing ? `Edit ${editing.label}` : "Template"}
-        centered
         size={isDesktop ? "md" : "sm"}
         transitionProps={fadeTransitionProps(motion)}
+        ready={recipeBuilderReady}
+        skeleton={<FormModalSkeleton rows={5} />}
       >
-        <CrossfadeSwap
-          loading={editOpened && !recipeBuilderReady}
-          minHoldMs={MIN_SKELETON_HOLD_MS}
-          mode="overlay"
-          animateHeight
-          skeleton={<FormModalSkeleton rows={5} />}
-        >
-          <TitleRecipeBuilder
-            key={creating ? "create" : (editing?.id ?? "edit")}
-            mode={creating ? "create" : "edit"}
-            templateId={editing?.id}
-            label={editing?.label ?? ""}
-            recipe={editing?.recipe ?? { segments: [{ field: "description" }] }}
-            sample={sample}
-            emptySample={emptySample}
-            reorderDrag={reorderDrag}
-            onDone={() => closeAndRefresh(closeEdit)}
-          />
-        </CrossfadeSwap>
-      </MotionModal>
+        <TitleRecipeBuilder
+          key={creating ? "create" : (editing?.id ?? "edit")}
+          mode={creating ? "create" : "edit"}
+          templateId={editing?.id}
+          label={editing?.label ?? ""}
+          recipe={editing?.recipe ?? { segments: [{ field: "description" }] }}
+          sample={sample}
+          emptySample={emptySample}
+          reorderDrag={reorderDrag}
+          onDone={() => closeAndRefresh(closeEdit)}
+        />
+      </LazyModal>
 
       {/* Assignments */}
       <AssignmentsDialog
@@ -503,31 +476,14 @@ export function TemplatesManager({
       />
 
       {/* Delete confirm */}
-      <MotionModal
+      <ConfirmModal
         opened={deleting !== null}
         onClose={() => setDeleting(null)}
         title="Delete template"
-        centered
-        size="sm"
-        transitionProps={fadeTransitionProps(motion)}
-      >
-        <Stack>
-          <Text>Delete &ldquo;{deleting?.label}&rdquo;? Events already saved are untouched.</Text>
-          <Group justify="flex-end">
-            <Button variant="default" onClick={() => setDeleting(null)}>
-              Cancel
-            </Button>
-            <Button
-              color="red"
-              loading={deleteBusy}
-              loaderProps={BUTTON_LOADER_PROPS}
-              onClick={confirmDelete}
-            >
-              Delete
-            </Button>
-          </Group>
-        </Stack>
-      </MotionModal>
+        message={<>Delete &ldquo;{deleting?.label}&rdquo;? Events already saved are untouched.</>}
+        loading={deleteBusy}
+        onConfirm={confirmDelete}
+      />
     </Stack>
   );
 }
