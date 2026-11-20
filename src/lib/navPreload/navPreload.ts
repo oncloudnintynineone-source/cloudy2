@@ -1,6 +1,6 @@
 /**
- * Pure warm-plan helpers for the idle bulk preload of the three high-traffic
- * nav pages (Parade State, Contacts, Double Booking). See
+ * Pure warm-plan helpers for the idle bulk preload of the four high-traffic
+ * nav pages (Parade State, Contacts, Double Booking, My Events). See
  * docs/loading-transitions.md §1.15.
  *
  * One pass per signed-in user per document. The prefetch runs that page's
@@ -12,8 +12,19 @@
  * no DOM, no I/O — so the once-per-signature rule is unit-testable.
  */
 
-/** Nav routes warmed at idle on capable devices (the rest stay intent-only). */
-export const NAV_PRELOAD_HREFS = ["/parade-state", "/contacts", "/double-booking"] as const;
+/** Nav routes warmed at idle on capable devices (the rest stay intent-only).
+ *  My Events joins them because it is the one always-fresh content route: the
+ *  SW never replays a stale document for it, so without this warm pass every
+ *  entry pays the full wide-window build on the critical path. The
+ *  always-fresh guarantee survives the warm payload — `useLiveRouteRefresh`
+ *  forces one live re-read when the painted payload is older than
+ *  `LIVE_ROUTE_MAX_AGE_MS` (paint-then-swap). */
+export const NAV_PRELOAD_HREFS = [
+  "/parade-state",
+  "/contacts",
+  "/double-booking",
+  "/my-events",
+] as const;
 
 /** The plan key: one warm pass per signed-in user per document. */
 export function navPreloadSignature(userId: string): string {

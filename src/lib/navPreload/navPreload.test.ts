@@ -22,7 +22,12 @@ describe("planNavPreload", () => {
     expect(planNavPreload(seen, "u2::session")).toBe("u2::session");
   });
 
-  it("covers exactly the three idle-warmed nav pages", () => {
-    expect(NAV_PRELOAD_HREFS).toEqual(["/parade-state", "/contacts", "/double-booking"]);
+  it("covers exactly the four idle-warmed nav pages", () => {
+    expect(NAV_PRELOAD_HREFS).toEqual([
+      "/parade-state",
+      "/contacts",
+      "/double-booking",
+      "/my-events",
+    ]);
   });
 });

@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * Idle bulk warm of the three high-traffic nav pages (Parade State, Contacts,
- * Double Booking). Next `<Link>` prefetch only reaches each route's loading
+ * Idle bulk warm of the four high-traffic nav pages (Parade State, Contacts,
+ * Double Booking, My Events). Next `<Link>` prefetch only reaches each route's loading
  * boundary, so on tap these pages still paid a server render plus a leaf-chunk
  * download. Once the cold start has landed, this runs one pass per signed-in
  * user at idle on capable devices (`canPreloadTabs`): `router.prefetch` on each

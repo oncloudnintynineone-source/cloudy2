@@ -2555,6 +2555,27 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   `clampEventEnd` + `validateEventForm` remain the write-path safety nets;
   `needsClamp` drives the inline sync (tests).
   Docs: `event-lifecycle.md` §1.4.1/§1.5.2/§1.11.1.
+- 1.389 **My Events load performance**: the ±window read is now single-pass and
+  cache-friendly — `mapCalendarItem` parses the notes block **once** per event
+  (`parseEventDescription`, ~7× cut in projection CPU), months strictly before the
+  current one serve from the events cache for 24 h via a per-read freshness override
+  (`freshnessFor` → `myEventsFreshnessFor`), the organizer filter runs **inside** the
+  projection (`creatorFilter`), `listMyCreatedEvents` projects only
+  `{ id, createdAt, details }` behind a new composite index
+  (`audit_logs_actor_action_created_idx`, migration `0072`), and the cold Google
+  refresh runs one flat pool across all pending (month, calendar) pairs. Measured:
+  ±3 cold build 6.64s → **3.89s**, ±12 14.09s → **9.57s**, warm ~21 ms.
+  Docs: `event-history.md` §1.4.2, `events-cache.md` §1.7.1/§1.12.1.
+- 1.390 **My Events wait overlay + idle preload**: the always-fresh route's residual
+  cold wait is now covered twice — `/my-events` joins the idle nav preload (first
+  visit per session paints from the router cache; the always-fresh re-read still
+  fires on the warm payload), and the shared list skeleton wears a delayed frosted
+  **wait overlay** (`MyEventsWaitOverlay`): the app icon breathing over rotating
+  "calendar archaeology" lines + a slower tip ticker (pure copy in
+  `myEventsWaitCopy.ts`, unit-tested), revealing only after 300 ms so warm loads
+  never flash it, static under reduced motion, purely decorative (`aria-hidden`,
+  no fake progress bars). Docs: `loading-transitions.md` §1.4/§1.15,
+  `event-history.md` §1.4.2.
 
 ## 1.4 Open items & next steps
 

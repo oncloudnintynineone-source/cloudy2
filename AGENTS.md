@@ -132,8 +132,8 @@ doc content here.
   view) and is not re-run after a mutation or force refresh. **Code**
   warming is narrower: only the active renderer + the renderer kinds the account has
   tabs for, plus event details, warm at idle; the wizard waits 5 s on capable devices;
-  Parade State, Contacts and Double Booking get one idle route-prefetch + chunk pass
-  per signed-in user per document (`NavIdlePreloader.tsx`, pure plan in
+  Parade State, Contacts, Double Booking and My Events get one idle route-prefetch +
+  chunk pass per signed-in user per document (`NavIdlePreloader.tsx`, pure plan in
   `src/lib/navPreload/`); the date picker, manage-views and the remaining nav routes are
   intent-only. Design:
   [docs/events-cache.md](docs/events-cache.md) §1.5.1,

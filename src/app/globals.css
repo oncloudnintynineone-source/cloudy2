@@ -694,6 +694,63 @@ html.c2-low-end::view-transition-group(*) {
   }
 }
 
+/* My Events wait overlay (docs/loading-transitions.md §1.4): a frosted card
+   riding dead-centre on the shared list skeleton while the always-fresh route
+   build runs. Decorative like the boot overlay — aria-hidden and
+   pointer-transparent; the sr-only LoadingStatus stays the only announcement.
+   The card fades in on the emphasized cadence (the component delays it ~300 ms
+   so warm loads never flash it), the icon breathes on the same ambient keyframe
+   as the cold-start brand, and each rotation replays the small `c2-wait-swap`
+   rise. Reduced motion: no animations (the component also stops rotating). */
+.c2-wait {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--mantine-spacing-md);
+  pointer-events: none;
+}
+
+.c2-wait-card {
+  max-width: min(100%, 340px);
+  padding: var(--mantine-spacing-lg) var(--mantine-spacing-md);
+  border-radius: var(--mantine-radius-md);
+  border: 1px solid var(--mantine-color-default-border);
+  box-shadow: var(--mantine-shadow-md);
+  text-align: center;
+}
+
+.c2-wait-icon {
+  width: calc(3.5rem * var(--mantine-scale));
+  height: calc(3.5rem * var(--mantine-scale));
+  user-select: none;
+}
+
+.c2-wait-line,
+.c2-wait-tip {
+  text-wrap: balance;
+}
+
+@keyframes c2-wait-swap {
+  from {
+    opacity: 0;
+    transform: translateY(var(--c2-dist-xs));
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .c2-wait-card {
+    animation: c2-boot-enter var(--c2-dur-emphasized) var(--c2-ease-out) both;
+  }
+  .c2-wait-icon {
+    animation: c2-boot-breathe var(--c2-dur-ambient) var(--c2-ease-in-out) infinite alternate;
+  }
+  .c2-wait-swap {
+    animation: c2-wait-swap var(--c2-dur-emphasized) var(--c2-ease-out);
+  }
+}
+
 /* Shared header-control height: the pinned-events pill reads this, and the
    desktop "Search events" trigger is deliberately one step taller (below) so it
    lines up with the 34px refresh/profile icons in the header row. */
