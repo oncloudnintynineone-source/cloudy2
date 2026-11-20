@@ -712,11 +712,13 @@ html.c2-low-end::view-transition-group(*) {
   pointer-events: none;
 }
 
+/* Borderless on purpose: the frosted fill + blur alone separate the card from
+   the pulsing skeleton, so it reads as part of the loading surface rather than
+   a dialog sitting on top of it. */
 .c2-wait-card {
   max-width: min(100%, 340px);
   padding: var(--mantine-spacing-lg) var(--mantine-spacing-md);
   border-radius: var(--mantine-radius-md);
-  border: 1px solid var(--mantine-color-default-border);
   box-shadow: var(--mantine-shadow-md);
   text-align: center;
 }
