@@ -497,10 +497,8 @@ Selection stays visible with the group collapsed: a chip row (`PickerBadges`
 `cap={5}`, each chip carrying a ✕ that drops that pick in place; "None selected"
 for a deliberately emptied grid group, "All {label}" for an unfiltered search
 group) renders beside the header, and search groups open their dialog through
-the shared `PickerTrigger` (**Add** → **Edit** once picks exist). Above the
-footer a dimmed **"Showing: …"** line (pure `describeFilterGroups`) states the
-effective result set in one sentence — e.g. *All calendars · 2 users · Event
-name "parade"*. The footer's reset button is **Reset filters** — it restores the
+the shared `PickerTrigger` (**Add** → **Edit** once picks exist). The footer's
+reset button is **Reset filters** — it restores the
 role defaults (`NULL`) — deliberately named apart from a group's **None** (an
 explicit empty selection → an empty grid).
 

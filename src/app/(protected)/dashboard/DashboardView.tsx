@@ -6158,7 +6158,6 @@ function DashboardViewImpl({
           }}
           onApply={handleApplyFilters}
           collapsedGroupLabels={["Event Types"]}
-          hint={`These filters apply to ${activeView.name} only.`}
           originRect={filterOriginRect}
         />
       )}

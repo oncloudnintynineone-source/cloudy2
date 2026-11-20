@@ -180,8 +180,7 @@ export interface FilterModalProps {
  * (label · state chip · All/None pair · quick action), so the three group kinds
  * read as one dialog; the pair says "Clear" instead of "None" on a search group,
  * and the All/None action always spans the whole group.
- * Selections are staged in a draft and only applied when "Apply" is pressed; a
- * live "Showing: …" line above the footer states the result in plain words, and
+ * Selections are staged in a draft and only applied when "Apply" is pressed;
  * "Reset filters" restores the role defaults (a group's "None" is a real, empty
  * selection — a third thing, with its own name). "No filter applied" is "all
  * selected" in grid groups and "nothing selected" in search groups.

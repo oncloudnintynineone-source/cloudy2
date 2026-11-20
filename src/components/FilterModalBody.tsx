@@ -10,7 +10,6 @@ import { PickerBadges, PickerTrigger, type PickerBadgeItem } from "@/components/
 import { SelectableBadge } from "@/components/SelectableBadge";
 import { UserSelectModal } from "@/components/UserSelectModal";
 import {
-  describeFilterGroups,
   groupFilterState,
   isGroupUnfiltered,
   resolveFilterApply,
@@ -195,8 +194,7 @@ function FilterGroupHeader({
  * The filter dialog's body: staged selections, the optional free-text field,
  * collapsed groups, and the search-group badge picker. Every group — flat grid,
  * sectioned grid, or search — is introduced by the same {@link FilterGroupHeader}
- * and summarized by the same removable chips, and one "Showing: …" line above the
- * footer states the whole result in plain words. Split into its own chunk so the
+ * and summarized by the same removable chips. Split into its own chunk so the
  * modal chrome can animate out of the trigger before {@link FilterModal} finishes
  * loading this body (docs/loading-transitions.md §1.15.1).
  */
@@ -335,15 +333,6 @@ export function FilterModalBody({
   const hasActiveFilter =
     (textFilter !== undefined && textDraft.trim() !== "") ||
     groups.some((group) => !isGroupUnfiltered(toApplyGroup(group), draft[group.label] ?? []));
-
-  // The whole dialog in one line ("All calendars · 3 users · Event name "parade""),
-  // read from the same variant semantics Apply uses, so it can never promise
-  // something the write would not do.
-  const showingSummary = describeFilterGroups(
-    groups.map(toApplyGroup),
-    draft,
-    textFilter && { label: textFilter.label, value: textDraft },
-  ).join(" · ");
 
   return (
     <Stack gap="md" style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
@@ -486,14 +475,6 @@ export function FilterModalBody({
           {hint}
         </Text>
       )}
-
-      {/* The live result of the whole dialog, directly above Apply. */}
-      <Text size="xs" c="dimmed">
-        <Text component="span" size="xs" fw={600}>
-          Showing:{" "}
-        </Text>
-        {showingSummary}
-      </Text>
 
       <Group justify="space-between" mt="md" wrap="wrap">
         {/* "Reset filters" restores the role defaults; a group's own "None" is a
