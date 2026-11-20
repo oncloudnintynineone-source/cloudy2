@@ -170,9 +170,8 @@ function uniqueStrings(value: unknown): string[] {
   return out;
 }
 
-/** Extract the linked people from the notes block, tolerating absent/malformed values. */
-export function parseEventPeople(description: string): EventPeople {
-  const notes = parseEventNotes(description);
+/** Extract the linked people from a parsed notes block, tolerating absent/malformed values. */
+function readPeople(notes: EventNotes | null): EventPeople {
   const creatorId = notes?.createdBy;
   const eventId = notes?.eventId;
   return {
@@ -181,6 +180,11 @@ export function parseEventPeople(description: string): EventPeople {
     userIds: uniqueStrings(notes?.inviteeUsers),
     departmentIds: uniqueStrings(notes?.inviteeDepartments),
   };
+}
+
+/** Extract the linked people from the notes block, or null. */
+export function parseEventPeople(description: string): EventPeople {
+  return readPeople(parseEventNotes(description));
 }
 
 function tryParseObject(text: string): EventNotes | null {
@@ -338,11 +342,97 @@ export function eventDetailUrl(
   return `${baseUrl}/dashboard?${params.toString()}`;
 }
 
-/** Extract the event type name from the notes block, or null. */
-export function parseEventType(description: string): string | null {
-  const notes = parseEventNotes(description);
+// --- Field readers -------------------------------------------------------
+//
+// Every derived field has exactly one `readX(notes)` implementation, shared
+// by the single-field `parseEventX(description)` helpers (call sites that
+// need one field) and `parseEventDescription` — the read path that maps many
+// events must inflate the block **once per event**, not once per field.
+
+function readEventType(notes: EventNotes | null): string | null {
   const eventType = notes?.eventType;
   return typeof eventType === "string" && eventType ? eventType : null;
+}
+
+function readRawTitle(notes: EventNotes | null): string | null {
+  const title = notes?.title;
+  return typeof title === "string" ? title : null;
+}
+
+function readTimeOption(notes: EventNotes | null): TimeOption | null {
+  const timeOption = notes?.timeOption;
+  return isTimeOption(timeOption) ? timeOption : null;
+}
+
+function readAmPm(value: unknown): "AM" | "PM" | null {
+  return value === "AM" || value === "PM" ? value : null;
+}
+
+function readRegistrationCap(notes: EventNotes | null): number | null {
+  const cap = notes?.registrationCap;
+  return typeof cap === "number" && Number.isInteger(cap) && cap >= 1 ? cap : null;
+}
+
+function readPinnedDepartments(notes: EventNotes | null): string[] {
+  return uniqueStrings(notes?.pinnedDepartments);
+}
+
+function readPinned(notes: EventNotes | null): boolean {
+  if (notes?.pinned === true) {
+    return true;
+  }
+  return readPinnedDepartments(notes).length > 0;
+}
+
+/**
+ * Every display-relevant field of an event description, derived from **one**
+ * notes-block inflation. Used by the calendar read path (`mapCalendarItem`),
+ * where the per-field `parseEventX` helpers would decompress the same block
+ * a dozen times per event.
+ */
+export interface EventDescriptionFields {
+  /** The parsed notes block, or null when absent/malformed/external. */
+  notes: EventNotes | null;
+  eventType: string | null;
+  people: EventPeople;
+  ownerOnlyEdits: boolean;
+  registrationEnabled: boolean;
+  registrationCap: number | null;
+  rawTitle: string | null;
+  timeOption: TimeOption | null;
+  startAmPm: "AM" | "PM" | null;
+  endAmPm: "AM" | "PM" | null;
+  outOfCamp: boolean;
+  overseas: boolean;
+  pinned: boolean;
+  pinnedDepartments: string[];
+  external: boolean;
+}
+
+export function parseEventDescription(description: string): EventDescriptionFields {
+  const notes = parseEventNotes(description);
+  return {
+    notes,
+    eventType: readEventType(notes),
+    people: readPeople(notes),
+    ownerOnlyEdits: notes?.ownerOnlyEdits === true,
+    registrationEnabled: notes?.registrationEnabled === true,
+    registrationCap: readRegistrationCap(notes),
+    rawTitle: readRawTitle(notes),
+    timeOption: readTimeOption(notes),
+    startAmPm: readAmPm(notes?.startAmPm),
+    endAmPm: readAmPm(notes?.endAmPm),
+    outOfCamp: notes?.outOfCamp === true,
+    overseas: notes?.overseas === true,
+    pinned: readPinned(notes),
+    pinnedDepartments: readPinnedDepartments(notes),
+    external: !hasInternalEventMarker(description) && notes === null,
+  };
+}
+
+/** Extract the event type name from the notes block, or null. */
+export function parseEventType(description: string): string | null {
+  return readEventType(parseEventNotes(description));
 }
 
 /**
@@ -351,30 +441,22 @@ export function parseEventType(description: string): string | null {
  * events that predate the field.
  */
 export function parseEventTitle(description: string): string | null {
-  const notes = parseEventNotes(description);
-  const title = notes?.title;
-  return typeof title === "string" ? title : null;
+  return readRawTitle(parseEventNotes(description));
 }
 
 /** Extract the datetime option from the notes block, or null (legacy). */
 export function parseEventTimeOption(description: string): TimeOption | null {
-  const notes = parseEventNotes(description);
-  const timeOption = notes?.timeOption;
-  return isTimeOption(timeOption) ? timeOption : null;
+  return readTimeOption(parseEventNotes(description));
 }
 
 /** Extract the start half-of-day indicator from the notes block, or null. */
 export function parseEventStartAmPm(description: string): "AM" | "PM" | null {
-  const notes = parseEventNotes(description);
-  const startAmPm = notes?.startAmPm;
-  return startAmPm === "AM" || startAmPm === "PM" ? startAmPm : null;
+  return readAmPm(parseEventNotes(description)?.startAmPm);
 }
 
 /** Extract the end half-of-day indicator from the notes block, or null. */
 export function parseEventEndAmPm(description: string): "AM" | "PM" | null {
-  const notes = parseEventNotes(description);
-  const endAmPm = notes?.endAmPm;
-  return endAmPm === "AM" || endAmPm === "PM" ? endAmPm : null;
+  return readAmPm(parseEventNotes(description)?.endAmPm);
 }
 
 /** Extract the out-of-camp flag from the notes block; false when absent (legacy). */
@@ -392,16 +474,12 @@ export function parseEventOverseas(description: string): boolean {
  * departments" (including the legacy `pinned: true` flag) or unpinned.
  */
 export function parseEventPinnedDepartments(description: string): string[] {
-  return uniqueStrings(parseEventNotes(description)?.pinnedDepartments);
+  return readPinnedDepartments(parseEventNotes(description));
 }
 
 /** Extract the pinned flag from the notes block; false when absent (legacy). */
 export function parseEventPinned(description: string): boolean {
-  const notes = parseEventNotes(description);
-  if (notes?.pinned === true) {
-    return true;
-  }
-  return uniqueStrings(notes?.pinnedDepartments).length > 0;
+  return readPinned(parseEventNotes(description));
 }
 
 /** Extract the organizer-only edit lock from the notes block; false when absent. */
@@ -420,6 +498,5 @@ export function parseEventRegistrationEnabled(description: string): boolean {
  * "no limit".
  */
 export function parseEventRegistrationCap(description: string): number | null {
-  const cap = parseEventNotes(description)?.registrationCap;
-  return typeof cap === "number" && Number.isInteger(cap) && cap >= 1 ? cap : null;
+  return readRegistrationCap(parseEventNotes(description));
 }

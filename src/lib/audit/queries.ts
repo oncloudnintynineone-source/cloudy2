@@ -341,10 +341,23 @@ export async function listEventHistory(
     .orderBy(asc(auditLogs.createdAt), asc(auditLogs.id));
 }
 
-/** All of a user's `event.create` rows (they created the event), newest first. */
-export async function listMyCreatedEvents(userId: string): Promise<AuditLog[]> {
+/** The columns My Events needs from an `event.create` row (not the full log). */
+export interface MyCreatedEventRow {
+  id: string;
+  createdAt: Date;
+  details: unknown;
+}
+
+/**
+ * All of a user's `event.create` rows (they created the event), newest first.
+ * Projects only the three columns My Events reads (not the full log row), and
+ * the new `(actor_id, action, created_at)` index serves the filter + order
+ * directly. Not retention-bounded: a deleted event stays listed while its
+ * (recent) delete row exists even if its create row predates retention.
+ */
+export async function listMyCreatedEvents(userId: string): Promise<MyCreatedEventRow[]> {
   return db
-    .select()
+    .select({ id: auditLogs.id, createdAt: auditLogs.createdAt, details: auditLogs.details })
     .from(auditLogs)
     .where(and(eq(auditLogs.action, AUDIT_ACTIONS.eventCreate), eq(auditLogs.actorId, userId)))
     .orderBy(desc(auditLogs.createdAt), desc(auditLogs.id));

@@ -14,26 +14,12 @@ import { listEventTypes } from "@/lib/eventTypes/queries";
 import {
   getCachedMonthEventsForCalendars,
   getCachedMonthEventsForCalendarsMulti,
+  type MonthCacheFreshness,
   type MultiMonthEventsResult,
 } from "@/lib/google/eventsCache";
 import type { GcalEventItem } from "@/lib/google/types";
 import { onlyUuidIds } from "@/lib/uuid";
-import {
-  isExternalEvent,
-  parseEventEndAmPm,
-  parseEventOutOfCamp,
-  parseEventOverseas,
-  parseEventOwnerOnlyEdits,
-  parseEventPeople,
-  parseEventPinned,
-  parseEventPinnedDepartments,
-  parseEventRegistrationCap,
-  parseEventRegistrationEnabled,
-  parseEventStartAmPm,
-  parseEventTimeOption,
-  parseEventTitle,
-  parseEventType,
-} from "@/lib/events/notes";
+import { parseEventDescription } from "@/lib/events/notes";
 import type { TimeOption } from "@/lib/events/timeOptions";
 import { dedupeEventsByGroupId } from "@/lib/events/targets";
 import { eventMatchesUserFilter } from "@/lib/events/userFilter";
@@ -150,15 +136,26 @@ const PREFETCH_ADJACENT_MONTHS = true;
 export function mapCalendarItem(
   calendar: { id: string; name: string; color: string | null },
   item: GcalEventItem,
-  filters: { typeFilter: string[]; userFilter: string[] },
+  filters: { typeFilter: string[]; userFilter: string[]; creatorFilter?: string },
   typeColors: Map<string, string | null>,
   memberships?: ReadonlyMap<string, string[]>,
 ): CalendarEvent | null {
-  const eventType = parseEventType(item.description);
+  // One notes-block inflation per event (the per-field `parseEventX` helpers
+  // would brotli-decompress the same description a dozen times per event).
+  const fields = parseEventDescription(item.description);
+  // Organizer-only reads (My Events) pass this: bail before building the
+  // payload for events the user did not create.
+  if (
+    filters.creatorFilter !== undefined &&
+    fields.people.creatorId !== filters.creatorFilter
+  ) {
+    return null;
+  }
+  const eventType = fields.eventType;
   if (filters.typeFilter.length > 0 && (!eventType || !filters.typeFilter.includes(eventType))) {
     return null;
   }
-  const people = parseEventPeople(item.description);
+  const people = fields.people;
   if (
     filters.userFilter.length > 0 &&
     !eventMatchesUserFilter(
@@ -191,19 +188,19 @@ export function mapCalendarItem(
       creatorId: people.creatorId,
       inviteeUserIds: people.userIds,
       inviteeDepartmentIds: people.departmentIds,
-      ownerOnlyEdits: parseEventOwnerOnlyEdits(item.description),
-      registrationEnabled: parseEventRegistrationEnabled(item.description),
-      registrationCap: parseEventRegistrationCap(item.description),
-      rawTitle: parseEventTitle(item.description),
-      timeOption: parseEventTimeOption(item.description) ?? (item.allDay ? "full" : "range"),
-      startAmPm: parseEventStartAmPm(item.description),
-      endAmPm: parseEventEndAmPm(item.description),
-      outOfCamp: parseEventOutOfCamp(item.description),
-      overseas: parseEventOverseas(item.description),
-      pinned: parseEventPinned(item.description),
-      pinnedDepartments: parseEventPinnedDepartments(item.description),
+      ownerOnlyEdits: fields.ownerOnlyEdits,
+      registrationEnabled: fields.registrationEnabled,
+      registrationCap: fields.registrationCap,
+      rawTitle: fields.rawTitle,
+      timeOption: fields.timeOption ?? (item.allDay ? "full" : "range"),
+      startAmPm: fields.startAmPm,
+      endAmPm: fields.endAmPm,
+      outOfCamp: fields.outOfCamp,
+      overseas: fields.overseas,
+      pinned: fields.pinned,
+      pinnedDepartments: fields.pinnedDepartments,
       location: item.location ?? "",
-      external: isExternalEvent(item.description),
+      external: fields.external,
     },
   };
 }
@@ -242,6 +239,8 @@ export async function readCalendarRange(params: {
   months: string[];
   calendarIds: string[];
   force?: boolean;
+  /** Per-month cache freshness override (see `MonthEventsOptions.freshnessFor`). */
+  freshnessFor?: (month: string) => MonthCacheFreshness;
 }): Promise<CalendarRangeData> {
   const months = [...new Set(params.months)].sort();
   if (params.calendarIds.length === 0 || months.length === 0) {
@@ -271,6 +270,7 @@ export async function readCalendarRange(params: {
   // months).
   const cached = await getCachedMonthEventsForCalendarsMulti(googleCalendarIds, months, {
     force: params.force === true,
+    freshnessFor: params.freshnessFor,
   });
 
   // Prefetch the months adjacent to the whole range only when this read missed
@@ -304,7 +304,7 @@ export async function readCalendarRange(params: {
  */
 export function projectRangeEvents(
   data: CalendarRangeData,
-  filters: { typeFilter: string[]; userFilter: string[] },
+  filters: { typeFilter: string[]; userFilter: string[]; creatorFilter?: string },
   calendarIds?: string[],
   memberships?: ReadonlyMap<string, string[]>,
 ): CalendarEvent[] {
@@ -357,6 +357,10 @@ export async function fetchRangeEvents(params: {
   memberships?: ReadonlyMap<string, string[]>;
   /** Bypass the events cache and block on fresh Google fetches (force refresh). */
   force?: boolean;
+  /** Per-month cache freshness override (see `MonthEventsOptions.freshnessFor`). */
+  freshnessFor?: (month: string) => MonthCacheFreshness;
+  /** Keep only events whose notes-block organizer is this user id (My Events). */
+  creatorFilter?: string;
 }): Promise<CalendarEvent[]> {
   const data = await readCalendarRange(params);
   return projectRangeEvents(
@@ -364,6 +368,7 @@ export async function fetchRangeEvents(params: {
     {
       typeFilter: params.typeFilter,
       userFilter: params.userFilter,
+      creatorFilter: params.creatorFilter,
     },
     undefined,
     params.memberships,

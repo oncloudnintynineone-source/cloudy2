@@ -221,8 +221,10 @@ sequenceDiagram
 1. **L1 in-process map** (`memory`, keyed `` `${googleCalendarId}:${month}` ``) — a warm
    instance serves repeat views with **no Google I/O** and, since the `events` JSONB is
    never re-shipped for a warm hit, minimal DB transfer. Entries hold the already-decoded
-   `GcalEventItem[]` plus an epoch `fetchedAt`. A size cap (`MAX_MEMORY_ENTRIES`) evicts
-   the oldest-inserted entry when the map exceeds 512 rows.
+   `GcalEventItem[]` plus an epoch `fetchedAt`. A size cap (`MAX_MEMORY_ENTRIES`) evicts the
+   least-recently-used entry (hits re-insert, so insertion order ≈ recency) when the map
+   exceeds 1024 rows — sized for a wide My Events window (calendars × 25 months) to stay
+   resident.
 2. **L2 Postgres** — every L1 hit is verified against the shared row with a
    **metadata-only `SELECT`** (`calendar_google_id`, `fetched_at` — no `events` payload),
    so a cross-instance `invalidateGcalCache` (DELETE on another lambda) is visible without
@@ -231,12 +233,14 @@ sequenceDiagram
    meaningfully newer than the local copy. Usable rows (fresh or stale) are decoded and
    promoted into L1.
 3. **Google** — anything missing or expired blocks on a fresh `events.list` + upsert,
-   executed with bounded concurrency (`GOOGLE_FETCH_CONCURRENCY` = 4). Concurrent callers
-   of the same key within one process share a single promise via the `inflight` map, so a
-   thundering herd collapses to one Google call. The fetch runs **outside any transaction**
-   (the app's Postgres pool is `max: 3` by default, configurable via `DB_POOL_MAX`), so it
-   never holds the connection open across the network round-trip; duplicate cross-instance
-   refreshes are harmless because the upsert is idempotent.
+   executed with bounded concurrency (`GOOGLE_FETCH_CONCURRENCY` = 4) over **one flat pool
+   of every pending `(month, calendar)` pair** — a wide cold window (My Events ±12) refreshes
+   across months in parallel rather than one sequential month round after another. Concurrent
+   callers of the same key within one process share a single promise via the `inflight` map,
+   so a thundering herd collapses to one Google call. The fetch runs **outside any
+   transaction** (the app's Postgres pool is `max: 3` by default, configurable via
+   `DB_POOL_MAX`), so it never holds the connection open across the network round-trip;
+   duplicate cross-instance refreshes are harmless because the upsert is idempotent.
 
 `allServed` is `false` when at least one calendar needed a blocking Google refresh; the
 prefetch gate (see §1.8) uses it to avoid background work on fully-cached views.
@@ -401,6 +405,19 @@ stateDiagram-v2
 | `stale`   | `60s – 30min` | immediately | background via `after()` (stale-while-revalidate) |
 | `expired` | `>= 30min`    | no          | blocking `events.list` + upsert                   |
 
+**Per-read freshness override.** `getCachedMonthEventsForCalendarsMulti` accepts an optional
+`freshnessFor(month)` returning a `{ freshMs, expireMs }` budget (default
+`DEFAULT_MONTH_FRESHNESS` = the 60s/30min above), threaded from `readCalendarRange` /
+`fetchRangeEvents`. A caller whose window spans long-ago months widens the budget for the
+months that no longer change, so a wide read stops paying (calendars × whole-window)
+blocking `events.list` calls on every visit. **My Events** uses it to serve months strictly
+before the current month for 24 h with no blocking fetch and no background refresh
+(`myEventsData.ts` `PAST_MONTH_FRESHNESS`): in-app edits still delete the row and the
+L1-vs-L2 metadata check still turns that into a blocking refetch, so read-your-writes is
+unchanged — only external Google edits to past months converge slower (bounded by the
+widened `expireMs`). The dashboard keeps the default budget. See
+[`event-history.md`](event-history.md) §1.4.2.
+
 ### 1.7.2 Guarantees
 
 - **In-app edits** are read-your-own-writes on the mutating instance: the mutation
@@ -469,8 +486,9 @@ All constants live at the top of `src/lib/google/eventsCache.ts` unless noted.
 | -------------------------- | ----------- | ---------------------------------------------------------------- |
 | `GCAL_CACHE_FRESH_MS`      | `60_000`    | Fresh window: served directly, no refresh (60s)                  |
 | `GCAL_CACHE_EXPIRE_MS`     | `1_800_000` | Hard expire: stale-while-revalidate until this age (30min)       |
+| `DEFAULT_MONTH_FRESHNESS`  | 60s / 30min | Default per-month budget; overridable per read via `freshnessFor` (§1.7.1) |
 | `GOOGLE_FETCH_CONCURRENCY` | `4`         | Max Google `events.list` calls in flight for a cold refresh      |
-| `MAX_MEMORY_ENTRIES`       | `512`       | L1 size cap (oldest-inserted entry evicted first)                |
+| `MAX_MEMORY_ENTRIES`       | `1024`      | L1 size cap (least-recently-used entry evicted first)            |
 | `PREFETCH_ADJACENT_MONTHS` | `true`      | `queries.ts` — enable neighbor-month prefetch (gated on miss)    |
 | `REFRESH_NONCE_TTL_MS`     | `300_000`   | `page.tsx` — max age of a valid `?refresh=` nonce (5min, §1.5.1) |
 
@@ -523,6 +541,29 @@ Calendar, after the layered optimization:
 | Page                  | Before caching | DB-only cache | Layered cache (current) |
 | --------------------- | -------------- | ------------- | ----------------------- |
 | `/dashboard` warm hit | ~1.0–1.9s      | ~1.0s         | **~0.35–0.46s**         |
+
+### 1.12.1 My Events wide-window read
+
+`/my-events` reads **every** department calendar across the whole ±window (7 months at ±3,
+25 at ±12), so it was the one page that still paid a large blocking Google fan-out on every
+visit older than the 30-min expire. Measured on `next dev` against the real Neon pooler +
+Google (4 calendars, 42 cached items — the cost scales linearly with calendars × months, so
+a larger org sees a proportionally larger win):
+
+| Scenario (rows older than the 30-min expire) | Before | After |
+| -------------------------------------------- | ------ | ----- |
+| ±3 build (28 → 16 blocking `events.list`)    | 6.64s  | **3.89s** |
+| ±12 build (100 → 52 blocking `events.list`)  | 14.09s | **9.57s** |
+| Warm build (L1 hit, same session)            | ~5ms   | ~21ms (end-to-end incl. audit reads) |
+
+Three changes drive it (full write-up in [`event-history.md`](event-history.md) §1.4.2):
+the past-month freshness override (above) removes the blocking fetch for months that no
+longer change; the flat cross-month refresh pool parallelizes the cold refresh; and
+`mapCalendarItem` inflates each event's notes block **once** instead of ~14× (the projection
+CPU for the same 42 items dropped 212ms → 29ms across 3 runs). The residual on a cold ±12
+is the current + future months, which keep the default 30-min budget by design (external
+Google edits to future events stay fresh); widening those is a one-constant change to
+`myEventsFreshnessFor` if ever justified.
 
 Where the remaining time goes (pre-existing app floor, unchanged by the cache):
 

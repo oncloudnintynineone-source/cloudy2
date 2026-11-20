@@ -26,6 +26,26 @@ import {
 } from "@/lib/events/myEvents";
 import { myEventsWindow, type MyEventsRangeMonths } from "@/lib/events/myEventsRange";
 import { fetchRangeEvents, listCalendars } from "@/lib/events/queries";
+import { DEFAULT_MONTH_FRESHNESS, type MonthCacheFreshness } from "@/lib/google/eventsCache";
+import { perf } from "@/lib/perf";
+
+/**
+ * Months strictly before the current month are near-immutable: their cached
+ * rows serve for 24 h without a blocking Google fetch or a background refresh.
+ * In-app mutations still delete the row (and the L1-vs-L2 metadata check turns
+ * that into a blocking refetch), so read-your-writes is unaffected — only
+ * external Google edits to past months converge slower. This is what stops a
+ * wide My Events window from paying (calendars × whole-window) blocking
+ * `events.list` calls on every visit (docs/event-history.md §1.4.2).
+ */
+const PAST_MONTH_FRESHNESS: MonthCacheFreshness = {
+  freshMs: 24 * 60 * 60_000,
+  expireMs: 24 * 60 * 60_000,
+};
+
+function myEventsFreshnessFor(currentMonth: string): (month: string) => MonthCacheFreshness {
+  return (month) => (month < currentMonth ? PAST_MONTH_FRESHNESS : DEFAULT_MONTH_FRESHNESS);
+}
 
 export interface MyEventsData {
   rangeMonths: MyEventsRangeMonths;
@@ -46,6 +66,7 @@ export async function buildMyEventsData(params: {
   userId: string;
   rangeMonths: MyEventsRangeMonths;
 }): Promise<MyEventsData> {
+  const done = perf(`buildMyEventsData ±${params.rangeMonths}`);
   const today = formatInstantToNaive(new Date()).slice(0, 10);
   const todayYear = today.slice(0, 4);
   const { windowStart, windowEnd } = myEventsWindow(today, params.rangeMonths);
@@ -60,11 +81,17 @@ export async function buildMyEventsData(params: {
       calendarIds: calendars.map((calendar) => calendar.id),
       typeFilter: [],
       userFilter: [],
+      // The organizer filter runs inside the projection, so non-matching
+      // events never build a payload (the window spans every calendar).
+      creatorFilter: params.userId,
+      // Past months are near-immutable — serve them cached for 24 h.
+      freshnessFor: myEventsFreshnessFor(today.slice(0, 7)),
     }),
     listMyCreatedEvents(params.userId),
   ]);
+  const doneAudit = perf("  myEvents audit reads");
 
-  const myLive = live.filter((event) => event.payload.creatorId === params.userId);
+  const myLive = live;
   const liveIds = new Set(
     myLive.map((event) => event.payload.eventId).filter((id): id is string => id !== null),
   );
@@ -77,6 +104,7 @@ export async function buildMyEventsData(params: {
     latestEventEditTimes([...liveIds]),
     latestDeleteTimes([...new Set(summaries.map((summary) => summary.eventId))]),
   ]);
+  doneAudit(`live=${myLive.length} creates=${auditCreates.length}`);
 
   const active: MyEventRow[] = [];
   for (const event of myLive) {
@@ -129,10 +157,12 @@ export async function buildMyEventsData(params: {
     });
   }
 
+  const rows = mergeMyEvents(active, deleted);
+  done(`${rows.length} rows`);
   return {
     rangeMonths: params.rangeMonths,
     windowStart,
     windowEnd,
-    rows: mergeMyEvents(active, deleted),
+    rows,
   };
 }

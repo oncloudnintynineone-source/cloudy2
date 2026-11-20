@@ -27,8 +27,12 @@ export default async function MyEventsPage({ searchParams }: MyEventsPageProps) 
   const rangeMonths = parseMyEventsRange(typeof params.range === "string" ? params.range : null);
   const requestedPage = parsePage(typeof params.page === "string" ? params.page : null);
 
-  const settings = await getSettings();
-  const data = await buildMyEventsData({ userId: session.user.id, rangeMonths });
+  // Settings (60 s-cached) and the event build are independent — overlap them
+  // so a cold settings cache doesn't add a serial round-trip to the page.
+  const [settings, data] = await Promise.all([
+    getSettings(),
+    buildMyEventsData({ userId: session.user.id, rangeMonths }),
+  ]);
 
   const total = data.rows.length;
   const pageCount = Math.max(1, Math.ceil(total / MY_EVENTS_PAGE_SIZE));

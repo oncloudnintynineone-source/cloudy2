@@ -16,6 +16,7 @@ rendered, and kept fresh.
 - [1.3 Per-event history modal](#13-per-event-history-modal)
 - [1.4 My Events page](#14-my-events-page)
   - [1.4.1 Inline change timeline](#141-inline-change-timeline)
+  - [1.4.2 Load performance](#142-load-performance)
 - [1.5 Authorization & privacy](#15-authorization--privacy)
 - [1.6 Retention](#16-retention)
 - [1.7 Read layer & the event-id index](#17-read-layer--the-event-id-index)
@@ -202,6 +203,48 @@ flowchart LR
 - The trail items themselves are non-interactive; tapping the row opens the
   history modal (§1.3) for the full before→after diffs.
 
+### 1.4.2 Load performance
+
+My Events is the one page that reads **every** department calendar across the **whole**
+±window (7 months at ±3, 25 at ±12), so it was disproportionately slow: the union's live
+half paid a blocking Google fan-out and a heavy per-event parse on every visit. Four
+changes fixed it (measured on `next dev` against the real Neon pooler + Google, 4
+calendars; costs scale linearly with calendars × months):
+
+| Scenario (cache rows older than the 30-min expire) | Before | After |
+| -------------------------------------------------- | ------ | ----- |
+| ±3 build (28 → 16 blocking `events.list` calls)    | 6.64s  | **3.89s** |
+| ±12 build (100 → 52 blocking `events.list` calls)  | 14.09s | **9.57s** |
+| Warm build (L1 hit, same session)                  | ~5ms   | ~21ms (end-to-end incl. audit reads) |
+| Projection CPU (42 items × 3 runs)                 | 212ms  | **29ms** |
+
+1. **Parse the notes block once per event.** `mapCalendarItem`
+   (`src/lib/events/queries.ts`) previously called a dozen-plus `parseEventX(description)`
+   helpers, each of which brotli-decompressed and JSON-parsed the *same* description. It now
+   calls `parseEventDescription(description)` (`src/lib/events/notes.ts`) once and reads
+   every field off the one parsed result — a ~7× cut in projection CPU, largest for orgs
+   with many events. The single-field `parseEventX` helpers remain for one-field callers.
+2. **Serve past months from cache for 24 h.** `buildMyEventsData` passes a per-month
+   freshness override into the events cache (`freshnessFor`): months strictly before the
+   current month are served without a blocking Google fetch or a background refresh until
+   they hard-expire at 24 h. In-app edits still invalidate the row (read-your-writes
+   unchanged); only external Google edits to past months converge slower. Current + future
+   months keep the default 30-min budget, so the cold ±12 residual is those months —
+   widening them is a one-constant change to `myEventsFreshnessFor` if ever justified.
+   Details: [`events-cache.md`](events-cache.md) §1.7.1.
+3. **Filter the organizer inside the projection.** `fetchRangeEvents`/`projectRangeEvents`
+   accept `creatorFilter`; My Events passes its own user id, so events the user did not
+   create never build a `CalendarEvent` payload (the window spans every calendar).
+4. **Cheaper audit read + a cold-refresh pool.** `listMyCreatedEvents` projects only
+   `{ id, createdAt, details }` and is served by a new composite index
+   (`audit_logs_actor_action_created_idx`, migration `0072`); the cache's cold Google refresh
+   now runs one flat pool across all pending `(month, calendar)` pairs instead of a
+   sequential month loop.
+
+`src/lib/perf.ts` (`PERF_LOG=1`) prints per-stage timings (`gcalCache …`,
+`buildMyEventsData …`) for re-measuring without a profiler. The always-fresh contract
+(§1.8) is unchanged — none of this caches the *document*, only the server-side event read.
+
 ## 1.5 Authorization & privacy
 
 Both surfaces are open to **any signed-in user** (`requireSession()`), matching how
@@ -247,7 +290,7 @@ Reads in `src/lib/audit/queries.ts`:
 | Function | Query |
 | -------- | ----- |
 | `listEventHistory(eventId, retentionDays)` | `entity_type='calendar' AND details->>'eventId'=$1` (+ window), `order by created_at asc, id asc` |
-| `listMyCreatedEvents(userId)` | all `action='event.create' AND actor_id=$1`, `order by created_at desc, id desc` (deleted candidates, retention-bounded) |
+| `listMyCreatedEvents(userId)` | `action='event.create' AND actor_id=$1`, `order by created_at desc, id desc`, projecting `{id, created_at, details}` (deleted candidates; served by `audit_logs_actor_action_created_idx`; not retention-bounded — a deleted event stays listed while its delete row exists) |
 | `latestDeleteTimes(eventIds)` | `max(created_at)` per `details->>'eventId'` from `action='event.delete'` for the given ids (key set = deleted ids) |
 | `latestEventEditTimes(eventIds)` | `max(created_at)` per `details->>'eventId'` from `entity_type='calendar'` for the given ids — every calendar row with the event id (create/update/delete + same-minute `event.participantNotify` side-effects); last in-app edit; no retention window, like its siblings |
 
@@ -308,11 +351,13 @@ functions, `buildMyEventsData`, the My Events route page, and the client views
 | `src/components/AuditDetails.tsx` | Shared `details` renderer (audit log + history) |
 | `src/app/(protected)/dashboard/EventDetail.tsx` | The History button (opens the modal at `zIndex={300}`) |
 | `src/lib/audit/queries.ts` | `listEventHistory`, `listMyCreatedEvents`, `latestDeleteTimes`, `latestEventEditTimes`, `listEventAuditTrail` |
-| `src/lib/events/myEventsData.ts` | My Events union builder (live + audit) |
+| `src/lib/events/myEventsData.ts` | My Events union builder (live + audit); past-month freshness + creator filter (§1.4.2) |
 | `src/lib/events/history.ts` | Pure snapshot parsers (unit-tested) |
 | `src/lib/events/changeTrail.ts` | Pure inline change-timeline shaping (unit-tested) |
 | `src/lib/events/myEvents.ts` / `myEventsRange.ts` | Pure list shaping + window helpers (unit-tested) |
+| `src/lib/perf.ts` | `PERF_LOG=1` per-stage timing helper for re-measuring the read path (§1.4.2) |
 | `src/db/schema.ts` + `drizzle/0056_charming_blue_marvel.sql` | `audit_logs_event_id_idx` |
+| `src/db/schema.ts` + `drizzle/0072_steady_brother_voodoo.sql` | `audit_logs_actor_action_created_idx` (My Events create read, §1.4.2) |
 | `src/components/AppShellShell.tsx` | My Events nav entry + footer More `Menu` |
 | `src/lib/pwa/swRules.ts` | Always-fresh prefixes |
 

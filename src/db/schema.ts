@@ -636,6 +636,15 @@ export const auditLogs = pgTable(
     index("audit_logs_action_idx").on(table.action),
     index("audit_logs_created_idx").on(table.createdAt),
     index("audit_logs_entity_idx").on(table.entityType, table.entityId),
+    // My Events' `listMyCreatedEvents` filter + order (`actor_id = me AND
+    // action = 'event.create' ORDER BY created_at DESC`) — the three single
+    // indexes above each match a large slice and force a sort; this composite
+    // serves the whole predicate + ordering in one seek.
+    index("audit_logs_actor_action_created_idx").on(
+      table.actorId,
+      table.action,
+      table.createdAt,
+    ),
     // Expression index on the event group id (event audit rows carry it in the
     // jsonb `details`, not in `entity_id`, which holds the calendar id). Backs
     // the per-event history page and the My Events list's deleted-status
