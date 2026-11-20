@@ -232,7 +232,10 @@ flowchart LR
 
 - The page scans a **forward-only window** from today through the last day of the
   month N months ahead, where N is the page's **Look ahead** dropdown (3 months
-  by default, or 6 months / 1 year). The choice is **per-view only — never
+  by default, or 6 months / 1 year). The dropdown is the shared
+  `TimeRangeSelect` (`src/components/TimeRangeSelect.tsx`) at the app's default
+  combobox size ([`desktop-responsive.md`](desktop-responsive.md) §1.11). The
+  choice is **per-view only — never
   saved** (it lives in client state, not the URL or prefs), so a refresh resets
   it to the default. There is no past half: a breach that began before today is
   shown clipped at today.
@@ -319,6 +322,7 @@ flowchart LR
 | `src/lib/kah/notify.ts` | `dispatchKahBreachCheck` — check, audit, email (imports reads from `status.ts`) |
 | `src/lib/events/clashDetail.ts` | Shared `shapeClashDetail` — the in-place detail payload for Double Booking, the wizard advisory, and KAH |
 | `src/app/(protected)/kah-status/{page,loading,KahStatusView,KahStatusSkeleton}.tsx` | Read-only status page: forward-only breach forecast over a selectable look-ahead (default 3 months; 6 months / 1 year), per-view only (members: own groups; admins: all groups); collapsible breach cards with the group roster + causing events |
+| `src/components/TimeRangeSelect.tsx` | The **Look ahead** dropdown (shared with My Events "Range"; app default combobox size, [`desktop-responsive.md`](desktop-responsive.md) §1.11) |
 | `src/components/AppShellShell.tsx` | Conditional KAH Status nav entry (members: `hasKahGroup`; admins: always) |
 | `src/lib/email/send.ts` | Transport selection: Workspace delegation → SMTP → warn |
 | `src/lib/email/smtp.ts` | Pure `SMTP_URL` parser + nodemailer sender |

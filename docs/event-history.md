@@ -121,8 +121,11 @@ sequenceDiagram
 
 `/my-events` lists the events the signed-in user organized, last-edit first
 (newest recorded edit on top), over an adjustable **±-months window** (default ±3;
-`±3 / ±6 / ±12`, selected with the same `NoKeyboardSelect` control the KAH Status
-page uses and reflected in `?range=`).
+`±3 / ±6 / ±12`, selected with the shared `TimeRangeSelect`
+(`src/components/TimeRangeSelect.tsx` — the same control the KAH Status page
+uses, at the app's default combobox size,
+[`desktop-responsive.md`](desktop-responsive.md) §1.11) and reflected in
+`?range=`).
 It is a **union of two sources** (`buildMyEventsData`,
 `src/lib/events/myEventsData.ts`):
 
@@ -358,6 +361,7 @@ functions, `buildMyEventsData`, the My Events route page, and the client views
 | `src/lib/events/historyCache.ts` | Hover-prefetch + open cache (session lifetime; cleared on sign-out) |
 | `src/app/(protected)/my-events/page.tsx` | My Events server page (window + pagination + trail attach) |
 | `src/app/(protected)/my-events/MyEventsView.tsx` | Client view + range selector + pagination + inline trail |
+| `src/components/TimeRangeSelect.tsx` | Shared month-window dropdown (also the KAH Status "Look ahead") |
 | `src/components/AuditDetails.tsx` | Shared `details` renderer (audit log + history) |
 | `src/app/(protected)/dashboard/EventDetail.tsx` | The History button (opens the modal at `zIndex={300}`) |
 | `src/lib/audit/queries.ts` | `listEventHistory`, `listMyCreatedEvents`, `latestDeleteTimes`, `latestEventEditTimes`, `listEventAuditTrail` |

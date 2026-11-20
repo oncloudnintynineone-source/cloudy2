@@ -20,8 +20,8 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CrossfadeSwap } from "@/components/CrossfadeSwap";
 import { EmptyState } from "@/components/EmptyState";
 import { EventHistoryModal, type EventHistoryPreview } from "@/components/EventHistoryModal";
-import { NoKeyboardSelect } from "@/components/NoKeyboardSelect";
 import { PageHeader } from "@/components/PageHeader";
+import { TimeRangeSelect } from "@/components/TimeRangeSelect";
 import type { ChangeTrailItem } from "@/lib/events/changeTrail";
 import { prefetchEventHistory } from "@/lib/events/historyCache";
 import {
@@ -127,17 +127,12 @@ export function MyEventsView({
           paddingBottom: "var(--mantine-spacing-md)",
         }}
       >
-        <NoKeyboardSelect
+        <TimeRangeSelect
           label="Range"
-          size="xs"
-          w={150}
-          allowDeselect={false}
-          value={String(rangeMonths)}
-          onChange={(value) => setParams({ range: value ?? null, page: null })}
-          data={MY_EVENTS_RANGE_MONTHS.map((months) => ({
-            value: String(months),
-            label: myEventsRangeLabel(months),
-          }))}
+          values={MY_EVENTS_RANGE_MONTHS}
+          labelFor={myEventsRangeLabel}
+          months={rangeMonths}
+          onSelect={(months) => setParams({ range: String(months), page: null })}
         />
       </Box>
 

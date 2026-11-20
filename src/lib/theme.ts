@@ -26,6 +26,26 @@ const accent: MantineColorsTuple = [
   "#806100",
 ];
 
+/**
+ * Floor for dropdown-list text. The `Input.vars` override below pins the
+ * *field* to 16px (iOS zoom safety), while Mantine derives the option text
+ * from the component `size` — so a `size="xs"` select opened a list *smaller*
+ * than its own field (12px options under 16px text, in ~27px rows instead of
+ * the ~34px every other menu uses). This is a floor rather than a restyle: it
+ * pins only the font size — Mantine's per-size option padding is untouched —
+ * and the one control that still asks for `xs` (the 132px `AccessLevelSelect`
+ * row control) keeps its compact field while its list returns to 14px.
+ *
+ * Mantine resolves component theme vars under the component's own
+ * `__staticSelector` (Combobox's is `__staticSelector || "Combobox"`, not both
+ * names), so every combobox-based field needs its own entry — add one when a
+ * new one (`Autocomplete`, `TagsInput`, …) is introduced.
+ */
+const comboboxOptionFloor = () => ({
+  options: { "--combobox-option-fz": "var(--mantine-font-size-sm)" },
+  dropdown: { "--combobox-option-fz": "var(--mantine-font-size-sm)" },
+});
+
 export const theme = createTheme({
   primaryColor: "brand",
   colors: {
@@ -66,6 +86,11 @@ export const theme = createTheme({
         },
       }),
     },
+    // Dropdown-list text never renders below the app's single combobox size —
+    // see `comboboxOptionFloor` above for why each selector repeats it.
+    Select: { vars: comboboxOptionFloor },
+    MultiSelect: { vars: comboboxOptionFloor },
+    Combobox: { vars: comboboxOptionFloor },
     // App-owned hook classes on the schedule chip (matched by the component's
     // `__staticSelector` name string — no @mantine/schedule import, so the
     // heavy package stays in its lazy chunk). The compact-phone padding

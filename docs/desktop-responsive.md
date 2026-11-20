@@ -26,7 +26,8 @@ modals) renders tighter variants. See [1.10 Compact tier](#110-compact-tier).
 - [1.8 Login & PWA](#18-login--pwa)
 - [1.9 File index](#19-file-index)
 - [1.10 Compact tier](#110-compact-tier)
-- [1.11 Related docs](#111-related-docs)
+- [1.11 Control scaling floors](#111-control-scaling-floors)
+- [1.12 Related docs](#112-related-docs)
 
 ## 1.1 Breakpoint & detection
 
@@ -473,6 +474,7 @@ left of the period chevrons, flexing into the space the fixed 56px controls leav
 | `src/app/(protected)/settings/SettingsTabs.tsx`                                                                           | Fixed strip < `lg`, sticky top row ≥ `lg`; reports its height to `SettingsShell`                                                                                                                                                                                                            |
 | `src/components/SettingsListChrome.tsx`                                                                                    | Shared list chrome: sticky search/action bar ≥ `lg`, floating control pill < `lg` (keyboard lift + hide-on-interaction)                                                                                                                                                                     |
 | `src/components/SettingsListChromeSkeleton.tsx`                                                                            | Route-loading mirror of the sticky list bar                                                                                                                                                                                                                                                 |
+| `src/components/TimeRangeSelect.tsx`                                                                                       | Shared month-window dropdown (My Events "Range", KAH Status "Look ahead") at the default combobox size (§1.11)                                                                                                                                                                             |
 | `src/app/(protected)/settings/users/UserTable.tsx`                                                                        | `.card-grid` at every width + `SettingsListChrome` (search + status/department filter)                                                                                                                                                                                                       |
 | `src/app/(protected)/settings/departments/DepartmentTable.tsx`                                                            | `.card-grid` at every width + `SettingsListChrome` (search; reorder disabled while searching)                                                                                                                                                                                                |
 | `src/app/(protected)/settings/event-types/EventTypeTable.tsx`                                                             | `.card-grid` at every width + `SettingsListChrome` (search + groups/add)                                                                                                                                                                                                                     |
@@ -526,7 +528,39 @@ Deliberate limits:
   visual chips are `aria-hidden`), so the compact tier loses no announceable
   context.
 
-## 1.11 Related docs
+## 1.11 Control scaling floors
+
+Two theme-level floors in `src/lib/theme.ts` keep interactive text from
+shrinking below a usable size, whatever `size` a call site passes:
+
+| Floor                    | Var                                                                                                              | Why                                                                                                                                                    |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Input **field** text     | `Input.vars` → `--input-fz: var(--mantine-font-size-md)` (16px at every size)                                     | iOS Safari auto-zooms the page when a focused field renders smaller than 16px                                                                           |
+| Dropdown **option** text | `Select` / `MultiSelect` / `Combobox` vars → `--combobox-option-fz: var(--mantine-font-size-sm)` (14px)           | With the field pinned at 16px, a `size="xs"` combobox opened a list *smaller than its own field* — 12px options in ~27px rows instead of the ~34px every other menu uses |
+
+```mermaid
+flowchart LR
+  S["component size prop"] --> F["field text<br/>--input-fz"]
+  S --> O["option text<br/>--combobox-option-fz"]
+  T1["theme Input.vars"] -.->|"pinned to md"| F
+  T2["theme Select/MultiSelect/Combobox vars"] -.->|"floored at sm"| O
+```
+
+- **The list floor is a floor, not a restyle.** Every combobox but one renders at
+  Mantine's default `sm`, so nothing else changes today. The exception is the
+  deliberately narrow `AccessLevelSelect` row control
+  (`src/components/AccessRows.tsx`, `size="xs"`, 132px): its field stays compact,
+  but its list now opens at 14px instead of 12px — the point of the floor. Only
+  the font size is pinned; the per-size option padding stays Mantine's.
+- **Per static selector.** Mantine merges theme `vars` under the component's own
+  `__staticSelector` (`Combobox`'s is `__staticSelector || "Combobox"`, not both
+  names), so every combobox-based field needs its own entry — add one when an
+  `Autocomplete` / `TagsInput` / `PillsTextInput` is introduced.
+- **No shrunken inputs as a space saver.** Tight chrome uses the 44px circles of
+  `SettingsListChrome`, not a smaller `Input`; the shared month-window dropdown
+  is `TimeRangeSelect` (`src/components/TimeRangeSelect.tsx`).
+
+## 1.12 Related docs
 
 - [ui-state.md](ui-state.md) — remembered page/tab/filter state (the nav items
   both the sidebar and the bottom nav render).

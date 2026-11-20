@@ -2576,6 +2576,19 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   never flash it, static under reduced motion, purely decorative (`aria-hidden`,
   no fake progress bars). Docs: `loading-transitions.md` §1.4/§1.15,
   `event-history.md` §1.4.2.
+- 1.391 **Time-range dropdowns scaled correctly**: the My Events **Range** and KAH Status
+  **Look ahead** menus were two of the app's only three `size="xs"` selects. The theme pins
+  field text to 16px for iOS zoom safety while Mantine derives option text from the
+  component `size`, so they opened a list *smaller than their own field* — 12px options in
+  ~27px rows instead of the 14px / ~34px every other menu uses. Both call sites now render
+  the shared `TimeRangeSelect` (`src/components/TimeRangeSelect.tsx`): generic over the
+  months union, `w={150}` like the audit log's date-range pickers, and it fires only with a
+  selectable window, so `KahStatusView` dropped its client-side `parseKahRange` (the server
+  action still coerces its input). The theme additionally floors `--combobox-option-fz` at
+  `sm` for `Select`/`MultiSelect`/`Combobox` — it only bites the third `xs` select
+  (`AccessLevelSelect`, whose 132px row field stays compact while its list returns to 14px)
+  and blocks the regression elsewhere; Mantine needs one entry per `__staticSelector`.
+  Docs: `desktop-responsive.md` §1.11, `event-history.md` §1.4, `kah.md` §1.7.
 
 ## 1.4 Open items & next steps
 

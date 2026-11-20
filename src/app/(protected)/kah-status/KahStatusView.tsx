@@ -9,8 +9,8 @@ import { IconCircleCheck, IconUsersGroup } from "@tabler/icons-react";
 
 import { CrossfadeSwap } from "@/components/CrossfadeSwap";
 import { EmptyState } from "@/components/EmptyState";
-import { NoKeyboardSelect } from "@/components/NoKeyboardSelect";
 import { PageHeader } from "@/components/PageHeader";
+import { TimeRangeSelect } from "@/components/TimeRangeSelect";
 import { useColdStartContent } from "@/components/ColdStartReady";
 import { ClashCard, ClashEventRow } from "@/components/clashCards";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
@@ -22,7 +22,6 @@ import type { CalendarEvent } from "@/lib/events/queries";
 import {
   KAH_RANGE_MONTHS,
   kahRangeLabel,
-  parseKahRange,
   type KahEpisodeRow,
   type KahMember,
   type KahRangeMonths,
@@ -127,8 +126,9 @@ export function KahStatusView({ initial, currentUserId }: KahStatusViewProps) {
   // whole window, so reporting on mount is exactly "content painted".
   useColdStartContent();
 
-  function handleRangeChange(value: string | null) {
-    const next = parseKahRange(value);
+  // The shared control only ever reports a selectable window, so no coercion is
+  // needed here (the server action still re-parses its input defensively).
+  function handleRangeChange(next: KahRangeMonths) {
     if (next === rangeMonths) {
       return;
     }
@@ -224,18 +224,13 @@ export function KahStatusView({ initial, currentUserId }: KahStatusViewProps) {
         }`}
       />
 
-      <NoKeyboardSelect
+      <TimeRangeSelect
         label="Look ahead"
-        size="xs"
-        w={150}
-        allowDeselect={false}
+        values={KAH_RANGE_MONTHS}
+        labelFor={kahRangeLabel}
+        months={rangeMonths}
+        onSelect={handleRangeChange}
         disabled={pending}
-        value={String(rangeMonths)}
-        onChange={handleRangeChange}
-        data={KAH_RANGE_MONTHS.map((months) => ({
-          value: String(months),
-          label: kahRangeLabel(months),
-        }))}
       />
 
       {allGroups ? (
