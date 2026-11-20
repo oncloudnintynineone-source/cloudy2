@@ -354,8 +354,8 @@ double-quotes fields containing `"`, `,`, `\r`, or `\n` and doubles inner quotes
   a removable badge summary + Add/Edit trigger opening the `UserSelectModal` badge
   picker;
   Actors get per-department sections from the roster map ("Other" for
-  unmatched). Applied selections show as a removable `Pill` row under the filter
-  row (one pill per value: actor name, `actionLabel(action)`, entity type,
+  unmatched). Applied selections show as a row of removable chips under the filter
+  row (`PickerBadges` — the app-wide removable chip, [`user-picker.md`](user-picker.md) §1.6, natural case — one chip per value: actor name, `actionLabel(action)`, entity type,
   search term, From/To dates). Mobile card rows (action label, UTC+8 timestamp,
   actor, entity badge, route/method badges, Details button); the desktop data
   table (Time / Actor / Action / Entity / Details) uses a **fixed table layout**

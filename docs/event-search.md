@@ -252,9 +252,9 @@ false`), so the search state resets for free on every reopen; the chrome
   `DatePickerInput`s (cleared → server defaults) and a Reset, badge-counting a
   non-default window. Below it the recent-search badges scroll as one
   horizontal chip row and are **hidden once results exist** — while the history
-  is still loading the row shows the label plus a few skeleton pills (with a
-  `LoadingStatus`), so the badges never pop in out of nowhere; an empty history
-  collapses the section. A result-count +
+  is still loading the row shows the label plus a few skeleton pills (sized to
+  the chip's 36px `--c2-chip-height`, with a `LoadingStatus`), so the badges never
+  pop in out of nowhere; an empty history collapses the section. A result-count +
   active-range caption (from the resolved window, not the result extremes) with
   a Clear action heads the list. Results render as a **flat list in tier-then-relevance
   order** (§1.8.1) — each row a colored stripe + title + a date/time/all-day line, plus
@@ -306,8 +306,8 @@ badges** above the form (only when non-empty). History is **per-account** — it
 lives in `user_preferences.search_history` (see
 [`ui-state.md`](ui-state.md)), a most-recent-first string list that is
 case-insensitively deduped and capped at `SEARCH_HISTORY_MAX` (8). Tapping a
-badge fills the query and runs the search immediately; a small × on each badge
-removes it.
+badge fills the query and runs the search immediately; the ✕ **inside** the badge
+removes it; both are the shared removable chip (`PickerChip`, [`user-picker.md`](user-picker.md) §1.6) — label button, ✕ sibling, 36px chip height.
 
 - **Pure helpers** (`src/lib/events/searchHistory.ts`): `addSearchHistoryEntry`
   / `removeSearchHistoryEntry` / `cleanSearchHistoryList` — trim, dedupe, cap.

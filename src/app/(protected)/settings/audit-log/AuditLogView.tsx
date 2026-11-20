@@ -12,7 +12,6 @@ import {
   Menu,
   Pagination,
   Paper,
-  Pill,
   Stack,
   Table,
   Text,
@@ -34,6 +33,7 @@ import { FilterButton } from "@/components/FilterButton";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import { FAB_ICON_SIZE, FloatingActionButton, FloatingToolbar } from "@/components/FloatingToolbar";
 import { LoadingStatus } from "@/components/LoadingStatus";
+import { PickerBadges, type PickerBadgeItem } from "@/components/PickerField";
 import { useColdStartContent } from "@/components/ColdStartReady";
 import { purgeAuditLogs } from "@/lib/audit/actions";
 import { listAuditActions } from "@/lib/audit/build";
@@ -254,13 +254,51 @@ export function AuditLogView({
     });
   }
 
-  // Per-pill removal mirrors the parade-state filters: drop one value from the
+  // Per-chip removal mirrors the parade-state filters: drop one value from the
   // applied filter and navigate with the remainder (empty → param removed).
   function removeFilterValue(field: "actor" | "action" | "entity", value: string) {
     const list =
       field === "actor" ? filters.actor : field === "action" ? filters.action : filters.entityType;
     const next = list.filter((entry) => entry !== value);
     applyFilters({ [field]: next.length > 0 ? next.join(",") : null });
+  }
+
+  // One removable chip per applied value (the shared removable-chip recipe,
+  // docs/user-picker.md §1.7), so the active filters stay visible without
+  // reopening the dialog. The key carries the URL param the ✕ has to rewrite:
+  // `<field>:<value>` for the multi-value filters, a bare param for the rest.
+  const appliedFilterChips = useMemo<PickerBadgeItem[]>(
+    () => [
+      ...filters.actor.map((name) => ({ key: `actor:${name}`, label: name })),
+      ...filters.action.map((action) => ({ key: `action:${action}`, label: actionLabel(action) })),
+      ...filters.entityType.map((entity) => ({ key: `entity:${entity}`, label: entity })),
+      ...(filters.query ? [{ key: "q", label: `Search: ${filters.query}` }] : []),
+      ...(filters.from ? [{ key: "from", label: `From ${filters.from}` }] : []),
+      ...(filters.to ? [{ key: "to", label: `To ${filters.to}` }] : []),
+    ],
+    [filters],
+  );
+
+  function removeAppliedFilterChip(item: PickerBadgeItem) {
+    if (item.key === "q") {
+      setSearchInput("");
+      applyFilters({ q: null });
+      return;
+    }
+    if (item.key === "from") {
+      applyFilters({ from: null });
+      return;
+    }
+    if (item.key === "to") {
+      applyFilters({ to: null });
+      return;
+    }
+    // Split on the first colon only: a value may contain one itself.
+    const separator = item.key.indexOf(":");
+    removeFilterValue(
+      item.key.slice(0, separator) as "actor" | "action" | "entity",
+      item.key.slice(separator + 1),
+    );
   }
 
   const resetFilters = () => {
@@ -520,61 +558,13 @@ export function AuditLogView({
         </Group>
       )}
 
-      {/* Applied-filter pills (parade-state pattern): one removable pill per
-          selected value, so the active filters stay visible without reopening
-          the dialog. */}
-      {activeFilterCount > 0 ? (
-        <Group gap={6} wrap="wrap">
-          {filters.actor.map((name) => (
-            <Pill
-              key={`actor:${name}`}
-              withRemoveButton
-              onRemove={() => removeFilterValue("actor", name)}
-            >
-              {name}
-            </Pill>
-          ))}
-          {filters.action.map((action) => (
-            <Pill
-              key={`action:${action}`}
-              withRemoveButton
-              onRemove={() => removeFilterValue("action", action)}
-            >
-              {actionLabel(action)}
-            </Pill>
-          ))}
-          {filters.entityType.map((entity) => (
-            <Pill
-              key={`entity:${entity}`}
-              withRemoveButton
-              onRemove={() => removeFilterValue("entity", entity)}
-            >
-              {entity}
-            </Pill>
-          ))}
-          {filters.query ? (
-            <Pill
-              withRemoveButton
-              onRemove={() => {
-                setSearchInput("");
-                applyFilters({ q: null });
-              }}
-            >
-              Search: {filters.query}
-            </Pill>
-          ) : null}
-          {filters.from ? (
-            <Pill withRemoveButton onRemove={() => applyFilters({ from: null })}>
-              From {filters.from}
-            </Pill>
-          ) : null}
-          {filters.to ? (
-            <Pill withRemoveButton onRemove={() => applyFilters({ to: null })}>
-              To {filters.to}
-            </Pill>
-          ) : null}
-        </Group>
-      ) : null}
+      {/* Applied-filter chips: one removable chip per selected value, so the
+          active filters stay visible without reopening the dialog. These are the
+          app's shared removable chips (docs/user-picker.md §1.7) — the same ✕
+          inside the chip the wizard and the filter dialog use — and the values
+          are free text (dates, action ids, search terms), so they keep their
+          natural case. Renders nothing when no filter is applied. */}
+      <PickerBadges items={appliedFilterChips} tt="none" onRemove={removeAppliedFilterChip} />
 
       <Stack gap="sm">
         <CrossfadeSwap

@@ -1,7 +1,15 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { ActionIcon, Badge, Button, Group, Stack, Text } from "@mantine/core";
+import {
+  ActionIcon,
+  Badge,
+  Button,
+  Group,
+  Stack,
+  Text,
+  UnstyledButton,
+} from "@mantine/core";
 import { IconPencil, IconPlus, IconX } from "@tabler/icons-react";
 
 import { pickerRemovalHint, pickerTriggerLabel } from "@/lib/ui/picker";
@@ -19,6 +27,118 @@ export interface PickerBadgeItem {
   self?: boolean;
 }
 
+/**
+ * Label case of a chip. Mantine badges are uppercase, which reads well on people
+ * and department names; free-text values (search terms, dates, action labels)
+ * pass `"none"` so they stay readable.
+ */
+export type PickerChipTextCase = "uppercase" | "none";
+
+/**
+ * The chip box every chip in the app rides: the shared interactive-chip height
+ * (`--c2-chip-height`, `globals.css`) so picker rows line up with the dialog pool
+ * and the filter summaries everywhere, with `height: auto` so a long or
+ * multi-line label grows the chip instead of clipping.
+ */
+const CHIP_ROOT_STYLES = {
+  minHeight: "var(--c2-chip-height)",
+  height: "auto",
+  paddingBlock: 4,
+} as const;
+
+export interface PickerChipProps {
+  label: string;
+  /** Mantine color name (e.g. "brand"/"accent"); undefined = default badge color. */
+  color?: string;
+  /** Renders the amber "mine" treatment (ring + cream tint + "(You)" suffix). */
+  self?: boolean;
+  /** Renders the ✕ **inside** the chip that removes it. */
+  onRemove?: () => void;
+  /** Overrides the ✕'s accessible name (default `Remove <label>`). */
+  removeLabel?: string;
+  /** Label case; default Mantine uppercase (see `PickerChipTextCase`). */
+  tt?: PickerChipTextCase;
+  /**
+   * Makes the label tappable (tap = act) while the ✕ stays a separate control —
+   * for chips naming something the user can re-open, like a recent search.
+   */
+  onSelect?: () => void;
+  /** Accessible name of the tappable label (default the label itself). */
+  selectLabel?: string;
+}
+
+/**
+ * The app's one removable chip — the recipe every removable pill rides: the
+ * wizard's participant chips, the filter dialog's summaries, the event search's
+ * recent searches and the audit log's applied filters. A `variant="light"` Badge
+ * on the shared `--c2-chip-height` with the ✕ **inside** the chip's right
+ * section — a ≥22px `ActionIcon` (`.c2-picker-chip-remove`, `globals.css`) named
+ * `Remove <label>` — so a removal affordance is never painted outside the thing
+ * it removes (docs/user-picker.md §1.7).
+ *
+ * The chip is inert unless `onSelect` is given. Then the label becomes an
+ * `UnstyledButton` and the ✕ stays its **sibling**: the Badge root is a `div`,
+ * so the two controls sit side by side rather than one nested in another.
+ */
+export function PickerChip({
+  label,
+  color,
+  self = false,
+  onRemove,
+  removeLabel,
+  tt,
+  onSelect,
+  selectLabel,
+}: PickerChipProps) {
+  const text = self ? `${label} (You)` : label;
+  const removeName = removeLabel ?? `Remove ${text}`;
+  return (
+    <Badge
+      variant="light"
+      color={self ? undefined : color}
+      className={self ? "c2-my-badge" : undefined}
+      styles={{
+        root:
+          tt === "none" ? { ...CHIP_ROOT_STYLES, textTransform: "none" } : CHIP_ROOT_STYLES,
+      }}
+      rightSection={
+        onRemove ? (
+          <ActionIcon
+            // The chip is not itself a control; only the ✕ (or an `onSelect`
+            // label) acts.
+            className="c2-picker-chip-remove"
+            variant="subtle"
+            color="gray"
+            size="sm"
+            aria-label={removeName}
+            title={removeName}
+            onClick={(event) => {
+              event.stopPropagation();
+              onRemove();
+            }}
+          >
+            <IconX size={14} />
+          </ActionIcon>
+        ) : undefined
+      }
+    >
+      {onSelect ? (
+        <UnstyledButton
+          // Sibling of the ✕, never its parent — the Badge root stays a `div`.
+          aria-label={selectLabel ?? text}
+          title={selectLabel ?? text}
+          onClick={onSelect}
+          style={{ cursor: "pointer", display: "block", maxWidth: "100%" }}
+        >
+          {text}
+        </UnstyledButton>
+      ) : (
+        text
+      )}
+    </Badge>
+  );
+}
+
 export interface PickerBadgesProps {
   items: PickerBadgeItem[];
   /** Max badges rendered before a "+N" overflow badge; default: no cap. */
@@ -34,14 +154,16 @@ export interface PickerBadgesProps {
   onRemove?: (item: PickerBadgeItem) => void;
   /** Overrides the remove control's accessible name (default `Remove <label>`). */
   removeLabel?: (item: PickerBadgeItem) => string;
+  /** Label case of every chip; default Mantine uppercase (see `PickerChip`). */
+  tt?: PickerChipTextCase;
 }
 
 /**
  * The summary layer shared by every UserSelectModal consumer: a wrapped row of
- * `variant="light"` badges for the currently picked options, with an optional
- * overflow cap, an empty-state placeholder and an optional per-chip remove
- * control. Purely presentational — opening the dialog is the caller's job (each
- * caller owns its modal + confirm wiring).
+ * `PickerChip`s for the currently picked options, with an optional overflow cap,
+ * an empty-state placeholder and an optional per-chip remove control. Purely
+ * presentational — opening the dialog is the caller's job (each caller owns its
+ * modal + confirm wiring).
  */
 export function PickerBadges({
   items,
@@ -49,56 +171,31 @@ export function PickerBadges({
   empty,
   onRemove,
   removeLabel,
+  tt,
 }: PickerBadgesProps) {
   if (items.length === 0) {
     return empty ?? null;
   }
   const visible = cap === undefined ? items : items.slice(0, cap);
   const overflow = items.length - visible.length;
-  const removable = onRemove !== undefined;
-  // Every chip — removable or not, including the +N — rides the app-wide
-  // interactive-chip height (--c2-chip-height, globals.css), so picker rows
-  // line up with the dialog pool and the filter summaries everywhere.
-  const chipStyles = {
-    root: { minHeight: "var(--c2-chip-height)", height: "auto", paddingBlock: 4 },
-  } as const;
   return (
     <Group gap={6} wrap="wrap">
-      {visible.map((item) => {
-        const label = item.self ? `${item.label} (You)` : item.label;
-        const removeName = removeLabel?.(item) ?? `Remove ${label}`;
-        return (
-          <Badge
-            key={item.key}
-            variant="light"
-            color={item.self ? undefined : item.color}
-            className={item.self ? "c2-my-badge" : undefined}
-            styles={chipStyles}
-            rightSection={
-              removable ? (
-                <ActionIcon
-                  // The chip is not itself a control; only the ✕ acts.
-                  className="c2-picker-chip-remove"
-                  variant="subtle"
-                  color="gray"
-                  size="sm"
-                  aria-label={removeName}
-                  title={removeName}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onRemove(item);
-                  }}
-                >
-                  <IconX size={14} />
-                </ActionIcon>
-              ) : undefined
-            }
-          >
-            {label}
-          </Badge>
-        );
-      })}
-      {overflow > 0 && <Badge variant="light" styles={chipStyles}>+{overflow}</Badge>}
+      {visible.map((item) => (
+        <PickerChip
+          key={item.key}
+          label={item.label}
+          color={item.color}
+          self={item.self}
+          tt={tt}
+          onRemove={onRemove ? () => onRemove(item) : undefined}
+          removeLabel={removeLabel?.(item)}
+        />
+      ))}
+      {overflow > 0 && (
+        <Badge variant="light" styles={{ root: CHIP_ROOT_STYLES }}>
+          +{overflow}
+        </Badge>
+      )}
     </Group>
   );
 }
@@ -169,6 +266,8 @@ export interface PickerFieldProps extends PickerBadgesProps {
  * `PickerBadges` summary and the removal hint. Shared by the event wizard's
  * invitees, KAH member fields, and the Double Booking scan target; FilterModal
  * composes `PickerBadges` + `PickerTrigger` directly for its search groups.
+ * Every chip in the row is a `PickerChip` — the app-wide removable-chip recipe
+ * the non-picker surfaces (recent searches, applied filters) render too.
  */
 export function PickerField({
   label,
@@ -180,6 +279,7 @@ export function PickerField({
   empty,
   onRemove,
   removeLabel,
+  tt,
   triggerLabel,
   addLabel,
   editLabel,
@@ -214,6 +314,7 @@ export function PickerField({
         empty={empty}
         onRemove={onRemove}
         removeLabel={removeLabel}
+        tt={tt}
       />
       {hint !== "" && (
         <Text size="xs" c="dimmed">

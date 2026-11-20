@@ -11,7 +11,7 @@ dialog**, never a searchable dropdown.
 - [1.3 Pure helpers](#13-pure-helpers)
 - [1.4 Callers](#14-callers)
 - [1.5 File index & related docs](#15-file-index--related-docs)
-- [1.6 PickerField / PickerBadges — the shared trigger & summary](#16-pickerfield--pickerbadges--the-shared-trigger--summary)
+- [1.6 PickerChip / PickerBadges / PickerField — the shared chip, summary & trigger](#16-pickerchip--pickerbadges--pickerfield--the-shared-chip-summary--trigger)
 - [1.7 Selection state & one-tap removal](#17-selection-state--one-tap-removal)
 
 ## 1.1 No keyboard pop-up from dropdown taps
@@ -123,7 +123,7 @@ of toggleable badges with a search box on top:
 | `src/components/UserSelectModal.tsx`  | The badge-dialog picker |
 | `src/components/SelectableBadge.tsx` | Shared selectable badge — amber fill when selected (wizard + picker + filters) |
 | `src/components/AllNoneControls.tsx` | Shared compact All/None (or All/Clear) pair |
-| `src/components/PickerField.tsx` | Presentational trigger + summary layer (removable chips) |
+| `src/components/PickerField.tsx` | The app-wide removable chip (`PickerChip`), its summary row (`PickerBadges`) and the picker trigger/field |
 | `src/lib/ui/picker.ts` | Pure trigger-label / removal-hint copy helpers |
 | `src/lib/users/userSelect.ts` | Pure grouping/matching/merging helpers |
 | `src/lib/filters/filterSections.ts` | Pure section state + All/None math |
@@ -132,20 +132,30 @@ Related docs:
 
 - [`dashboard-views.md`](dashboard-views.md) — the Users filter that uses this.
 
-## 1.6 PickerField / PickerBadges — the shared trigger & summary
+## 1.6 PickerChip / PickerBadges / PickerField — the shared chip, summary & trigger
 
 `UserSelectModal` is dialog-only: each consumer used to hand-roll its own "label row +
 trigger button + summary of the current selection" around it. That markup now lives once
 in `PickerField` (`src/components/PickerField.tsx`), with the badge row itself reusable
-standalone as `PickerBadges`:
+standalone as `PickerBadges` and one chip as `PickerChip`:
 
-- **`PickerBadges`** renders the picked options as `variant="light"` badges from
+- **`PickerChip`** is **the app's one removable chip**: every removable pill in the app
+  renders through it — the wizard's participant chips, the filter dialog's summaries, the
+  event search's recent searches and the audit log's applied filters — so a removal
+  affordance is never painted outside the thing it removes. A `variant="light"` Badge on
+  the shared `--c2-chip-height` (36px, `globals.css`) with the ✕ **inside** the chip's
+  right section: a ≥22px `ActionIcon` (`.c2-picker-chip-remove`, visible focus ring on the
+  brand ramp) named `Remove <label>` (`removeLabel` overrides it). `tt="none"` keeps
+  free-text values (search terms, dates, action labels) in their natural case — the badge
+  default (uppercase) suits people and department names. `onSelect` makes the label
+  tappable (a recent search re-runs) while the ✕ stays a **sibling** control: the Badge
+  root is a `div`, so the two buttons sit side by side instead of one nested in another.
+- **`PickerBadges`** renders the picked options as `PickerChip`s from
   `items: PickerBadgeItem[]` (`{ key, label, color?, self? }`). A `cap` shows a `+N`
   overflow badge instead of the tail; an `empty` node replaces the row when nothing is
   picked, and `self` uses the amber "mine" treatment with "(You)". With `onRemove`
-  every visible chip carries a ✕ that removes that pick in place (the `+N` badge
-  stays inert — §1.7); `removeLabel` overrides the ✕'s accessible name (default
-  `Remove <label>`). Every chip — removable or not, `+N` included — rides the
+  every visible chip carries the ✕ that removes that pick in place (the `+N` badge
+  stays inert — §1.7). Every chip — removable or not, `+N` included — rides the
   app-wide interactive-chip height `--c2-chip-height` (36px, `globals.css`), the
   same height `SelectableBadge`, the folder container chips, the wizard's Type
   banner and the recent-location chips use, so every row of selectable/clickable
@@ -175,6 +185,8 @@ separate role + Add commit:
 | UserForm (Department) | `PickerField` | single chip; ✕ clears the department ("Remove department"); `triggerLabel="Select"` |
 | UserForm (Department to grant) | trigger `Button` | stages the department; role select + Add commit it — add-only by design, so its dialog keeps `confirmLabel="Add"` |
 | `FilterModal` search groups | `PickerBadges` + `PickerTrigger` | `cap={5}` + inert `+N`, chip ✕, "All {label}" empty — the group's heading row is FilterModal's (see [`dashboard-views.md`](dashboard-views.md) §1.2) |
+| Event search recent searches | `PickerChip` × N | not a picker — the row is the modal's own `.c2-chip-scroll`; tapping the label re-runs that query (`onSelect`), the ✕ forgets it; `tt="none"` (a query is free text) |
+| Audit log applied filters | `PickerBadges` | not a picker — one chip per applied value (actors / actions / entity types / search / From / To); the ✕ drops just that value from the URL; `tt="none"` |
 
 ## 1.7 Selection state & one-tap removal
 
@@ -197,9 +209,11 @@ selection state visible everywhere and removal one tap:
   **Edit** + `IconPencil` afterwards — never a static "Select +" over a non-empty
   selection. Single-value pickers that read as fields (UserForm department, Department
   parent) keep an explicit `triggerLabel="Select"`.
-- **Summary chips:** `PickerBadges onRemove` puts a ✕ (`ActionIcon`, ≥22px via
-  `.c2-picker-chip-remove` in `globals.css`, visible focus ring on the brand ramp) on
-  every visible chip; chips ride the shared 36px `--c2-chip-height` so the row
+- **Summary chips:** `PickerBadges onRemove` puts the ✕ (`ActionIcon`, ≥22px via
+  `.c2-picker-chip-remove` in `globals.css`, visible focus ring on the brand ramp)
+  **inside** every visible chip — never beside it, which is what the event search's recent
+  searches and the audit log's applied-filter pills did before they moved onto
+  `PickerChip` (§1.6); chips ride the shared 36px `--c2-chip-height` so the row
   stays even. The `+N` overflow badge stays **inert** — its hidden picks are removed
   inside the dialog, where they are named. `PickerField` adds the dimmed hint "Tap the
   ✕ on a chip to remove it." under the row.

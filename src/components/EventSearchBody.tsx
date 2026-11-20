@@ -37,6 +37,7 @@ import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 
 import { EmptyState } from "./EmptyState";
 import { LoadingStatus } from "./LoadingStatus";
+import { PickerChip } from "./PickerField";
 
 interface EventSearchBodyProps {
   // The user's recent queries (`null` = not yet fetched), owned by the modal
@@ -57,11 +58,13 @@ const LIST_BORDER = "1px solid var(--mantine-color-default-border)";
 const RESULT_PAGE_SIZE = 150;
 
 /**
- * Placeholder pill count for the recent-searches row while the history is still
- * loading — enough to reserve the row's height so real pills swap in without a
- * layout shift.
+ * Placeholder pill sizes for the recent-searches row while the history is still
+ * loading — the chip height matches `--c2-chip-height` (the shared removable-chip
+ * height `PickerChip` renders at) and the widths leave room for the ✕ now sitting
+ * inside the chip, so real pills swap in without a layout shift.
  */
-const RECENT_SKELETON_WIDTHS = [72, 96, 64];
+const RECENT_SKELETON_WIDTHS = [92, 116, 84];
+const RECENT_SKELETON_HEIGHT = 36;
 
 /** One human-readable "when" line for a result row (date + time / all-day). */
 function eventWhenLabel(event: CalendarEvent): string {
@@ -353,7 +356,12 @@ export default function EventSearchBody({
               <div className="c2-chip-scroll">
                 <LoadingStatus label="Loading recent searches" />
                 {RECENT_SKELETON_WIDTHS.map((width, index) => (
-                  <Skeleton key={index} height={22} width={width} radius="xl" />
+                  <Skeleton
+                    key={index}
+                    height={RECENT_SKELETON_HEIGHT}
+                    width={width}
+                    radius="xl"
+                  />
                 ))}
               </div>
             }
@@ -361,30 +369,20 @@ export default function EventSearchBody({
             {history !== null && history.length > 0 ? (
               <div className="c2-chip-scroll">
                 {history.map((term) => (
-                  <Group key={term} gap={0} wrap="nowrap">
-                    <Badge
-                      component="button"
-                      type="button"
-                      variant="light"
-                      color="brand"
-                      onClick={() => {
-                        setQuery(term);
-                        void runSearch(term);
-                      }}
-                      styles={{ root: { cursor: "pointer", textTransform: "none" } }}
-                    >
-                      {term}
-                    </Badge>
-                    <ActionIcon
-                      size="sm"
-                      variant="subtle"
-                      color="gray"
-                      aria-label={`Remove "${term}" from recent searches`}
-                      onClick={() => onRemoveSearch(term)}
-                    >
-                      <IconX size={12} />
-                    </ActionIcon>
-                  </Group>
+                  <PickerChip
+                    key={term}
+                    label={term}
+                    color="brand"
+                    // A query is free text: natural case, not the badge default.
+                    tt="none"
+                    onSelect={() => {
+                      setQuery(term);
+                      void runSearch(term);
+                    }}
+                    selectLabel={`Search "${term}"`}
+                    onRemove={() => onRemoveSearch(term)}
+                    removeLabel={`Remove "${term}" from recent searches`}
+                  />
                 ))}
               </div>
             ) : null}

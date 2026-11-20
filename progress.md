@@ -2600,6 +2600,19 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   (`AccessLevelSelect`, whose 132px row field stays compact while its list returns to 14px)
   and blocks the regression elsewhere; Mantine needs one entry per `__staticSelector`.
   Docs: `desktop-responsive.md` §1.11, `event-history.md` §1.4, `kah.md` §1.7.
+- 1.393 **One removable chip everywhere**: the removable-pill recipe that the event
+  wizard and the filter dialog already used is now the app's only one. `PickerChip`
+  (`src/components/PickerField.tsx`) holds it — a `variant="light"` Badge on the shared
+  `--c2-chip-height` with the ✕ **inside** the chip's right section (≥22px
+  `.c2-picker-chip-remove`, `Remove <label>`), `tt="none"` for free-text values, and an
+  optional `onSelect` that makes the label tappable while the ✕ stays a sibling control
+  (the Badge root is a `div`, so the two buttons never nest). `PickerBadges` renders its
+  chips through it, and the two surfaces that hand-rolled their own now render through
+  the recipe: the event search's **recent searches** (was a Badge with a sibling ✕
+  outside the pill; its skeleton row matches the 36px chip) and the audit log's
+  **applied filters** (was Mantine `Pill withRemoveButton`; one chip per value, each ✕
+  dropping just that URL param). Docs: `user-picker.md` §1.6/§1.7,
+  `event-search.md` §1.10, `audit-log.md`.
 
 ## 1.4 Open items & next steps
 
