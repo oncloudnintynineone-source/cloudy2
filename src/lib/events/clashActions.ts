@@ -10,7 +10,12 @@ import {
   parseNaiveToInstant,
 } from "@/lib/events/datetime";
 import { findEventByGroupId } from "@/lib/events/deepLink";
-import { clashingEventsFor, USER_CLASH_SCAN_DAYS } from "@/lib/events/clashQuery";
+import { clashingEventsFor } from "@/lib/events/clashQuery";
+import {
+  parseUserClashAhead,
+  userClashWindow,
+  type UserClashAheadMonths,
+} from "@/lib/events/clashRange";
 import {
   computeClashes,
   effectiveCandidateWindow,
@@ -373,6 +378,8 @@ export type UserClashCheckResult =
       /** Covered date span, inclusive, UTC+8 wall clock (`YYYY-MM-DD`). */
       rangeStartDate: string;
       rangeEndDate: string;
+      /** The look-ahead the scan ran on (drives the page's prose and control). */
+      aheadMonths: UserClashAheadMonths;
       groups: UserClashGroupEntry[];
       /**
        * Why nothing was scanned. `no-department` = the target has no department
@@ -386,20 +393,26 @@ export type UserClashCheckResult =
 /**
  * Read-only "Double Booking" scan of a user's *existing* events (see
  * docs/user-clashes.md): every event that occupies the target user carries a
- * copy on that user's own department calendar, so reading that one calendar
- * over the next `USER_CLASH_SCAN_DAYS` and running the pure
- * `findUserClashGroups` (events that occupy the target and overlap each other)
- * is the complete picture. No candidate exists here — it is not the wizard's
- * pre-submit advisory. Never writes, never audits, never invalidates a cache.
+ * copy on that user's own department calendar, so reading that one calendar over
+ * the look-ahead window and running the pure `findUserClashGroups` (events that
+ * occupy the target and overlap each other) is the complete picture. No
+ * candidate exists here — it is not the wizard's pre-submit advisory. Never
+ * writes, never audits, never invalidates a cache.
+ *
+ * The window is the app-wide forward month range (1 / 6 / 12 months,
+ * `clashRange.ts`): the page's **Look ahead** control picks it, and the nav
+ * clash badge calls this with no input, so it follows the default.
  *
  * Any signed-in user may scan themselves or any active roster user.
  */
 export async function checkUserClashes(request: {
   targetUserId?: string;
+  aheadMonths?: number;
 }): Promise<UserClashCheckResult> {
   const session = await requireSession();
   try {
     const targetUserId = request.targetUserId ?? session.user.id;
+    const aheadMonths = parseUserClashAhead(request.aheadMonths);
 
     const users = await listUsers();
     const activeUserRows = users.filter((user) => user.status === "active");
@@ -407,10 +420,14 @@ export async function checkUserClashes(request: {
 
     const now = new Date();
     const today = formatInstantToNaive(now).slice(0, 10);
-    const rangeStartDate = today;
-    const rangeEndDate = addDays(today, USER_CLASH_SCAN_DAYS - 1);
+    // Forward month window: today through the last civil day of the month
+    // `aheadMonths` ahead; the read is exclusive at the next midnight.
+    const { windowStart: rangeStartDate, windowEnd: rangeEndDate } = userClashWindow(
+      today,
+      aheadMonths,
+    );
     const rangeStart = parseNaiveToInstant(`${rangeStartDate} 00:00:00`);
-    const rangeEnd = parseNaiveToInstant(`${addDays(today, USER_CLASH_SCAN_DAYS)} 00:00:00`);
+    const rangeEnd = parseNaiveToInstant(`${addDays(rangeEndDate, 1)} 00:00:00`);
 
     const base: {
       ok: true;
@@ -419,6 +436,7 @@ export async function checkUserClashes(request: {
       targetName: string;
       rangeStartDate: string;
       rangeEndDate: string;
+      aheadMonths: UserClashAheadMonths;
     } = {
       ok: true,
       currentUserId: session.user.id,
@@ -426,6 +444,7 @@ export async function checkUserClashes(request: {
       targetName: target?.name ?? "",
       rangeStartDate,
       rangeEndDate,
+      aheadMonths,
     };
 
     if (!target) {

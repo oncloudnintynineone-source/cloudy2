@@ -341,11 +341,13 @@ doc content here.
   `listEvents`), and running pure `computeClashes` (`src/lib/events/clashes.ts`). The
   advisory is a collapsible amber `ClashCard`; warnings never block a save.
   Design: [docs/event-clashes.md](docs/event-clashes.md).
-- **Double Booking page (`/double-booking`):** a 30-day scan of a user's home department
+- **Double Booking page (`/double-booking`):** a look-ahead scan (1 / 6 / 12 months, default
+  1 — `clashRange.ts`, `TimeRangeSelect`) of a user's home department
   calendar; pure `findUserClashGroups` (`src/lib/events/clashes.ts`) → collapsible
   `ClashCard` groups. Any signed-in user can check themselves or any active roster
   user via the shared `UserSelectModal`; the nav entry carries a live amber count pill
-  (`checkUserClashes({})`, refreshed on `cloudy2:events-changed`). Advisory: never
+  over the **default** window (`checkUserClashes({})`, refreshed on
+  `cloudy2:events-changed`). Advisory: never
   writes or audits. Design: [docs/user-clashes.md](docs/user-clashes.md).
 - **Event history & My Events (`/my-events`):** read-only views over the event audit rows.
   The per-event changelog is the shared **`EventHistoryModal`** (`src/components/EventHistoryModal.tsx`,
@@ -358,7 +360,10 @@ doc content here.
   live all-calendar read filtered to `payload.creatorId === me` (so it catches on-behalf
   and pre-retention events) plus deleted events from the user's own `event.create` rows
   with a paired `event.delete` row (Deleted badge, retention-bounded), over an adjustable
-  ±3/±6/±12-month window (`myEventsRange.ts`, `?range=`, shared `TimeRangeSelect`).
+  ±1/±6/±12-month window (`myEventsRange.ts`, `?range=`, shared `TimeRangeSelect` — the
+  app-wide 1/6/12 vocabulary in `src/lib/dateRange/monthRange.ts`). Changing the range
+  refetches the page **in place** through the `getMyEventsPage` action (no route
+  navigation, no skeleton swap) and rewrites `?range=` with `history.replaceState`.
   Each row carries an inline change timeline (`changeTrail.ts` + `listEventAuditTrail`,
   one indexed read per page). My Events is `requireSession()` (no ACL — reads aren't
   gated) and **always-fresh** (`useLiveRouteRefresh`). Reads live in `src/lib/audit/queries.ts`;
@@ -369,7 +374,8 @@ doc content here.
   `dispatchKahBreachCheck()` (`src/lib/kah/notify.ts`) runs inside `after()` — best-effort,
   it can never fail or delay the mutation. The KAH Status nav entry carries an amber
   **breach count** badge (`checkKahBreaches`, `src/lib/kah/statusActions.ts`) — groups
-  breaching on any day from today through the next 30 days, counted once each; and the
+  breaching on any day from today through the end of next month (the page's default
+  look-ahead, which the badge is fixed to), counted once each; and the
   `/kah-status` page renders each breach as a collapsible `ClashCard` (group roster with
   away/in-country state + the overseas events behind it, opening the shared read-only
   `EventDetail` in place).

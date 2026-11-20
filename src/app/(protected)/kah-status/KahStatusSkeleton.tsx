@@ -8,8 +8,9 @@ import { KAH_STATUS_WAIT_LINES, KAH_STATUS_WAIT_TIPS } from "@/lib/loading/waitC
  * The KAH breach-card loading block: the shared results skeleton for the route
  * loading screen and for an in-view look-ahead change (the range dropdown's
  * server recompute). Skeleton-only, never a dimmed copy of the old cards. The
- * block doubles as the wait overlay's positioning context — a cold 30-day
- * multi-group scan can take seconds (docs/loading-transitions.md §1.4.1).
+ * block doubles as the wait overlay's positioning context — a cold multi-group
+ * scan can take seconds, more on a long look-ahead (docs/loading-transitions.md
+ * §1.4.1).
  */
 export function KahStatusSkeleton() {
   return (

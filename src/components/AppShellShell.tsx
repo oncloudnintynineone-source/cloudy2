@@ -941,11 +941,11 @@ export function AppShellShell({
   }, [refreshDoubleBooking]);
 
   // The KAH Status nav badge: the number of the viewer's groups breaching on
-  // at least one day from today through the next 30 days (admins: all groups,
-  // matching their status page; members: their own) — the same forward-looking
-  // advisory shape as the Double Booking badge. Same best-effort lifecycle as
-  // the Double Booking badge, and only fetched for users who can see the KAH
-  // entry at all (`showKah`).
+  // at least one day from today through the status page's default look-ahead
+  // (one month; admins: all groups, matching their status page; members: their
+  // own) — the same forward-looking advisory shape as the Double Booking badge.
+  // Same best-effort lifecycle as the Double Booking badge, and only fetched for
+  // users who can see the KAH entry at all (`showKah`).
   const showKah = role === "admin" || kahGroup;
   const [kahCount, setKahCount] = useState<number | null>(null);
   const kahDebounceRef = useRef<number | null>(null);

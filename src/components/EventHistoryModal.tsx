@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Badge, Group, Stack, Text, useMantineTheme } from "@mantine/core";
+import { Badge, Box, Text, useMantineTheme } from "@mantine/core";
 import { useMediaQuery, useViewportSize } from "@mantine/hooks";
 import { IconHistory } from "@tabler/icons-react";
 
@@ -20,14 +20,14 @@ import {
 } from "@/lib/events/historyCache";
 import {
   buildHistoryEntries,
+  historyCoverageNote,
   type ChangeTrailItem,
   type HistoryEntryItem,
 } from "@/lib/events/changeTrail";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { MIN_SKELETON_HOLD_MS } from "@/lib/loading/minHoldLoading";
 import { modalContentWidth, type Rect } from "@/lib/motion/origin";
-import { modalZoomTransitionProps } from "@/lib/motion/transitions";
-import { NARROW_MEDIA_QUERY } from "@/lib/theme";
+import { fadeTransitionProps, modalZoomTransitionProps } from "@/lib/motion/transitions";
 import type { AuditLog } from "@/db/schema";
 
 /** A row's already-on-screen trail, used to paint the modal instantly. */
@@ -54,7 +54,7 @@ interface EventHistoryModalProps {
   preview?: EventHistoryPreview | null;
   /** Fallback title before rows arrive (the dashboard event modal has no preview). */
   title?: string;
-  /** Retention known from the caller, so the retention line paints instantly. */
+  /** Retention known from the caller, so the coverage note paints instantly. */
   retentionDays?: number;
 }
 
@@ -65,6 +65,13 @@ interface EventHistoryModalProps {
  * (docs/event-history.md §1.3). Opens instantly from the `preview` when one is
  * given; rows come from the (hover-prefetched) cache with a background
  * revalidation, so the skeleton only shows on the no-preview cold path.
+ *
+ * Below `lg` the modal is a **full-height sheet**: reading a trail is the only
+ * task on the screen, so it takes the whole viewport instead of a scrolling card
+ * floating in a scrolling page. At `lg`+ it is a centered dialog that grows out
+ * of the row it was opened from. Either way the event's name rides the sticky
+ * header (Mantine's own), so the trail scrolls under it and the reader always
+ * knows which event they are reading — one scroller, no nested panes.
  */
 export function EventHistoryModal({
   eventId,
@@ -77,12 +84,14 @@ export function EventHistoryModal({
 }: EventHistoryModalProps) {
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
-  const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY);
   const motion = useMotion();
   const viewportSize = useViewportSize();
   const viewport = { w: viewportSize.width, h: viewportSize.height };
-  const contentWidth = modalContentWidth(viewport, isNarrow ? 320 : isDesktop ? 520 : 380);
-  const transitionProps = modalZoomTransitionProps(motion, originRect, viewport, contentWidth);
+  // Below `lg` the sheet fills the viewport, so it grows with a plain fade;
+  // only the desktop dialog has a width to grow out of the tapped row from.
+  const transitionProps = isDesktop
+    ? modalZoomTransitionProps(motion, originRect, viewport, modalContentWidth(viewport, 520))
+    : fadeTransitionProps(motion);
 
   // Loaded rows carry the event id they belong to; the last content stays
   // mounted through a close so the exit animation has data.
@@ -161,34 +170,40 @@ export function EventHistoryModal({
     "Event history";
   const deleted = loaded ? loaded.items[0]?.kind === "delete" : (preview?.deleted ?? false);
   const retentionDays = loaded ? loaded.retentionDays : retentionDaysProp;
+  // Only worth saying when the trail is actually truncated: a `Created` entry
+  // means the reader is already looking at the event's whole recorded life, and
+  // a retention figure they cannot change is not information while nothing is
+  // missing.
+  const coverageNote = previewItems
+    ? historyCoverageNote({ items: previewItems, retentionDays: retentionDays ?? 0 })
+    : null;
 
   return (
     <MotionModal
       opened={eventId !== null}
       onClose={onClose}
-      title="Event history"
-      centered
-      size={isNarrow ? "xs" : isDesktop ? "lg" : "sm"}
+      title={
+        <span className="c2-hist-title">
+          <span className="c2-hist-title-eyebrow">Event history</span>
+          <span className="c2-hist-title-row">
+            <span className="c2-hist-title-text">{title}</span>
+            {deleted ? (
+              <Badge component="span" size="xs" variant="light" color="red">
+                Deleted
+              </Badge>
+            ) : null}
+          </span>
+        </span>
+      }
+      styles={{ title: { minWidth: 0 } }}
+      fullScreen={!isDesktop}
+      centered={isDesktop}
+      size="lg"
       keepMounted
       zIndex={zIndex}
       transitionProps={transitionProps}
     >
-      <Stack gap="sm" className={CONTENT_ENTER_CLASS}>
-        <Group gap={6} wrap="wrap">
-          <Text fw={600}>{title}</Text>
-          {deleted && (
-            <Badge size="xs" variant="light" color="red">
-              Deleted
-            </Badge>
-          )}
-        </Group>
-        {retentionDays !== undefined && (
-          <Text size="xs" c="dimmed">
-            {retentionDays > 0
-              ? `Changes are tracked for ${retentionDays} days`
-              : "Change tracking is unlimited"}
-          </Text>
-        )}
+      <Box className={CONTENT_ENTER_CLASS}>
         {failed ? (
           <Text size="sm" c="red">
             Could not load the history. Close and try again.
@@ -208,12 +223,12 @@ export function EventHistoryModal({
                   description="No recorded history for this event. Events are tracked for a limited window, and externally created events are never tracked."
                 />
               ) : (
-                <EventHistoryEntries items={previewItems} />
+                <EventHistoryEntries items={previewItems} coverageNote={coverageNote} />
               )
             ) : null}
           </CrossfadeSwap>
         )}
-      </Stack>
+      </Box>
     </MotionModal>
   );
 }

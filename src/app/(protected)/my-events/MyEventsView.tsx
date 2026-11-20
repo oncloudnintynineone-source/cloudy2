@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import type { CSSProperties } from "react";
 import {
   Badge,
@@ -14,8 +14,9 @@ import {
   Tooltip,
   UnstyledButton,
 } from "@mantine/core";
+import { notifications } from "@mantine/notifications";
 import { IconHistory, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 
 import { CrossfadeSwap } from "@/components/CrossfadeSwap";
 import { EmptyState } from "@/components/EmptyState";
@@ -23,6 +24,7 @@ import { EventHistoryModal, type EventHistoryPreview } from "@/components/EventH
 import { PageHeader } from "@/components/PageHeader";
 import { TimeRangeSelect } from "@/components/TimeRangeSelect";
 import type { ChangeTrailItem } from "@/lib/events/changeTrail";
+import { getMyEventsPage } from "@/lib/events/myEventsActions";
 import { prefetchEventHistory } from "@/lib/events/historyCache";
 import {
   MY_EVENTS_RANGE_MONTHS,
@@ -51,28 +53,66 @@ interface MyEventsViewProps {
   retentionDays: number;
 }
 
+/** The loaded page — what the list, the empty state and the pager render. */
+interface LoadedPage {
+  items: MyEventRow[];
+  page: number;
+  pageCount: number;
+  total: number;
+  rangeMonths: MyEventsRangeMonths;
+}
+
+function loadedFrom(props: MyEventsViewProps): LoadedPage {
+  return {
+    items: props.items,
+    page: props.page,
+    pageCount: props.pageCount,
+    total: props.total,
+    rangeMonths: props.rangeMonths,
+  };
+}
+
 /**
  * "My Events": every event the signed-in user organized, newest first, over an
  * adjustable ±-months window — including events later deleted (a Deleted badge),
  * so a deleted event stays trackable and its full history stays reachable.
  * Each row carries an inline change timeline (Created → Edited → Deleted)
  * showing when every change was made. Always-fresh (docs/event-history.md).
+ *
+ * The view owns its page of rows: the route renders the first one, and every
+ * change after it — a new window, a page number — is fetched in place through
+ * `getMyEventsPage` and swapped in with the skeleton. Navigating instead swaps
+ * the whole segment through the route skeleton on a read that can take seconds,
+ * which is what made a range change look like it had never applied
+ * (docs/event-history.md §1.4.3). The pick itself is optimistic, so the control
+ * answers in the same frame and only the list waits.
  */
-export function MyEventsView({
-  items,
-  page,
-  pageCount,
-  total,
-  rangeMonths,
-  renderedAt,
-  retentionDays,
-}: MyEventsViewProps) {
-  const router = useRouter();
+export function MyEventsView(props: MyEventsViewProps) {
+  const { renderedAt, retentionDays } = props;
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
+  const [loaded, setLoaded] = useState<LoadedPage>(() => loadedFrom(props));
+  // The window/page the user is looking at, set the instant they pick: the
+  // control and the header read this, so the change is visible before the data
+  // lands. Reverted to the last page that actually loaded when a fetch fails.
+  const [selection, setSelection] = useState(() => ({
+    rangeMonths: props.rangeMonths,
+    page: props.page,
+  }));
+  const [pending, startTransition] = useTransition();
+
+  // The latest request wins: a fast second pick must not be overwritten by the
+  // first one's slower response.
+  const requestRef = useRef(0);
+  // Mirrors of the two states, so the refresh effect below can read the current
+  // values without re-subscribing on every render.
+  const selectionRef = useRef(selection);
+  const loadedRef = useRef(loaded);
+  const seenRenderedAt = useRef(renderedAt);
+
   const liveRefreshing = useLiveRouteRefresh(renderedAt);
-  const loading = useMinSkeletonHold(liveRefreshing);
+  const loading = useMinSkeletonHold(liveRefreshing || pending);
 
   // The shared history modal, opened by tapping a row. The row's own trail is
   // passed as a preview so the modal paints instantly, and rows prefetch their
@@ -81,23 +121,104 @@ export function MyEventsView({
   const [historyOrigin, setHistoryOrigin] = useState<Rect | null>(null);
   const [historyPreview, setHistoryPreview] = useState<EventHistoryPreview | null>(null);
 
-  const setParams = useCallback(
-    (updates: Record<string, string | null>) => {
-      const params = new URLSearchParams(searchParams.toString());
-      for (const [key, value] of Object.entries(updates)) {
-        if (value === null || value === "") {
-          params.delete(key);
-        } else {
-          params.set(key, value);
-        }
-      }
-      const query = params.toString();
-      router.push(query ? `${pathname}?${query}` : pathname);
+  const applyLoaded = useCallback((next: LoadedPage) => {
+    loadedRef.current = next;
+    setLoaded(next);
+  }, []);
+
+  const choose = useCallback(
+    (next: { rangeMonths: MyEventsRangeMonths; page: number }) => {
+      selectionRef.current = next;
+      setSelection(next);
     },
-    [searchParams, pathname, router],
+    [],
   );
 
-  const showEmpty = total === 0 && !loading;
+  /** Rebuild one window/page in place, reverting the control when it fails. */
+  const load = useCallback(
+    (rangeMonths: MyEventsRangeMonths, page: number) => {
+      const requestId = requestRef.current + 1;
+      requestRef.current = requestId;
+      startTransition(async () => {
+        const result = await getMyEventsPage({ rangeMonths, page });
+        if (requestRef.current !== requestId) {
+          return;
+        }
+        if (result.ok) {
+          const { items, page: next, pageCount, total, rangeMonths: window } = result.data;
+          applyLoaded({ items, page: next, pageCount, total, rangeMonths: window });
+          return;
+        }
+        choose({ rangeMonths: loadedRef.current.rangeMonths, page: loadedRef.current.page });
+        notifications.show({ color: "red", message: result.error });
+      });
+    },
+    [applyLoaded, choose],
+  );
+
+  /**
+   * Mirror the selection into the URL without a router navigation, so a reload
+   * or a shared link still opens on this window. Next patches
+   * `history.replaceState`, so `useSearchParams` and a later `router.refresh()`
+   * keep seeing the query the user picked.
+   */
+  const syncUrl = useCallback(
+    (rangeMonths: MyEventsRangeMonths, page: number) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("range", String(rangeMonths));
+      if (page > 1) {
+        params.set("page", String(page));
+      } else {
+        params.delete("page");
+      }
+      const query = params.toString();
+      window.history.replaceState(null, "", query ? `${pathname}?${query}` : pathname);
+    },
+    [pathname, searchParams],
+  );
+
+  function selectRange(next: MyEventsRangeMonths) {
+    if (next === selectionRef.current.rangeMonths) {
+      return;
+    }
+    choose({ rangeMonths: next, page: 1 });
+    syncUrl(next, 1);
+    load(next, 1);
+  }
+
+  function changePage(next: number) {
+    const current = selectionRef.current;
+    if (next === current.page) {
+      return;
+    }
+    choose({ ...current, page: next });
+    syncUrl(current.rangeMonths, next);
+    load(current.rangeMonths, next);
+    // What the old navigation gave for free: a long list must not stay scrolled
+    // to the page the user just left.
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  // A fresh server render (the always-fresh re-read, the header Force refresh)
+  // is adopted only when it is the window and page the user is looking at;
+  // otherwise the view re-reads its own selection through the action. A
+  // background refresh can then never snap the list back to a window the user
+  // has changed away from, and still always lands fresh rows.
+  useEffect(() => {
+    if (seenRenderedAt.current === renderedAt) {
+      return;
+    }
+    seenRenderedAt.current = renderedAt;
+    const current = selectionRef.current;
+    if (props.rangeMonths === current.rangeMonths && props.page === current.page) {
+      applyLoaded(loadedFrom(props));
+      return;
+    }
+    load(current.rangeMonths, current.page);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [renderedAt]);
+
+  const showEmpty = loaded.total === 0 && !loading;
 
   return (
     <Stack gap="md">
@@ -105,8 +226,8 @@ export function MyEventsView({
         title="My Events"
         subtitle={
           retentionDays > 0
-            ? `Events you created · ${myEventsRangeLabel(rangeMonths)} · tracked for ${retentionDays} days`
-            : `Events you created · ${myEventsRangeLabel(rangeMonths)}`
+            ? `Events you created · ${myEventsRangeLabel(selection.rangeMonths)} · tracked for ${retentionDays} days`
+            : `Events you created · ${myEventsRangeLabel(selection.rangeMonths)}`
         }
       />
 
@@ -131,8 +252,9 @@ export function MyEventsView({
           label="Range"
           values={MY_EVENTS_RANGE_MONTHS}
           labelFor={myEventsRangeLabel}
-          months={rangeMonths}
-          onSelect={(months) => setParams({ range: String(months), page: null })}
+          months={selection.rangeMonths}
+          onSelect={selectRange}
+          disabled={pending}
         />
       </Box>
 
@@ -159,7 +281,7 @@ export function MyEventsView({
               }}
             >
               <Stack gap={0}>
-                {items.map((item, index) => (
+                {loaded.items.map((item, index) => (
                   <MyEventRowView
                     key={item.key}
                     item={item}
@@ -184,18 +306,19 @@ export function MyEventsView({
         )}
       </CrossfadeSwap>
 
-      {!loading && pageCount > 1 ? (
+      {!loading && loaded.pageCount > 1 ? (
         <Stack gap={4} align="center" mt="xs">
           <Pagination
-            total={pageCount}
-            value={page}
-            onChange={(next) => setParams({ page: next <= 1 ? null : String(next) })}
+            total={loaded.pageCount}
+            value={selection.page}
+            onChange={changePage}
             siblings={1}
             boundaries={1}
             withEdges
           />
           <Text size="xs" c="dimmed">
-            Page {page} of {pageCount} · {total.toLocaleString()} {total === 1 ? "event" : "events"}
+            Page {selection.page} of {loaded.pageCount} ·{" "}
+            {loaded.total.toLocaleString()} {loaded.total === 1 ? "event" : "events"}
           </Text>
         </Stack>
       ) : null}

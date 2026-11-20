@@ -5,7 +5,12 @@ import dayjs from "dayjs";
 import { Box, Stack, Text } from "@mantine/core";
 
 import { buildClashTimeline, type ClashTimelineInput } from "@/lib/events/clashTimeline";
-import { clashDayBuckets, clashDayLabel, formatAxisMinute } from "@/lib/events/clashDisplay";
+import {
+  clashDayBuckets,
+  clashDayLabel,
+  formatAxisMinute,
+  type ClashMonthCell,
+} from "@/lib/events/clashDisplay";
 import type { Rect } from "@/lib/motion/origin";
 
 /** One event rendered on the conflict timeline. */
@@ -229,28 +234,32 @@ export function ClashTimelineDays({
   );
 }
 
-/** One day cell in the 30-day overview strip. */
+/** One day cell in the day-granularity overview strip. */
 export interface ClashDayStripDay {
   dayKey: string;
   count: number;
 }
 
 /**
- * The 30-day overview strip: one cell per day with its conflict count; busy
- * days are tappable and scroll to that day's section. See
- * docs/user-clashes.md §1.8.
+ * The day-granularity overview strip: one cell per day with its conflict count;
+ * busy days are tappable and scroll to that day's section. The strip the page
+ * uses for a short look-ahead — beyond `CLASH_MONTH_STRIP_MIN_DAYS` days the
+ * month strip takes over. See docs/user-clashes.md §1.8.
  */
 export function ClashDayStrip({
   days,
   todayKey,
+  rangeLabel,
   onJump,
 }: {
   days: ClashDayStripDay[];
   todayKey: string;
+  /** What the strip covers, e.g. `1 month` — the accessible name. */
+  rangeLabel: string;
   onJump: (dayKey: string) => void;
 }) {
   return (
-    <div className="c2-clash-strip" aria-label="Double bookings over the next 30 days">
+    <div className="c2-clash-strip" aria-label={`Double bookings over the next ${rangeLabel}`}>
       {days.map(({ dayKey, count }) => {
         const date = dayjs(dayKey);
         const busy = count > 0;
@@ -276,6 +285,60 @@ export function ClashDayStrip({
             </span>
             <span className="c2-clash-strip-dot" aria-hidden>
               {busy ? count : ""}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * The month-granularity overview strip — the same recipe as `ClashDayStrip` with
+ * one cell per calendar month, for a look-ahead longer than
+ * `CLASH_MONTH_STRIP_MIN_DAYS` days (6 or 12 months would otherwise render 180–365
+ * boxes in a row). A month with clashes is tappable and scrolls to its first
+ * clash day; a clear month is inert. See docs/user-clashes.md §1.8.
+ */
+export function ClashMonthStrip({
+  cells,
+  rangeLabel,
+  onJump,
+}: {
+  cells: ClashMonthCell[];
+  /** What the strip covers, e.g. `6 months` — the accessible name. */
+  rangeLabel: string;
+  onJump: (dayKey: string) => void;
+}) {
+  return (
+    <div
+      className="c2-clash-strip c2-clash-strip--month"
+      aria-label={`Double bookings over the next ${rangeLabel}`}
+    >
+      {cells.map((cell) => {
+        const busy = cell.jumpDayKey !== null;
+        const label = `${cell.label} ${cell.year}${
+          busy ? `, ${cell.count} double booking${cell.count === 1 ? "" : "s"}` : ", clear"
+        }`;
+        return (
+          <button
+            key={cell.monthKey}
+            type="button"
+            className={`c2-clash-strip-cell${busy ? " c2-clash-strip-cell--busy" : ""}${
+              cell.today ? " c2-clash-strip-cell--today" : ""
+            }`}
+            onClick={() => cell.jumpDayKey && onJump(cell.jumpDayKey)}
+            disabled={!busy}
+            aria-label={label}
+          >
+            <span className="c2-clash-strip-dow" aria-hidden>
+              {String(cell.year).slice(2)}
+            </span>
+            <span className="c2-clash-strip-day" aria-hidden>
+              {cell.label}
+            </span>
+            <span className="c2-clash-strip-dot" aria-hidden>
+              {busy ? cell.count : ""}
             </span>
           </button>
         );

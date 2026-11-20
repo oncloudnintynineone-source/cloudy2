@@ -13,7 +13,12 @@
  */
 
 import { AUDIT_ACTIONS } from "@/lib/audit/build";
-import { actorLabel, changeSummary, formatLogTimestamp } from "@/lib/audit/format";
+import {
+  EVENT_HISTORY_OMIT_KEYS,
+  actorLabel,
+  changeSummary,
+  formatLogTimestamp,
+} from "@/lib/audit/format";
 
 export type ChangeTrailKind = "create" | "update" | "delete";
 
@@ -131,7 +136,12 @@ function collapseTrailRows(rows: TrailRowInput[]): CollapsedChange[] {
       createdAt: row.createdAt,
       actorName: row.actorName,
       actorRole: row.actorRole,
-      summary: kind === "update" ? changeSummary(row.details, null) : null,
+      // The reader is the person who made the change, so the summary names only
+      // fields they could have set — never the derived Google title or an id.
+      summary:
+        kind === "update"
+          ? changeSummary(row.details, null, { omitKeys: EVENT_HISTORY_OMIT_KEYS })
+          : null,
       details: row.details,
     });
   }
@@ -168,6 +178,31 @@ export function buildHistoryEntries(rows: TrailRowInput[], now: Date): HistoryEn
     ...toTrailItem(group, now),
     details: group.details,
   }));
+}
+
+/** What {@link historyCoverageNote} needs to judge how far back the record runs. */
+export interface HistoryCoverageInput {
+  /** The event's displayed entries (any order). */
+  items: readonly Pick<ChangeTrailItem, "kind">[];
+  /** `settings.audit_log_retention_days`; `0` means rows are kept forever. */
+  retentionDays: number;
+}
+
+/**
+ * Why the trail may not start at the event's creation, or null when it does.
+ *
+ * The trail read is bounded by audit **retention**, not by the page's date
+ * window, so a missing `Created` entry means the row was pruned — widening the
+ * range would not bring it back. Telling the reader that is the difference
+ * between "no earlier changes" and "earlier changes are not on record".
+ */
+export function historyCoverageNote({ items, retentionDays }: HistoryCoverageInput): string | null {
+  if (items.length === 0 || items.some((item) => item.kind === "create")) {
+    return null;
+  }
+  return retentionDays > 0
+    ? `History older than ${retentionDays} days is removed automatically, so this event's earlier changes aren't on record.`
+    : "This event's earliest recorded change is shown — earlier changes weren't recorded.";
 }
 
 /** Group trail rows by logical event id, preserving the newest-first order. */

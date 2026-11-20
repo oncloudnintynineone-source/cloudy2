@@ -8,9 +8,10 @@ import { DoubleBookingView } from "./DoubleBookingView";
 
 /**
  * The "Double Booking" page: which of a user's *existing* events double-book
- * them over the next 30 days. The scan itself is a read-only server action run
- * from the client view; the page supplies the session identity and the active
- * roster any user can pick a scan target from. See docs/user-clashes.md.
+ * them over a look-ahead they pick (1 / 6 / 12 months, 1 by default). The scan
+ * itself is a read-only server action run from the client view; the page
+ * supplies the session identity and the active roster any user can pick a scan
+ * target from. See docs/user-clashes.md.
  */
 export default async function DoubleBookingPage() {
   const session = await requireSession();

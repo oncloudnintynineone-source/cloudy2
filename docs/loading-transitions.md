@@ -472,6 +472,20 @@ whose warm L1 entry still shadows the fresh rows
   optimistic month/kind isn't snapped back mid-load (a failed read still heals),
   and `DashboardScreen`'s `cached` flag suppresses the skeleton only for a
   genuinely warm candidate record (`DashboardView.tsx`, `DashboardScreen.tsx`).
+- **My Events range & page changes**: the route owns the first page; every change
+  after it is fetched **in place** and never navigates. The pick is optimistic —
+  `selection` (the control and the header subtitle) updates in the same frame — and
+  only the list waits, on the in-place `CrossfadeSwap` skeleton
+  (`useMinSkeletonHold(liveRefreshing || pending)`), so the change reads as applied
+  the moment it is made. Navigating instead swaps the whole segment through the
+  route skeleton on a read that can take seconds, which is what made a range change
+  look like it had never applied. `?range=`/`?page=` are mirrored with a plain
+  `history.replaceState` (Next patches it, so `useSearchParams` and a later
+  `router.refresh()` still see the picked query), a request token makes the latest
+  pick win, a failed read reverts the control, and the always-fresh re-read is
+  adopted only when it answers the window/page the user is looking at — otherwise
+  the view re-reads its own selection (`MyEventsView.tsx`,
+  [`event-history.md`](event-history.md) §1.4.3).
 
 ## 1.9 Optimistic navigation chrome
 
@@ -1242,7 +1256,7 @@ re-render the whole dashboard view.
 | `src/lib/dashboardViews/views.ts`                                | Pure view vocabulary + `resolveActiveTab` (tab resolution) — §1.10                                                                                                                                                                                                                                                            |
 | `src/components/EventHistoryModal.tsx`                           | Preview-first paint + background revalidate (reference implementation) — §1.18                                                                                                                                                                                                                                                |
 | `src/lib/events/historyCache.ts`                                 | Intent-prefetch + in-flight-promise cache (session lifetime; cleared on sign-out) — §1.18                                                                                                                                                                                                                                     |
-| `src/app/(protected)/my-events/MyEventsView.tsx`                 | Hover/press prefetch + passes the row trail as `preview` — §1.18                                                                                                                                                                                                                                                              |
+| `src/app/(protected)/my-events/MyEventsView.tsx`                 | Hover/press prefetch + passes the row trail as `preview` — §1.18; in-place range/page refetch — §1.8                                                                                                                                                                                                                          |
 | `src/components/WaitOverlay.tsx`                                 | Shared wait overlay — `WaitOverlay` (delayed frosted card on a slow route's skeleton) + `RotatingWaitLines` (rotation core, bare under the cold-start headline) — §1.4.1                                                                                                                                                          |
 | `src/lib/loading/waitCopy.ts`                                    | All wait-copy sets + modulo picker (unit-tested; drift-pinned to the launch shell's `#c2-boot-lines`) — §1.4.1                                                                                                                                                                                                                     |
 | `src/app/(protected)/dashboard/DashboardScreen.tsx`              | Owns the snapshot, warm map, preload, per-tab `tabStatus`, and the optimistic `previewView`; first-load timeout + retryable error — §1.13.2                                                                                                                                                                                   |

@@ -6,6 +6,7 @@ import {
   buildChangeTrail,
   buildHistoryEntries,
   groupTrailRows,
+  historyCoverageNote,
   relativeChangeLabel,
   type TrailRowInput,
 } from "./changeTrail";
@@ -44,7 +45,11 @@ describe("buildChangeTrail", () => {
         trailRow({
           action: AUDIT_ACTIONS.eventUpdate,
           createdAt: new Date("2026-10-22T06:30:00Z"),
-          details: { before: {}, after: {}, changes: { title: ["a", "b"] } },
+          details: {
+            before: {},
+            after: {},
+            changes: { time: ["09:00", "10:00"], title: ["a", "b"] },
+          },
         }),
         trailRow({ action: AUDIT_ACTIONS.eventCreate, createdAt: new Date("2026-10-20T01:05:00Z") }),
       ],
@@ -52,12 +57,32 @@ describe("buildChangeTrail", () => {
     );
     expect(items.map((item) => item.kind)).toEqual(["update", "create"]);
     expect(items[0].label).toBe("Edited");
-    expect(items[0].summary).toBe("Title");
+    // The rendered Google title is derived, so only the field the reader could
+    // have set is named.
+    expect(items[0].summary).toBe("Time");
     expect(items[0].absolute).toBe("2026-10-22 14:30");
     expect(items[0].relative).toBe("1 day ago");
     expect(items[0].actor).toBe("Me (user)");
     expect(items[1].label).toBe("Created");
     expect(items[1].summary).toBeNull();
+  });
+
+  it("leaves an edit that only moved derived values with no summary", () => {
+    const items = buildChangeTrail(
+      [
+        trailRow({
+          action: AUDIT_ACTIONS.eventUpdate,
+          createdAt: new Date("2026-10-22T06:30:00Z"),
+          details: {
+            before: {},
+            after: {},
+            changes: { title: ["a", "b"], googleEventIds: ["x", "y"], eventId: ["e1", "e1"] },
+          },
+        }),
+      ],
+      NOW,
+    );
+    expect(items[0].summary).toBeNull();
   });
 
   it("collapses the per-copy fan-out of one mutation (same action, same minute)", () => {
@@ -148,6 +173,31 @@ describe("buildHistoryEntries", () => {
       NOW,
     );
     expect(items.map((item) => item.kind)).toEqual(["create"]);
+  });
+});
+
+describe("historyCoverageNote", () => {
+  it("says nothing once the create row is on screen", () => {
+    expect(
+      historyCoverageNote({
+        items: [{ kind: "update" }, { kind: "create" }],
+        retentionDays: 90,
+      }),
+    ).toBeNull();
+  });
+
+  it("blames retention when a trail starts after the event was created", () => {
+    expect(historyCoverageNote({ items: [{ kind: "update" }], retentionDays: 90 })).toBe(
+      "History older than 90 days is removed automatically, so this event's earlier changes aren't on record.",
+    );
+  });
+
+  it("falls back to a plain statement when rows are kept forever", () => {
+    expect(historyCoverageNote({ items: [{ kind: "update" }], retentionDays: 0 })).toBe(
+      "This event's earliest recorded change is shown — earlier changes weren't recorded.",
+    );
+    // Nothing on screen at all is the empty state's business, not a footnote.
+    expect(historyCoverageNote({ items: [], retentionDays: 90 })).toBeNull();
   });
 });
 

@@ -18,7 +18,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.394 (page pinch-to-zoom off app-wide)** is shipped.
+- All work through changelog **1.395 (ranges apply instantly; one range vocabulary;
+  event-history revamp)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -32,7 +33,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
   policy, with outbound webhooks to any number of admin-registered external endpoints on
   create/update/delete and pre-submit event clash warnings on the wizard's review step;
   a Double Booking page where any user can scan their own or a colleague's existing
-  schedule for double-bookings over the next 30 days, surfaced by a live count pill on
+  schedule for double-bookings over a 1 / 6 / 12-month look-ahead (default 1 month),
+  surfaced by a live count pill on
   its nav entry; an on-demand set of user-created
   dashboard **Views (tabs)** over the six renderer kinds (Month / Week (H) / Week (D) / Day /
   Agenda / Month & Agenda; each tab has its own name, order and Cal/Users/Types/Event-name filters, stored server-side) over
@@ -42,7 +44,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
   audit-log viewer with retention + CSV export; admin-managed quick-links menu
   launched from an amber `IconLink` FAB (mobile) / nav-row chip (desktop) on the
   Calendar page; user-facing KAH Status page (read-only breach history &
-  forecast over a ±3-month window: resolved/active/upcoming breach periods,
+  forecast over a 1 / 6 / 12-month look-ahead (default 1 month): resolved/active/upcoming breach periods,
   member's own groups; admins: all); Web Push notifications to users newly added
   as participants to an event (create/update only, per-device permission + an
   account-wide pause switch in Profile → Notifications).
@@ -2633,6 +2635,29 @@ mirror them (four such entries: 1.106.1, 1.122.1, 1.316.1, 1.331.1).
   `Ctrl`/`Cmd` + `+`, OS text scaling and Android's Force-enable-zoom still work. Docs:
   `accessibility.md` §1.8 (new), `dashboard-views.md` §1.7, `grid-pan.md` §1.3,
   `pwa-offline.md` §1.9.
+- 1.395 **Ranges apply instantly, one range vocabulary, event-history revamp**: My Events
+  no longer navigates on a range or page change — the pick is optimistic and the new page
+  is fetched in place through `getMyEventsPage` (`buildMyEventsPage`, 20 rows) and swapped
+  under the in-place skeleton, with `?range=`/`?page=` mirrored by `history.replaceState`,
+  so the control answers in the same frame instead of waiting on a multi-second route
+  render. All three range surfaces now speak one vocabulary — `src/lib/dateRange/monthRange.ts`
+  (1 / 6 / 12 months, forward or symmetric) behind `myEventsRange.ts` (±1 default, was ±3),
+  `kah/range.ts` (1 ahead, was 3) and the new `events/clashRange.ts` (Double Booking, was a
+  fixed 30-day scan); the two nav badges follow the default window. `TimeRangeSelect` is now
+  a `Menu` + native button pill (`.c2-range-*`): full-width on phones, content-sized from
+  `40em`, keyboard-native, and it can never raise the virtual keyboard. A wider look-ahead
+  means more days, so the Double Booking strip switches to one cell per **month** past 62
+  days (`clashStripGranularity` / `buildClashMonthStrip`) and jumps to the earliest
+  conflict day. The event history modal is rebuilt: a full-height sheet below `lg` (was a
+  small centered dialog with a `ScrollArea` inside a scrolling modal — double scrolling),
+  one scroller with a sticky two-line header (eyebrow + ellipsized title), the changelog as
+  a connected timeline rail with expandable entries, and details curated to what the user
+  can actually change — the derived Google title, the event/calendar ids and the raw `after`
+  dump are hidden here and stay forensic in the admin audit log — plus a coverage note when
+  the trail starts after the event's first change (audit retention). Docs:
+  `event-history.md` §1.3/§1.4/§1.4.3 (new)/§1.8/§1.10/§1.11, `user-clashes.md`
+  §1.1/§1.2/§1.5/§1.8/§1.8.1 (new)/§1.9, `kah.md` §1.7/§1.8, `loading-transitions.md` §1.8,
+  `desktop-responsive.md` §1.11.
 
 ## 1.4 Open items & next steps
 

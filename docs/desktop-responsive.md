@@ -474,7 +474,7 @@ left of the period chevrons, flexing into the space the fixed 56px controls leav
 | `src/app/(protected)/settings/SettingsTabs.tsx`                                                                           | Fixed strip < `lg`, sticky top row ≥ `lg`; reports its height to `SettingsShell`                                                                                                                                                                                                            |
 | `src/components/SettingsListChrome.tsx`                                                                                    | Shared list chrome: sticky search/action bar ≥ `lg`, floating control pill < `lg` (keyboard lift + hide-on-interaction)                                                                                                                                                                     |
 | `src/components/SettingsListChromeSkeleton.tsx`                                                                            | Route-loading mirror of the sticky list bar                                                                                                                                                                                                                                                 |
-| `src/components/TimeRangeSelect.tsx`                                                                                       | Shared month-window dropdown (My Events "Range", KAH Status "Look ahead") at the default combobox size (§1.11)                                                                                                                                                                             |
+| `src/components/TimeRangeSelect.tsx`                                                                                       | Shared month-window range **pill** (My Events "Range", KAH Status + Double Booking "Look ahead") — a Menu trigger, not a combobox (§1.11)                                                                                                                                                 |
 | `src/app/(protected)/settings/users/UserTable.tsx`                                                                        | `.card-grid` at every width + `SettingsListChrome` (search + status/department filter)                                                                                                                                                                                                       |
 | `src/app/(protected)/settings/departments/DepartmentTable.tsx`                                                            | `.card-grid` at every width + `SettingsListChrome` (search; reorder disabled while searching)                                                                                                                                                                                                |
 | `src/app/(protected)/settings/event-types/EventTypeTable.tsx`                                                             | `.card-grid` at every width + `SettingsListChrome` (search + groups/add)                                                                                                                                                                                                                     |
@@ -557,8 +557,16 @@ flowchart LR
   names), so every combobox-based field needs its own entry — add one when an
   `Autocomplete` / `TagsInput` / `PillsTextInput` is introduced.
 - **No shrunken inputs as a space saver.** Tight chrome uses the 44px circles of
-  `SettingsListChrome`, not a smaller `Input`; the shared month-window dropdown
-  is `TimeRangeSelect` (`src/components/TimeRangeSelect.tsx`).
+  `SettingsListChrome`, not a smaller `Input`; the shared month-window control is
+  `TimeRangeSelect` (`src/components/TimeRangeSelect.tsx`).
+- **The range pill opts out of both floors.** `TimeRangeSelect` is a `Menu` with a
+  native `<button>` target (`.c2-range-trigger`, `globals.css`), not a combobox —
+  nothing is typeable, so no field text and no `--combobox-option-fz` are involved,
+  and a tap can never raise the virtual keyboard. It therefore pins its own values
+  in the component: `--mantine-font-size-md` item text at 44px `minHeight` rows, and
+  a trigger that is full-width below `40em` and content-sized (`min-width: 11rem`)
+  above, so one control fits a stacked mobile header and a sticky desktop chrome row
+  without a per-page width override.
 
 ## 1.12 Related docs
 

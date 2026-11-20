@@ -20,8 +20,8 @@ export interface NavItem {
   matches: (pathname: string) => boolean;
   /**
    * Optional count pill over the icon (the acting user's Double Booking
-   * overlap count or KAH breach count over the next 30 days). Rendered only
-   * when > 0.
+   * overlap count or KAH breach count over the page's default look-ahead —
+   * one month). Rendered only when > 0.
    */
   badge?: number;
   /** Singular noun for the badge in the aria-label ("double booking", "KAH breach"). */

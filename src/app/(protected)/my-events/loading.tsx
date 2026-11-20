@@ -16,12 +16,10 @@ export default function MyEventsLoading() {
           <PageHeaderSkeleton titleWidth="24%" subtitleWidth="75%" />
 
           {/* The sticky Range control mirror (same vertical gutter as the
-              live page's chrome block). */}
+              live page's chrome block): the pill trigger is full column width
+              on phones and 11rem from the desktop band on. */}
           <Box py="md" style={{ borderBottom: "1px solid var(--mantine-color-default-border)" }}>
-            <Stack gap={4}>
-              <Skeleton height={12} width={48} radius="sm" />
-              <Skeleton height={36} width={150} radius="sm" />
-            </Stack>
+            <Skeleton height={44} radius="md" w={{ base: "100%", lg: "11rem" }} />
           </Box>
 
           <MyEventsListSkeleton />
