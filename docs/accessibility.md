@@ -3,8 +3,8 @@
 The app is a touch-first mobile PWA, but keyboard and screen-reader users get
 first-class support too. This doc collects the assistive-tech machinery: the
 skip link, the polite live region and what feeds it, the skeleton loading
-announcements, the text alternatives on count badges, and the dark-scheme
-colour-contrast rules.
+announcements, the text alternatives on count badges, the dark-scheme
+colour-contrast rules, and the deliberate page-zoom policy.
 
 ## Table of contents
 
@@ -15,7 +15,8 @@ colour-contrast rules.
 - [1.5 Reorder controls](#15-reorder-controls)
 - [1.6 Modal minimize, draft bar & focus transfer](#16-modal-minimize-draft-bar--focus-transfer)
 - [1.7 Colour contrast in the dark scheme](#17-colour-contrast-in-the-dark-scheme)
-- [1.8 File index & related docs](#18-file-index--related-docs)
+- [1.8 Page zoom policy](#18-page-zoom-policy)
+- [1.9 File index & related docs](#19-file-index--related-docs)
 
 ## 1.1 Skip-to-content link
 
@@ -214,7 +215,57 @@ grid); the chosen treatment, when wanted, is the same hairline ring via
 `--mantine-color-dimmed` (dark-2 `#828282`, 4.04:1) still governs secondary
 text outside the step strip.
 
-## 1.8 File index & related docs
+## 1.8 Page zoom policy
+
+The browser's own page magnification — pinch **and** double-tap — is switched off
+for the whole app. The calendar is a touch surface, so a two-finger gesture must
+never scale the document like a magnifying glass, and the same rule has to hold on
+every other surface (settings lists, open modals, `/login`, the launch shell and
+the offline page).
+
+**Mechanism.** One declaration on the root scroller: `touch-action: pan-x pan-y`
+on `html` (`src/app/globals.css`). Pinch-zoom requires the `pinch-zoom` token, and
+`touch-action` restricts every descendant by **intersection** — a child can never
+re-enable what an ancestor removed — so the single rule covers every route, modal
+and portal. `pan-x pan-y` (not `manipulation`, which still admits pinch in some
+engines) keeps one-finger panning on both axes native, and leaves the narrower
+values the app already declares (the grids' `pan-x pan-y`, the agenda swipe's
+`pan-y`, the drag handles' `none`) exactly as effective as they were. The three
+documents rendered outside `globals.css` carry the same rule inline:
+`public/offline.html`, `public/loading.html` and the service worker's last-resort
+offline copy.
+
+**Why not the viewport meta.** `user-scalable=no` / `maximum-scale=1` is ignored by
+iOS Safari (since iOS 10) and by modern Chrome (accessibility viewport zooming),
+and it is a WCAG 1.4.4 audit failure — noise without behavior. A
+`gesturestart`/`gesturechange` preventDefault hook is deliberately not used
+either: it leaks once a touch turns uncancelable mid-scroll, and it would race the
+calendar's own pinch.
+
+**Accepted trade-off (WCAG 1.4.4).** Pinch-zoom is a text-resize path some
+low-vision users rely on, so this is a deliberate exception — taken because the
+app ships its own zoom for the one dense surface that needs it. What remains:
+
+- the calendar's own zoom — the `+/−` grid controls and the grids' two-finger
+  gesture ([`dashboard-views.md`](dashboard-views.md) §1.7), announced for screen
+  readers (§1.2);
+- desktop `Ctrl`/`Cmd` + `+` and the OS/browser text-size settings, which
+  `touch-action` does not touch;
+- Android's **Force enable zoom** accessibility setting, which still overrides
+  this — intentionally.
+
+**Consequences to remember.**
+
+- A future surface that genuinely needs page magnification (an image or map
+  viewer) cannot opt back in with `touch-action`, because the restriction is
+  inherited from `html`; it needs its own gesture handling instead.
+- Double-tap no longer zooms, and a two-finger "press" on a control stops working
+  (both are how engines implement `pan-x pan-y`).
+- The dashboard grids still pass `touch-action: pan-x pan-y` into `useGridPan`.
+  That is redundant with the global rule now, but it documents the grids' intent
+  and intersects to the same value — see [`grid-pan.md`](grid-pan.md) §1.3.
+
+## 1.9 File index & related docs
 
 | File                                              | Role                                                              |
 | ------------------------------------------------- | ----------------------------------------------------------------- |
@@ -223,7 +274,8 @@ text outside the step strip.
 | `src/components/AppShellShell.tsx`                | Skip link, `#main-content` target, announcer mount                |
 | `src/components/PinnedEventsTicker.tsx`           | Pinned-count aria-label; `aria-hidden` chip + rotating titles     |
 | `src/components/FilterButton.tsx`                 | Dynamic filter-count aria-label                                   |
-| `src/app/globals.css`                             | `.c2-sr-only` + `.c2-skip-link` styles                            |
+| `src/app/globals.css`                             | `.c2-sr-only` + `.c2-skip-link` styles, page-zoom `touch-action` |
+| `public/offline.html` · `public/loading.html`     | Same `touch-action` rule (documents outside the app's CSS)       |
 | `src/app/(protected)/dashboard/DashboardView.tsx` | View/period/filter/zoom announcements                             |
 | `src/app/(protected)/dashboard/EventForm.tsx`     | Wizard step announcements                                         |
 | `src/app/(protected)/dashboard/EventDraftBar.tsx` | Minimized-draft bar + docked FAB-row chip, resume/discard targets |

@@ -11,6 +11,9 @@
         --bg: #111111;
       }
       * { box-sizing: border-box; margin: 0; padding: 0; }
+      /* Page magnification off, matching the app (globals.css html rule):
+         pinch and double-tap must never scale this page either. */
+      html { touch-action: pan-x pan-y; }
       body {
         font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
         background: var(--bg);

@@ -44,9 +44,25 @@
   reload carrying a one-shot `?refresh` nonce so the SW never serves a cached
   copy). Inner scroll containers (wizard body, agenda list) already set their
   own `overscroll-behavior`; this covers the page scroll itself.
+
+  `touch-action` turns off the browser's own page magnification (pinch AND
+  double-tap) for the whole app — the calendar is a touch surface where a
+  two-finger gesture must never scale the document like a magnifying glass.
+  Pinch-zoom requires the `pinch-zoom` token, and `touch-action` restricts every
+  descendant by intersection (a child cannot re-enable what an ancestor
+  removed), so one rule on the root scroller covers every route, modal and
+  portal. `pan-x pan-y` (not `manipulation`, which still admits pinch in some
+  engines) keeps one-finger panning on both axes native. The viewport meta's
+  `user-scalable=no` / `maximum-scale` is deliberately NOT used: iOS Safari and
+  modern Chrome ignore it, and it is a WCAG 1.4.4 audit failure. The dashboard
+  grids' own pinch keeps working — it listens to touch events, not browser
+  gestures — and so do the grids/agenda/drag-handles that already declare a
+  narrower `touch-action` (their intersection with this is unchanged).
+  Deliberate trade-off + remaining zoom paths: docs/accessibility.md §1.8.
 */
 html {
   overscroll-behavior-y: contain;
+  touch-action: pan-x pan-y;
 }
 
 /*

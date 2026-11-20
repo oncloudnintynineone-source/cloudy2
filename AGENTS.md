@@ -413,7 +413,13 @@ doc content here.
   control's accessible name (visual badge `aria-hidden`); dark-scheme event badges and the
   wizard step strip use scheme-scoped `globals.css` rules to reach ≥3:1 boundaries / ≥4.5:1
   text (Mantine's dark `light`/`filled` fills are near-black) — keep new badge/step colours
-  inside that ramp. Design: [docs/accessibility.md](docs/accessibility.md) §1.7.
+  inside that ramp. The browser's own page magnification (pinch **and** double-tap) is off
+  app-wide through `touch-action: pan-x pan-y` on `html` (`globals.css`, mirrored in
+  `public/offline.html` / `public/loading.html` / the SW's offline copy) — never add
+  `user-scalable=no`/`maximum-scale` (ignored by iOS Safari + modern Chrome, and a WCAG 1.4.4
+  audit failure), and a future surface that needs page zoom must own the gesture, since
+  `touch-action` can't be re-enabled below `html`. Design:
+  [docs/accessibility.md](docs/accessibility.md) §1.7 (contrast) / §1.8 (page zoom).
 
 ## Conventions
 

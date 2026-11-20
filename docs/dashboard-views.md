@@ -978,7 +978,10 @@ The rest of this section describes the shared horizontal mechanism.
   attaches **native, non-passive** touch listeners to the ScrollArea viewport
   (React's touch handlers are passive at the root, and `preventDefault` is what
   stops the browser's own page pinch); the grids pass `touch-action: pan-x pan-y`
-  through `useGridPan` so native panning keeps working. The Week (Grid)'s initial
+  through `useGridPan` so native panning keeps working — the same value the whole
+  document now carries, which makes this gesture the **only** pinch on the page
+  (the browser's own page magnification is off app-wide,
+  [`accessibility.md`](accessibility.md#18-page-zoom-policy) §1.8). The Week (Grid)'s initial
   finger spread picks the axis (side by side → columns, stacked → rows) and locks
   it for the gesture; Month / Day / Week (H) have a single axis. The zoom
   re-anchors on the **pinch midpoint** — both re-anchor helpers take an optional

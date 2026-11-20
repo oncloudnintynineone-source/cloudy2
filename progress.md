@@ -2613,6 +2613,22 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   **applied filters** (was Mantine `Pill withRemoveButton`; one chip per value, each ✕
   dropping just that URL param). Docs: `user-picker.md` §1.6/§1.7,
   `event-search.md` §1.10, `audit-log.md`.
+- 1.394 **Page pinch-to-zoom off app-wide**: a two-finger spread no longer magnifies the
+  document like a magnifying glass on any route. One declaration does it — `touch-action:
+  pan-x pan-y` on `html` (`globals.css`): pinch-zoom needs the `pinch-zoom` token, and
+  `touch-action` restricts every descendant by **intersection**, so a single rule on the
+  root scroller covers every page, modal and portal; `manipulation` was not used because it
+  still admits pinch in some engines. The viewport meta's `user-scalable=no` /
+  `maximum-scale` is deliberately **not** used (iOS Safari and modern Chrome ignore it, and
+  it is a WCAG 1.4.4 audit failure), and no `gesturestart` preventDefault either (it leaks
+  once a touch turns uncancelable mid-scroll). The three documents rendered outside
+  `globals.css` carry the same rule inline: `public/offline.html`, `public/loading.html` and
+  the SW's `OFFLINE_FALLBACK_HTML`. Double-tap zoom goes with it; one-finger panning, the
+  grids' own `usePinchZoom` gesture, the agenda swipe and the dnd-kit drag handles are
+  unchanged (their narrower `touch-action` values intersect to the same thing), and desktop
+  `Ctrl`/`Cmd` + `+`, OS text scaling and Android's Force-enable-zoom still work. Docs:
+  `accessibility.md` §1.8 (new), `dashboard-views.md` §1.7, `grid-pan.md` §1.3,
+  `pwa-offline.md` §1.9.
 
 ## 1.4 Open items & next steps
 

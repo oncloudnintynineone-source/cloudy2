@@ -121,6 +121,10 @@ The grids that support pinch-to-zoom pass `touch-action: pan-x pan-y` into
 `useGridPan` (the viewport style): native panning keeps working, but the browser
 no longer page-pinches over the grid, so the two-finger gesture belongs to
 `usePinchZoom` ([`dashboard-views.md`](dashboard-views.md#17-timeline-and-column-zoom-day-week-h-week-d-and-week-grid) §1.7).
+The whole document carries that same value today (`html { touch-action: pan-x
+pan-y }` in `globals.css`, [`accessibility.md`](accessibility.md#18-page-zoom-policy)
+§1.8), so the prop is now redundant — kept because it documents what the grid
+viewport needs, and it intersects to the identical value.
 
 The button components are rendered as **siblings of the anchor element** —
 the Day/Week (H)/Month content `Box` (`weekBoxRef`) and the Week (D) `Paper`

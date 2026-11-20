@@ -154,6 +154,7 @@ const OFFLINE_FALLBACK_HTML = `<!doctype html>
 <style>
 :root{--navy:#0d47a1;--bg:#111111}
 *{box-sizing:border-box;margin:0;padding:0}
+html{touch-action:pan-x pan-y}
 body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:#e0e0e0;min-height:100dvh;display:flex;flex-direction:column}
 header{background:var(--navy);color:#fff;padding:calc(14px + env(safe-area-inset-top,0px)) 16px 14px;display:flex;align-items:center;gap:12px}
 header h1{font-size:1.1rem;font-weight:700;letter-spacing:.02em}
