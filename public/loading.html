@@ -168,12 +168,36 @@
         font-size: 0.875rem;
         color: var(--c2-dim);
       }
+      /* Rotating cold-start subline under the brand headline — mirrors
+         RotatingWaitLines (src/components/WaitOverlay.tsx, §1.4.1): same
+         cadence, same swap shape, same reduced-motion guard. The lines live in
+         src/lib/loading/waitCopy.ts (COLD_START_WAIT_LINES); the JSON block +
+         script near the redirect pin both halves together (launchShell.test.ts). */
+      .boot-textgroup {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+      }
+      .boot-rotate {
+        font-size: 0.75rem;
+        color: var(--c2-dim);
+      }
       @media (prefers-reduced-motion: no-preference) {
         .boot-brand {
           animation: c2-boot-enter 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
         }
         .boot-icon {
           animation: c2-boot-breathe 1400ms cubic-bezier(0.65, 0, 0.35, 1) infinite alternate;
+        }
+        .boot-swap {
+          animation: c2-boot-swap 260ms cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        @keyframes c2-boot-swap {
+          from {
+            opacity: 0;
+            transform: translateY(4px);
+          }
         }
         @keyframes c2-boot-enter {
           from {
@@ -297,7 +321,10 @@
           <span class="sk sk-pulse plainbox" id="c2-box"></span>
           <div class="boot-brand" aria-hidden="true">
             <img src="/icon.svg" alt="" class="boot-icon" />
-            <span class="boot-text">Waking from Deep Sleep…</span>
+            <div class="boot-textgroup">
+              <span class="boot-text">Waking from Deep Sleep…</span>
+              <span class="boot-rotate boot-swap" id="c2-boot-rotate">Stretching the database…</span>
+            </div>
           </div>
         </div>
       </div>
@@ -394,6 +421,58 @@
             location.replace(target);
           });
         });
+      })();
+    </script>
+    <!--
+      Rotating cold-start subline copy — mirrors COLD_START_WAIT_LINES in
+      src/lib/loading/waitCopy.ts; launchShell.test.ts deep-equals this block
+      against that constant so the React overlay and this static shell can
+      never drift apart.
+    -->
+    <script type="application/json" id="c2-boot-lines">
+      [
+        "Stretching the database…",
+        "Warming the calendar cache…",
+        "Counting the sheep… er, events…",
+        "Polishing the pixels…",
+        "Unfolding the month grid…"
+      ]
+    </script>
+    <script>
+      // Rotates the subline under "Waking from Deep Sleep…" while a slow
+      // launch document is still in flight — the static mirror of
+      // RotatingWaitLines (src/components/WaitOverlay.tsx): same 2800 ms
+      // cadence, same reduced-motion guard, same swap animation shape.
+      // Decorative only: the sr-only status stays the sole announcement.
+      // Fully defensive: nothing here may ever strand the redirect above.
+      (function () {
+        try {
+          if (
+            window.matchMedia &&
+            window.matchMedia("(prefers-reduced-motion: reduce)").matches
+          ) {
+            return;
+          }
+          var el = document.getElementById("c2-boot-rotate");
+          var lines = JSON.parse(document.getElementById("c2-boot-lines").textContent);
+          if (
+            !el ||
+            Object.prototype.toString.call(lines) !== "[object Array]" ||
+            lines.length < 2
+          ) {
+            return;
+          }
+          var i = 0;
+          window.setInterval(function () {
+            if (document.visibilityState !== "visible") return;
+            i = (i + 1) % lines.length;
+            el.textContent = lines[i];
+            // Replay the swap animation on the same node.
+            el.classList.remove("boot-swap");
+            void el.offsetWidth;
+            el.classList.add("boot-swap");
+          }, 2800);
+        } catch (err) {}
       })();
     </script>
     <noscript>

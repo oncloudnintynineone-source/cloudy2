@@ -4,6 +4,7 @@ import { runInNewContext } from "node:vm";
 import { describe, expect, it } from "vitest";
 
 import { BASE_PAGES, SETTINGS_SUBTABS, resolveLaunchTarget } from "@/lib/ui/uiState";
+import { COLD_START_WAIT_LINES } from "@/lib/loading/waitCopy";
 
 /**
  * The PWA launch shell is a static HTML file served straight from the service
@@ -73,6 +74,31 @@ describe("PWA launch shell", () => {
     );
     expect(overlay).toContain("c2-boot-brand");
     expect(overlay).toContain("Waking from Deep Sleep");
+  });
+
+  it("pins the rotating cold-start subline to COLD_START_WAIT_LINES", () => {
+    // Both halves of the cold-start surface rotate the same lines: the React
+    // overlay renders RotatingWaitLines with COLD_START_WAIT_LINES, and this
+    // static shell embeds the same list as #c2-boot-lines and rotates it on
+    // the same cadence. Deep-equal the two so copy can never drift.
+    const match = /<script type="application\/json" id="c2-boot-lines">([\s\S]*?)<\/script>/.exec(
+      SHELL_HTML,
+    );
+    if (!match) throw new Error("launch shell is missing its #c2-boot-lines block");
+    expect(JSON.parse(match[1])).toEqual([...COLD_START_WAIT_LINES]);
+    // The span starts on the first line (no blank gap before the first swap).
+    expect(SHELL_HTML).toContain(
+      `id="c2-boot-rotate">${COLD_START_WAIT_LINES[0]}</span>`,
+    );
+    // Rotation mirrors the React cadence and reduced-motion guard.
+    expect(SHELL_HTML).toContain("}, 2800);");
+    expect(SHELL_HTML).toContain('matchMedia("(prefers-reduced-motion: reduce)")');
+    const overlay = readFileSync(
+      new URL("../../../src/components/ColdStartBrandOverlay.tsx", import.meta.url),
+      "utf8",
+    );
+    expect(overlay).toContain("RotatingWaitLines");
+    expect(overlay).toContain("COLD_START_WAIT_LINES");
   });
 
   it("follows the app's manual color-scheme override", () => {

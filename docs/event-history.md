@@ -253,10 +253,11 @@ lands with no stale-document replay in front of it, so two UX layers cover the r
 wait: `/my-events` joins the idle nav preload (Parade State / Contacts / Double Booking,
 [`loading-transitions.md`](loading-transitions.md) §1.15) so the first visit per session
 paints from the router cache (the always-fresh re-read still fires on the warm payload),
-and the list skeleton wears a delayed frosted **wait overlay** — breathing app icon over
+and the list skeleton wears the shared **wait overlay** — breathing app icon over
 rotating "calendar archaeology" copy + a slower tip ticker, revealing only after 300 ms
-so warm loads never flash it (`MyEventsWaitOverlay`, §1.4 of that doc). Decorative and
-honest: no fake progress bars; the sr-only `LoadingStatus` stays the only announcement.
+so warm loads never flash it (shared `WaitOverlay` + `waitCopy.ts`, §1.4.1 of that doc).
+Decorative and honest: no fake progress bars; the sr-only `LoadingStatus` stays the only
+announcement.
 
 ## 1.5 Authorization & privacy
 
@@ -370,7 +371,7 @@ functions, `buildMyEventsData`, the My Events route page, and the client views
 | `src/lib/events/changeTrail.ts` | Pure inline change-timeline shaping (unit-tested) |
 | `src/lib/events/myEvents.ts` / `myEventsRange.ts` | Pure list shaping + window helpers (unit-tested) |
 | `src/lib/perf.ts` | `PERF_LOG=1` per-stage timing helper for re-measuring the read path (§1.4.2) |
-| `src/app/(protected)/my-events/MyEventsWaitOverlay.tsx` + `src/lib/events/myEventsWaitCopy.ts` | Delayed wait overlay on the list skeleton (rotating copy, tips) covering the always-fresh build's residual wait (§1.4.2) |
+| `src/components/WaitOverlay.tsx` + `src/lib/loading/waitCopy.ts` | Shared wait overlay (rotating copy, tips) on the list skeleton covering the always-fresh build's residual wait (§1.4.2) |
 | `src/db/schema.ts` + `drizzle/0056_charming_blue_marvel.sql` | `audit_logs_event_id_idx` |
 | `src/db/schema.ts` + `drizzle/0072_steady_brother_voodoo.sql` | `audit_logs_actor_action_created_idx` (My Events create read, §1.4.2) |
 | `src/components/AppShellShell.tsx` | My Events nav entry + footer More `Menu` |

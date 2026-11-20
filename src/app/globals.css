@@ -694,14 +694,15 @@ html.c2-low-end::view-transition-group(*) {
   }
 }
 
-/* My Events wait overlay (docs/loading-transitions.md §1.4): a frosted card
-   riding dead-centre on the shared list skeleton while the always-fresh route
-   build runs. Decorative like the boot overlay — aria-hidden and
-   pointer-transparent; the sr-only LoadingStatus stays the only announcement.
-   The card fades in on the emphasized cadence (the component delays it ~300 ms
-   so warm loads never flash it), the icon breathes on the same ambient keyframe
-   as the cold-start brand, and each rotation replays the small `c2-wait-swap`
-   rise. Reduced motion: no animations (the component also stops rotating). */
+/* Shared wait overlay (docs/loading-transitions.md §1.4.1, WaitOverlay.tsx): a
+   frosted card riding dead-centre on a slow route's skeleton (My Events,
+   Double Booking, KAH Status). Decorative like the boot overlay — aria-hidden
+   and pointer-transparent; the sr-only LoadingStatus stays the only
+   announcement. The card fades in on the emphasized cadence (the component
+   delays it ~300 ms so warm loads never flash it), the icon breathes on the
+   same ambient keyframe as the cold-start brand, and each rotation replays the
+   small `c2-wait-swap` rise. Reduced motion: no animations (the component also
+   stops rotating). */
 .c2-wait {
   position: absolute;
   inset: 0;

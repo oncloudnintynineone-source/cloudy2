@@ -18,6 +18,7 @@ where it is wired.
 - [1.2 Goals & non-goals](#12-goals--non-goals)
 - [1.3 The standard sequence](#13-the-standard-sequence)
 - [1.4 Route-level loading](#14-route-level-loading)
+  - [1.4.1 Wait overlay (shared recipe)](#141-wait-overlay-shared-recipe)
 - [1.5 Minimum skeleton hold](#15-minimum-skeleton-hold)
 - [1.6 Reveal & crossfade](#16-reveal--crossfade)
   - [1.6.1 `CrossfadeSwap` — the shared swap primitive](#161-crossfadeswap--the-shared-swap-primitive)
@@ -124,7 +125,7 @@ Suspense fallback), shaped to match the real content:
 | `(protected)/dashboard`            | one plain full-page skeleton box with a decorative centered brand overlay (app icon breathing over "Waking from Deep Sleep…", `c2-boot-*` in `globals.css`) — **cold-launch only**: `loading.tsx` skips it for soft navigations (RSC requests carry the `rsc: 1` header, the same signal the SW uses in `swRules.ts`), and `ColdStartBrandOverlay` self-gates on the per-document flag in `src/lib/loading/coldLaunch.ts`, which the cold-start machine (`ColdStartReadyProvider`) clears once the landing content settles. Views are on-demand tabs whose renderer kind is only known after the server resolves the active tab (and loading files receive no URL props), so the route skeleton can no longer shape to a kind — the in-page transition skeletons inside `DashboardView` still do |
 | `(protected)/parade-state`         | `PageHeader` mirror + day-controls row at `lg` + `paradeStateSkeleton.tsx` department cards in the shared `.card-grid`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `(protected)/contacts`             | `PageHeader` mirror + desktop-only search/export bar + card skeletons in the shared `.card-grid`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `(protected)/my-events`             | `PageHeader` mirror + sticky Range-control mirror + the shared `MyEventsListSkeleton`, which carries the delayed **wait overlay** (see below)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `(protected)/my-events`             | `PageHeader` mirror + sticky Range-control mirror + the shared `MyEventsListSkeleton`, which carries the delayed **wait overlay** (§1.4.1)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `(protected)/settings/users`       | `SettingsListChromeSkeleton` (search + filter + Add) + user card skeletons in the shared `.card-grid`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `(protected)/settings/audit-log`   | search bar + 4 × `AuditLogRowSkeleton`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `(protected)/settings/templates`   | form skeleton                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
@@ -136,8 +137,8 @@ Suspense fallback), shaped to match the real content:
 | `(protected)/settings/quick-links` | card list (mobile) + `SettingsTableSkeleton` (desktop)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `(protected)/settings/banner`      | form skeleton                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `(protected)/settings/kah-groups`  | card list (mobile) + `SettingsTableSkeleton` (desktop)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `(protected)/kah-status`           | `PageHeader` mirror + look-ahead select mirror + breach-card list (roster chips + event rows)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `(protected)/double-booking`       | `PageHeader` mirror in the page's header gutter + scan-result card skeleton                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `(protected)/kah-status`           | `PageHeader` mirror + look-ahead select mirror + breach-card list (roster chips + event rows) carrying the **wait overlay** (§1.4.1)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `(protected)/double-booking`       | `PageHeader` mirror in the page's header gutter + scan-result card skeleton carrying the **wait overlay** (§1.4.1)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 
 The `(protected)` **layout awaits only the banner read (a cheap single-row
 SELECT, in parallel with the JWT-only session) before rendering the AppShell** —
@@ -161,27 +162,6 @@ below `lg`, where the Agenda pane is hidden); used by the
 dashboard's **in-page** kind-shaped transitions, not the plain-box
 route fallback), `parade-state/paradeStateSkeleton.tsx`,
 `settings/audit-log/AuditLogRowSkeleton.tsx`.
-
-My Events additionally dresses its skeleton with a **wait overlay**
-(`my-events/MyEventsWaitOverlay.tsx`, `c2-wait-*` in `globals.css`): the route
-is always-fresh (§1.4 `swRules`), so unlike every other page it cannot paint
-from a stale document replay — a cold wide-window build (±3/±6/±12 months over
-all calendars) can take seconds, and the idle nav preload (§1.15) only covers
-the first visit per session. A frosted card (`c2-glass-surface`) rides
-dead-centre on the shared list skeleton — the app icon breathing on the same
-ambient keyframe as the cold-start brand overlay, over a rotating line of
-honest "calendar archaeology" copy with a slower dimmed tip ticker below
-(pure copy + modulo picker in `src/lib/events/myEventsWaitCopy.ts`,
-unit-tested). It is decorative (`aria-hidden`, pointer-transparent — the
-sr-only `LoadingStatus` / `CrossfadeSwap` label stays the only announcement),
-reveals only **300 ms** after the skeleton mounts (mirroring the ActivityBar
-show-delay, so warm loads never flash it), pauses rotation on hidden tabs, and
-under reduced motion shows a static line + tip with no intervals or
-animations. **No fake progress bars or month counters** — the copy describes
-what the build is *like*, never claims precision. Because it lives inside
-`MyEventsListSkeleton`, both the route fallback and the in-page
-`CrossfadeSwap` (always-fresh replay) wear it identically, and the existing
-crossfade retires it on reveal.
 
 The in-page calendar-grid skeletons are **static** (`animate={false}`): a
 Month placeholder renders ~100–170 blocks, and Mantine's pulse animates each
@@ -221,6 +201,62 @@ The committed content's root carries `CONTENT_ENTER_CLASS`
 the fade plays on first paint (no JS, no hydration flash), segment remounts
 replay it, and `router.refresh()` mutations don't remount — so they never
 replay it.
+
+### 1.4.1 Wait overlay (shared recipe)
+
+Some routes' cold builds take seconds (a wide multi-calendar cache read, a
+30-day scan, a cold start). On those, a silently pulsing skeleton reads as a
+stall, so the skeleton additionally wears a **wait overlay** — a decorative
+frosted card riding dead-centre on the loading shape: the app icon breathing
+(the same ambient keyframe as the cold-start brand overlay) over a rotating
+line of honest copy, with a slower dimmed tip ticker below.
+
+**Worn by:** My Events (`myEventsSkeleton.tsx` — the always-fresh route cannot
+paint from a stale document replay, and the idle nav preload (§1.15) only
+covers the first visit per session), Double Booking (the scan card in
+`double-booking/loading.tsx`), KAH Status (`KahStatusSkeleton.tsx`, which also
+dresses the in-view look-ahead recompute), and — as a rotating subline under
+the static "Waking from Deep Sleep…" headline — **both halves of the
+cold-start surface**: `ColdStartBrandOverlay` and the PWA launch shell
+(`public/loading.html`, `pwa-offline.md` §1.5.1), so the app's longest wait
+reads as alive on the precached shell and the route skeleton alike.
+
+**The pieces:**
+
+- `src/components/WaitOverlay.tsx` — `WaitOverlay({ lines, tips, revealMs })`
+  (the card) and `RotatingWaitLines({ lines, tips, subline })` (the rotation
+  core, reused bare by the cold-start overlay). Client-only; SSR renders the
+  hidden state, so the reveal can never mismatch.
+- `src/lib/loading/waitCopy.ts` — every copy set + the pure `pickRotating`
+  picker, unit-tested for uniqueness and length (lines ≤ 48 chars so one fits
+  a 360 px phone). One home keeps the voice consistent and lets
+  `launchShell.test.ts` deep-equal the launch shell's `#c2-boot-lines` JSON
+  block against `COLD_START_WAIT_LINES` — the two cold-start halves can never
+  drift apart.
+- `c2-wait-*` in `globals.css` — the borderless frosted card (blends into the
+  skeleton — no hairline), the icon, and the small `c2-wait-swap` rise each
+  rotation replays (keyed remount, same trick as the pinned ticker).
+
+**The rules (non-negotiable):**
+
+1. **Delayed reveal** (~300 ms, mirroring the ActivityBar show-delay) — warm
+   loads must never flash the card.
+2. **Honest copy only** — lines describe what the load is *like*; never fake
+   progress bars, percentages, or "3 of 25 months" counters.
+3. **Purely decorative** — `aria-hidden`, pointer-transparent; the sr-only
+   `LoadingStatus` / `CrossfadeSwap` label stays the only announcement.
+4. **Reduced motion** — static first line, no intervals, no animations.
+5. **Rotation pauses** on hidden tabs.
+6. **Cold-start surfaces mirror** into `public/loading.html` (same cadence,
+   same guard, lines embedded as JSON) with the drift test pinning both sides.
+
+**To dress a new route:** give the skeleton's main block `pos="relative"`,
+render `<WaitOverlay lines={X_WAIT_LINES} tips={X_WAIT_TIPS} />` inside it,
+add the copy set to `waitCopy.ts` (the quality test picks it up automatically),
+and list the route above. Apply when the cold build can exceed ~1 s; routes
+that always paint from cache or a fast indexed read stay bare — the overlay
+dresses waits, it does not excuse slow loads (fix those per
+[`event-history.md`](event-history.md) §1.4.2 first).
 
 ## 1.5 Minimum skeleton hold
 
@@ -1207,8 +1243,8 @@ re-render the whole dashboard view.
 | `src/components/EventHistoryModal.tsx`                           | Preview-first paint + background revalidate (reference implementation) — §1.18                                                                                                                                                                                                                                                |
 | `src/lib/events/historyCache.ts`                                 | Intent-prefetch + in-flight-promise cache (session lifetime; cleared on sign-out) — §1.18                                                                                                                                                                                                                                     |
 | `src/app/(protected)/my-events/MyEventsView.tsx`                 | Hover/press prefetch + passes the row trail as `preview` — §1.18                                                                                                                                                                                                                                                              |
-| `src/app/(protected)/my-events/MyEventsWaitOverlay.tsx`          | Delayed frosted wait overlay riding the shared list skeleton (breathing icon + rotating copy; decorative, reduced-motion static) — §1.4                                                                                                                                                                                        |
-| `src/lib/events/myEventsWaitCopy.ts`                             | Pure wait-copy arrays + modulo picker (unit-tested) — §1.4                                                                                                                                                                                                                                                                     |
+| `src/components/WaitOverlay.tsx`                                 | Shared wait overlay — `WaitOverlay` (delayed frosted card on a slow route's skeleton) + `RotatingWaitLines` (rotation core, bare under the cold-start headline) — §1.4.1                                                                                                                                                          |
+| `src/lib/loading/waitCopy.ts`                                    | All wait-copy sets + modulo picker (unit-tested; drift-pinned to the launch shell's `#c2-boot-lines`) — §1.4.1                                                                                                                                                                                                                     |
 | `src/app/(protected)/dashboard/DashboardScreen.tsx`              | Owns the snapshot, warm map, preload, per-tab `tabStatus`, and the optimistic `previewView`; first-load timeout + retryable error — §1.13.2                                                                                                                                                                                   |
 | `next.config.ts`                                                 | `experimental.staleTimes.dynamic = 120` client-router reuse window (§1.10)                                                                                                                                                                                                                                                    |
 | `src/app/(protected)/dashboard/page.tsx`                         | `?event=`/`?edit=`/`?refresh=` param validation                                                                                                                                                                                                                                                                               |

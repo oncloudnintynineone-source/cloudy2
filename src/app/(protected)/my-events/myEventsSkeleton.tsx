@@ -1,6 +1,7 @@
 import { Box, Group, Skeleton, Stack } from "@mantine/core";
 
-import { MyEventsWaitOverlay } from "./MyEventsWaitOverlay";
+import { WaitOverlay } from "@/components/WaitOverlay";
+import { MY_EVENTS_WAIT_LINES, MY_EVENTS_WAIT_TIPS } from "@/lib/loading/waitCopy";
 
 const LIST_BORDER = "1px solid var(--mantine-color-default-border)";
 
@@ -8,7 +9,7 @@ const LIST_BORDER = "1px solid var(--mantine-color-default-border)";
  * The My Events result-list skeleton (a bordered, single-column row list).
  * Shared by the route fallback and the in-view crossfade so the two always
  * paint the same shape. The container is the positioning context for the
- * delayed wait overlay (docs/loading-transitions.md §1.4), so both surfaces
+ * shared wait overlay (docs/loading-transitions.md §1.4.1), so both surfaces
  * dress the long always-fresh build identically.
  */
 export function MyEventsListSkeleton({ rows = 5 }: { rows?: number }) {
@@ -51,7 +52,7 @@ export function MyEventsListSkeleton({ rows = 5 }: { rows?: number }) {
           </Group>
         ))}
       </Stack>
-      <MyEventsWaitOverlay />
+      <WaitOverlay lines={MY_EVENTS_WAIT_LINES} tips={MY_EVENTS_WAIT_TIPS} />
     </Box>
   );
 }

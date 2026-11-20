@@ -556,7 +556,11 @@ none` so taps pass through to the clipped tile, and it hides on a side once
   backdrop-filter recompute every frame beneath the frosted chrome — while the
   single-block route/launch-shell skeleton keeps its pulse.
   Every data-awaiting route segment gets a `loading.tsx`; every skeleton block includes a
-  `LoadingStatus` (sr-only `role="status"`). A detail surface opened from a list that
+  `LoadingStatus` (sr-only `role="status"`). Routes whose cold build can take seconds wear
+  the shared **WaitOverlay** (delayed-reveal frosted card, rotating honest copy + tips —
+  My Events, Double Booking, KAH Status, and a rotating subline under the cold-start
+  brand headline incl. the launch shell; recipe + rules in
+  [docs/loading-transitions.md](docs/loading-transitions.md) §1.4.1). A detail surface opened from a list that
   already carries the data uses **preview-first paint + intent prefetch** instead of a
   skeleton — paint the row's data instantly, prefetch on hover/press, silently revalidate
   (recipe: [docs/loading-transitions.md](docs/loading-transitions.md) §1.18). Complemented by the shared **global activity
