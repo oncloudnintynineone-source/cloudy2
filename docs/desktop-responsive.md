@@ -536,22 +536,22 @@ shrinking below a usable size, whatever `size` a call site passes:
 | Floor                    | Var                                                                                                              | Why                                                                                                                                                    |
 | ------------------------ | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Input **field** text     | `Input.vars` → `--input-fz: var(--mantine-font-size-md)` (16px at every size)                                     | iOS Safari auto-zooms the page when a focused field renders smaller than 16px                                                                           |
-| Dropdown **option** text | `Select` / `MultiSelect` / `Combobox` vars → `--combobox-option-fz: var(--mantine-font-size-sm)` (14px)           | With the field pinned at 16px, a `size="xs"` combobox opened a list *smaller than its own field* — 12px options in ~27px rows instead of the ~34px every other menu uses |
+| Dropdown **option** text | `Select` / `MultiSelect` / `Combobox` vars → `--combobox-option-fz: max(md, <size>)` (16px at every size the app uses) | Mantine derives option text from `size`, so a `sm` list was 14px and an `xs` list 12px — a menu *smaller than the field that opened it*. A native `<select>` draws its list at the field's font size; this restores that |
 
 ```mermaid
 flowchart LR
   S["component size prop"] --> F["field text<br/>--input-fz"]
   S --> O["option text<br/>--combobox-option-fz"]
   T1["theme Input.vars"] -.->|"pinned to md"| F
-  T2["theme Select/MultiSelect/Combobox vars"] -.->|"floored at sm"| O
+  T2["theme Select/MultiSelect/Combobox vars"] -.->|"floored at md"| O
 ```
 
-- **The list floor is a floor, not a restyle.** Every combobox but one renders at
-  Mantine's default `sm`, so nothing else changes today. The exception is the
-  deliberately narrow `AccessLevelSelect` row control
-  (`src/components/AccessRows.tsx`, `size="xs"`, 132px): its field stays compact,
-  but its list now opens at 14px instead of 12px — the point of the floor. Only
-  the font size is pinned; the per-size option padding stays Mantine's.
+- **A floor, not a cap.** `max()` keeps a future `lg`/`xl` combobox scaling up;
+  only sizes below `md` are lifted. Option **padding** stays Mantine's per-size
+  value, so rows land at ~37px (16px × 1.55 line-height + `sm` padding) — the
+  compact `AccessLevelSelect` row control (`src/components/AccessRows.tsx`,
+  `size="xs"`, 132px) keeps its 36px field and `xs` padding, so its rows are
+  ~33px.
 - **Per static selector.** Mantine merges theme `vars` under the component's own
   `__staticSelector` (`Combobox`'s is `__staticSelector || "Combobox"`, not both
   names), so every combobox-based field needs its own entry — add one when an

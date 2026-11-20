@@ -21,12 +21,11 @@ interface TimeRangeSelectProps<T extends number> {
  * ("Look ahead") — the two pages used to hand-roll the same control, which let
  * one of them drift to an underscaled `size="xs"`.
  *
- * Deliberately rendered at the app's default combobox size (no `size` prop):
- * the theme pins field text to 16px for iOS zoom safety
- * (`src/lib/theme.ts`, `Input.vars`), so an `xs` select opens a list *smaller*
- * than its own field — 12px options under 16px text, in ~27px rows instead of
- * the ~34px every other menu in the app uses. `w={150}` matches the audit
- * log's date-range pickers, the other sticky-chrome date controls.
+ * Deliberately rendered at the app's default combobox size (no `size` prop);
+ * `w={150}` matches the audit log's date-range pickers, the other sticky-chrome
+ * date controls. The list text is guaranteed to match the field's 16px by the
+ * `comboboxOptionFloor` in `src/lib/theme.ts` — an `xs` select used to open a
+ * list *smaller* than its own field (12px options in ~27px rows).
  */
 export function TimeRangeSelect<T extends number>({
   label,

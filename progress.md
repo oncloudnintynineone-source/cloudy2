@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.388 (both time sides cross while editing)** is shipped.
+- All work through changelog **1.394 (page pinch-to-zoom off app-wide)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -69,7 +69,10 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 ## 1.3 Phase changelog
 
 One line per phase; full write-ups (incl. Mermaid diagrams and verification notes) in
-[progress-archive.md](progress-archive.md) under the same section numbers.
+[progress-archive.md](progress-archive.md) under the same section numbers. A `N.NNN.1`
+number marks an entry logged after `N.NNN` had already been published — it keeps every
+number unique without renumbering the ~290 later entries and the archive sections that
+mirror them (four such entries: 1.106.1, 1.122.1, 1.316.1, 1.331.1).
 
 - 1.3–1.4 Phase 1 scaffold (tooling, DB schema, auth/routing, Google stub, tests)
 - 1.5 Vercel deployment blocker diagnosis + fix
@@ -174,7 +177,7 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
 - 1.104 Fullscreen calendar view: date-nav toggle hides header/nav/sidebar + Fullscreen API, FABs drop to safe-area offset (Phase 3az)
 - 1.105 Event invitee picker: non-admins can invite any user and tag any department (Phase 3b0)
 - 1.106 Start & End rework: date pickers + 24h TimePicker tap-select dropdowns (15-min step), times set without a keyboard
-- 1.106 UserSelectModal: badge picker dialog (search + department grouping) replaces the user multi-selects in the event wizard and FilterModal (Phase 3b1)
+- 1.106.1 UserSelectModal: badge picker dialog (search + department grouping) replaces the user multi-selects in the event wizard and FilterModal (Phase 3b1)
 - 1.107 UserSelectModal: fixed-height picker dialog — search/footer pinned, only badge sections scroll (bugfix)
 - 1.108 UserSelectModal: badge taps keep the search-box focus / soft keyboard open (bugfix)
 - 1.109 Announcement banner: admin-managed persistent banner above the header (enable/disable, text, curated color) with a dedicated Settings tab (Phase 3b2)
@@ -191,7 +194,7 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
 - 1.120 Desktop wide-grid horizontal pan: mouse drag-to-pan + viewport-edge pan chevrons on the Day/Week/Week v2 grids (`useGridPan` over Mantine `useScroller` + `GridPanControls`) — Mantine hides the native scrollbar and its 4px bar sits at the bottom of a table taller than the page, so a wheel mouse had no discoverable horizontal pan (supersedes the committed fade-edge/always-scrollbar attempt)
 - 1.121 PWA offline & instant open: stale-while-revalidate document + RSC caches (`app-documents-swr` / `app-rsc-swr`) so the installed app shows the last-saved calendar instantly — even offline — with background revalidation, a precached branded `offline.html`, per-pathname invalidation on every `router.refresh()` (so mutations never render stale), session-expiry purge + `Saved · HH:MM` chip, and sign-out cache clear (pure predicate module `src/lib/pwa/swRules.ts` unit-tested; `docs/pwa-offline.md`)
 - 1.122 KAH Status page: read-only user-facing `/kah-status` showing a member's own group(s) live in-country % for a selected day (default today) via the existing month cache — green/amber/red status badges (amber within 10pts below), away members inline, no-keyboard day selector; nav entry only for users in ≥1 KAH group (server-computed `hasKahGroup`); shared KAH reads extracted to `src/lib/kah/status.ts` (pure `kahStatusForWindow` unit-tested)
-- 1.122 Pin/Unpin tab invalidates the current pathname's SWR document + RSC caches: a pre-pin payload could no longer resurrect the old tab order on reload/tab switch and clobber the fresh pin in the `cloudy2.ui` cookie (bugfix for the 1.121 caches)
+- 1.122.1 Pin/Unpin tab invalidates the current pathname's SWR document + RSC caches: a pre-pin payload could no longer resurrect the old tab order on reload/tab switch and clobber the fresh pin in the `cloudy2.ui` cookie (bugfix for the 1.121 caches)
 - 1.123 SW build-update takeover: page caches are now build-versioned (FNV-1a fingerprint of the precache manifest), the new SW wipes older builds' page caches on activate, and the client detects the build swap via `controllerchange` (ServiceWorker object identity) + `clearAllSavedPages()` + reload — a deployed build no longer leaves installed PWA tabs serving older pages/app versions (bugfix for the 1.121 caches)
 - 1.124 Offline fallback: query-less navigations (icon tap, bare F5) serve the most recently saved view (stamped, re-stored under the requested URL) and `offline.html` becomes a saved-views picker (newest-first tappable list over the document caches) — the offline page no longer appears while saved views exist (Phase 3b4)
 - 1.125 Offline fallback reachability fix: the branded `offline.html` (and its picker) was precached but never served — `caches.match("/offline.html")` misses Serwist's revisioned `?__WB_REVISION__=` cache key, so the fallback always dropped to a bare "You're offline" string; `handlerDidError` now resolves the precache key via `serwist.matchPrecache`, and the absolute-last-resort inline page is a self-contained branded copy of the picker (`OFFLINE_FALLBACK_HTML`) instead of an error string (bugfix for the 1.124 fallback; `docs/pwa-offline.md` §1.9)
@@ -1849,7 +1852,7 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   All dependent geometry (`fabStackHeight` → `--c2-bottom-chrome-height` page
   pads, zoom/pan bottom barrier) is `ResizeObserver`-measured, so the taller
   row auto-adapts. Docs: `dashboard-views.md` §1.1, `desktop-responsive.md` §1.2.
-- 1.316 Contacts search pill lift is keyboard-measured, not guessed: the mobile
+- 1.316.1 Contacts search pill lift is keyboard-measured, not guessed: the mobile
   pill's focus lift used `bottom: 40vh`, which floats far above the keys on
   devices whose viewport doesn't shrink with the keyboard (and stayed lifted
   after a swipe-down dismiss). It now rides `useKeyboardInset`
@@ -1992,7 +1995,7 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   `ready`/`done`. Hard reload / Force refresh / PWA launch still show it
   (fresh JS context = cold boot). Docs: `docs/loading-transitions.md`
   §1.4/§1.13.1.
-- 1.331 **Fix: silent event pop-ins after an in-place calendar re-read**: a month
+- 1.331.1 **Fix: silent event pop-ins after an in-place calendar re-read**: a month
   tap used to paint the tapped grid from the held record whenever the two grids
   merely _shared_ a month, so the uncovered trailing days rendered empty and
   filled in seconds later (most visible right after Settings → Purge Calendar
@@ -2587,18 +2590,19 @@ One line per phase; full write-ups (incl. Mermaid diagrams and verification note
   as `#c2-boot-lines` JSON, deep-equal drift-pinned to `COLD_START_WAIT_LINES` in
   `launchShell.test.ts`). Docs: `loading-transitions.md` §1.4.1 (new),
   `pwa-offline.md`, AGENTS.md loading checklist.
-- 1.392 **Time-range dropdowns scaled correctly**: the My Events **Range** and KAH Status
-  **Look ahead** menus were two of the app's only three `size="xs"` selects. The theme pins
-  field text to 16px for iOS zoom safety while Mantine derives option text from the
-  component `size`, so they opened a list *smaller than their own field* — 12px options in
-  ~27px rows instead of the 14px / ~34px every other menu uses. Both call sites now render
-  the shared `TimeRangeSelect` (`src/components/TimeRangeSelect.tsx`): generic over the
-  months union, `w={150}` like the audit log's date-range pickers, and it fires only with a
-  selectable window, so `KahStatusView` dropped its client-side `parseKahRange` (the server
-  action still coerces its input). The theme additionally floors `--combobox-option-fz` at
-  `sm` for `Select`/`MultiSelect`/`Combobox` — it only bites the third `xs` select
-  (`AccessLevelSelect`, whose 132px row field stays compact while its list returns to 14px)
-  and blocks the regression elsewhere; Mantine needs one entry per `__staticSelector`.
+- 1.392 **Dropdown lists match their field (time-range menus first)**: Mantine derives
+  dropdown-option text from the component `size` while the theme pins *field* text to 16px
+  for iOS zoom safety, so every menu opened **smaller than the control that spawned it** —
+  14px at the default `sm`, and 12px in ~27px rows for the three `size="xs"` selects (My
+  Events **Range**, KAH Status **Look ahead**, the roster `AccessLevelSelect`).
+  `src/lib/theme.ts` now floors `--combobox-option-fz` at `max(md, <size>)` for
+  `Select`/`MultiSelect`/`Combobox` (one entry per `__staticSelector`), so a list draws at
+  its field's 16px like a native `<select>`; padding stays per size, giving ~37px rows
+  (~33px for the compact access-level row, whose 36px field is unchanged). The two
+  time-range menus also move to the shared `TimeRangeSelect`
+  (`src/components/TimeRangeSelect.tsx`) — generic over the months union, `w={150}` like the
+  audit log's date pickers, firing only with a selectable window, so `KahStatusView` dropped
+  its client-side `parseKahRange` (the server action still coerces).
   Docs: `desktop-responsive.md` §1.11, `event-history.md` §1.4, `kah.md` §1.7.
 - 1.393 **One removable chip everywhere**: the removable-pill recipe that the event
   wizard and the filter dialog already used is now the app's only one. `PickerChip`

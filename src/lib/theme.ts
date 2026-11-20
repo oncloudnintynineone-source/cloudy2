@@ -27,24 +27,27 @@ const accent: MantineColorsTuple = [
 ];
 
 /**
- * Floor for dropdown-list text. The `Input.vars` override below pins the
- * *field* to 16px (iOS zoom safety), while Mantine derives the option text
- * from the component `size` — so a `size="xs"` select opened a list *smaller*
- * than its own field (12px options under 16px text, in ~27px rows instead of
- * the ~34px every other menu uses). This is a floor rather than a restyle: it
- * pins only the font size — Mantine's per-size option padding is untouched —
- * and the one control that still asks for `xs` (the 132px `AccessLevelSelect`
- * row control) keeps its compact field while its list returns to 14px.
+ * Dropdown-list text always matches the field that opened it. The `Input.vars`
+ * override below pins the *field* to 16px (iOS zoom safety), but Mantine derives
+ * the option text from the component `size` — so a `sm` list rendered 14px and an
+ * `xs` list 12px, both *smaller than their own field* (12px options in ~27px rows
+ * under 16px text). A native `<select>` draws its list at the field's font size;
+ * this restores that. `max()` keeps it a floor, so a future `lg`/`xl` combobox
+ * still scales up. Only the font size is pinned — Mantine's per-size option
+ * padding is untouched, so rows land at ~37px (16px × 1.55 + sm padding).
  *
  * Mantine resolves component theme vars under the component's own
  * `__staticSelector` (Combobox's is `__staticSelector || "Combobox"`, not both
  * names), so every combobox-based field needs its own entry — add one when a
  * new one (`Autocomplete`, `TagsInput`, …) is introduced.
  */
-const comboboxOptionFloor = () => ({
-  options: { "--combobox-option-fz": "var(--mantine-font-size-sm)" },
-  dropdown: { "--combobox-option-fz": "var(--mantine-font-size-sm)" },
-});
+const comboboxOptionFloor = (_theme: unknown, { size }: { size?: string }) => {
+  const fz = `max(var(--mantine-font-size-md), var(--mantine-font-size-${size ?? "sm"}))`;
+  return {
+    options: { "--combobox-option-fz": fz },
+    dropdown: { "--combobox-option-fz": fz },
+  };
+};
 
 export const theme = createTheme({
   primaryColor: "brand",
