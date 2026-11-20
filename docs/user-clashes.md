@@ -9,6 +9,7 @@
 - [1.6 The pure engine (`findUserClashGroups`)](#16-the-pure-engine-finduserclashgroups)
 - [1.7 The read-only action (`checkUserClashes`)](#17-the-read-only-action-checkuserclashes)
 - [1.8 The page & view](#18-the-page--view)
+  - [1.8.1 Strip granularity](#181-strip-granularity)
 - [1.9 Edge cases](#19-edge-cases)
 - [1.10 Related docs](#110-related-docs)
 
@@ -22,8 +23,9 @@ and two relevant events clash simply by overlapping in time.
 ## 1.1 Goal
 
 A regular user can open **Double Booking** from the bottom nav (or sidebar) and see,
-over the next 30 days, every episode where two or more of their existing events keep
-them busy at overlapping times — each episode listing the offending events (title,
+over a look-ahead they choose (**1 month** by default, 6 months, or 1 year), every
+episode where two or more of their existing events keep them busy at overlapping times
+— each episode listing the offending events (title,
 when, department, `External` badge) and the people every event in the episode occupies
 (the user emphasised as `You (name)` when scanning themselves). Advisory and
 read-only: it never writes, never audits, and never blocks anything.
@@ -46,6 +48,14 @@ without a navigation.
   acting user's own schedule. Inactive users are not offered.
 - The acting user is emphasised as `You` only when the target **is** the actor, so
   scanning a colleague sees plain name chips.
+- The **look-ahead** control beside the target chip is the shared `TimeRangeSelect`
+  (`1 month / 6 months / 1 year`, `src/lib/events/clashRange.ts` →
+  `userClashWindow`). Like the target, it is a client-side choice that re-runs the
+  action — never a URL param — and the result header, empty state, and status line all
+  name the window that produced them (`rangeMonthsLabel(aheadMonths, "forward")`), so a
+  stale result can never read like a current one. The outcome carries the
+  `aheadMonths` it was computed for and the view only paints it when that matches the
+  selection.
 
 ### 1.2.1 The nav count badge
 
@@ -60,7 +70,10 @@ surface also carries it as a `title`, so sighted mouse users read the same
 
 It is fetched by `AppShellShell` (which stays mounted across SPA navigations, so there
 is **no per-navigation recompute**) via the same read-only `checkUserClashes({})`
-action, once on mount in the background, again on tab refocus, and after every
+action — no `aheadMonths`, so the badge counts the **page's default window** (one
+month) and the pill and the page the user lands on agree, §1.4.3 of
+[`event-history.md`](event-history.md) — once on mount in the background, again on tab
+refocus, and after every
 successful create/update/delete: `DashboardView` dispatches the new
 `cloudy2:events-changed` window event (`src/lib/ui/eventChanges.ts`) from the same two
 post-mutation completion points that already dispatch the pinned-events event, and the
@@ -133,18 +146,23 @@ flowchart LR
 1. The page (`src/app/(protected)/double-booking/page.tsx`, a server component)
  resolves the session and loads the active roster for the target picker, then
  renders `DoubleBookingView`.
-2. On mount (and on every target change / Retry) the view calls the server action
- `checkUserClashes({ targetUserId })` — the same cancelled-flag + `attempt` pattern
+2. On mount (and on every target change / look-ahead change / Retry) the view calls the
+ server action `checkUserClashes({ targetUserId, aheadMonths })` — the same
+ cancelled-flag + `attempt` pattern
  `EventClashCheck` uses, with the loading/error views derived from the
  request/outcome pair (state is only set in the async callbacks, so the
  `react-hooks/set-state-in-effect` rule stays satisfied).
 3. The action guards with `requireSession()`; any signed-in user may scan any
  active roster user (the target is resolved from the active roster, so unknown or
  deactivated ids fall back to the specific notice).
-4. The scan window is **today → +30 days**, inclusive dates in the UTC+8 wall clock:
- `[parseNaiveToInstant(today + " 00:00:00"), +30 days)` — a half-open instant window
- (`USER_CLASH_SCAN_DAYS = 30`, exported from `clashQuery.ts`). An event that started
- before today but still overlaps the window is included.
+4. The scan window is **today → the last day of the month `aheadMonths` out**,
+ inclusive dates in the UTC+8 wall clock: `userClashWindow(today, aheadMonths)`
+ (`src/lib/events/clashRange.ts`, one of the two `monthRange.ts` window shapes) turned
+ into the half-open instant range `[parseNaiveToInstant(today + " 00:00:00"),
+ next midnight after windowEnd)`. `aheadMonths` is parsed through
+ `parseUserClashAhead`, so a caller that passes nothing — or a stale client — gets the
+ default one month (the old `USER_CLASH_SCAN_DAYS = 30` constant is gone). An event
+ that started before today but still overlaps the window is included.
 5. `clashingEventsFor([homeDepartment.id], from, to)` reads the overlapping months
  through the layered month cache (`clashWindowMonths` → `getCachedMonthEventsForCalendars`,
  never raw `listEvents`), dedupes by (calendar row, Google id), and shapes each item
@@ -153,7 +171,8 @@ flowchart LR
  target, and computes the overlap components.
 7. The action maps the groups to display entries (per-event title / calendar /
  inclusive-naive window via the shared `conflictWindowNaive`, plus the shared-people
- names) and returns them with the target id/name, the covered dates, and the acting
+ names) and returns them with the target id/name, the covered dates, the
+ `aheadMonths` they were computed for, and the acting
  user's id (for the `You` emphasis).
 
 ## 1.6 The pure engine (`findUserClashGroups`)
@@ -203,10 +222,12 @@ half-day-aware occupancy window the timeline positions bars by (the stored
   roster (`id`, `name`, `shortname`, department) for the picker.
 - **`DoubleBookingView.tsx`** — client component. The header is a responsive flex row
   (`.c2-db-head` in `globals.css`): title + a short target-aware subtitle on the left,
-  and the target control on the right — **full column width on mobile**,
-  content-sized from the 40em desktop band on (a pure-CSS switch, so there is no
+  and a **control group** (`.c2-db-controls`) on the right holding the target picker
+  (`.c2-db-picker`) and the look-ahead menu (`.c2-db-range`) — **stacked full column
+  width on mobile**, each control content-sized and right-aligned from the 40em desktop
+  band on (a pure-CSS switch, so there is no
   `useMediaQuery` first-frame shift). On that row the title is **top-aligned** with
-  the picker, so it stays anchored to the top of the header block beside the taller
+  the controls, so it stays anchored to the top of the header block beside the taller
   label + Select + chip stack. The control follows the event form's Invited
   Attendees pattern: a "Check another person" label + a light **Select** button that
   opens the `UserSelectModal` badge dialog (`single` mode; department sections,
@@ -216,9 +237,10 @@ half-day-aware occupancy window the timeline positions bars by (the stored
   `EmptyState` for `no-department` / `no-active-user`; a single actionable
   `EmptyState` (with an "Open calendar" link) for a clean scan.
 - **Result layout — visual, time-first and day-grouped.** A real scan opens with one
-  concise `role="status"` line (`N double bookings in the next 30 days`), then a
-  **30-day overview strip** (`ClashDayStrip`): one cell per day from the scan range
-  with its conflict count; busy cells are tappable and scroll to that day's section
+  concise `role="status"` line naming its own window (`N double bookings in the next
+  6 months`), then an **overview strip**: one cell per day from the scan range
+  with its conflict count (`ClashDayStrip`); busy cells are tappable and scroll to that
+  day's section
   (`jumpToDay`). Reports are then bucketed into consecutive days (an episode is filed
   under its first day) behind a short day heading (`Today` / `Tomorrow` / `Mon 14 Sep`,
   via `clashDayLabel`).
@@ -286,11 +308,13 @@ half-day-aware occupancy window the timeline positions bars by (the stored
   not N.
 - **Display helpers** are pure and unit-tested in
   `src/lib/events/clashDisplay.ts` (`clashDisplay.test.ts`): day keys/labels, per-day
-  bucketing (`clashDayBuckets`), the episode/strip builders, type-first labels, date-free
+  bucketing (`clashDayBuckets`), the episode/strip builders, the strip granularity switch
+  (`clashStripGranularity` + `buildClashMonthStrip`, §1.8.1), type-first labels, date-free
   time labels, and axis ticks (a same-day timed range collapses the repeated date). The
   shared `clashWhenLabel` replaces the old `eventWhenLabel`, so the wizard's rows get the
   same tighter labels. Timeline geometry lives in `src/lib/events/clashTimeline.ts`
-  (`clashTimeline.test.ts`).
+  (`clashTimeline.test.ts`). The window itself is not this page's business: it comes from
+  `userClashWindow` (`src/lib/events/clashRange.ts`), shared with the nav badge.
 - **`loading.tsx`** — route skeleton in the standard shape (`LoadingStatus` + shaped
   `Skeleton`s inside `PageContainer`).
 
@@ -306,10 +330,26 @@ page's breach cards reuse `ClashCard` / `ClashEventRow` (and the shared
 `conflictWindowNaive` / `shapeClashDetail` helpers) so a breach reads the same way
 as a double booking — see [`kah.md`](kah.md) §1.7.
 
+### 1.8.1 Strip granularity
+
+A one-month strip is 31 cells; a one-year strip would be 366 — a wall of identical
+squares that says nothing at a glance and pushes the first report off the screen. So
+`clashStripGranularity(startDate, endDate, minMonthDays)` (`clashDisplay.ts`) picks the
+granularity from the window's length (month cells once it exceeds
+`CLASH_MONTH_STRIP_MIN_DAYS = 62`), and `buildClashMonthStrip` builds one cell per
+**month** instead: `26 / Nov / 3` (year, month, conflict count). A month with any
+conflict is tappable and jumps to its **earliest conflict day** — a day section that is
+by construction rendered, since the strip only counts days inside the reported range.
+Keys outside the window are ignored (a range starting on the 25th counts that partial
+month from the 25th, not from the 1st). Both strips share `.c2-clash-strip`; the month
+variant adds `--month` for its wider, content-sized cells, and each carries an
+`aria-label` naming the window it covers ("Double bookings over the next 1 year")
+rather than a hard-coded 30 days.
+
 ## 1.9 Edge cases
 
-- **An event that spans the scan boundary** (started before today, or running past
-  day 30) is included whenever it overlaps the window — the user is genuinely busy
+- **An event that spans the scan boundary** (started before today, or running past the
+  look-ahead) is included whenever it overlaps the window — the user is genuinely busy
   during part of the scan.
 - **Two clash episodes on the same day** (morning pair, afternoon pair) are two
   reports; a **chain** `A↔B↔C` is one.

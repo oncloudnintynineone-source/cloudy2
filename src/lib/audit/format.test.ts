@@ -2,10 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import {
   actionLabel,
+  changeSummary,
   EMPTY_VALUE,
+  EVENT_HISTORY_OMIT_KEYS,
   fieldLabel,
   formatAuditDetails,
   formatLogTimestamp,
+  hasAuditDetails,
   valueString,
 } from "./format";
 
@@ -163,6 +166,63 @@ describe("formatAuditDetails", () => {
     expect(result.lines).toEqual([]);
     expect(result.values).toEqual([]);
     expect(result.json).toBe("null");
+  });
+});
+
+describe("formatAuditDetails options", () => {
+  it("drops omitted keys from the change lines, the context values, and the resulting state", () => {
+    const result = formatAuditDetails(
+      {
+        before: {},
+        after: { name: "New", title: "Rendered", eventId: "abc" },
+        changes: { name: ["Old", "New"], title: ["a", "b"], eventId: ["abc", "abc"] },
+        eventId: "abc",
+      },
+      { omitKeys: ["title", "eventId"] },
+    );
+    expect(result.lines).toEqual([{ label: "Name", before: "Old", after: "New" }]);
+    expect(result.values).toEqual([]);
+    expect(result.after).toEqual([{ label: "Name", value: "New" }]);
+  });
+
+  it("drops empty label/value lines but never a change line", () => {
+    const snapshot = formatAuditDetails(
+      { title: "Trip", description: "", location: null, departments: [] },
+      { dropEmpty: true },
+    );
+    expect(snapshot.values).toEqual([{ label: "Title", value: "Trip" }]);
+
+    const diff = formatAuditDetails(
+      { before: {}, after: {}, changes: { location: [null, "Room 3"] } },
+      { dropEmpty: true },
+    );
+    expect(diff.lines).toEqual([{ label: "Location", before: EMPTY_VALUE, after: "Room 3" }]);
+  });
+
+  it("omits the resulting state on request", () => {
+    const result = formatAuditDetails(
+      { before: { name: "Old" }, after: { name: "New" }, changes: { name: ["Old", "New"] } },
+      { includeAfter: false },
+    );
+    expect(result.after).toEqual([]);
+    expect(result.lines).toHaveLength(1);
+  });
+
+  it("reports whether anything is left to show", () => {
+    // An edit that only moved derived values has nothing the reader can read.
+    const curated = formatAuditDetails(
+      { before: {}, after: {}, changes: { title: ["a", "b"], eventId: ["e", "e"] }, eventId: "e" },
+      { omitKeys: EVENT_HISTORY_OMIT_KEYS, dropEmpty: true, includeAfter: false },
+    );
+    expect(hasAuditDetails(curated)).toBe(false);
+    expect(
+      changeSummary({ before: {}, after: {}, changes: { title: ["a", "b"] } }, null, {
+        omitKeys: EVENT_HISTORY_OMIT_KEYS,
+      }),
+    ).toBeNull();
+
+    expect(hasAuditDetails(formatAuditDetails({ reason: "invalid_credentials" }))).toBe(true);
+    expect(hasAuditDetails(formatAuditDetails(null))).toBe(true);
   });
 });
 

@@ -219,7 +219,7 @@ flowchart LR
  U["Logged-in viewer<br/>(member of ≥1 group, or admin)"] --> P["/kah-status (server)"]
  P -- "member" --> G["kahGroupsForUser(userId)"]
  P -- "admin" --> A["listKahGroupChecks() — all groups"]
- P --> W["window: today … last day of (today + 3/6/12m)"]
+ P --> W["window: today … last day of (today + 1/6/12m)"]
  W --> B["overseasEventEntriesInRange(window)<br/>— month cache, one enriched read"]
  B --> D["busyDaysInRange → per-day<br/>kahStatusForWindow (pure)"]
  G --> E["kahBreachEpisodes(perDay, today) (pure)"]
@@ -231,10 +231,11 @@ flowchart LR
 ```
 
 - The page scans a **forward-only window** from today through the last day of the
-  month N months ahead, where N is the page's **Look ahead** dropdown (3 months
-  by default, or 6 months / 1 year). The dropdown is the shared
-  `TimeRangeSelect` (`src/components/TimeRangeSelect.tsx`) at the app's default
-  combobox size ([`desktop-responsive.md`](desktop-responsive.md) §1.11). The
+  month N months ahead, where N is the page's **Look ahead** control (1 month by
+  default, or 6 months / 1 year — the app-wide set,
+  [`event-history.md`](event-history.md) §1.4.3). The control is the shared
+  `TimeRangeSelect` (`src/components/TimeRangeSelect.tsx`), the range pill
+  ([`desktop-responsive.md`](desktop-responsive.md) §1.11). The
   choice is **per-view only — never
   saved** (it lives in client state, not the URL or prefs), so a refresh resets
   it to the default. There is no past half: a breach that began before today is
@@ -278,7 +279,7 @@ flowchart LR
   clash reports; the notify path stays on the lean `overseasEventsInRange`.
 - The nav entry carries a **breach count badge** (the amber pill shared with
   Double Booking): the number of breach **periods** (maximal runs of consecutive
-  breached days) from **today through the last day of the month 3 months ahead**
+  breached days) from **today through the last day of the month 1 month ahead**
   (`DEFAULT_KAH_RANGE_MONTHS` — the page's default look-ahead, which the badge is
   fixed to and never follows the page's selection). Admins count every group's
   periods combined; members count only their own. It is a read-only
@@ -297,7 +298,10 @@ flowchart LR
   diverge on who counts as a member or away. The pure, client-safe look-ahead
   helpers (`DEFAULT_KAH_RANGE_MONTHS`, `KAH_RANGE_MONTHS`, `kahForwardWindow`,
   `parseKahRange`, `kahRangeLabel`) and the shared view types live in
-  `src/lib/kah/range.ts`; `src/lib/kah/viewData.ts` (`buildKahStatusViewData`)
+  `src/lib/kah/range.ts` — thin faces of the app-wide 1/6/12-month vocabulary in
+  `src/lib/dateRange/monthRange.ts` (see
+  [`event-history.md`](event-history.md) §1.4.3), so KAH, Double Booking and My
+  Events offer the same three windows; `src/lib/kah/viewData.ts` (`buildKahStatusViewData`)
   owns the page's read + shaping, reused by the page's initial render and the
   `getKahStatusView` range-change action. The in-place detail shaping
   (`shapeClashDetail`) and the inclusive window helper (`conflictWindowNaive`)
@@ -315,14 +319,14 @@ flowchart LR
 | `src/lib/kah/emailDefaults.ts` | Default subject/body templates shared with the schema defaults |
 | `src/lib/kah/queries.ts` | Group + member reads for the tab |
 | `src/lib/kah/status.ts` | Shared status reads: member groups, `overseasEventsInRange` / `overseasEventEntriesInRange`, pure `busyDaysInRange`, `kahStatusForWindow`, `kahBreachEpisodes`, `dedupeOverseasEventsByGroupId`, `eventsForGroupEpisode`, `memberIdsAwayOnEvent`, `userHasKahGroup`, `isUuid` session-id guard |
-| `src/lib/kah/range.ts` | Pure, client-safe look-ahead helpers + shared view types: `DEFAULT_KAH_RANGE_MONTHS` (3), `KAH_RANGE_MONTHS` (3/6/12), `kahForwardWindow`, `parseKahRange`, `kahRangeLabel`, `KahEpisodeRow`, `KahStatusViewData` |
+| `src/lib/kah/range.ts` | Pure, client-safe look-ahead helpers + shared view types: `DEFAULT_KAH_RANGE_MONTHS` (1), `KAH_RANGE_MONTHS` (1/6/12, from `src/lib/dateRange/monthRange.ts`), `kahForwardWindow`, `parseKahRange`, `kahRangeLabel`, `KahEpisodeRow`, `KahStatusViewData` |
 | `src/lib/kah/viewData.ts` | `buildKahStatusViewData` — the page's forward-window read + breach-card shaping, shared by the initial render and the range-change action |
 | `src/lib/kah/actions.ts` | Audited group CRUD server actions |
 | `src/lib/kah/statusActions.ts` | Read-only server actions: `checkKahBreaches` (nav badge) + `getKahStatusView` (page look-ahead change) + `getKahBreachEventDetail` (breach-card in-place detail) |
 | `src/lib/kah/notify.ts` | `dispatchKahBreachCheck` — check, audit, email (imports reads from `status.ts`) |
 | `src/lib/events/clashDetail.ts` | Shared `shapeClashDetail` — the in-place detail payload for Double Booking, the wizard advisory, and KAH |
-| `src/app/(protected)/kah-status/{page,loading,KahStatusView,KahStatusSkeleton}.tsx` | Read-only status page: forward-only breach forecast over a selectable look-ahead (default 3 months; 6 months / 1 year), per-view only (members: own groups; admins: all groups); collapsible breach cards with the group roster + causing events |
-| `src/components/TimeRangeSelect.tsx` | The **Look ahead** dropdown (shared with My Events "Range"; app default combobox size, [`desktop-responsive.md`](desktop-responsive.md) §1.11) |
+| `src/app/(protected)/kah-status/{page,loading,KahStatusView,KahStatusSkeleton}.tsx` | Read-only status page: forward-only breach forecast over a selectable look-ahead (default 1 month; 6 months / 1 year), per-view only (members: own groups; admins: all groups); collapsible breach cards with the group roster + causing events |
+| `src/components/TimeRangeSelect.tsx` | The **Look ahead** control (shared with My Events "Range") — the app-wide range pill, [`desktop-responsive.md`](desktop-responsive.md) §1.11 |
 | `src/components/AppShellShell.tsx` | Conditional KAH Status nav entry (members: `hasKahGroup`; admins: always) |
 | `src/lib/email/send.ts` | Transport selection: Workspace delegation → SMTP → warn |
 | `src/lib/email/smtp.ts` | Pure `SMTP_URL` parser + nodemailer sender |

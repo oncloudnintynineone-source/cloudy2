@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildClashDayStrip,
+  buildClashMonthStrip,
   clashCoveredDayKeys,
   clashDayBuckets,
   clashDayKey,
   clashDayLabel,
   clashEntryTimeLabel,
   clashEpisodeTimeLabel,
+  clashStripGranularity,
   clashTimeLabel,
   clashTypeLabel,
   clashWhenLabel,
@@ -264,6 +266,55 @@ describe("buildClashDayStrip", () => {
   it("ignores conflict keys outside the range", () => {
     const strip = buildClashDayStrip("2026-09-14", "2026-09-15", ["2026-10-01"]);
     expect(strip.every((cell) => cell.count === 0)).toBe(true);
+  });
+});
+
+describe("clashStripGranularity", () => {
+  it("keeps the day strip up to the boundary (the default 1-month window)", () => {
+    expect(clashStripGranularity("2026-11-21", "2026-12-31")).toBe("day");
+    expect(clashStripGranularity("2026-11-21", "2027-01-21")).toBe("day");
+  });
+
+  it("switches to the month strip past the boundary (6 and 12 months)", () => {
+    expect(clashStripGranularity("2026-11-21", "2027-05-31")).toBe("month");
+    expect(clashStripGranularity("2026-11-21", "2027-11-30")).toBe("month");
+  });
+});
+
+describe("buildClashMonthStrip", () => {
+  it("returns one cell per covered month with counts and a jump target", () => {
+    const strip = buildClashMonthStrip(
+      "2026-11-21",
+      "2027-05-31",
+      ["2026-12-05", "2026-12-02", "2027-02-11"],
+      "2026-11-21",
+    );
+    expect(strip.map((cell) => [cell.monthKey, cell.count, cell.jumpDayKey])).toEqual([
+      ["2026-11", 0, null],
+      ["2026-12", 2, "2026-12-02"],
+      ["2027-01", 0, null],
+      ["2027-02", 1, "2027-02-11"],
+      ["2027-03", 0, null],
+      ["2027-04", 0, null],
+      ["2027-05", 0, null],
+    ]);
+    expect(strip[0]).toMatchObject({ label: "Nov", year: 2026, today: true });
+    expect(strip[1]).toMatchObject({ label: "Dec", year: 2026, today: false });
+  });
+
+  it("marks the month containing today and counts a partial first month", () => {
+    const strip = buildClashMonthStrip(
+      "2026-11-21",
+      "2027-11-30",
+      ["2026-11-25", "2026-11-05"],
+      "2026-11-21",
+    );
+    expect(strip[0]).toMatchObject({ count: 1, jumpDayKey: "2026-11-25", today: true });
+  });
+
+  it("ignores conflict keys outside the covered window", () => {
+    const strip = buildClashMonthStrip("2026-11-21", "2027-01-31", ["2026-10-30"], "2026-11-21");
+    expect(strip.every((cell) => cell.count === 0 && cell.jumpDayKey === null)).toBe(true);
   });
 });
 

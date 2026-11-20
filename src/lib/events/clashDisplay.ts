@@ -8,7 +8,13 @@
 
 import dayjs from "dayjs";
 
-import { addDays, daysBetween, formatInstantToNaive, subOneDay } from "@/lib/events/datetime";
+import {
+  addDays,
+  daysBetween,
+  formatInstantToNaive,
+  shiftMonth,
+  subOneDay,
+} from "@/lib/events/datetime";
 
 /** The subset of an entry the display helpers need. */
 export interface ClashWindowLike {
@@ -73,7 +79,8 @@ export function formatAxisMinute(minute: number): string {
 
 /**
  * One cell per day across `[startDate, endDate]` (inclusive) with the number of
- * conflict episodes filed on it — the 30-day overview strip. Pure.
+ * conflict episodes filed on it — the overview strip for a short look-ahead.
+ * Pure.
  */
 export function buildClashDayStrip(
   startDate: string,
@@ -88,6 +95,90 @@ export function buildClashDayStrip(
     dayKey,
     count: counts.get(dayKey) ?? 0,
   }));
+}
+
+/**
+ * Above this many covered days the overview strip switches from one cell per day
+ * to one per month: a 6- or 12-month look-ahead would otherwise render 180–365
+ * boxes in a single row. Two months is the boundary the day strip was already
+ * comfortable with, so the default 1-month window keeps the day view.
+ */
+export const CLASH_MONTH_STRIP_MIN_DAYS = 62;
+
+/**
+ * Which overview strip a window deserves. Pure; the page keeps one renderer per
+ * granularity instead of stretching one across both.
+ */
+export function clashStripGranularity(
+  startDate: string,
+  endDate: string,
+  minMonthDays: number = CLASH_MONTH_STRIP_MIN_DAYS,
+): "day" | "month" {
+  const days = dayjs(endDate).diff(dayjs(startDate), "day") + 1;
+  return days > minMonthDays ? "month" : "day";
+}
+
+/** One cell of the month-granularity overview strip. */
+export interface ClashMonthCell {
+  /** `YYYY-MM` — the month this cell covers. */
+  monthKey: string;
+  /** Short month label, e.g. `Nov`. */
+  label: string;
+  /** Calendar year of the month (the row marks it when it changes). */
+  year: number;
+  /** Conflict episodes filed in this month. */
+  count: number;
+  /** Whether this is the month containing `todayKey`. */
+  today: boolean;
+  /** The month's first conflict day (`YYYY-MM-DD`), null when it has none —
+   *  the cell's jump target. */
+  jumpDayKey: string | null;
+}
+
+/**
+ * One cell per calendar month overlapping `[startDate, endDate]` (inclusive)
+ * with the number of conflict episodes in it — the overview strip for a
+ * look-ahead longer than `CLASH_MONTH_STRIP_MIN_DAYS` days. The first and last
+ * months are partial (only the covered days count), matching the day strip.
+ * Pure.
+ */
+export function buildClashMonthStrip(
+  startDate: string,
+  endDate: string,
+  conflictDayKeys: readonly string[],
+  todayKey: string,
+): ClashMonthCell[] {
+  const firstMonth = startDate.slice(0, 7);
+  const lastMonth = endDate.slice(0, 7);
+  const counts = new Map<string, number>();
+  const jumps = new Map<string, string>();
+  for (const dayKey of conflictDayKeys) {
+    const month = dayKey.slice(0, 7);
+    if (month < firstMonth || month > lastMonth) {
+      continue;
+    }
+    if (dayKey < startDate || dayKey > endDate) {
+      continue;
+    }
+    counts.set(month, (counts.get(month) ?? 0) + 1);
+    const jump = jumps.get(month);
+    if (jump === undefined || dayKey < jump) {
+      jumps.set(month, dayKey);
+    }
+  }
+
+  const cells: ClashMonthCell[] = [];
+  for (let month = firstMonth; month <= lastMonth; month = shiftMonth(month, 1)) {
+    cells.push({
+      monthKey: month,
+      label: dayjs(`${month}-01`).format("MMM"),
+      year: Number(month.slice(0, 4)),
+      count: counts.get(month) ?? 0,
+      today: month === todayKey.slice(0, 7),
+      jumpDayKey: jumps.get(month) ?? null,
+    });
+  }
+  return cells;
 }
 
 /**

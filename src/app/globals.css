@@ -3176,11 +3176,13 @@ html.c2-low-end::view-transition-group(*) {
   }
 }
 
-/* Double Booking page header (docs/user-clashes.md §1.8): the title + target
-   picker stack on mobile (picker full column width) and split into a
-   title-left / content-sized picker-right row from the 40em desktop band on.
-   The row is top-aligned so the title stays anchored to the top of the header
-   block beside the taller picker (label + select + chip). */
+/* Double Booking page header (docs/user-clashes.md §1.8): the title and the
+   control block stack on mobile and split into a title-left / controls-right
+   row from the 40em desktop band on. The row is top-aligned so the title stays
+   anchored to the top of the header block beside the taller controls. The two
+   controls (target picker + look-ahead menu) share one wrapping row: they split
+   the width when they fit, wrap to full-width rows when they don't, and hug
+   their content at 40em+ — so the sticky chrome never grows with the label text. */
 .c2-db-head {
   display: flex;
   flex-direction: column;
@@ -3191,8 +3193,25 @@ html.c2-low-end::view-transition-group(*) {
   min-width: 0;
 }
 
+.c2-db-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--mantine-spacing-sm);
+  min-width: 0;
+}
+
+/* The target control is content-sized (a "Select" button + optional
+   current-target chip) — not a full-width input — so it takes only the width
+   its chip needs and shares the row with the look-ahead menu. */
 .c2-db-picker {
-  width: 100%;
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.c2-db-range {
+  flex: 1 1 10rem;
+  min-width: 0;
 }
 
 @media (min-width: 40em) {
@@ -3207,14 +3226,289 @@ html.c2-low-end::view-transition-group(*) {
     flex: 1 1 auto;
   }
 
-  /* The target control is content-sized (a "Select" button + optional
-     current-target chip) — not a full-width input, so it no longer pins a
-     rigid 340px field. */
-  .c2-db-picker {
-    flex: 0 1 22rem;
-    width: auto;
-    min-width: 0;
+  .c2-db-controls {
+    flex: 0 1 auto;
+    justify-content: flex-end;
   }
+
+  .c2-db-picker {
+    flex: 0 1 auto;
+  }
+
+  .c2-db-range {
+    flex: 0 0 auto;
+  }
+}
+
+/* Shared month-range control (`src/components/TimeRangeSelect.tsx`): the pill
+   trigger behind My Events "Range" and the KAH Status / Double Booking
+   "Look ahead" menus. Same input-look language as the wizard's time trigger
+   (theme border/body vars, dimmed leading icon, ellipsized value), but it
+   fills its column on phones — where it sits in a stacked page header — and
+   hugs its content from the 40em desktop band on, so the same control fits a
+   sticky chrome row with no per-page width override. The label prefix rides the
+   pill only at 40em+; below it the dropdown's own header names the control, and
+   the pill stays short enough to scan. */
+.c2-range-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-md);
+  background: var(--mantine-color-body);
+  color: var(--mantine-color-text);
+  font-size: var(--mantine-font-size-sm);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color var(--c2-dur-micro) var(--c2-ease-out),
+    border-color var(--c2-dur-micro) var(--c2-ease-out);
+}
+
+.c2-range-trigger:hover:not(:disabled) {
+  background: var(--mantine-color-default-hover);
+}
+
+.c2-range-trigger[data-expanded] {
+  border-color: var(--mantine-color-brand-6);
+}
+
+/* Disabled affordance, not a loading state: §1.6 of docs/loading-transitions.md
+   bans opacity as progress feedback — the skeleton carries the wait, and this
+   only says the control is inert while a scan runs. */
+.c2-range-trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.c2-range-trigger:focus-visible {
+  outline: 2px solid var(--mantine-color-brand-6);
+  outline-offset: 2px;
+}
+
+[data-mantine-color-scheme="dark"] .c2-range-trigger:focus-visible {
+  outline-color: var(--mantine-color-brand-4);
+}
+
+[data-mantine-color-scheme="dark"] .c2-range-trigger[data-expanded] {
+  border-color: var(--mantine-color-brand-4);
+}
+
+.c2-range-trigger-icon {
+  flex: 0 0 auto;
+  color: var(--mantine-color-dimmed);
+}
+
+.c2-range-trigger-value {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.c2-range-trigger-label {
+  display: none;
+  color: var(--mantine-color-dimmed);
+  font-weight: 400;
+}
+
+.c2-range-trigger-label::after {
+  content: "\00a0\00b7\00a0";
+}
+
+.c2-range-trigger-chevron {
+  flex: 0 0 auto;
+  color: var(--mantine-color-dimmed);
+  transition: transform var(--c2-dur-micro) var(--c2-ease-out);
+}
+
+.c2-range-trigger[data-expanded] .c2-range-trigger-chevron {
+  transform: rotate(180deg);
+}
+
+@media (min-width: 40em) {
+  .c2-range-trigger {
+    width: auto;
+    min-width: calc(11rem * var(--mantine-scale));
+    min-height: calc(2.5rem * var(--mantine-scale));
+  }
+
+  .c2-range-trigger-label {
+    display: inline;
+  }
+}
+
+/* Event history modal header: an eyebrow naming the surface and the event's own
+   name under it. Mantine's `Modal.Header` is already sticky, so this stays in
+   view while the trail scrolls beneath it — the reader always knows which event
+   they are reading, which is what the duplicated in-body title used to try (and
+   fail) to do. The name ellipsizes rather than wrapping so the header keeps one
+   height however the template renders the title. */
+.c2-hist-title {
+  display: flex;
+  flex-direction: column;
+  gap: calc(0.125rem * var(--mantine-scale));
+  min-width: 0;
+}
+
+.c2-hist-title-eyebrow {
+  font-size: var(--mantine-font-size-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  color: var(--mantine-color-dimmed);
+}
+
+.c2-hist-title-row {
+  display: flex;
+  align-items: center;
+  gap: calc(0.5rem * var(--mantine-scale));
+  min-width: 0;
+  line-height: 1.3;
+}
+
+.c2-hist-title-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+/* Event history rail (`src/components/EventHistoryEntries.tsx`): the life story
+   of one event as a vertical timeline — one bullet per change, newest first,
+   joined by a single hairline. Everything the reader scans (what happened, when,
+   who) stays on the surface and only the before→after diff folds away, so the
+   common case needs no tap and the modal body stays the page's only scroller.
+   The bullet colour echoes the action chip but never carries it alone. */
+.c2-hist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.c2-hist-item {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: calc(0.625rem * var(--mantine-scale));
+  padding-bottom: calc(1rem * var(--mantine-scale));
+}
+
+.c2-hist-item:last-child {
+  padding-bottom: 0;
+}
+
+/* The connector runs from under this bullet into the next item's bullet margin,
+   so the line reads as continuous; the last entry has nothing to reach. */
+.c2-hist-item:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  top: calc(1.0625rem * var(--mantine-scale));
+  bottom: calc(-0.4375rem * var(--mantine-scale));
+  left: calc(0.3125rem * var(--mantine-scale) - 0.5px);
+  width: 1px;
+  background: var(--mantine-color-default-border);
+}
+
+.c2-hist-bullet {
+  flex: 0 0 auto;
+  width: calc(0.625rem * var(--mantine-scale));
+  height: calc(0.625rem * var(--mantine-scale));
+  margin-top: calc(0.4375rem * var(--mantine-scale));
+  border-radius: 50%;
+  background: var(--mantine-color-gray-5);
+  /* A body-coloured ring punches the connector out behind the bullet. */
+  box-shadow: 0 0 0 calc(0.1875rem * var(--mantine-scale)) var(--mantine-color-body);
+}
+
+.c2-hist-item[data-kind="create"] .c2-hist-bullet {
+  background: var(--mantine-color-brand-filled);
+}
+
+.c2-hist-item[data-kind="update"] .c2-hist-bullet {
+  background: var(--mantine-color-accent-filled);
+}
+
+.c2-hist-item[data-kind="delete"] .c2-hist-bullet {
+  background: var(--mantine-color-red-filled);
+}
+
+.c2-hist-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Head row: the facts on the left, the disclosure chevron pinned right. Spans
+   rather than blocks because the whole row is a `<button>`, whose content model
+   is phrasing content. */
+.c2-hist-head-row {
+  display: flex;
+  align-items: flex-start;
+  gap: calc(0.5rem * var(--mantine-scale));
+}
+
+.c2-hist-head-content {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.c2-hist-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: calc(0.375rem * var(--mantine-scale));
+}
+
+.c2-hist-meta {
+  display: block;
+  margin-top: calc(0.125rem * var(--mantine-scale));
+}
+
+/* The fields this change touched — the reader's index into the diff. */
+.c2-hist-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(0.25rem * var(--mantine-scale));
+  margin-top: calc(0.375rem * var(--mantine-scale));
+}
+
+/* The whole head is the tap target for the diff, so it gets the same focus ring
+   language as the range trigger. */
+.c2-hist-head {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border-radius: var(--mantine-radius-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.c2-hist-head:focus-visible {
+  outline: 2px solid var(--mantine-color-brand-6);
+  outline-offset: 3px;
+}
+
+[data-mantine-color-scheme="dark"] .c2-hist-head:focus-visible {
+  outline-color: var(--mantine-color-brand-4);
+}
+
+.c2-hist-chevron {
+  flex: 0 0 auto;
+  margin-top: calc(0.25rem * var(--mantine-scale));
+  color: var(--mantine-color-dimmed);
+  transition: transform var(--c2-dur-micro) var(--c2-ease-out);
+}
+
+.c2-hist-head[aria-expanded="true"] .c2-hist-chevron {
+  transform: rotate(180deg);
 }
 
 /* Count pill on a nav entry (bottom nav, sidebar, rail): amber, mirroring the
@@ -3398,7 +3692,8 @@ html.c2-low-end::view-transition-group(*) {
   }
 }
 
-/* 30-day overview strip above the Double Booking day list. */
+/* Overview strip above the Double Booking day list: one cell per day, or one
+   per month on a long look-ahead (docs/user-clashes.md §1.8). */
 .c2-clash-strip {
   display: flex;
   gap: 2px;
@@ -3455,9 +3750,28 @@ html.c2-low-end::view-transition-group(*) {
   min-height: 0.6rem;
 }
 
-/* Day sections are scroll targets for the strip. */
+/*
+   Month-granularity variant of the same strip (a 6- or 12-month look-ahead):
+   wider cells — one per calendar month — with the year where the day-of-week
+   letter sits. Same busy / today affordances as the day cells.
+*/
+.c2-clash-strip--month .c2-clash-strip-cell {
+  width: auto;
+  min-width: calc(3rem * var(--mantine-scale));
+  padding-inline: calc(0.5rem * var(--mantine-scale));
+}
+
+/* Day sections are scroll targets for the strip; the clearance is the sticky
+   app header plus this page's own sticky head block (title + controls), which
+   is two rows tall below the 40em band and one row at it and above. */
 .c2-db-day {
-  scroll-margin-top: 5rem;
+  scroll-margin-top: calc(var(--app-shell-header-offset, 0px) + 13rem);
+}
+
+@media (min-width: 40em) {
+  .c2-db-day {
+    scroll-margin-top: calc(var(--app-shell-header-offset, 0px) + 7rem);
+  }
 }
 
 /*

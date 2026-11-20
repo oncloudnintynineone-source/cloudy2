@@ -17,6 +17,7 @@ rendered, and kept fresh.
 - [1.4 My Events page](#14-my-events-page)
   - [1.4.1 Inline change timeline](#141-inline-change-timeline)
   - [1.4.2 Load performance](#142-load-performance)
+  - [1.4.3 Shared range vocabulary](#143-shared-range-vocabulary)
 - [1.5 Authorization & privacy](#15-authorization--privacy)
 - [1.6 Retention](#16-retention)
 - [1.7 Read layer & the event-id index](#17-read-layer--the-event-id-index)
@@ -88,10 +89,11 @@ sequenceDiagram
   into a session-lifetime `Map` (`src/lib/events/historyCache.ts`, cleared on
   sign-out so the next account never paints the previous user's history), so
   the tap usually opens from cache. A My Events row also passes its inline trail as a
-  `preview` — the modal renders the real title, **Deleted** badge, retention
-  line, and collapsed entry headers **before any fetch resolves**; the fetched
+  `preview` — the modal renders the real title, **Deleted** badge, and entry
+  headers **before any fetch resolves**; the fetched
   entries (identical headers, now expandable) swap in silently. The shaped
-  `EventHistorySkeleton` only shows on the cold no-preview path (the dashboard
+  `EventHistorySkeleton` (rail bullets + lines, so the reveal moves nothing) only
+  shows on the cold no-preview path (the dashboard
   History button, which still passes the event `title` for an instant header).
   A failed fetch is only surfaced when there is no preview to keep, and a
   successful (re)load clears the error line. (The generalized
@@ -102,30 +104,77 @@ sequenceDiagram
   `event.participantNotify` rows dropped — so preview and final list are
   identical and the swap never reflows. (The admin audit stream still shows
   every raw row; the modal is deliberately the cleaner changelog.)
-- **Entries:** each renders as a **collapsible entry** (all collapsed by
-  default; tap to expand) via the shared `EventHistoryEntries`
-  (`src/components/EventHistoryEntries.tsx`): the always-visible header shows
-  the action label, UTC+8 timestamp, actor, and the changed-field labels for an
-  edit; tapping it reveals the shared `AuditDetails`
-  (`src/components/AuditDetails.tsx`) — the same before→after lines and
-  "Resulting state" section the admin audit modal uses. A delete (when
-  present) is simply the newest entry. Preview items (no `details` yet) render
-  the same header without the disclosure affordance.
-- **Header:** the newest row's `entity_name` (the rendered title at that edit),
-  falling back to the create snapshot's title, then the preview/`title` prop; a
-  red **Deleted** badge when the newest entry is a delete; a dimmed retention
-  line (from the caller when known).
+- **Form factor:** below `lg` the modal is a **full-height sheet** (`fullScreen`),
+  because reading a trail is the only task on the screen — a scrolling card
+  floating inside a scrolling page is how you get two scrollbars to aim. At `lg`+
+  it is a centered dialog (`size="lg"`) that grows out of the tapped row
+  (`modalZoomTransitionProps`); the sheet fades in instead, having no trigger
+  rect to grow from.
+- **One scroller:** Mantine's `Modal.Header` is already sticky, so the event's
+  name stays put while the trail scrolls beneath it. Nothing inside the body
+  scrolls — `AuditDetails` deliberately has **no** scroll container of its own
+  (the JSON fallback wraps and clamps with an explicit **Show more** instead),
+  which also removed the nested pane from the admin audit-log detail modal.
+- **Header:** an "Event history" eyebrow over the newest row's `entity_name`
+  (the rendered title at that edit), falling back to the create snapshot's
+  title, then the preview/`title` prop; a red **Deleted** badge beside it when
+  the newest entry is a delete. The title ellipsizes rather than wrapping so the
+  sticky header keeps one height.
+- **Entries:** `EventHistoryEntries` (`src/components/EventHistoryEntries.tsx`)
+  renders a **vertical rail** (`ul.c2-hist` in `globals.css`): a bullet per
+  change, joined by one hairline, newest first. What the reader scans is always
+  on the surface — an action chip (brand = Created, accent = Edited, red =
+  Deleted), the coarse relative age, the actor **and** the absolute UTC+8 stamp
+  (no hover-to-discover), and the changed-field names as chips. Only the
+  before→after diff folds away behind a disclosure, and only when there is a diff
+  worth reading; an **Expand all / Collapse all** control appears once two or
+  more entries are expandable. Preview items (no `details` yet) render the same
+  head without the disclosure, so the swap reflows nothing.
+- **Curated details:** the modal reads each row through
+  `formatAuditDetails(details, { omitKeys: EVENT_HISTORY_OMIT_KEYS, dropEmpty:
+  true, includeAfter: false })` (`src/lib/audit/format.ts`). Omitted: the
+  identifiers an operator chases but the reader cannot act on (`eventId`,
+  `googleEventIds`, `googleCalendarId`, `target/added/removedCalendarIds`) and —
+  most importantly — `title`, which is the **rendered** Google Calendar title: a
+  derived value that changes as a consequence of an edit rather than being one,
+  and already the modal's own heading. Empty snapshot fields are dropped, and
+  the "Resulting state" dump (which repeats every field the edit did not touch)
+  is not shown. The admin audit log passes **no** options and stays forensic.
+  `hasAuditDetails` then tells the rail whether the entry is worth expanding at
+  all, so an edit that only moved derived values shows no disclosure.
+- **Coverage note:** the trail read is bounded by audit **retention**, not by the
+  My Events date window, so a missing `Created` entry means the row was pruned —
+  widening the range would not bring it back. `historyCoverageNote`
+  (`src/lib/events/changeTrail.ts`) returns null when a `Created` entry is on
+  screen and otherwise one line explaining that, rendered as a footnote under the
+  rail. It replaces the always-on "Changes are tracked for N days" line, which
+  stated a setting the reader cannot change even when nothing was missing.
 - Closing returns to whatever opened the modal (no back button, no route).
 
 ## 1.4 My Events page
 
 `/my-events` lists the events the signed-in user organized, last-edit first
-(newest recorded edit on top), over an adjustable **±-months window** (default ±3;
-`±3 / ±6 / ±12`, selected with the shared `TimeRangeSelect`
-(`src/components/TimeRangeSelect.tsx` — the same control the KAH Status page
-uses, at the app's default combobox size,
-[`desktop-responsive.md`](desktop-responsive.md) §1.11) and reflected in
-`?range=`).
+(newest recorded edit on top), over an adjustable **±-months window** (default
+**±1**; `±1 / ±6 / ±12`, selected with the shared `TimeRangeSelect`
+(`src/components/TimeRangeSelect.tsx` — the same control the KAH Status and
+Double Booking pages use, [`desktop-responsive.md`](desktop-responsive.md) §1.11)
+and reflected in `?range=`). The three values and the window arithmetic are the
+app-wide vocabulary in `src/lib/dateRange/monthRange.ts` (see §1.4.3); an
+unrecognized or legacy `?range=3` falls back to the default rather than erroring.
+
+**Changing the range applies immediately, in place.** It used to be a
+`router.push` to a new `?range=`, which meant a full RSC round-trip behind a
+route skeleton for what reads as a filter — the page's most common action felt
+like navigation. The view now keeps the selection in state, paints the new
+window on the control at once, and calls `getMyEventsPage`
+(`src/lib/events/myEventsActions.ts`, a `"use server"` action) inside
+`useTransition`: the control stays interactive-but-inert, the list skeleton
+covers the swap, the URL is rewritten with `history.replaceState` (so a reload or
+share still lands on the same window + page), and a failed load reverts to the
+previous selection with a red toast. A request token makes the last click win
+when several ranges are chosen in a row. `?range=`/`?page=` remain the server's
+input on a cold load, parsed by the thin `page.tsx` shell.
+
 It is a **union of two sources** (`buildMyEventsData`,
 `src/lib/events/myEventsData.ts`):
 
@@ -148,8 +197,11 @@ time (`latestDeleteTimes`). Rows with no recorded audit
 rows (older than any remaining audit history, or edited directly in Google
 Calendar) fall back to the event's start time; ties break on start (newest first),
 then key. Tapping a row opens the history modal (§1.3); legacy rows with no group
-id are inert. Pagination is `?page=` (page size 20), applied in memory since
-the combined set is bounded by the window + retention.
+id are inert. Pagination is `?page=` (page size 20, `MY_EVENTS_PAGE_SIZE`),
+applied in memory since the combined set is bounded by the window + retention;
+`buildMyEventsPage` runs the union, the slice, and the trail read as one call and
+stamps `renderedAt` **after** the build (stamping at the start would make every
+cold render look like a stale cache replay to §1.8's freshness gate).
 
 Rows render in the shared one-line row style (the EventSearchModal list recipe,
 `docs/event-search.md`): one bordered container of 1px-separated rows, each a
@@ -174,7 +226,7 @@ without opening the history modal.
 
 ```mermaid
 flowchart LR
-    P[my-events/page.tsx] -->|full window union| B[buildMyEventsData]
+    P[buildMyEventsPage] -->|full window union| B[buildMyEventsData]
     P -->|slice page, then page event ids| Q[listEventAuditTrail]
     Q -->|create/update/delete rows, newest first| G[groupTrailRows]
     G --> T[buildChangeTrail]
@@ -186,8 +238,8 @@ flowchart LR
   `event.delete` row of the events on the current page — never the
   `event.participantNotify` side-effects — newest first, within the retention
   window (same `details->>'eventId'` expression index as the other event reads).
-  `page.tsx` attaches the shaped trail to each row after slicing, so the read is
-  bounded by the page size, not the window.
+  `buildMyEventsPage` attaches the shaped trail to each row after slicing, so the
+  read is bounded by the page size, not the window.
 - **Shaping:** `buildChangeTrail` (`src/lib/events/changeTrail.ts`, pure +
   unit-tested) collapses the per-copy fan-out — a cross-department mutation
   writes one audit row *per calendar copy*, so rows sharing an action and the
@@ -209,7 +261,7 @@ flowchart LR
 ### 1.4.2 Load performance
 
 My Events is the one page that reads **every** department calendar across the **whole**
-±window (7 months at ±3, 25 at ±12), so it was disproportionately slow: the union's live
+±window (3 months at the default ±1, 13 at ±6, 25 at ±12), so it was disproportionately slow: the union's live
 half paid a blocking Google fan-out and a heavy per-event parse on every visit. Four
 changes fixed it (measured on `next dev` against the real Neon pooler + Google, 4
 calendars; costs scale linearly with calendars × months):
@@ -257,7 +309,39 @@ and the list skeleton wears the shared **wait overlay** — breathing app icon o
 rotating "calendar archaeology" copy + a slower tip ticker, revealing only after 300 ms
 so warm loads never flash it (shared `WaitOverlay` + `waitCopy.ts`, §1.4.1 of that doc).
 Decorative and honest: no fake progress bars; the sr-only `LoadingStatus` stays the only
-announcement.
+announcement. The wait overlay is a **cold-load** affordance only: a range change is an
+in-place refetch (§1.4), so it shows the list skeleton, never this card.
+
+### 1.4.3 Shared range vocabulary
+
+Every date-range control in the app picks from the same three widths — **1 month,
+6 months, 1 year** — so one dropdown's meaning never changes between pages. The
+vocabulary lives in `src/lib/dateRange/monthRange.ts` (client-safe, pure,
+unit-tested): `RANGE_MONTHS`, `RangeMonths`, `isRangeMonths`, `parseRangeMonths`,
+`rangeMonthsLabel`, and the two window shapes — `forwardWindow(today, months)`
+(today → last day of the month N months out) for look-aheads, and
+`symmetricWindow(today, months)` (first day of the month N back → last day of the
+month N forward) for look-back lists.
+
+Each page keeps a thin wrapper that fixes its own style, default, and copy:
+
+| Page | Wrapper | Style | Default |
+| ---- | ------- | ----- | ------- |
+| My Events | `src/lib/events/myEventsRange.ts` | symmetric | ±1 month |
+| KAH Status | `src/lib/kah/range.ts` | forward | 1 month |
+| Double Booking | `src/lib/events/clashRange.ts` | forward | 1 month |
+
+Only My Events puts the range in the URL (`?range=`), because its list is the
+page; KAH Status and Double Booking keep the look-ahead as a per-view client
+choice that never becomes a shareable route. Dropping the old ±3 option means an
+older `?range=3` link resolves to the default — silently, which is what a
+narrower vocabulary should do.
+
+The default is **one month** everywhere: the wider windows were rarely chosen and
+made the common question ("what's on my calendar / where am I double-booked this
+month?") require a deliberate narrowing first. Where a month is genuinely too
+narrow to answer it, the Double Booking strip switches to one cell per month
+([`user-clashes.md`](user-clashes.md) §1.3.1).
 
 ## 1.5 Authorization & privacy
 
@@ -320,7 +404,10 @@ SWR caches (audit rows change with every event mutation anywhere). The server
 page stamps `renderedAt` (epoch ms) into the payload and the client view gates
 on `useLiveRouteRefresh(renderedAt)`, forcing one in-place re-read when the
 mounted payload is a cache replay ([`audit-log.md`](audit-log.md) §1.10,
-[`loading-transitions.md`](loading-transitions.md)). The header **Force
+[`loading-transitions.md`](loading-transitions.md)). The in-place range/page
+refetch (§1.4) carries the same `renderedAt` in the action's payload and is
+subject to the same gate, so a replayed action response is refetched exactly like
+a replayed document. The header **Force
 refresh** already routes always-fresh paths through `LIVE_REFRESH_EVENT`
 (`AppShellShell`). Consequence: like the audit log, the page is unavailable
 offline. The history modal needs no route entry — its rows come from a server
@@ -342,9 +429,11 @@ preloads the new route.
 | ------ | ------ | ----- |
 | `eventIdFromAuditDetails`, `createdEventSummary` | `events/history.ts` | `events/history.test.ts` |
 | `formatMyEventTime`, `auditTimeSortKey`, `humanizeMyEventTime`, `mergeMyEvents` | `events/myEvents.ts` | `events/myEvents.test.ts` |
-| `relativeChangeLabel`, `buildChangeTrail`, `buildHistoryEntries`, `groupTrailRows` | `events/changeTrail.ts` | `events/changeTrail.test.ts` |
+| `relativeChangeLabel`, `buildChangeTrail`, `buildHistoryEntries`, `groupTrailRows`, `historyCoverageNote` | `events/changeTrail.ts` | `events/changeTrail.test.ts` |
+| `isRangeMonths`, `parseRangeMonths`, `rangeMonthsLabel`, `forwardWindow`, `symmetricWindow` | `dateRange/monthRange.ts` | `dateRange/monthRange.test.ts` |
 | `parseMyEventsRange`, `myEventsRangeLabel`, `myEventsWindow` | `events/myEventsRange.ts` | `events/myEventsRange.test.ts` |
-| `formatAuditDetails`, `actionLabel`, `actorLabel`, `changeSummary`, `formatLogTimestamp` | `audit/format.ts` | `audit/format.test.ts` |
+| `parseUserClashAhead`, `userClashWindow` | `events/clashRange.ts` | `events/clashRange.test.ts` |
+| `formatAuditDetails`, `hasAuditDetails`, `actionLabel`, `actorLabel`, `changeSummary`, `formatLogTimestamp` | `audit/format.ts` | `audit/format.test.ts` |
 | `isAlwaysFreshPath` (the new prefixes) | `pwa/swRules.ts` | `pwa/swRules.test.ts` |
 
 I/O-bound (not unit-tested, per the repo convention): the `queries.ts` read
@@ -355,21 +444,23 @@ functions, `buildMyEventsData`, the My Events route page, and the client views
 
 | File | Role |
 | ---- | ---- |
-| `src/components/EventHistoryModal.tsx` | Shared history modal (zoom-from-trigger, fetch-on-open) |
-| `src/components/EventHistoryEntries.tsx` | Shared collapsible changelog entries |
-| `src/components/EventHistorySkeleton.tsx` | Shared shaped skeleton |
+| `src/components/EventHistoryModal.tsx` | Shared history modal (full-height sheet below `lg`, centered dialog above; sticky header carries the event name) |
+| `src/components/EventHistoryEntries.tsx` | Shared changelog rail (always-visible facts + curated expandable diff) |
+| `src/components/EventHistorySkeleton.tsx` | Shared shaped skeleton (rail bullets + lines) |
 | `src/lib/events/historyActions.ts` | `getEventHistory` server action |
 | `src/lib/events/historyCache.ts` | Hover-prefetch + open cache (session lifetime; cleared on sign-out) |
-| `src/app/(protected)/my-events/page.tsx` | My Events server page (window + pagination + trail attach) |
+| `src/app/(protected)/my-events/page.tsx` | Thin server shell (`?range` / `?page` → `buildMyEventsPage`) |
+| `src/lib/events/myEventsActions.ts` | `getMyEventsPage` server action — the in-place range/page refetch (§1.4) |
 | `src/app/(protected)/my-events/MyEventsView.tsx` | Client view + range selector + pagination + inline trail |
-| `src/components/TimeRangeSelect.tsx` | Shared month-window dropdown (also the KAH Status "Look ahead") |
-| `src/components/AuditDetails.tsx` | Shared `details` renderer (audit log + history) |
+| `src/components/TimeRangeSelect.tsx` | Shared month-range menu (My Events range; KAH Status + Double Booking look-ahead) |
+| `src/components/AuditDetails.tsx` | Shared `details` renderer (audit log + history); no inner scroll, options curate the history view |
 | `src/app/(protected)/dashboard/EventDetail.tsx` | The History button (opens the modal at `zIndex={300}`) |
 | `src/lib/audit/queries.ts` | `listEventHistory`, `listMyCreatedEvents`, `latestDeleteTimes`, `latestEventEditTimes`, `listEventAuditTrail` |
-| `src/lib/events/myEventsData.ts` | My Events union builder (live + audit); past-month freshness + creator filter (§1.4.2) |
+| `src/lib/events/myEventsData.ts` | My Events union builder (live + audit) + `buildMyEventsPage` (union → page → trail); past-month freshness + creator filter (§1.4.2) |
 | `src/lib/events/history.ts` | Pure snapshot parsers (unit-tested) |
-| `src/lib/events/changeTrail.ts` | Pure inline change-timeline shaping (unit-tested) |
-| `src/lib/events/myEvents.ts` / `myEventsRange.ts` | Pure list shaping + window helpers (unit-tested) |
+| `src/lib/events/changeTrail.ts` | Pure inline change-timeline shaping + coverage note (unit-tested) |
+| `src/lib/events/myEvents.ts` / `myEventsRange.ts` / `clashRange.ts` | Pure list shaping + per-page range wrappers (unit-tested) |
+| `src/lib/dateRange/monthRange.ts` | The app-wide 1/6/12-month vocabulary and window arithmetic (§1.4.3) |
 | `src/lib/perf.ts` | `PERF_LOG=1` per-stage timing helper for re-measuring the read path (§1.4.2) |
 | `src/components/WaitOverlay.tsx` + `src/lib/loading/waitCopy.ts` | Shared wait overlay (rotating copy, tips) on the list skeleton covering the always-fresh build's residual wait (§1.4.2) |
 | `src/db/schema.ts` + `drizzle/0056_charming_blue_marvel.sql` | `audit_logs_event_id_idx` |

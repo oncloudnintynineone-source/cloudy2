@@ -12,11 +12,13 @@ import { UserSelectModal } from "@/components/UserSelectModal";
 import { LoadingStatus } from "@/components/LoadingStatus";
 import { EmptyState } from "@/components/EmptyState";
 import { PageHeader } from "@/components/PageHeader";
+import { TimeRangeSelect } from "@/components/TimeRangeSelect";
 import { useColdStartContent } from "@/components/ColdStartReady";
 import { ClashAffectedChips } from "@/components/clashUi";
 import { ClashCard, ClashEventRow } from "@/components/clashCards";
 import {
   ClashDayStrip,
+  ClashMonthStrip,
   ClashTimelineDays,
   type ClashTimelineEntry,
 } from "@/components/clashTimeline";
@@ -30,13 +32,20 @@ import {
   type EventClashEntry,
   type UserClashCheckResult,
 } from "@/lib/events/clashActions";
+import {
+  DEFAULT_USER_CLASH_AHEAD_MONTHS,
+  type UserClashAheadMonths,
+} from "@/lib/events/clashRange";
+import { RANGE_MONTHS, rangeMonthsLabel } from "@/lib/dateRange/monthRange";
 import { buildEventDeepLink } from "@/lib/events/deepLink";
 import type { CalendarEvent } from "@/lib/events/queries";
 import {
   buildClashDayStrip,
+  buildClashMonthStrip,
   clashDayKey,
   clashDayLabel,
   clashEpisodeTimeLabel,
+  clashStripGranularity,
   clashTypeLabel,
 } from "@/lib/events/clashDisplay";
 import { formatInstantToNaive } from "@/lib/events/datetime";
@@ -64,9 +73,10 @@ function plural(count: number, singular: string, pluralWord: string): string {
 
 /**
  * The "Double Booking" page: which of a user's *existing* events double-book
- * them over the next 30 days. Runs the read-only `checkUserClashes` action on
- * mount and whenever the viewer switches the scan target. Advisory only — it
- * never writes or changes anything. See docs/user-clashes.md.
+ * them over the selected look-ahead (1 / 6 / 12 months, 1 by default). Runs the
+ * read-only `checkUserClashes` action on mount and whenever the viewer switches
+ * the scan target or the look-ahead. Advisory only — it never writes or changes
+ * anything. See docs/user-clashes.md.
  */
 export function DoubleBookingView({
   currentUserId,
@@ -80,6 +90,9 @@ export function DoubleBookingView({
 }) {
   const router = useRouter();
   const [targetUserId, setTargetUserId] = useState(currentUserId);
+  const [aheadMonths, setAheadMonths] = useState<UserClashAheadMonths>(
+    DEFAULT_USER_CLASH_AHEAD_MONTHS,
+  );
   const [attempt, setAttempt] = useState(0);
   // In-place detail modal: tapping opens it immediately (with a shaped
   // skeleton) and lazily fetches the full payload, so the report never
@@ -100,6 +113,7 @@ export function DoubleBookingView({
   useColdStartContent();
   const [outcome, setOutcome] = useState<{
     targetUserId: string;
+    aheadMonths: UserClashAheadMonths;
     attempt: number;
     ok: boolean;
     result: ClashOk | null;
@@ -190,41 +204,47 @@ export function DoubleBookingView({
 
   useEffect(() => {
     // Server actions are not cancellable; ignore the result of a superseded
-    // scan (unmount, a different target, or a newer attempt) via the cleanup
-    // flag. The "loading" view is derived from the request/outcome pair, never
-    // set synchronously in the effect.
+    // scan (unmount, a different target or look-ahead, or a newer attempt) via
+    // the cleanup flag. The "loading" view is derived from the request/outcome
+    // pair, never set synchronously in the effect.
     let cancelled = false;
-    checkUserClashes({ targetUserId })
+    checkUserClashes({ targetUserId, aheadMonths })
       .then((result) => {
         if (cancelled) {
           return;
         }
         setOutcome(
           result.ok
-            ? { targetUserId, attempt, ok: true, result }
-            : { targetUserId, attempt, ok: false, result: null },
+            ? { targetUserId, aheadMonths, attempt, ok: true, result }
+            : { targetUserId, aheadMonths, attempt, ok: false, result: null },
         );
       })
       .catch(() => {
         if (!cancelled) {
-          setOutcome({ targetUserId, attempt, ok: false, result: null });
+          setOutcome({ targetUserId, aheadMonths, attempt, ok: false, result: null });
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [targetUserId, attempt]);
+  }, [targetUserId, aheadMonths, attempt]);
 
   let view: View;
   if (
     outcome &&
     outcome.targetUserId === targetUserId &&
+    outcome.aheadMonths === aheadMonths &&
     outcome.attempt === attempt &&
     outcome.ok &&
     outcome.result
   ) {
     view = { kind: "done", result: outcome.result, selfScan: targetUserId === currentUserId };
-  } else if (outcome && outcome.targetUserId === targetUserId && outcome.attempt === attempt) {
+  } else if (
+    outcome &&
+    outcome.targetUserId === targetUserId &&
+    outcome.aheadMonths === aheadMonths &&
+    outcome.attempt === attempt
+  ) {
     view = { kind: "error" };
   } else {
     view = { kind: "loading" };
@@ -267,26 +287,38 @@ export function DoubleBookingView({
           <div className="c2-db-title">
             <PageHeader title="Double Booking" subtitle={subtitleFor(view)} />
           </div>
-          {users.length > 0 && (
-            <div className="c2-db-picker">
-              <PickerField
-                label="Check another person"
-                items={selfScan ? [] : [targetSummaryItem]}
-                // ✕ returns the scan to the user's own schedule — the same
-                // state the page opens in.
-                onRemove={() => setTargetUserId(currentUserId)}
-                removeLabel={() => "Back to my schedule"}
-                empty={
-                  selfScan ? (
-                    <Text size="xs" c="dimmed">
-                      Checking your own schedule
-                    </Text>
-                  ) : null
-                }
-                onOpen={() => setTargetPickerOpen(true)}
+          <div className="c2-db-controls">
+            {users.length > 0 && (
+              <div className="c2-db-picker">
+                <PickerField
+                  label="Check another person"
+                  items={selfScan ? [] : [targetSummaryItem]}
+                  // ✕ returns the scan to the user's own schedule — the same
+                  // state the page opens in.
+                  onRemove={() => setTargetUserId(currentUserId)}
+                  removeLabel={() => "Back to my schedule"}
+                  empty={
+                    selfScan ? (
+                      <Text size="xs" c="dimmed">
+                        Checking your own schedule
+                      </Text>
+                    ) : null
+                  }
+                  onOpen={() => setTargetPickerOpen(true)}
+                />
+              </div>
+            )}
+            <div className="c2-db-range">
+              <TimeRangeSelect
+                label="Look ahead"
+                values={RANGE_MONTHS}
+                labelFor={(months) => rangeMonthsLabel(months, "forward")}
+                months={aheadMonths}
+                onSelect={setAheadMonths}
+                disabled={view.kind === "loading"}
               />
             </div>
-          )}
+          </div>
         </div>
       </Box>
 
@@ -418,14 +450,15 @@ export function DoubleBookingView({
     }
 
     if (result.groups.length === 0) {
+      const ahead = rangeMonthsLabel(result.aheadMonths, "forward");
       return (
         <Box role="status" aria-live="polite">
           <EmptyState
             icon={<IconCircleCheck size={18} />}
             description={
               isSelf
-                ? "No double bookings in the next 30 days — your schedule is clear."
-                : `${result.targetName} has no double bookings in the next 30 days.`
+                ? `No double bookings in the next ${ahead} — your schedule is clear.`
+                : `${result.targetName} has no double bookings in the next ${ahead}.`
             }
             actionLabel="Open calendar"
             actionHref="/dashboard"
@@ -448,18 +481,36 @@ export function DoubleBookingView({
         dayGroups.push({ dayKey, groups: [group] });
       }
     }
-    const strip = buildClashDayStrip(
-      result.rangeStartDate,
-      result.rangeEndDate,
-      dayGroups.map((day) => day.dayKey),
-    );
+    const conflictDayKeys = dayGroups.map((day) => day.dayKey);
+    const aheadLabel = rangeMonthsLabel(result.aheadMonths, "forward");
+    // One cell per day for a short look-ahead; a 6- or 12-month scan would
+    // otherwise render 180–365 boxes in a row, so it switches to one per month.
+    const monthStrip =
+      clashStripGranularity(result.rangeStartDate, result.rangeEndDate) === "month"
+        ? buildClashMonthStrip(
+            result.rangeStartDate,
+            result.rangeEndDate,
+            conflictDayKeys,
+            todayKey,
+          )
+        : null;
 
     return (
       <Stack gap="lg">
         <Text fz="sm" c="dimmed" role="status" aria-live="polite">
-          {plural(result.groups.length, "double booking", "double bookings")} in the next 30 days.
+          {plural(result.groups.length, "double booking", "double bookings")} in the next{" "}
+          {aheadLabel}.
         </Text>
-        <ClashDayStrip days={strip} todayKey={todayKey} onJump={jumpToDay} />
+        {monthStrip ? (
+          <ClashMonthStrip cells={monthStrip} rangeLabel={aheadLabel} onJump={jumpToDay} />
+        ) : (
+          <ClashDayStrip
+            days={buildClashDayStrip(result.rangeStartDate, result.rangeEndDate, conflictDayKeys)}
+            todayKey={todayKey}
+            rangeLabel={aheadLabel}
+            onJump={jumpToDay}
+          />
+        )}
         {dayGroups.map(({ dayKey, groups }) => (
           <Stack key={dayKey} gap="sm" id={`c2-db-day-${dayKey}`} className="c2-db-day">
             <Text component="h3" fw={600} size="sm" c="dimmed">

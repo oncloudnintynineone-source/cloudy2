@@ -1,43 +1,46 @@
 /**
- * Pure, client-safe KAH look-ahead window helpers and shared view types. Kept
- * free of db/Next imports (only the pure event datetime helpers) so the server
- * data builder, the server action, and the client view can all import it.
+ * Pure, client-safe KAH look-ahead window helpers and shared view types. The
+ * look-ahead *vocabulary* is app-wide (`src/lib/dateRange/monthRange.ts`); this
+ * module is the KAH face of it — a forward-only window. Kept free of db/Next
+ * imports (only the pure event datetime helpers) so the server data builder,
+ * the server action, and the client view can all import it.
  */
 
-import { lastDayOfMonth, shiftMonth } from "@/lib/events/datetime";
+import {
+  forwardWindow,
+  isRangeMonths,
+  parseRangeMonths,
+  rangeMonthsLabel,
+  RANGE_MONTHS,
+  type RangeMonths,
+} from "@/lib/dateRange/monthRange";
 import type { EventClashEntry } from "@/lib/events/clashActions";
 
 /**
  * The KAH Status page's default look-ahead — also the window the nav breach
  * badge is fixed to (the badge never follows the page's selection).
  */
-export const DEFAULT_KAH_RANGE_MONTHS = 3;
+export const DEFAULT_KAH_RANGE_MONTHS = 1;
 
-/** Every selectable KAH page look-ahead, in months (default first). */
-export const KAH_RANGE_MONTHS = [3, 6, 12] as const;
+/** Every selectable KAH page look-ahead, in months (the app-wide set). */
+export const KAH_RANGE_MONTHS = RANGE_MONTHS;
 
-export type KahRangeMonths = (typeof KAH_RANGE_MONTHS)[number];
+export type KahRangeMonths = RangeMonths;
 
 /** Whether a value is one of the selectable look-aheads. */
-export function isKahRangeMonths(value: number): value is KahRangeMonths {
-  return (KAH_RANGE_MONTHS as readonly number[]).includes(value);
-}
+export const isKahRangeMonths = isRangeMonths;
 
 /**
- * Coerce an untrusted value (a Select value or server-action input) to a
- * selectable look-ahead, falling back to the default. Accepts a numeric string
- * or number; anything else → default.
+ * Coerce an untrusted value (a menu value or server-action input) to a
+ * selectable look-ahead, falling back to the default.
  */
 export function parseKahRange(value: unknown): KahRangeMonths {
-  const months = typeof value === "string" ? Number(value) : value;
-  return typeof months === "number" && isKahRangeMonths(months)
-    ? months
-    : DEFAULT_KAH_RANGE_MONTHS;
+  return parseRangeMonths(value, DEFAULT_KAH_RANGE_MONTHS);
 }
 
-/** Human label for a look-ahead ("3 months", "1 year"). */
+/** Human label for a look-ahead ("1 month", "1 year"). */
 export function kahRangeLabel(months: KahRangeMonths): string {
-  return months === 12 ? "1 year" : `${months} months`;
+  return rangeMonthsLabel(months, "forward");
 }
 
 /**
@@ -46,16 +49,7 @@ export function kahRangeLabel(months: KahRangeMonths): string {
  * half — a breach that began before today is clipped at today
  * (`kahBreachEpisodes`).
  */
-export function kahForwardWindow(
-  today: string,
-  aheadMonths: KahRangeMonths,
-): { windowStart: string; windowEnd: string } {
-  const todayMonth = today.slice(0, 7);
-  return {
-    windowStart: today,
-    windowEnd: lastDayOfMonth(shiftMonth(todayMonth, aheadMonths)),
-  };
-}
+export const kahForwardWindow = forwardWindow;
 
 /** One active KAH-group member as the breach card shows them. */
 export interface KahMember {

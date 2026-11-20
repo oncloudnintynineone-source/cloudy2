@@ -20,8 +20,8 @@ export default function DoubleBookingLoading() {
           <PageHeaderSkeleton titleWidth="24%" subtitleWidth="45%" />
         </Box>
         {/* The scan card doubles as the wait overlay's positioning context —
-            a cold 30-day scan can take seconds (docs/loading-transitions.md
-            §1.4.1). */}
+            a cold clash scan can take seconds, more on a long look-ahead
+            (docs/loading-transitions.md §1.4.1). */}
         <Paper withBorder p="sm" pos="relative">
           <Stack gap={6}>
             <Skeleton height={10} radius="sm" />

@@ -45,28 +45,29 @@ export const COLD_START_WAIT_LINES = [
   "Unfolding the month grid…",
 ] as const;
 
-/** Double Booking — the 30-day clash scan (docs/user-clashes.md). */
+/** Double Booking — the clash scan (docs/user-clashes.md). The look-ahead is
+ *  selectable (1 / 6 / 12 months), so the copy never names a window. */
 export const DOUBLE_BOOKING_WAIT_LINES = [
   "Squaring up your calendar…",
   "Cross-checking the roster…",
   "Hunting for double-bookings…",
-  "Flipping through the next 30 days…",
+  "Flipping through the months ahead…",
 ] as const;
 
 export const DOUBLE_BOOKING_WAIT_TIPS = [
-  "The scan covers the next 30 days.",
+  "Use Look ahead to scan further into the year.",
   "Checking a colleague? Pick them at the top.",
 ] as const;
 
-/** KAH Status — the 30-day breach scan (docs/kah.md). */
+/** KAH Status — the breach scan (docs/kah.md). Same selectable look-ahead. */
 export const KAH_STATUS_WAIT_LINES = [
-  "Checking the 30-day horizon…",
+  "Checking the horizon ahead…",
   "Seeing who's away and who's overseas…",
   "Weighing the constraints…",
 ] as const;
 
 export const KAH_STATUS_WAIT_TIPS = [
-  "The check looks 30 days ahead.",
+  "Look ahead sets how far ahead the check runs.",
   "Breach emails go out automatically.",
 ] as const;
 

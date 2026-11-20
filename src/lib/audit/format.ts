@@ -203,11 +203,54 @@ function isFlatValue(value: unknown): boolean {
   );
 }
 
-function toValueLines(record: Record<string, unknown>): DetailValue[] {
-  return Object.entries(record).map(([key, value]) => ({
-    label: fieldLabel(key),
-    value: valueString(key, value),
-  }));
+function valueLines(record: Record<string, unknown>, dropEmpty?: boolean): DetailValue[] {
+  return Object.entries(record)
+    .map(([key, value]) => ({
+      label: fieldLabel(key),
+      value: valueString(key, value),
+    }))
+    .filter((line) => !dropEmpty || !isEmptyValue(line.value));
+}
+
+/**
+ * Options for `formatAuditDetails` / `changeSummary`. The admin audit log calls
+ * them with no options and stays forensic — every key the row carries. The
+ * event history passes a curated view (see `EVENT_HISTORY_OMIT_KEYS`), because
+ * there the reader is the person who made the change, not the operator
+ * investigating one.
+ */
+export interface AuditDetailOptions {
+  /** Keys to drop from the change lines, the context values, and the
+   *  resulting-state dump. */
+  omitKeys?: readonly string[];
+  /** Drop label/value lines whose value carries nothing (empty string, empty
+   *  list, `—`). Applies to the context and resulting-state lines only — a
+   *  change from nothing to something is a real change and is never dropped. */
+  dropEmpty?: boolean;
+  /** Render the full `after` record as "Resulting state" (default true). */
+  includeAfter?: boolean;
+}
+
+/**
+ * What the event history hides from an event audit row: the identifiers an
+ * operator would chase but the reader cannot act on, and the **rendered** Google
+ * Calendar title — a derived value (template + type + department) that changes
+ * as a consequence of an edit rather than being one. The event's own title is
+ * already the history modal's heading.
+ */
+export const EVENT_HISTORY_OMIT_KEYS = [
+  "title",
+  "eventId",
+  "googleEventIds",
+  "googleCalendarId",
+  "targetCalendarIds",
+  "addedCalendarIds",
+  "removedCalendarIds",
+] as const;
+
+/** Whether a rendered value says nothing worth a line of its own. */
+function isEmptyValue(value: string): boolean {
+  return value === EMPTY_VALUE || value.trim() === "";
 }
 
 /**
@@ -215,28 +258,48 @@ function toValueLines(record: Record<string, unknown>): DetailValue[] {
  * change lines + context values + the resulting state, a flat object as
  * label/value lines, everything else as pretty JSON.
  */
-export function formatAuditDetails(details: unknown): AuditDisplayDetails {
+export function formatAuditDetails(
+  details: unknown,
+  options: AuditDetailOptions = {},
+): AuditDisplayDetails {
+  const { omitKeys, dropEmpty, includeAfter = true } = options;
+  const keep = (key: string) => !omitKeys?.includes(key);
   if (isPlainRecord(details)) {
     const changes = details.changes;
     if (isPlainRecord(changes)) {
-      const lines = Object.entries(changes).map(([key, pair]) => ({
-        label: fieldLabel(key),
-        before: Array.isArray(pair) ? valueString(key, pair[0]) : valueString(key, pair),
-        after: Array.isArray(pair) ? valueString(key, pair[1]) : null,
-      }));
-      const values = toValueLines(
+      const lines = Object.entries(changes)
+        .filter(([key]) => keep(key))
+        .map(([key, pair]) => ({
+          label: fieldLabel(key),
+          before: Array.isArray(pair) ? valueString(key, pair[0]) : valueString(key, pair),
+          after: Array.isArray(pair) ? valueString(key, pair[1]) : null,
+        }));
+      const values = valueLines(
         Object.fromEntries(
           Object.entries(details).filter(
             ([key, value]) =>
-              key !== "before" && key !== "after" && key !== "changes" && isFlatValue(value),
+              key !== "before" &&
+              key !== "after" &&
+              key !== "changes" &&
+              keep(key) &&
+              isFlatValue(value),
           ),
         ),
+        dropEmpty,
       );
-      const after = isPlainRecord(details.after) ? toValueLines(details.after) : [];
+      const after =
+        isPlainRecord(details.after) && includeAfter
+          ? valueLines(
+              Object.fromEntries(Object.entries(details.after).filter(([key]) => keep(key))),
+              dropEmpty,
+            )
+          : [];
       return { kind: "changes", lines, values, after, json: null };
     }
-    if (Object.keys(details).length > 0 && Object.values(details).every(isFlatValue)) {
-      return { kind: "fields", lines: [], values: toValueLines(details), after: [], json: null };
+    const entries = Object.entries(details).filter(([key]) => keep(key));
+    if (entries.length > 0 && entries.every(([, value]) => isFlatValue(value))) {
+      const values = valueLines(Object.fromEntries(entries), dropEmpty);
+      return { kind: "fields", lines: [], values, after: [], json: null };
     }
   }
   return {
@@ -249,12 +312,30 @@ export function formatAuditDetails(details: unknown): AuditDisplayDetails {
 }
 
 /**
+ * Whether a formatted payload has anything left to show once the caller's
+ * options are applied. The event history uses it to hide the expand control on
+ * an entry whose only change was one the reader cannot act on.
+ */
+export function hasAuditDetails(details: AuditDisplayDetails): boolean {
+  return (
+    details.kind === "json" ||
+    details.lines.length > 0 ||
+    details.values.length > 0 ||
+    details.after.length > 0
+  );
+}
+
+/**
  * A concise one-line summary for a collapsed audit entry: the changed field
  * labels for an edit (from the shared `FieldDiff` shaping), or `entityName`
  * for a create/delete snapshot. Null when there is nothing useful to show.
  */
-export function changeSummary(details: unknown, entityName: string | null): string | null {
-  const formatted = formatAuditDetails(details);
+export function changeSummary(
+  details: unknown,
+  entityName: string | null,
+  options?: AuditDetailOptions,
+): string | null {
+  const formatted = formatAuditDetails(details, options);
   if (formatted.kind === "changes") {
     return formatted.lines.length > 0 ? formatted.lines.map((line) => line.label).join(", ") : null;
   }

@@ -14,7 +14,13 @@
  * is needed).
  */
 
-import { latestDeleteTimes, latestEventEditTimes, listMyCreatedEvents } from "@/lib/audit/queries";
+import {
+  latestDeleteTimes,
+  latestEventEditTimes,
+  listEventAuditTrail,
+  listMyCreatedEvents,
+} from "@/lib/audit/queries";
+import { buildChangeTrail, groupTrailRows } from "@/lib/events/changeTrail";
 import { formatInstantToNaive, monthsInRange } from "@/lib/events/datetime";
 import { createdEventSummary } from "@/lib/events/history";
 import {
@@ -28,6 +34,7 @@ import { myEventsWindow, type MyEventsRangeMonths } from "@/lib/events/myEventsR
 import { fetchRangeEvents, listCalendars } from "@/lib/events/queries";
 import { DEFAULT_MONTH_FRESHNESS, type MonthCacheFreshness } from "@/lib/google/eventsCache";
 import { perf } from "@/lib/perf";
+import { getSettings } from "@/lib/settings/queries";
 
 /**
  * Months strictly before the current month are near-immutable: their cached
@@ -164,5 +171,81 @@ export async function buildMyEventsData(params: {
     windowStart,
     windowEnd,
     rows,
+  };
+}
+
+/** Rows per page of the My Events list (the page and the action share it). */
+export const MY_EVENTS_PAGE_SIZE = 20;
+
+/** One page of My Events, ready to render — the shape the view consumes. */
+export interface MyEventsPageData {
+  rangeMonths: MyEventsRangeMonths;
+  windowStart: string;
+  windowEnd: string;
+  /** The page's rows, each stamped with its inline change trail. */
+  items: MyEventRow[];
+  page: number;
+  pageCount: number;
+  total: number;
+  /** Configured audit retention window in days (0 = disabled). */
+  retentionDays: number;
+  /** When the build finished (epoch ms) — the view's live-refresh stamp. */
+  renderedAt: number;
+}
+
+/**
+ * The whole My Events page for one window and page number: settings + the union
+ * build in parallel, then one indexed read for the page's inline change trails
+ * (docs/event-history.md §1.4.1). Shared by the route (first paint) and the
+ * `getMyEventsPage` server action (in-place range/page changes), so the two can
+ * never render different shapes.
+ */
+export async function buildMyEventsPage(params: {
+  userId: string;
+  rangeMonths: MyEventsRangeMonths;
+  page: number;
+  pageSize?: number;
+}): Promise<MyEventsPageData> {
+  const pageSize = params.pageSize ?? MY_EVENTS_PAGE_SIZE;
+  // Settings (60 s-cached) and the event build are independent — overlap them
+  // so a cold settings cache doesn't add a serial round-trip to the page.
+  const [settings, data] = await Promise.all([
+    getSettings(),
+    buildMyEventsData({ userId: params.userId, rangeMonths: params.rangeMonths }),
+  ]);
+
+  const total = data.rows.length;
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  const page = Math.min(Math.max(params.page, 1), pageCount);
+  const offset = (page - 1) * pageSize;
+  const pageRows = data.rows.slice(offset, offset + pageSize);
+
+  const now = new Date();
+  const trailRows = await listEventAuditTrail(
+    pageRows
+      .map((row) => row.eventId)
+      .filter((eventId): eventId is string => eventId !== null),
+    settings.auditLogRetentionDays,
+  );
+  const trailByEvent = groupTrailRows(trailRows);
+  const items = pageRows.map((row) =>
+    row.eventId
+      ? { ...row, trail: buildChangeTrail(trailByEvent.get(row.eventId) ?? [], now) }
+      : row,
+  );
+
+  return {
+    rangeMonths: data.rangeMonths,
+    windowStart: data.windowStart,
+    windowEnd: data.windowEnd,
+    items,
+    page,
+    pageCount,
+    total,
+    retentionDays: settings.auditLogRetentionDays,
+    // Stamped *after* the build: the always-fresh gate (`needsLiveRefresh`)
+    // treats a payload older than 2 s as a cache replay, so a stamp taken
+    // before a multi-second cold build would force a pointless re-read.
+    renderedAt: Date.now(),
   };
 }
