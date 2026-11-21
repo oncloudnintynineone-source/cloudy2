@@ -18,8 +18,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.396 (shared composition framework; ranges apply
-  instantly; one range vocabulary; event-history revamp)** is shipped.
+- All work through changelog **1.397 (event-search toolbar alignment, wrapping-free date
+  range, tiered result sections)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -2676,6 +2676,19 @@ mirror them (four such entries: 1.106.1, 1.122.1, 1.316.1, 1.331.1).
   `event-history.md` §1.3/§1.4/§1.4.3 (new)/§1.8/§1.10/§1.11, `user-clashes.md`
   §1.1/§1.2/§1.5/§1.8/§1.8.1 (new)/§1.9, `kah.md` §1.7/§1.8, `loading-transitions.md` §1.8,
   `desktop-responsive.md` §1.11.
+- 1.397 **Event search: aligned toolbar, wrapping-free date range, tiered sections**: the
+  dialog's Search submit now shares one 43px control height with the query input and the
+  date-filter trigger (it was Mantine's 36px `sm` default, visibly short in that row —
+  `TOOLBAR_CONTROL_SIZE` + a `--button-height` override). The From/To popover **stacks the
+  two fields full width**: `DatePickerInput` renders its value as *button text*
+  (`component="button"` + `multiline`), so two half-width fields in the 300px popover left
+  ~60px for `2026-11-21` (the clearable ✕ reserves 50px) and the date wrapped onto a second
+  line; `whiteSpace: nowrap` guards it. Results are now **two labelled sections** instead of
+  one flat list — `Contains "<query>"` above the events whose fields literally contain the
+  text, `Approximate matches` above the typo-tolerant Fuse hits — split by the action's new
+  `exactCount` (`countSubstringMatches`, tested: the tier array is contiguous, so it is the
+  split index) while paging stays one flat cursor. Docs: `event-search.md`
+  §1.5/§1.8.1/§1.9/§1.11/§1.12, `AGENTS.md`.
 
 ## 1.4 Open items & next steps
 

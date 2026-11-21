@@ -16,7 +16,13 @@ export default function EventSearchBodySkeleton() {
   return (
     <Stack gap="sm" style={{ maxHeight: "min(72dvh, 680px)" }}>
       <Group gap="xs" wrap="nowrap" align="center" style={{ flexShrink: 0 }}>
-        <Skeleton height={34} style={{ flex: 1, minWidth: 0 }} />
+        {/* Mirrors the real toolbar row exactly — the query field and the two
+            square controls all render at `TOOLBAR_CONTROL_SIZE` (43px ≈ the
+            theme's `--input-height-sm`) in `EventSearchBody`, so the chunk swap
+            never shifts the row. The constant is deliberately repeated rather
+            than imported: this fallback must stay dependency-free (importing
+            from the lazy body would pull that chunk into the chrome bundle). */}
+        <Skeleton height={43} style={{ flex: 1, minWidth: 0 }} />
         <Skeleton width={43} height={43} radius="md" style={{ flexShrink: 0 }} />
         <Skeleton width={43} height={43} radius="md" style={{ flexShrink: 0 }} />
       </Group>

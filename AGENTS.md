@@ -330,8 +330,9 @@ doc content here.
   near-signal `preloadEventSearchBody()`), so the open animation never races the
   chunk. It free-text searches every
   department calendar through the **cache-backed month read** (`readCalendarRange`
-  - Fuse rank), rendered as a flat relevance list; recent-search pills skeleton-load
-    first and hide once results exist; tapping deep-links
+  - Fuse rank + tier split), rendered as a two-section relevance list (events that
+    literally contain the text, then approximate matches); recent-search pills
+    skeleton-load first and hide once results exist; tapping deep-links
     `/dashboard?date=…&event=…&_eventCal=<calendar id>` to the shared `EventDetail`.
     Matching covers title/location/event type/calendar name, not the compressed notes.
     Design: [docs/event-search.md](docs/event-search.md).

@@ -7,7 +7,9 @@ It reads the **layered events cache** for the months the date window touches,
 trims the result to the exact window, and Fuse.js-ranks title/location/type/
 calendar matches — a query that appears **verbatim** in a field leads, the
 typo-tolerant matches follow (§1.8.1) — so a small typo still finds the event.
-Results render as a flat, tier-then-relevance-ranked list; tapping one shows a
+Results render as a tier-then-relevance-ranked list in **two labelled sections** —
+events that literally contain the text, then the approximate (typo-tolerant)
+matches (§1.8.1); tapping one shows a
 **spinner on that row** while it navigates to the dashboard, which opens the
 **shared** full event detail modal (with in-place Duplicate/Edit/Delete).
 
@@ -75,7 +77,7 @@ flowchart LR
  C["listCalendars()"]
  RC["readCalendarRange(months, allCalendars)"]
  PJ["projectRangeEvents()"]
- FF["filterRangeForSearch()<br/>window trim + Fuse rank"]
+ FF["filterRangeForSearch()<br/>window trim + Fuse rank + tiers"]
  end
  subgraph CACHE["Layered month cache"]
  MC["getCachedMonthEventsForCalendarsMulti<br/>(Google fill on miss)"]
@@ -118,9 +120,12 @@ an indexed feature, but it is not this one.
 6. `filterRangeForSearch(events, from, to, q)` — trims whole months down to the
    exact window (`eventWithinRange`) and, for a query, fuzzy-ranks by
    title/location/type/calendar (relevance first; chronological on ties / blank).
-7. Returns `{ ok: true, events, myEventIds }` — `myEventIds` are the current
-   user's own (tagged-attendee, or a tagged department they belong to) events
-   among the results, so the modal can apply the amber "mine" row highlight.
+7. Returns `{ ok: true, events, exactCount, myEventIds }` — `exactCount` is how
+   many **leading** results contain the query verbatim (`countSubstringMatches`),
+   i.e. the split index between the two sections the modal renders (§1.8.1);
+   `myEventIds` are the current user's own (tagged-attendee, or a tagged
+   department they belong to) events among the results, so the modal can apply
+   the amber "mine" row highlight.
 
 Failure surfaces as `{ ok: false, error }` (the client shows it inline); there
 is no throw. The result events are `CalendarEvent[]`, the same shape the
@@ -195,11 +200,19 @@ returning them:
 
 The buckets are concatenated in that order, and each keeps Fuse's relevance order
 (the partition is a stable concatenation, and the chronological pre-sort still
-resolves score ties), so the list reads _literal first, then typo-tolerant_ with
-no section headers in the UI — the tiering is purely an ordering, and the modal
-renders the returned array as-is. `fuzzySearchRanked` (`src/lib/search/fuzzy.ts`)
-returns `{ item, score }` so the tiering needs no second Fuse pass; `fuzzySearch`
-is now a thin wrapper over it.
+resolves score ties). `fuzzySearchRanked` (`src/lib/search/fuzzy.ts`) returns
+`{ item, score }` so the tiering needs no second Fuse pass; `fuzzySearch` is now a
+thin wrapper over it.
+
+The two tiers are **visible sections**, not just an ordering: because the returned
+array is contiguous, the action's `exactCount` is the split index, and the modal
+renders `Contains “<query>” · N` above the literal hits and `Approximate matches ·
+M` above the typo-tolerant ones (a section and its header appear only when it has
+rows, so a pure-typo search shows just the second). Paging stays one flat cursor
+— `RESULT_PAGE_SIZE` slices the array first, then the slice is split at
+`min(exactCount, slice.length)`, so "Show more" extends the literal section before
+the approximate one — and each header carries its section's **total**, not its
+visible count.
 
 ## 1.9 The search modal (lazy-loaded)
 
@@ -247,21 +260,36 @@ false`), so the search state resets for free on every reopen; the chrome
   via the app's standard `motion/origin` transition (mirroring
   `PinnedEventsPanel`). The mobile header bar carries no search control.
 - Contents: a single toolbar row — the query `TextInput` (no autofocus;
-  in-field clear) plus a Search submit (`Button` at `lg`, a 43px icon below it)
-  and a date-filter `ActionIcon` that opens a popover with the From/To
+  in-field clear) plus a Search submit (`Button` at `lg`, an icon-only button
+  below it) and a date-filter `ActionIcon` that opens a popover with the From/To
   `DatePickerInput`s (cleared → server defaults) and a Reset, badge-counting a
-  non-default window. Below it the recent-search badges scroll as one
+  non-default window. All three controls share `TOOLBAR_CONTROL_SIZE` (43px ≈
+  the theme's `--input-height-sm`, which every `Input` field already renders at):
+  the `Button` overrides Mantine's 36px `sm` height through
+  `__vars={{ "--button-height" }}`, because a 36px submit between two 43px
+  neighbours read as visibly short (the shared `.c2-button-label` nudge in
+  `globals.css` was measured at 43px, so its label stays optically centred).
+  The date popover **stacks From above To at full width**: `DatePickerInput`
+  renders its value as *button text* (`component="button"` + `multiline`), so two
+  half-width fields inside the 300px popover left ~60px for `2026-11-21` (the
+  clearable ✕ reserves 50px) and the date wrapped onto a second line, growing the
+  field. Full width leaves ~200px of text room, and `styles.input.whiteSpace:
+  nowrap` keeps a value from ever re-wrapping it. Below it the recent-search badges scroll as one
   horizontal chip row and are **hidden once results exist** — while the history
   is still loading the row shows the label plus a few skeleton pills (sized to
   the chip's 36px `--c2-chip-height`, with a `LoadingStatus`), so the badges never
   pop in out of nowhere; an empty history collapses the section. A result-count +
   active-range caption (from the resolved window, not the result extremes) with
-  a Clear action heads the list. Results render as a **flat list in tier-then-relevance
-  order** (§1.8.1) — each row a colored stripe + title + a date/time/all-day line, plus
+  a Clear action heads the list. Results render as a **tier-then-relevance list in
+  two labelled sections** (§1.8.1) — each row a colored stripe + title + a date/time/all-day line, plus
   location and calendar — reusing the dashboard's amber `c2-my-agenda-event` /
   purple `c2-ext-agenda-event` highlight (the action returns `myEventIds`).
-  Rows are paged (`RESULT_PAGE_SIZE` = 150) with a "Show more" button to keep the
-  DOM bounded. The column is capped at `min(72dvh, 680px)` with the result list
+  The row markup exists once in a module-level `ResultRow`; the header row is
+  `SectionHeader` (dimmed label + section total, on the scheme-aware
+  `--mantine-color-default-hover` fill, carrying the section's top border so the
+  tiers never double up on a rule).
+  Rows are paged (`RESULT_PAGE_SIZE` = 150) with a single "Show more" button under
+  both sections to keep the DOM bounded. The column is capped at `min(72dvh, 680px)` with the result list
   as the only scroll region, so the Modal body never scrolls and the mobile
   keyboard (`dvh`) shrinks it cleanly. While searching it shows a skeleton (with
   a `LoadingStatus`), and no matches render the shared `EmptyState`.
@@ -330,7 +358,9 @@ the cache-backed search with the current (defaulted) date window.
 ## 1.11 Pure helpers & testing
 
 The decision-making parts are pure and unit-tested. `searchRange.test.ts` covers
-the date helpers plus `eventWithinRange` / `filterRangeForSearch`;
+the date helpers plus `eventWithinRange` / `filterRangeForSearch` /
+`countSubstringMatches` (including the contiguity invariant the two UI sections
+rely on);
 `searchHistory.test.ts` covers the history list; `fuzzy.test.ts` covers
 `fuzzyFilter` / `fuzzySearch` / `fuzzySearchRanked` / `fuzzyMatches`. Everything that touches Google,
 Postgres, or the Next runtime (the `searchEvents` action, `readCalendarRange`
@@ -355,7 +385,7 @@ The shared `src/lib/search/fuzzy.ts` wraps Fuse.js once for the whole app
 | `searchRangeBoundaries`                                                         | `events/searchRange.ts`   | `searchRange.test.ts`   |
 | `coerceSearchRange`                                                             | `events/searchRange.ts`   | `searchRange.test.ts`   |
 | `eventWithinRange` / `filterRangeForSearch`                                     | `events/searchRange.ts`   | `searchRange.test.ts`   |
-| `eventSubstringMatch` / `searchMatchTier`                                       | `events/searchRange.ts`   | `searchRange.test.ts`   |
+| `eventSubstringMatch` / `searchMatchTier` / `countSubstringMatches`             | `events/searchRange.ts`   | `searchRange.test.ts`   |
 | `fuzzyFilter` / `fuzzySearch` / `fuzzySearchRanked` / `fuzzyMatches`            | `search/fuzzy.ts`         | `fuzzy.test.ts`         |
 | `addSearchHistoryEntry` / `removeSearchHistoryEntry` / `cleanSearchHistoryList` | `events/searchHistory.ts` | `searchHistory.test.ts` |
 
@@ -364,8 +394,8 @@ The shared `src/lib/search/fuzzy.ts` wraps Fuse.js once for the whole app
 | File                                            | Role                                                                                                                                              |
 | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `src/lib/search/fuzzy.ts`                       | Shared Fuse.js wrapper (fuzzy filter/search/matches)                                                                                              |
-| `src/lib/events/search.ts`                      | `searchEvents` server action (cache read → project → fuzzy rank)                                                                                  |
-| `src/lib/events/searchRange.ts`                 | Pure date-range helpers + window trim + Fuse rank (tested)                                                                                        |
+| `src/lib/events/search.ts`                      | `searchEvents` server action (cache read → project → fuzzy rank → tier split)                                                                     |
+| `src/lib/events/searchRange.ts`                 | Pure date-range helpers + window trim + Fuse rank + tier split (tested)                                                                           |
 | `src/lib/events/searchHistory.ts`               | Pure history-list helpers (tested)                                                                                                                |
 | `src/lib/events/searchHistoryActions.ts`        | `getSearchHistory` / `recordSearchHistory` / `removeSearchHistory` actions                                                                        |
 | `src/lib/userPrefs/queries.ts`                  | `getUserPreferences` (now exposes `searchHistory`)                                                                                                |
@@ -375,7 +405,7 @@ The shared `src/lib/search/fuzzy.ts` wraps Fuse.js once for the whole app
 | `src/lib/google/stub.ts`                        | `searchEvents` → `[]`                                                                                                                             |
 | `src/app/(protected)/dashboard/EventDetail.tsx` | The shared detail modal the deep link lands on (unchanged)                                                                                        |
 | `src/components/EventSearchModal.tsx`           | Search modal chrome: always-mounted `Modal` + zoom transition + history state + body chunk preload                                                |
-| `src/components/EventSearchBody.tsx`            | Lazy body: toolbar + flat relevance list + history badges + row-spinner deep link                                                                 |
+| `src/components/EventSearchBody.tsx`            | Lazy body: toolbar + two tier sections (contains-text / approximate) + history badges + row-spinner deep link                                       |
 | `src/components/EventSearchBodySkeleton.tsx`    | Dependency-free body loading fallback painted inside the open chrome                                                                              |
 | `src/components/AppShellShell.tsx`              | Desktop header "Search events" trigger + ⌘/Ctrl-K + always-mounted modal + origin rect + near-signal body preload + `SearchPanelContext` provider |
 | `src/lib/ui/searchPanel.ts`                     | `SearchPanelContext` — the calendar's search triggers (desktop header + mobile pill) → shell-owned modal                                          |

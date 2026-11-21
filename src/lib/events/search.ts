@@ -9,6 +9,7 @@ import {
 } from "@/lib/events/queries";
 import {
   coerceSearchRange,
+  countSubstringMatches,
   DATE_ONLY_PATTERN,
   defaultSearchFrom,
   defaultSearchTo,
@@ -20,7 +21,7 @@ import { listUsers } from "@/lib/roster/queries";
 import { requireSession } from "@/lib/session";
 
 export type SearchEventsResult =
-  | { ok: true; events: CalendarEvent[]; myEventIds: string[] }
+  | { ok: true; events: CalendarEvent[]; exactCount: number; myEventIds: string[] }
   | { ok: false; error: string };
 
 /**
@@ -28,7 +29,10 @@ export type SearchEventsResult =
  * layered events cache (the whole date window is read as months, then trimmed
  * and fuzzy-matched) rather than a per-calendar Google `q`. Results are mapped,
  * deduped by logical event, and returned in relevance order (chronological on
- * ties / blank query).
+ * ties / blank query), tiered: events whose fields literally contain the query
+ * lead, typo-tolerant Fuse hits follow. `exactCount` is how many leading results
+ * are in that first tier — the split index the modal renders its two sections at
+ * (see `countSubstringMatches`).
  */
 export async function searchEvents(
   q: string,
@@ -55,6 +59,9 @@ export async function searchEvents(
   });
   const rangeEvents = projectRangeEvents(data, { typeFilter: [], userFilter: [] });
   const events = filterRangeForSearch(rangeEvents, fromDate, toDate, query);
+  // The tier boundary the modal renders its two sections at (the results come
+  // back contiguous: literal "contains text" hits first, typo-tolerant after).
+  const exactCount = countSubstringMatches(events, query);
 
   // Active roster grouped by department — the "mine" highlight matches an event
   // tagged on a department the user is an active member of, exactly like the
@@ -80,5 +87,5 @@ export async function searchEvents(
     )
     .map((event) => event.id);
 
-  return { ok: true, events, myEventIds };
+  return { ok: true, events, exactCount, myEventIds };
 }

@@ -58,6 +58,15 @@ const LIST_BORDER = "1px solid var(--mantine-color-default-border)";
 const RESULT_PAGE_SIZE = 150;
 
 /**
+ * One height for every control in the toolbar row. The theme pins every Input
+ * field to `--input-height-sm` = `calc(2.7rem * var(--mantine-scale))` ≈ 43px
+ * (`src/lib/theme.ts`), so the submit button and the two icon buttons match it
+ * instead of Mantine's 36px `Button` default, which sat visibly short between
+ * the query input and the date-filter trigger.
+ */
+const TOOLBAR_CONTROL_SIZE = 43;
+
+/**
  * Placeholder pill sizes for the recent-searches row while the history is still
  * loading — the chip height matches `--c2-chip-height` (the shared removable-chip
  * height `PickerChip` renders at) and the widths leave room for the ✕ now sitting
@@ -78,6 +87,84 @@ function eventWhenLabel(event: CalendarEvent): string {
     ? `${start.format("HH:mm")}–${end.format("HH:mm")}`
     : `${start.format("HH:mm")}–${end.format("D MMM, HH:mm")}`;
   return `${dateLabel} · ${timeLabel}`;
+}
+
+/**
+ * The tier header inside the result list: a dimmed label plus the section's
+ * **total** (not the visible count — the list is paged). It carries the section's
+ * top border so the header row, not the first event row, separates the tiers.
+ */
+function SectionHeader({ label, total, first }: { label: string; total: number; first: boolean }) {
+  return (
+    <Box
+      style={{
+        padding: "calc(var(--mantine-spacing-xs) / 2) var(--mantine-spacing-sm)",
+        borderTop: first ? undefined : LIST_BORDER,
+        background: "var(--mantine-color-default-hover)",
+      }}
+    >
+      <Text size="xs" fw={600} c="dimmed" truncate>
+        {label} · {total}
+      </Text>
+    </Box>
+  );
+}
+
+/**
+ * One result row: colour stripe + title + a when/location/calendar line, riding
+ * the dashboard agenda's amber (`mine`) / purple (external) highlight. Shared by
+ * both tier sections so the row markup exists exactly once.
+ */
+function ResultRow({
+  event,
+  mine,
+  external,
+  firstInSection,
+  onOpen,
+}: {
+  event: CalendarEvent;
+  mine: boolean;
+  external: boolean;
+  firstInSection: boolean;
+  onOpen: (event: CalendarEvent, e: React.MouseEvent<HTMLButtonElement>) => void;
+}) {
+  return (
+    <UnstyledButton
+      onClick={(e) => onOpen(event, e)}
+      className={[mine && "c2-my-agenda-event", external && "c2-ext-agenda-event"]
+        .filter(Boolean)
+        .join(" ")}
+      style={{
+        display: "block",
+        width: "100%",
+        textAlign: "left",
+        padding: "var(--mantine-spacing-sm)",
+        borderTop: firstInSection ? undefined : LIST_BORDER,
+      }}
+    >
+      <Group gap="sm" wrap="nowrap" align="center">
+        <Box
+          style={{
+            width: 4,
+            height: 30,
+            borderRadius: 2,
+            flexShrink: 0,
+            background: `var(--mantine-color-${event.color}-filled)`,
+          }}
+        />
+        <Box style={{ minWidth: 0, flex: 1 }}>
+          <Text component="p" size="sm" truncate>
+            {event.title}
+          </Text>
+          <Text size="xs" c="dimmed" truncate>
+            {eventWhenLabel(event)}
+            {event.payload.location ? ` · ${event.payload.location}` : ""}
+            {event.payload.calendarName ? ` · ${event.payload.calendarName}` : ""}
+          </Text>
+        </Box>
+      </Group>
+    </UnstyledButton>
+  );
 }
 
 export default function EventSearchBody({
@@ -107,6 +194,12 @@ export default function EventSearchBody({
   // The [from, to] window a completed search actually ran with (defaults
   // resolved), shown beside the result count so the scope is never ambiguous.
   const [searchedRange, setSearchedRange] = useState<{ from: string; to: string } | null>(null);
+  // The term a completed search actually ran with — the "Contains …" section
+  // header names it, so it must not follow later typing in the input.
+  const [searchedTerm, setSearchedTerm] = useState("");
+  // How many leading results contain the query verbatim (the rest are the
+  // typo-tolerant Fuse hits). The split index between the two sections.
+  const [exactCount, setExactCount] = useState(0);
 
   // The clicked result row whose deep-link navigation is in flight. Its position
   // (in the results list's content coordinates) drives an overlay spinner that
@@ -156,6 +249,8 @@ export default function EventSearchBody({
         setVisibleCount(RESULT_PAGE_SIZE);
         setMyEventIds(result.myEventIds);
         setSearchedRange({ from: effectiveFrom, to: effectiveTo });
+        setSearchedTerm(trimmed);
+        setExactCount(result.exactCount);
         // Remember the query server-side (fire-and-forget) and update the
         // badge list optimistically through the chrome.
         onRecordSearch(trimmed);
@@ -178,8 +273,7 @@ export default function EventSearchBody({
   // detail modal (Duplicate/Edit/Delete). While the navigation is in flight an
   // overlay spinner covers the clicked row (see `opening` above), then the
   // search modal closes. The row itself stays clickable the whole time.
-  function handleEventClick(event: unknown, e: React.MouseEvent<HTMLButtonElement>) {
-    const calendarEvent = event as CalendarEvent;
+  function handleEventClick(event: CalendarEvent, e: React.MouseEvent<HTMLButtonElement>) {
     const list = listRef.current;
     if (list) {
       const rowRect = e.currentTarget.getBoundingClientRect();
@@ -197,9 +291,9 @@ export default function EventSearchBody({
     // event; `_eventCal` lets the server resolve that one event separately.
     const href = buildEventDeepLink({
       view: pathname === "/dashboard" ? searchParams.get("view") : null,
-      start: calendarEvent.start,
-      eventId: calendarEvent.payload.eventId,
-      calendarId: calendarEvent.payload.calendarId,
+      start: event.start,
+      eventId: event.payload.eventId,
+      calendarId: event.payload.calendarId,
     });
     startTransition(() => {
       router.push(href);
@@ -207,6 +301,15 @@ export default function EventSearchBody({
   }
 
   const visibleResults = results ? results.slice(0, visibleCount) : null;
+  // The two tiers, split at the boundary the server returned. The flat list
+  // stays the paging cursor — "Show more" extends the literal section first,
+  // then the approximate one — so the split is clamped to what is mounted.
+  const visible = visibleResults ?? [];
+  const split = Math.min(exactCount, visible.length);
+  const exactVisible = visible.slice(0, split);
+  const fuzzyVisible = visible.slice(split);
+  const exactTotal = results ? Math.min(exactCount, results.length) : 0;
+  const fuzzyTotal = results ? results.length - exactTotal : 0;
 
   // The user's own rows get the amber highlight, external (Google-made) rows
   // the purple one — the same classes the dashboard agenda uses.
@@ -251,21 +354,25 @@ export default function EventSearchBody({
                 ) : null
               }
             />
-            {/* Desktop keeps the labelled button; phones use a 43px icon so
-                the input, submit and date filter stay on one row. */}
+            {/* Desktop keeps the labelled button; phones use an icon-only button
+                so the input, submit and date filter stay on one row. All three
+                controls share `TOOLBAR_CONTROL_SIZE` — the button overrides
+                Mantine's 36px `sm` height so it doesn't sit short between the
+                43px input and the date-filter trigger. */}
             <Button
               type="submit"
               visibleFrom="lg"
               loading={loading}
               loaderProps={BUTTON_LOADER_PROPS}
               leftSection={<IconSearch size={16} />}
+              __vars={{ "--button-height": `${TOOLBAR_CONTROL_SIZE}px` }}
             >
               Search
             </Button>
             <ActionIcon
               type="submit"
               hiddenFrom="lg"
-              size={43}
+              size={TOOLBAR_CONTROL_SIZE}
               variant="filled"
               aria-label="Search"
               loading={loading}
@@ -289,7 +396,7 @@ export default function EventSearchBody({
           <Menu.Target>
             <Box pos="relative">
               <ActionIcon
-                size={43}
+                size={TOOLBAR_CONTROL_SIZE}
                 variant="default"
                 aria-label="Search date range"
                 style={{ flexShrink: 0 }}
@@ -311,13 +418,21 @@ export default function EventSearchBody({
           </Menu.Target>
           <Menu.Dropdown>
             <Stack gap="sm" p="xs">
-              <Group grow align="flex-end" wrap="wrap">
+              {/* Stacked, not side by side: `DatePickerInput` renders its value
+                  as *button text* (`component="button"` + `multiline`), so two
+                  half-width fields inside a 300px popover left ~60px for
+                  "2026-11-21" (the clearable ✕ reserves 50px) and the date
+                  wrapped onto a second line. Full width gives each field ~200px
+                  of text room; `nowrap` keeps a value from ever re-wrapping the
+                  field into two lines at any popover width. */}
+              <Stack gap="xs">
                 <DatePickerInput
                   label="From"
                   value={from}
                   valueFormat="YYYY-MM-DD"
                   onChange={setFrom}
                   clearable
+                  styles={{ input: { whiteSpace: "nowrap" } }}
                 />
                 <DatePickerInput
                   label="To"
@@ -325,8 +440,9 @@ export default function EventSearchBody({
                   valueFormat="YYYY-MM-DD"
                   onChange={setTo}
                   clearable
+                  styles={{ input: { whiteSpace: "nowrap" } }}
                 />
-              </Group>
+              </Stack>
               <Button
                 variant="subtle"
                 size="xs"
@@ -419,6 +535,8 @@ export default function EventSearchBody({
               setResults(null);
               setMyEventIds([]);
               setSearchedRange(null);
+              setSearchedTerm("");
+              setExactCount(0);
               setError(null);
             }}
           >
@@ -477,48 +595,47 @@ export default function EventSearchBody({
             {results !== null && results.length > 0 ? (
               <>
                 <Stack gap={0}>
-                  {visibleResults?.map((event, index) => {
-                    const mine = myIdSet.has(event.id);
-                    const external = event.payload.external === true;
-                    return (
-                      <UnstyledButton
-                        key={`${event.id}:${index}`}
-                        onClick={(e) => handleEventClick(event, e)}
-                        className={[mine && "c2-my-agenda-event", external && "c2-ext-agenda-event"]
-                          .filter(Boolean)
-                          .join(" ")}
-                        style={{
-                          display: "block",
-                          width: "100%",
-                          textAlign: "left",
-                          padding: "var(--mantine-spacing-sm)",
-                          borderTop: index === 0 ? undefined : LIST_BORDER,
-                        }}
-                      >
-                        <Group gap="sm" wrap="nowrap" align="center">
-                          <Box
-                            style={{
-                              width: 4,
-                              height: 30,
-                              borderRadius: 2,
-                              flexShrink: 0,
-                              background: `var(--mantine-color-${event.color}-filled)`,
-                            }}
-                          />
-                          <Box style={{ minWidth: 0, flex: 1 }}>
-                            <Text component="p" size="sm" truncate>
-                              {event.title}
-                            </Text>
-                            <Text size="xs" c="dimmed" truncate>
-                              {eventWhenLabel(event)}
-                              {event.payload.location ? ` · ${event.payload.location}` : ""}
-                              {event.payload.calendarName ? ` · ${event.payload.calendarName}` : ""}
-                            </Text>
-                          </Box>
-                        </Group>
-                      </UnstyledButton>
-                    );
-                  })}
+                  {/* Two tiers, in the order the server returned them: events
+                      whose fields literally contain the query, then the
+                      typo-tolerant Fuse hits. A section (and its header) renders
+                      only when it has rows, and the first row of a section drops
+                      its own top border — the header carries the separation. */}
+                  {exactVisible.length > 0 && (
+                    <SectionHeader
+                      label={searchedTerm ? `Contains “${searchedTerm}”` : "Contains the text"}
+                      total={exactTotal}
+                      first
+                    />
+                  )}
+                  {exactVisible.map((event, index) => (
+                    <ResultRow
+                      key={`${event.id}:${index}`}
+                      event={event}
+                      mine={myIdSet.has(event.id)}
+                      external={event.payload.external === true}
+                      firstInSection={index === 0}
+                      onOpen={handleEventClick}
+                    />
+                  ))}
+                  {fuzzyVisible.length > 0 && (
+                    <SectionHeader
+                      label="Approximate matches"
+                      total={fuzzyTotal}
+                      first={exactVisible.length === 0}
+                    />
+                  )}
+                  {fuzzyVisible.map((event, index) => (
+                    <ResultRow
+                      // Flat index keeps keys unique when one logical event
+                      // repeats across several days of the window.
+                      key={`${event.id}:${split + index}`}
+                      event={event}
+                      mine={myIdSet.has(event.id)}
+                      external={event.payload.external === true}
+                      firstInSection={index === 0}
+                      onOpen={handleEventClick}
+                    />
+                  ))}
                 </Stack>
                 {results.length > visibleCount && (
                   <Group justify="center" p="xs">

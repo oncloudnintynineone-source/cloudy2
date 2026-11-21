@@ -137,6 +137,25 @@ export function searchMatchTier(event: CalendarEvent, query: string): SearchMatc
 }
 
 /**
+ * How many **leading** results are literal ("contains text") matches — the split
+ * index between the two sections the search modal renders.
+ * {@link filterRangeForSearch} returns the tiers contiguously (the substring
+ * bucket first), so counting the leading matches *is* the boundary; a blank
+ * query counts everything, and a result set of pure typo hits returns `0`.
+ */
+export function countSubstringMatches(events: readonly CalendarEvent[], query: string): number {
+  const q = query.trim().toLowerCase();
+  if (q === "") {
+    return events.length;
+  }
+  let count = 0;
+  while (count < events.length && eventSubstringMatch(events[count], q)) {
+    count += 1;
+  }
+  return count;
+}
+
+/**
  * Narrow a cache-read range to the exact date window and, when a query is given,
  * filter by title/location/type/calendar in **tier order**: literal substring
  * matches first, then the typo-tolerant ones. Inside each tier the Fuse relevance

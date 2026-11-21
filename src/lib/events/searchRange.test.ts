@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { CalendarEvent } from "./queries";
 import {
+  countSubstringMatches,
   eventSubstringMatch,
   eventWithinRange,
   filterRangeForSearch,
@@ -120,6 +121,52 @@ describe("filterRangeForSearch", () => {
       "Safety briefing for all departments and contractors",
       "Brieffng recap",
     ]);
+  });
+});
+
+describe("countSubstringMatches", () => {
+  const literal = event({
+    start: "2026-09-24 09:00:00",
+    end: "2026-09-24 10:00:00",
+    title: "Safety briefing for all departments and contractors",
+  });
+  const typo = event({
+    start: "2026-09-24 11:00:00",
+    end: "2026-09-24 12:00:00",
+    title: "Brieffng recap",
+  });
+  const alpha = event({
+    start: "2026-09-24 13:00:00",
+    end: "2026-09-24 14:00:00",
+    title: "Alpha convoy",
+  });
+  const alphaAgain = event({
+    start: "2026-09-24 15:00:00",
+    end: "2026-09-24 16:00:00",
+    title: "Alpha muster",
+  });
+
+  it("is the split index between the two tiers of a ranked result list", () => {
+    const results = filterRangeForSearch([typo, literal], "2026-09-24", "2026-09-24", "briefing");
+    expect(results.map((e) => e.title)).toEqual([literal.title, typo.title]);
+    expect(countSubstringMatches(results, "briefing")).toBe(1);
+  });
+
+  it("counts every result when all of them contain the query verbatim", () => {
+    expect(countSubstringMatches([alpha, alphaAgain], "alpha")).toBe(2);
+    expect(countSubstringMatches([alpha], "ALPHA")).toBe(1);
+  });
+
+  it("returns 0 when no result contains the query verbatim", () => {
+    expect(countSubstringMatches([literal, alpha], "brieffng")).toBe(0);
+  });
+
+  it("stops at the first typo-only row — the tiers are contiguous", () => {
+    expect(countSubstringMatches([alpha, typo, alphaAgain], "alpha")).toBe(1);
+  });
+
+  it("counts everything for a blank query", () => {
+    expect(countSubstringMatches([alpha, typo], "   ")).toBe(2);
   });
 });
 
