@@ -150,8 +150,10 @@ sequenceDiagram
   rail. It replaces the always-on "Changes are tracked for N days" line, which
   stated a setting the reader cannot change even when nothing was missing.
 - **Footer action — Open in calendar:** when the caller passes a `detailLink`
-  (the shared `?event=` dashboard deep link, `buildEventDeepLink` — both the My
-  Events rows and the `EventDetail` History button do), the footer offers
+  (the shared `?event=` dashboard deep link, `buildEventDeepLink` — the My
+  Events rows always do; the `EventDetail` History button only **off** the
+  calendar page, since on `/dashboard` the details modal is already open behind
+  the history modal and there is nothing to navigate to), the footer offers
   **Open in calendar**, the same button recipe as the read-only detail's action
   (`docs/user-clashes.md`): it closes the modal and navigates, and the deep link
   opens the event's details on the calendar page regardless of the active tab's

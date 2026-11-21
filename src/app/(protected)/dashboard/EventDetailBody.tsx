@@ -14,6 +14,7 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
+import { usePathname } from "next/navigation";
 import {
   IconBrandGoogle,
   IconCalendarEvent,
@@ -115,6 +116,12 @@ export function EventDetailBody({
   onRegistrationChanged,
   loading = false,
 }: Omit<EventDetailProps, "originRect" | "zIndex" | "onClose">) {
+  const pathname = usePathname();
+  // The calendar page itself: this body's details modal is already open there,
+  // so the history modal's "Open in calendar" would navigate to what the user
+  // is looking at — it is hidden on `/dashboard` and offered from the read-only
+  // hosts (Double Booking / Parade State / KAH Status) instead.
+  const onCalendarPage = pathname === "/dashboard";
   const [confirmOpen, { open, close }] = useDisclosure(false);
   const [deleting, setDeleting] = useState(false);
   const [registrationBusy, setRegistrationBusy] = useState(false);
@@ -568,7 +575,7 @@ export function EventDetailBody({
         originRect={historyOrigin}
         title={showEvent?.title}
         detailLink={
-          showEvent?.payload.eventId
+          !onCalendarPage && showEvent?.payload.eventId
             ? buildEventDeepLink({
                 view: null,
                 start: showEvent.start,
