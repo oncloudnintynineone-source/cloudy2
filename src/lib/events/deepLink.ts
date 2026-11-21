@@ -21,8 +21,9 @@ export interface EventDeepLinkInput {
   start: string;
   /** Logical event group id, or null for an external event (no details link). */
   eventId: string | null;
-  /** The tapped copy's calendar id (`_eventCal`). */
-  calendarId: string;
+  /** The tapped copy's calendar id (`_eventCal`); null/empty omits the hint and
+   * the resolver falls back to every calendar. */
+  calendarId: string | null;
 }
 
 /** Build the `/dashboard` deep link that opens one event's details. */
@@ -34,7 +35,9 @@ export function buildEventDeepLink(input: EventDeepLinkInput): string {
   params.set("date", input.start.slice(0, 10));
   if (input.eventId) {
     params.set("event", input.eventId);
-    params.set("_eventCal", input.calendarId);
+    if (input.calendarId) {
+      params.set("_eventCal", input.calendarId);
+    }
   }
   return `/dashboard?${params.toString()}`;
 }

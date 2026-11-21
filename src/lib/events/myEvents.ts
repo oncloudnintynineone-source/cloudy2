@@ -15,6 +15,8 @@ export interface MyEventRow {
   key: string;
   /** Logical event group id — the per-event history route key (null = legacy). */
   eventId: string | null;
+  /** Department calendar the live copy sits on (`_eventCal` deep-link hint); null for audit-only/deleted rows. */
+  calendarId: string | null;
   /** Rendered title. */
   title: string;
   /** Human-readable time label (`21 Aug · 14:00 – 15:30` style). */

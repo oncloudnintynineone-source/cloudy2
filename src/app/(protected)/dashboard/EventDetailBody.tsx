@@ -35,6 +35,7 @@ import { ConfirmModal } from "@/components/ConfirmModal";
 import { deleteEvent, setEventRegistration, type EventActionOk } from "@/lib/events/actions";
 import { buildEventIcs, buildGoogleCalendarUrl, icsFileName } from "@/lib/events/calendarExport";
 import { subOneDay } from "@/lib/events/datetime";
+import { buildEventDeepLink } from "@/lib/events/deepLink";
 import { prefetchEventHistory } from "@/lib/events/historyCache";
 import type { CalendarEvent } from "@/lib/events/queries";
 import {
@@ -566,6 +567,16 @@ export function EventDetailBody({
         onClose={() => setHistoryEventId(null)}
         originRect={historyOrigin}
         title={showEvent?.title}
+        detailLink={
+          showEvent?.payload.eventId
+            ? buildEventDeepLink({
+                view: null,
+                start: showEvent.start,
+                eventId: showEvent.payload.eventId,
+                calendarId: showEvent.payload.calendarId,
+              })
+            : null
+        }
         zIndex={300}
       />
 

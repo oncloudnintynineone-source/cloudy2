@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import type { CSSProperties } from "react";
 import {
+  ActionIcon,
   Badge,
   Box,
   Group,
@@ -15,8 +16,14 @@ import {
   UnstyledButton,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { IconHistory, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
-import { usePathname, useSearchParams } from "next/navigation";
+import {
+  IconCalendarEvent,
+  IconHistory,
+  IconPencil,
+  IconPlus,
+  IconTrash,
+} from "@tabler/icons-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { CrossfadeSwap } from "@/components/CrossfadeSwap";
 import { EmptyState } from "@/components/EmptyState";
@@ -24,6 +31,7 @@ import { EventHistoryModal, type EventHistoryPreview } from "@/components/EventH
 import { PageHeader } from "@/components/PageHeader";
 import { TimeRangeSelect } from "@/components/TimeRangeSelect";
 import type { ChangeTrailItem } from "@/lib/events/changeTrail";
+import { buildEventDeepLink } from "@/lib/events/deepLink";
 import { getMyEventsPage } from "@/lib/events/myEventsActions";
 import { prefetchEventHistory } from "@/lib/events/historyCache";
 import {
@@ -73,6 +81,25 @@ function loadedFrom(props: MyEventsViewProps): LoadedPage {
 }
 
 /**
+ * The dashboard deep link that opens this row's event details (the shared
+ * `?event=` link — same shape as event search / Pinned Events). Null for legacy
+ * rows without a group id; a deleted row still yields a link, but every caller
+ * disables the action for it — the copies are gone, so the link could not
+ * resolve.
+ */
+function rowDetailLink(item: MyEventRow): string | null {
+  if (!item.eventId) {
+    return null;
+  }
+  return buildEventDeepLink({
+    view: null,
+    start: item.sortKey,
+    eventId: item.eventId,
+    calendarId: item.calendarId,
+  });
+}
+
+/**
  * "My Events": every event the signed-in user organized, newest first, over an
  * adjustable ±-months window — including events later deleted (a Deleted badge),
  * so a deleted event stays trackable and its full history stays reachable.
@@ -90,6 +117,7 @@ function loadedFrom(props: MyEventsViewProps): LoadedPage {
 export function MyEventsView(props: MyEventsViewProps) {
   const { renderedAt, retentionDays } = props;
   const pathname = usePathname();
+  const router = useRouter();
   const searchParams = useSearchParams();
 
   const [loaded, setLoaded] = useState<LoadedPage>(() => loadedFrom(props));
@@ -120,6 +148,9 @@ export function MyEventsView(props: MyEventsViewProps) {
   const [historyEventId, setHistoryEventId] = useState<string | null>(null);
   const [historyOrigin, setHistoryOrigin] = useState<Rect | null>(null);
   const [historyPreview, setHistoryPreview] = useState<EventHistoryPreview | null>(null);
+  // The opened row's details deep link, so the history modal can offer the same
+  // "Open in calendar" action as the row itself (disabled there for deleted).
+  const [historyDetailLink, setHistoryDetailLink] = useState<string | null>(null);
 
   const applyLoaded = useCallback((next: LoadedPage) => {
     loadedRef.current = next;
@@ -132,6 +163,22 @@ export function MyEventsView(props: MyEventsViewProps) {
       setSelection(next);
     },
     [],
+  );
+
+  /** Open a row's event details on the calendar page (the shared `?event=` deep link). */
+  const openInCalendar = useCallback(
+    (item: MyEventRow) => {
+      // Deleted events have no copies left to open — the row's button is
+      // disabled; this guard keeps any other path honest.
+      if (item.deleted) {
+        return;
+      }
+      const link = rowDetailLink(item);
+      if (link) {
+        router.push(link);
+      }
+    },
+    [router],
   );
 
   /** Rebuild one window/page in place, reverting the control when it fails. */
@@ -296,8 +343,10 @@ export function MyEventsView(props: MyEventsViewProps) {
                         deleted: row.deleted,
                         items: row.trail,
                       });
+                      setHistoryDetailLink(rowDetailLink(row));
                       setHistoryEventId(row.eventId);
                     }}
+                    onOpenInCalendar={openInCalendar}
                   />
                 ))}
               </Stack>
@@ -328,6 +377,7 @@ export function MyEventsView(props: MyEventsViewProps) {
         onClose={() => setHistoryEventId(null)}
         originRect={historyOrigin}
         preview={historyPreview}
+        detailLink={historyDetailLink}
         retentionDays={retentionDays}
       />
     </Stack>
@@ -338,10 +388,12 @@ function MyEventRowView({
   item,
   first,
   onOpenHistory,
+  onOpenInCalendar,
 }: {
   item: MyEventRow;
   first: boolean;
   onOpenHistory: (item: MyEventRow, rect: Rect | null) => void;
+  onOpenInCalendar: (item: MyEventRow) => void;
 }) {
   const meta = [item.time, item.departments.join(", ")].filter(Boolean).join(" \u00b7 ");
   const body = (
@@ -377,28 +429,65 @@ function MyEventRowView({
     </Group>
   );
 
-  const rowStyle: CSSProperties = {
+  const tapStyle: CSSProperties = {
     display: "block",
     width: "100%",
     textAlign: "left",
-    padding: "var(--mantine-spacing-sm)",
-    borderTop: first ? undefined : LIST_BORDER,
+    flex: 1,
+    minWidth: 0,
   };
 
-  if (item.eventId) {
-    const eventId = item.eventId;
-    return (
-      <UnstyledButton
-        onMouseEnter={() => prefetchEventHistory(eventId)}
-        onPointerDown={() => prefetchEventHistory(eventId)}
-        onClick={(event) => onOpenHistory(item, event.currentTarget.getBoundingClientRect())}
-        style={rowStyle}
-      >
-        {body}
-      </UnstyledButton>
-    );
-  }
-  return <Box style={rowStyle}>{body}</Box>;
+  const eventId = item.eventId;
+
+  return (
+    <Group
+      gap="xs"
+      wrap="nowrap"
+      align="flex-start"
+      style={{
+        padding: "var(--mantine-spacing-sm)",
+        borderTop: first ? undefined : LIST_BORDER,
+      }}
+    >
+      {eventId ? (
+        <UnstyledButton
+          onMouseEnter={() => prefetchEventHistory(eventId)}
+          onPointerDown={() => prefetchEventHistory(eventId)}
+          onClick={(event) => onOpenHistory(item, event.currentTarget.getBoundingClientRect())}
+          style={tapStyle}
+        >
+          {body}
+        </UnstyledButton>
+      ) : (
+        <Box style={tapStyle}>{body}</Box>
+      )}
+      {/* Sibling of the tap target (never nested in it): opens the event's
+          details on the calendar page. Deleted events have nothing left to
+          open, so the action stays visible but disabled. The span wrapper
+          carries the tooltip — a disabled button fires no mouse events, and
+          Mantine's Tooltip has no disabled-child handling. */}
+      {eventId && (
+        <Tooltip
+          label={item.deleted ? "Deleted events can't be opened" : "Open in calendar"}
+          withArrow
+          events={{ hover: true, focus: true, touch: false }}
+        >
+          <Box component="span" style={{ display: "inline-flex", flexShrink: 0, marginTop: 1 }}>
+            <ActionIcon
+              variant="light"
+              color="gray"
+              size="lg"
+              aria-label="Open in calendar"
+              disabled={item.deleted}
+              onClick={() => onOpenInCalendar(item)}
+            >
+              <IconCalendarEvent size={18} />
+            </ActionIcon>
+          </Box>
+        </Tooltip>
+      )}
+    </Group>
+  );
 }
 
 /** Trail bullet colors ride the brand palette: created blue, edited amber, deleted red. */

@@ -126,6 +126,7 @@ export async function buildMyEventsData(params: {
     active.push({
       key: payload.eventId ?? event.id,
       eventId: payload.eventId,
+      calendarId: payload.calendarId,
       title: event.title,
       time: humanizeMyEventTime(
         formatMyEventTime(payload.allDay, event.start, event.end),
@@ -153,6 +154,8 @@ export async function buildMyEventsData(params: {
     deleted.push({
       key: summary.eventId,
       eventId: summary.eventId,
+      // Audit-only row: the copies are gone, so there is no calendar to deep-link.
+      calendarId: null,
       title: summary.title ?? "Untitled event",
       time: humanizeMyEventTime(summary.time, todayYear),
       sortKey: auditTimeSortKey(summary.time),

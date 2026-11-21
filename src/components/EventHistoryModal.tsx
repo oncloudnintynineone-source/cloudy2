@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Badge, Box, Text, useMantineTheme } from "@mantine/core";
+import { Badge, Box, Button, Group, Text, Tooltip, useMantineTheme } from "@mantine/core";
 import { useMediaQuery, useViewportSize } from "@mantine/hooks";
-import { IconHistory } from "@tabler/icons-react";
+import { useRouter } from "next/navigation";
+import { IconCalendarEvent, IconHistory } from "@tabler/icons-react";
 
 import { CrossfadeSwap } from "@/components/CrossfadeSwap";
 import { EmptyState } from "@/components/EmptyState";
@@ -55,6 +56,12 @@ interface EventHistoryModalProps {
   preview?: EventHistoryPreview | null;
   /** Fallback title before rows arrive (the dashboard event modal has no preview). */
   title?: string;
+  /**
+   * The dashboard `?event=` deep link for this event. When given, the footer
+   * offers "Open in calendar"; a deleted event keeps the button **disabled**
+   * (its copies are gone, so the link could not resolve).
+   */
+  detailLink?: string | null;
   /** Retention known from the caller, so the coverage note paints instantly. */
   retentionDays?: number;
 }
@@ -81,9 +88,11 @@ export function EventHistoryModal({
   zIndex,
   preview,
   title: titleProp,
+  detailLink,
   retentionDays: retentionDaysProp,
 }: EventHistoryModalProps) {
   const theme = useMantineTheme();
+  const router = useRouter();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
   const motion = useMotion();
   const viewportSize = useViewportSize();
@@ -236,6 +245,39 @@ export function EventHistoryModal({
             ) : null}
           </CrossfadeSwap>
         )}
+        {detailLink ? (
+          /* The shared in-body footer recipe (FormFooterActions): same action
+             as the read-only detail's "Open in calendar" — the `?event=` deep
+             link opens the event's details on the calendar page. A deleted
+             event has no copies left to resolve, so the button stays visible
+             but disabled; the span wrapper carries the tooltip, as a disabled
+             button fires no mouse events and Mantine's Tooltip has no
+             disabled-child handling. */
+          <Group
+            justify="flex-end"
+            gap="xs"
+            mt="md"
+            pt="md"
+            style={{ borderTop: "1px solid var(--mantine-color-default-border)" }}
+          >
+            <Tooltip label="Deleted events can't be opened" disabled={!deleted} withArrow>
+              <Box component="span" style={{ display: "inline-flex" }}>
+                <Button
+                  variant="light"
+                  size="md"
+                  leftSection={<IconCalendarEvent size={18} />}
+                  disabled={deleted}
+                  onClick={() => {
+                    onClose();
+                    router.push(detailLink);
+                  }}
+                >
+                  Open in calendar
+                </Button>
+              </Box>
+            </Tooltip>
+          </Group>
+        ) : null}
       </Box>
     </MotionModal>
   );

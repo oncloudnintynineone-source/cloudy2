@@ -149,6 +149,15 @@ sequenceDiagram
   screen and otherwise one line explaining that, rendered as a footnote under the
   rail. It replaces the always-on "Changes are tracked for N days" line, which
   stated a setting the reader cannot change even when nothing was missing.
+- **Footer action — Open in calendar:** when the caller passes a `detailLink`
+  (the shared `?event=` dashboard deep link, `buildEventDeepLink` — both the My
+  Events rows and the `EventDetail` History button do), the footer offers
+  **Open in calendar**, the same button recipe as the read-only detail's action
+  (`docs/user-clashes.md`): it closes the modal and navigates, and the deep link
+  opens the event's details on the calendar page regardless of the active tab's
+  filters (`_eventCal` names the copy's calendar). A **Deleted** event keeps the
+  button visible but **disabled** with a tooltip — its copies are gone, so the
+  link could not resolve.
 - Closing returns to whatever opened the modal (no back button, no route).
 
 ## 1.4 My Events page
@@ -197,7 +206,12 @@ time (`latestDeleteTimes`). Rows with no recorded audit
 rows (older than any remaining audit history, or edited directly in Google
 Calendar) fall back to the event's start time; ties break on start (newest first),
 then key. Tapping a row opens the history modal (§1.3); legacy rows with no group
-id are inert. Pagination is `?page=` (page size 20, `MY_EVENTS_PAGE_SIZE`),
+id are inert. Each row with a group id also carries a trailing **Open in
+calendar** action icon — a sibling of the tap target (never nested in it) — that
+pushes the shared `?event=` deep link built from the row's `sortKey` +
+`calendarId` (the live copy's calendar; audit-only rows have none); deleted rows
+keep the icon **disabled** with a tooltip, since their copies no longer exist to
+open. Pagination is `?page=` (page size 20, `MY_EVENTS_PAGE_SIZE`),
 applied in memory since the combined set is bounded by the window + retention;
 `buildMyEventsPage` runs the union, the slice, and the trail read as one call and
 stamps `renderedAt` **after** the build (stamping at the start would make every

@@ -11,6 +11,7 @@ import {
 function row(partial: Partial<MyEventRow> & { key: string; sortKey: string }): MyEventRow {
   return {
     eventId: partial.key,
+    calendarId: null,
     title: partial.key,
     time: "",
     editKey: null,

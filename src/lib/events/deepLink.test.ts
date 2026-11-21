@@ -44,6 +44,17 @@ describe("buildEventDeepLink", () => {
     ).toBe("/dashboard?date=2026-09-15&event=g-1&_eventCal=cal-1");
   });
 
+  it("omits the calendar hint when no calendar id is known", () => {
+    expect(
+      buildEventDeepLink({
+        view: null,
+        start: "2026-09-15",
+        eventId: "g-1",
+        calendarId: null,
+      }),
+    ).toBe("/dashboard?date=2026-09-15&event=g-1");
+  });
+
   it("omits the event params for an external event (no details link)", () => {
     expect(
       buildEventDeepLink({
