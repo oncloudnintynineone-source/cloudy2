@@ -467,6 +467,7 @@ In CI, the schema-drift check runs `pnpm db:generate` then fails on any diff to
 | [`pinned-events.md`](pinned-events.md) | Pinned Events panel + badge refresh |
 | [`user-picker.md`](user-picker.md) | No-keyboard selects + the badge-dialog picker |
 | [`accessibility.md`](accessibility.md) | Skip link, live-region announcements, skeleton a11y |
+| [`ui-ux-improvements.md`](ui-ux-improvements.md) | UI/UX research backlog: evidence-cited findings, fixed tier order, held register |
 
 Working documents (not end-user documentation): [`AGENTS.md`](../AGENTS.md) (agent
 rules), [`docs/agents/`](agents/) (issue tracker, triage labels, domain-doc consumer

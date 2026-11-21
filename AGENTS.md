@@ -650,6 +650,10 @@ none` so taps pass through to the clipped tile, and it hides on a side once
   there and add their one-liner to progress.md. **Don't read the archive unless you
   specifically need historical detail** (e.g. why/when a decision was made); for current
   work AGENTS.md + progress.md are sufficient.
+- The standing **UI/UX improvement backlog** lives in [docs/ui-ux-improvements.md](docs/ui-ux-improvements.md)
+  — evidence-cited findings (file:line at a named changelog) in a fixed four-tier order, plus a
+  **held register** of items reviewed and consciously set aside. Read it before proposing or
+  implementing UI work; move a row when it ships or is rejected, never delete one.
 
 ## Hosting / env gotchas
 

@@ -18,8 +18,9 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.397 (event-search toolbar alignment, wrapping-free date
-  range, tiered result sections)** is shipped.
+- All work through changelog **1.398 (UI/UX research backlog)** is shipped; the last functional
+  change is **1.397 (event-search toolbar alignment, wrapping-free date range, tiered result
+  sections)**.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -2689,6 +2690,20 @@ mirror them (four such entries: 1.106.1, 1.122.1, 1.316.1, 1.331.1).
   `exactCount` (`countSubstringMatches`, tested: the tier array is contiguous, so it is the
   split index) while paging stays one flat cursor. Docs: `event-search.md`
   §1.5/§1.8.1/§1.9/§1.11/§1.12, `AGENTS.md`.
+- 1.398 **UI/UX research backlog (docs-only)**: a full audit of the interface against the code —
+   every finding cites a file:line verified at 1.397 — recorded as `docs/ui-ux-improvements.md`:
+   what is already right (so it is not re-proposed), 21 findings in five themes (calendar core and
+   the touch model, legibility and accessibility, finding things and density, feedback/guidance,
+   workflow), and a fixed four-tier order. Headline findings: **"Today" is not one tap away
+   anywhere** (`goToday` is wired only to the date-picker modal), **every period step and tab
+   switch pushes a history entry** (Back needs N presses on Android/PWA), the **dark-scheme
+   event-chip boundary contrast** fix specified in `accessibility.md` §1.7 was never applied,
+   **two docs describe the removed dashboard ⋮ menu**, Settings' 13-tab strip has no scroll
+   affordance while the bottom nav already owns that recipe, and there is **no in-app help and no
+   keyboard layer**. Nine reviewed items (grid swipe, drag-create, delete undo, in-app text size,
+   login affordances, first-run coach, pull-to-refresh, registrant export, print CSS) are recorded
+   in a **held register** with the date — not to be implemented without a new decision. No code,
+   schema or `APP_VERSION` change. Docs: `ui-ux-improvements.md` (new), `AGENTS.md` project state.
 
 ## 1.4 Open items & next steps
 
@@ -2708,6 +2723,9 @@ mirror them (four such entries: 1.106.1, 1.122.1, 1.316.1, 1.331.1).
    once with `npx web-push generate-vapid-keys` and share the same pair; iOS users
    must run iOS/iPadOS 16.4+ from the **installed** home-screen app (remove + re-add
    once if added before 16.4) and tap Enable in Profile → Notifications.
+6. **UI/UX backlog**: [`docs/ui-ux-improvements.md`](docs/ui-ux-improvements.md) is the ranked,
+   evidence-cited improvement register (Tier 1–4) plus the held items. Cut implementation tickets
+   from that doc, not from memory, and move a row when it ships or is rejected.
 
 ## 1.5 Deployment & environments
 
