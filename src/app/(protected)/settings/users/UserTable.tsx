@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { type CSSProperties, useCallback, useMemo, useRef, useState } from "react";
 import { Badge, Box, Button, Group, Paper, Stack, Text, Tooltip } from "@mantine/core";
 import { LazyModal } from "@/components/LazyModal";
 import { MotionModal } from "@/components/MotionModal";
@@ -20,6 +20,7 @@ import { fuzzyFilter } from "@/lib/search/fuzzy";
 import { formatFullName } from "@/lib/settings/formatName";
 import { DESKTOP_MEDIA_QUERY } from "@/lib/theme";
 import { activatable } from "@/lib/ui/activatable";
+import { useElementHeight } from "@/lib/ui/elementSize";
 import { useEntityEditor } from "@/lib/ui/useEntityEditor";
 import dynamic from "next/dynamic";
 import { FormModalSkeleton } from "@/components/FormModalSkeleton";
@@ -45,7 +46,11 @@ interface UserTableProps {
 export function UserTable({ users, departments, accessByUser, nameTemplate }: UserTableProps) {
   const refreshAfterSave = useActivityRefresh("users:save");
   const isDesktop = useMediaQuery(DESKTOP_MEDIA_QUERY);
-  const paneRef = useRef<HTMLDivElement>(null);
+  // The mobile pill's measured height feeds `--c2-settings-pill-height` on the
+  // page column below: its control strip wraps to a second row on narrow phones,
+  // so the page pad cannot assume the one-row height. 0 (unmeasured, or hidden at
+  // `lg`+) leaves the CSS fallback in charge.
+  const [pillRef, pillHeight] = useElementHeight();
   const editor = useEntityEditor<RosterUser>();
   const [filterOpened, { open: openFilter, close: closeFilter }] = useDisclosure(false);
   const userFormReady = useChunkReady(loadUserForm, editor.opened);
@@ -166,7 +171,15 @@ export function UserTable({ users, departments, accessByUser, nameTemplate }: Us
   }
 
   return (
-    <Stack ref={paneRef} gap="md" className={`${CONTENT_ENTER_CLASS} settings-pill-page-pad`}>
+    <Stack
+      gap="md"
+      className={`${CONTENT_ENTER_CLASS} settings-pill-page-pad`}
+      style={
+        {
+          "--c2-settings-pill-height": pillHeight > 0 ? `${pillHeight}px` : undefined,
+        } as CSSProperties
+      }
+    >
       <SettingsListChrome
         search={search}
         onSearchChange={setSearch}
@@ -187,7 +200,7 @@ export function UserTable({ users, departments, accessByUser, nameTemplate }: Us
             primary: true,
           },
         ]}
-        paneRef={paneRef}
+        pillRef={pillRef}
       />
 
       {filtered.length === 0 ? (

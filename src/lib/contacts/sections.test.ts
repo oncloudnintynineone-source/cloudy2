@@ -9,6 +9,8 @@ import {
   contactRailHeightPx,
   NO_DEPARTMENT_SECTION_KEY,
   NO_DEPARTMENT_SECTION_LABEL,
+  railIndexFromPoint,
+  railScrubEdgeDirection,
 } from "@/lib/contacts/sections";
 
 function user(
@@ -163,5 +165,63 @@ describe("contactRailHeightPx", () => {
     expect(contactRailHeightPx(0)).toBe(14);
     expect(contactRailHeightPx(4)).toBe(94);
     expect(contactRailHeightPx(26)).toBe(534);
+  });
+});
+
+describe("railIndexFromPoint", () => {
+  // Three 20px bands stacked from y = 100: A 100–120, B 120–140, C 140–160.
+  const bands = [
+    { top: 100, bottom: 120 },
+    { top: 120, bottom: 140 },
+    { top: 140, bottom: 160 },
+  ];
+
+  it("picks the band under the pointer", () => {
+    expect(railIndexFromPoint(bands, 110)).toBe(0);
+    expect(railIndexFromPoint(bands, 130)).toBe(1);
+    expect(railIndexFromPoint(bands, 150)).toBe(2);
+  });
+
+  it("gives a band boundary to the later band, and the last bottom edge to the last band", () => {
+    expect(railIndexFromPoint(bands, 120)).toBe(1);
+    expect(railIndexFromPoint(bands, 140)).toBe(2);
+    expect(railIndexFromPoint(bands, 160)).toBe(2);
+  });
+
+  it("clamps a pointer past either end to the first / last letter", () => {
+    expect(railIndexFromPoint(bands, 0)).toBe(0);
+    expect(railIndexFromPoint(bands, 99.9)).toBe(0);
+    expect(railIndexFromPoint(bands, 1000)).toBe(2);
+  });
+
+  it("maps correctly while the rail is internally scrolled (shifted bands)", () => {
+    const shifted = bands.map((band) => ({ top: band.top - 80, bottom: band.bottom - 80 }));
+    expect(railIndexFromPoint(shifted, 50)).toBe(0);
+    expect(railIndexFromPoint(shifted, 70)).toBe(1);
+  });
+
+  it("returns null for an empty rail", () => {
+    expect(railIndexFromPoint([], 120)).toBeNull();
+  });
+});
+
+describe("railScrubEdgeDirection", () => {
+  // Rail spans y = 100–300, edge band 20px.
+  it("scrolls up while the pointer sits in the top band (or above the rail)", () => {
+    expect(railScrubEdgeDirection(100, 100, 300, 20)).toBe(-1);
+    expect(railScrubEdgeDirection(119, 100, 300, 20)).toBe(-1);
+    expect(railScrubEdgeDirection(40, 100, 300, 20)).toBe(-1);
+  });
+
+  it("scrolls down while the pointer sits in the bottom band (or below the rail)", () => {
+    expect(railScrubEdgeDirection(281, 100, 300, 20)).toBe(1);
+    expect(railScrubEdgeDirection(300, 100, 300, 20)).toBe(1);
+    expect(railScrubEdgeDirection(500, 100, 300, 20)).toBe(1);
+  });
+
+  it("holds still in the middle of the rail", () => {
+    expect(railScrubEdgeDirection(121, 100, 300, 20)).toBe(0);
+    expect(railScrubEdgeDirection(200, 100, 300, 20)).toBe(0);
+    expect(railScrubEdgeDirection(279, 100, 300, 20)).toBe(0);
   });
 });

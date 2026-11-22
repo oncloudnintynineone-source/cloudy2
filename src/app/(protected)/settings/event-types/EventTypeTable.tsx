@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { type CSSProperties, useMemo, useState } from "react";
 import { Badge, Box, Group, Paper, Stack, Text } from "@mantine/core";
 import { LazyModal } from "@/components/LazyModal";
 
@@ -29,6 +29,7 @@ import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { fuzzyFilter } from "@/lib/search/fuzzy";
 import { DESKTOP_MEDIA_QUERY } from "@/lib/theme";
 import { activatable } from "@/lib/ui/activatable";
+import { useElementHeight } from "@/lib/ui/elementSize";
 import { useEntityEditor } from "@/lib/ui/useEntityEditor";
 import dynamic from "next/dynamic";
 import { FormModalSkeleton } from "@/components/FormModalSkeleton";
@@ -54,7 +55,11 @@ interface EventTypeTableProps {
 export function EventTypeTable({ types, groups, reorderDrag }: EventTypeTableProps) {
   const refreshAfterSave = useActivityRefresh("event-types:save");
   const isDesktop = useMediaQuery(DESKTOP_MEDIA_QUERY);
-  const paneRef = useRef<HTMLDivElement>(null);
+  // The mobile pill's measured height feeds `--c2-settings-pill-height` on the
+  // page column: three action circles plus a search box do not fit a small
+  // phone, so the pill's strip wraps to a second row and the page pad has to
+  // clear the taller box.
+  const [pillRef, pillHeight] = useElementHeight();
   const [search, setSearch] = useState("");
   const editor = useEntityEditor<EventType>();
   const [groupsOpened, { open: openGroups, close: closeGroups }] = useDisclosure(false);
@@ -107,7 +112,15 @@ export function EventTypeTable({ types, groups, reorderDrag }: EventTypeTablePro
   }
 
   return (
-    <Stack ref={paneRef} gap="md" className={`${CONTENT_ENTER_CLASS} settings-pill-page-pad`}>
+    <Stack
+      gap="md"
+      className={`${CONTENT_ENTER_CLASS} settings-pill-page-pad`}
+      style={
+        {
+          "--c2-settings-pill-height": pillHeight > 0 ? `${pillHeight}px` : undefined,
+        } as CSSProperties
+      }
+    >
       <SettingsListChrome
         search={search}
         onSearchChange={setSearch}
@@ -131,7 +144,7 @@ export function EventTypeTable({ types, groups, reorderDrag }: EventTypeTablePro
             primary: true,
           },
         ]}
-        paneRef={paneRef}
+        pillRef={pillRef}
       />
 
       {types.length === 0 ? (

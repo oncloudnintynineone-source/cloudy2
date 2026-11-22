@@ -18,8 +18,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.411 (Modal height caps raised; vertical wizard step rail
-  at ≥ 800px)** is shipped.
+- All work through changelog **1.413 (Contacts A–Z rail scrubs — press, hold, slide)** is
+  shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -2942,6 +2942,39 @@ mirror them (four such entries: 1.106.1, 1.122.1, 1.316.1, 1.331.1).
     order and the dark contrast ramp are untouched; the `rail` / `classic` variants never see
     the split. Docs: `event-lifecycle.md` §1.4, `desktop-responsive.md` §1.7/§1.9/§1.10,
     `accessibility.md` §1.7/§1.9, `feature-flags.md`.
+  - 1.412 **Bottom control pill shared as `ControlPill`; auto-hide is calendar-only**: the
+    mobile pill's panning-strip layout leaves the dashboard. The new `ControlPill`
+    (`src/components/ControlPill.tsx`) renders the leading read-out or search field plus the
+    panning circle strip with edge fades, and Parade State, Contacts and `SettingsListChrome`
+    (Users / Departments / Event Types) now render it too: a `.c2-pill-field` search box keeps
+    `--c2-pill-field-min` (140px) and the strip's floor comes from pure `pillActionsMin`
+    (`src/lib/ui/controlPill.ts`, tested — 36px circles → 128px, 44px → 152px, fewer when a page
+    has fewer controls), so six Parade circles or three 44px list circles **pan** first and only
+    then **wrap** to a second row, instead of crushing the day label to ~30px or the search box
+    to a sliver. Because a wrapped pill is taller, the hardcoded 58/50/58px heights are gone:
+    each page measures the pill with `useElementHeight` (callback ref — armed when the `Affix`
+    portal mounts; reads `offsetHeight`, so a `display: none` pill reports 0) and publishes it to
+    its own pad (`--c2-bottom-chrome-height`, the new `--c2-settings-pill-height` behind
+    `.settings-pill-page-pad`, and Parade's attendance-bar offset). Second half: the
+    hide-on-interaction chrome is the **calendar page alone** — `useChromeHide` stays on the
+    dashboard's pill + FAB row (and the docked draft chip) and is dropped from Contacts, Parade
+    State (pill + attendance bar) and the settings lists, whose pill is the only path to their
+    search and actions; `advanceChromeHide`, the chrome-rect hit test and the pill's tap-through
+    contract are unchanged. Docs: `dashboard-views.md` §1.1, `desktop-responsive.md`
+    §1.5/§1.6/§1.13, `ui-ux-improvements.md` A8/A9, `AGENTS.md`.
+  - 1.413 **Contacts A–Z rail scrubs (press, hold, slide)**: the jump rail is the
+    phone-Contacts index bar it always looked like. Press a letter, hold, and slide along the
+    rail and the list follows the letter under the pointer — instant scroll per section (a
+    smooth scroll per letter would queue and lag the finger), the active letter riding along,
+    and the final letter announced on release. The mapping is pure (`railIndexFromPoint` /
+    `railScrubEdgeDirection`, tested): live letter bands (honest while the rail is internally
+    scrolled), clamping to the first/last letter on overshoot, and an edge band that
+    auto-scrolls the rail when it is taller than the window, so no letter hides behind the
+    `touch-action: none` that keeps drags from panning the page (and `user-select: none` from
+    selecting letters). Taps are untouched — smooth jump + announcement; a scrub's trailing
+    pointer click (`detail > 0`) is swallowed while keyboard clicks keep jumping, because the
+    plumbing rides window pointer events, deliberately **not** pointer capture, which would
+    retarget `pointerup` and kill the buttons' native click. Docs: `ui-ux-improvements.md` C2.
 
 ## 1.4 Open items & next steps
 

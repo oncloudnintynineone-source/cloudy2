@@ -245,7 +245,13 @@ doc content here.
   control pill (period label as a static left-hand read-out + circular
   **search**/filter/date/view/**fullscreen** buttons right, in a horizontally scrollable
   strip that wraps only when the label cannot share the line, inset 16px from the
-  viewport edges) bottom-most, with the
+  viewport edges) bottom-most. That pill is the shared `ControlPill`
+  (`src/components/ControlPill.tsx` + `.c2-pill-row`), also rendered by Parade State,
+  Contacts and the three settings list pages — their leading slot is a `.c2-pill-field`
+  search box (never squeezed below `--c2-pill-field-min`) or Parade's centred
+  `.c2-pill-label--fill` day read-out, the circles pan in their own strip, and each page
+  measures the pill so a wrapped two-row pill reflows its own page pad (and Parade's
+  attendance-bar offset) — with the
   right-anchored FAB row (`[<|>]` step pill whose 56px chevron circles size it
   - Quick-links **circle button** — solid amber `c2-glass-fab--accent-solid` — +
     New-event **circle button** — solid brand-blue `c2-glass-fab--brand-solid`;
@@ -283,9 +289,10 @@ the floating fullscreen button — never over the canvas
     chrome is visible; only a pane press or a wheel scroll may start one. Touch
     contact is tracked via `touchend` /
     `touches.length`, **never** `pointercancel` (that fires mid-scroll while the
-    finger is down). The same behavior extends to the **Contacts + Parade State
-    mobile pills** (Parade State also hides its attendance mode bar; an
-    attendance-mode change resets it). Pure `advanceChromeHide` state machine +
+    finger is down). This is the **calendar page only**: every other page's pill
+    (Parade State + its attendance mode bar, Contacts, the three settings lists)
+    stays put while its list scrolls, because that pill is the only path to the
+    page's search and actions. Pure `advanceChromeHide` state machine +
     `useChromeHide` in `src/lib/ui/chromeHide.ts` (mobile only, always on, no
     reflow — the rows are `Affix`-fixed).
     Month

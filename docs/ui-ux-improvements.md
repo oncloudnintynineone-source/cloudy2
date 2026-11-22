@@ -225,6 +225,8 @@ menu already carries the sheet at every width — which frees 76px on every phon
 must not change. The pill's height is auto-measured (`bottomBarRef` → `--c2-bottom-chrome-height`),
 so a two-line pill reflows the FAB offset and the page pads by itself; do not hard-code a height.
 `scroll` does not bubble, so a strip pan must never start a chrome hide — keep it that way.
+*(Superseded in part by **A8** at 1.412: the pill became the shared `ControlPill` and the other
+pages' pills deliberately took the same layout, each measuring its own height.)*
 
 **Status.** Shipped **1.403** (2026-11-22): `.c2-pill-row` / `.c2-pill-label` / `.c2-pill-actions`
 / `.c2-pill-scroll` / `.c2-pill-edge` in `globals.css`; `useScrollEdges` gained a `ResizeObserver`
@@ -232,7 +234,79 @@ so a two-line pill reflows the FAB offset and the page pads by itself; do not ha
 before the first measurement; the Guide "?" is gone from the dashboard chrome at **both** tiers.
 `dashboard-views.md` §1.1 (pill-layout bullet) and §1.2. §1.10.1.
 
-### 1.4.5 Not re-proposed here
+### 1.4.5 A8 — the cramping A7 fixed on the calendar still ships on the other bottom pills
+
+**Evidence.** A7's panning-strip recipe lived only inside `DashboardView`'s `mobilePill`. The other
+`.c2-control-pill` surfaces still rendered a plain `Group wrap="nowrap"`: Parade State
+(`ParadeStateView.tsx`, `mobilePill`) put the day label + **six** 36px circles in one non-wrapping
+row — 266px of fixed controls against a ~306px pill interior at 360px, so the label's budget is
+**≈30px** and "Wed, Nov 22, 2026" ellipses to a couple of characters; Contacts (`ContactList.tsx`)
+and `SettingsListChrome` (Users / Departments / Event Types) put a `TextInput` with
+`flex: 1, minWidth: 0` beside two-to-three **44px** circles, so the search box shrinks toward
+~104px at 320px and the circles press into the pill's rounded caps. Each page also **hardcoded**
+the pill's height (58 / 50 / 58px) for its page pad, so nothing about the row could give way.
+
+**Impact.** Parade's date read-out — the fact that page is about — disappears on every phone below
+~430px. The list pills' search fields get too narrow to type into, and because the pads assume a
+one-row pill, any taller pill would sit on top of the last card row.
+
+**Fix.** Extract the calendar's pill into a shared **`ControlPill`** and render all four surfaces
+through it: a leading slot (the read-out, or a `.c2-pill-field` search box whose flex-basis is
+`--c2-pill-field-min`, so the strip gives up the line before the field is squeezed) plus the
+panning circle strip with edge fades, `--c2-pill-actions-min` computed per pill from its circle
+size and count (pure `pillActionsMin`). Measure the pill per page (`useElementHeight`, callback
+ref) and publish it to that page's pad (`--c2-bottom-chrome-height`, `--c2-settings-pill-height`,
+Parade's attendance-bar offset) instead of hardcoding a height.
+
+**Effort.** M.
+
+**Respect.** The tap-through contract (`pointer-events: none` on the surface and the strip, buttons
+opting back in) must survive — it is what keeps a pill gap from swallowing list taps and what the
+calendar's chrome-hide hit test relies on. Keep the 44px circles on the list pills
+([`accessibility.md`](accessibility.md) §1.9) and the 36px on the calendar/Parade pills; never
+shrink a control to make a row fit. Parade's search-open state must drop `minActions` to 1, or its
+lone close circle wraps to a row of its own.
+
+**Status.** Shipped **1.412** (2026-11-23): `src/components/ControlPill.tsx`,
+`src/lib/ui/controlPill.ts` (+ `pillActionsMin` tests) and `src/lib/ui/elementSize.ts`
+(`useElementHeight`); `.c2-pill-field` / `.c2-pill-label--fill` / `--c2-pill-field-min` and the
+var-driven `.settings-pill-page-pad` in `globals.css`; `DashboardView`, `ParadeStateView`,
+`ContactList` and `SettingsListChrome` (+ the three settings pages) render the shared pill.
+[`dashboard-views.md`](dashboard-views.md) §1.1 (pill-layout + pill-reuse bullets) and
+[`desktop-responsive.md`](desktop-responsive.md) §1.5/§1.6/§1.13.
+
+### 1.4.6 A9 — the auto-hiding pill is wrong on the pages that borrowed it
+
+**Evidence.** 1.324 extended `useChromeHide` from the calendar to the Contacts pill and the Parade
+State pill + attendance mode bar, and `SettingsListChrome` mounted it as well. On those pages the
+pill is the **only** search/filter/action surface below `lg` (their sticky top bar is `lg`-only),
+so scrolling a long roster hides the very controls the user is scrolling to reach — and revealing
+them again costs a second gesture.
+
+**Impact.** Searching Contacts or Parade State means scrolling, waiting for the settle, then
+tapping a control that vanished mid-scroll; on the settings lists the create/manage actions hide
+the same way. The calendar can afford the behaviour because its pane *is* the content worth the
+room and the same controls also live in its pinned top strip.
+
+**Fix.** Scope the auto-hide to the calendar page: drop `useChromeHide` and the
+`c2-chrome-hide-able` classes from Contacts, Parade State and `SettingsListChrome`, leave
+`advanceChromeHide` / `useChromeHide` exactly as they are for the dashboard's pill + FAB row, and
+say so in the hook's doc comment plus the docs that describe the behaviour.
+
+**Effort.** S.
+
+**Respect.** Do not delete the chrome-rect hit test or the `.c2-chrome-hide-able` CSS — the calendar
+still needs both, and the minimized-draft chip rides the FAB row's hide state. Parade's attendance
+bar keeps its own exit transition (`c2-attendance-bar-closing`); only the hide-on-scroll coupling
+goes, along with the `resetKey: attendanceMode` that existed to stop it mounting hidden.
+
+**Status.** Shipped **1.412** (2026-11-23): `useChromeHide` is mounted by `DashboardView` alone;
+Contacts / Parade State / `SettingsListChrome` no longer import it (the settings chrome's
+`paneRef` prop is gone with it). `chromeHide.ts` header, the `globals.css` hide-rule comment,
+`AGENTS.md`, [`dashboard-views.md`](dashboard-views.md) §1.1 (auto-hide + pill-reuse bullets) and
+[`desktop-responsive.md`](desktop-responsive.md) §1.5/§1.6 updated.
+
+### 1.4.7 Not re-proposed here
 
 Swipe-to-change-period on the non-Agenda grids (A3), drag-to-create/reschedule (A5) and delete undo
 (A6) were reviewed and are **held** — see §1.9.
@@ -386,6 +460,10 @@ each group card flow into auto-filling columns (`.c2-contact-rows`, each cell dr
 top/left hairline, the blank area beside a partial last row ruled by the last cell, so columns stay
 uniform and the matrix stays closed) while the groups themselves stay **one per row** —
 gridding unevenly sized groups reintroduces exactly the empty space a phone list should not spend.
+**Follow-up 1.413:** the rail is a press-and-hold **scrubber** now — slide along it and the list
+follows the letter under the pointer (instant scroll per section, live-band mapping + edge
+auto-scroll in pure `railIndexFromPoint`/`railScrubEdgeDirection`, `touch-action: none` so drags
+never pan the page), while taps keep their smooth jump + announcement.
 §1.10.1.
 
 ### 1.6.3 C3 — Parade State has no name search
@@ -681,7 +759,7 @@ flowchart TD
 
 | Tier | Items | Why here |
 | --- | --- | --- |
-| **1 — days, low risk** | B1, B4 | Missing-affordance and correctness fixes. Each is local, reversible, needs no schema or data change, and closes a gap the codebase already knows about (B1). A1/A2/A4, C1/C6 and D5/D6 left this tier shipped (§1.10.1), as did A7 — added and shipped at 1.403. |
+| **1 — days, low risk** | B1, B4 | Missing-affordance and correctness fixes. Each is local, reversible, needs no schema or data change, and closes a gap the codebase already knows about (B1). A1/A2/A4, C1/C6 and D5/D6 left this tier shipped (§1.10.1), as did A7 — added and shipped at 1.403 — and A8/A9, added and shipped at 1.412. |
 | **2 — a sprint** | B3, B5 | Keyboard parity and the legibility floor. D2 shipped ahead of the tier (§1.10.1) **without** its shortcut section — fold that section in when B5 lands, per the original "B5 before D2" note. C2/C3/C4/C5 left this tier shipped (§1.10.1). |
 | **3 — design-gated** | E3, E6-hint | Advisory and messaging that must be designed against the clashes engine and attendance docs rather than bolted on. |
 | **4 — feature work** | E1, E4, E6-sync | Each needs its own spec, schema, and subsystem doc. |
@@ -709,6 +787,8 @@ land here.
 | C5 | 1.401 (2026-11-22) | Audit-log rows lead with the relative age (`relativeChangeLabel`) + absolute UTC+8 secondary; computed once per render; detail modal + CSV stay absolute. |
 | C6 | 1.401 (2026-11-22) | Event detail participants/departments capped at 5 via `PickerBadges` with "+N" as the expand trigger; self chip pinned first by pure `capBadgeItems` (`src/lib/ui/badgeCap.ts`, unit-tested). |
 | A7 | 1.403 (2026-11-22) | Mobile control pill: the period label is a **static read-out** (`.c2-pill-label`) and the circles pan in a scrollable strip (`.c2-pill-actions` / `.c2-pill-scroll`) that wraps to a second row only when the label + `--c2-pill-actions-min` cannot share the line (flex-basis line-breaking, no JS); auto-margin right-anchoring, `RailEdgeControl`-style edge fades from `useScrollEdges` (now `ResizeObserver`-aware, starts unclipped). Guide "?" removed from the dashboard chrome at both tiers — profile menu only. |
+| A8 | 1.412 (2026-11-23) | The pill layout is now the shared **`ControlPill`** (`src/components/ControlPill.tsx`) rendered by the calendar, Parade State, Contacts and `SettingsListChrome`: leading read-out (`.c2-pill-label` / centred `--fill`) or search field (`.c2-pill-field`, `--c2-pill-field-min` floor) + the panning circle strip, `--c2-pill-actions-min` from pure `pillActionsMin` (`src/lib/ui/controlPill.ts`, tested). Each page measures the pill (`useElementHeight`, `src/lib/ui/elementSize.ts`) and feeds its own pad — `--c2-bottom-chrome-height`, `--c2-settings-pill-height` (`.settings-pill-page-pad` default 58px) and Parade's attendance-bar offset — replacing the hardcoded 58/50/58px heights. |
+| A9 | 1.412 (2026-11-23) | Floating-chrome auto-hide is the **calendar page alone**: `useChromeHide` stays on the dashboard's pill + FAB row (and the docked draft chip), and is gone from Contacts, Parade State (pill + attendance bar) and `SettingsListChrome`, whose pills stay put while their lists scroll. `chromeHide.ts` API and state machine unchanged; docs + `AGENTS.md` re-scoped. |
 
 ## 1.11 Implementation guardrails
 

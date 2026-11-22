@@ -3,26 +3,31 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 
 /**
- * Hide a page's mobile floating chrome — the dashboard's bottom control pill
- * and FAB row, the Contacts / Parade State control pills — while the user is
- * touching the page's content pane: on touch alone (even without any
- * scrolling) and on any scroll, either axis. The chrome slides back only once
- * the interaction has **fully** stopped: the last finger/pointer has lifted
- * AND the scrolling has settled.
+ * Hide the **calendar page's** mobile floating chrome — its bottom control pill
+ * and FAB row (a docked minimized-draft chip rides the FAB row) — while the user
+ * is touching the calendar pane: on touch alone (even without any scrolling) and
+ * on any scroll, either axis. The chrome slides back only once the interaction
+ * has **fully** stopped: the last finger/pointer has lifted AND the scrolling has
+ * settled.
  *
- * "The content pane" is the caller's page-content element (the dashboard's
- * `weekBoxRef` content box with every grid + pinned strips; the Contacts /
- * Parade State page columns). The floating rows are `Affix`-portaled to
- * `<body>` outside the pane, so a pane-scoped trigger can never be triggered
- * by the chrome itself — tapping a pill button keeps the pill up. The rows are
- * also deliberately `pointer-events: none` (only their buttons/inputs opt back
- * in) so taps on their label/padding/gap areas reach the content beneath; those
- * taps still *land over* the chrome, so the pane handler hit-tests the press
- * point against every `.c2-chrome-hide-able` rect and ignores it — a tap that
- * looks like chrome interaction must never flash the chrome away. Contact
- * tracking, by contrast, is screen-wide (document): once hidden, the chrome
- * stays hidden while *any* finger/pointer is down, even if it slides off the
- * pane (e.g. onto the bottom nav).
+ * This is deliberately the calendar alone. Every other page's control pill
+ * (Parade State, Contacts, the settings list pages) is the only path to its
+ * search/filter/actions, so it stays put while the page scrolls — the calendar
+ * can afford to hide its chrome because the same controls live in its pinned top
+ * strip and the pane itself is the thing worth the extra room.
+ *
+ * "The calendar pane" is the caller's page-content element (the dashboard's
+ * `weekBoxRef` content box with every grid + pinned strips). The floating rows
+ * are `Affix`-portaled to `<body>` outside the pane, so a pane-scoped trigger can
+ * never be triggered by the chrome itself — tapping a pill button keeps the pill
+ * up. The rows are also deliberately `pointer-events: none` (only their
+ * buttons/inputs opt back in) so taps on their label/padding/gap areas reach the
+ * content beneath; those taps still *land over* the chrome, so the pane handler
+ * hit-tests the press point against every `.c2-chrome-hide-able` rect and ignores
+ * it — a tap that looks like chrome interaction must never flash the chrome away.
+ * Contact tracking, by contrast, is screen-wide (document): once hidden, the
+ * chrome stays hidden while *any* finger/pointer is down, even if it slides off
+ * the pane (e.g. onto the bottom nav).
  *
  * Contact is tracked per input type because the two event systems disagree
  * about when a touch gesture ends:

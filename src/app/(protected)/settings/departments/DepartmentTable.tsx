@@ -1,6 +1,6 @@
 "use client";
 
-import { type KeyboardEvent, type ReactNode, useMemo, useState } from "react";
+import { type CSSProperties, type KeyboardEvent, type ReactNode, useMemo, useState } from "react";
 import { Box, Group, Paper, Stack, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
@@ -28,6 +28,7 @@ import {
   type ReorderDrag,
 } from "@/lib/settings/featureFlags";
 import { useReorderRows } from "@/lib/ui/reorderRows";
+import { useElementHeight } from "@/lib/ui/elementSize";
 import { formatColorLabel } from "@/lib/events/eventColors";
 import { ColorDot } from "@/components/ColorSwatchPicker";
 import { ReorderUpDown } from "@/components/reorderUpDown";
@@ -55,6 +56,10 @@ export function DepartmentTable({ departments, reorderDrag }: DepartmentTablePro
   const [selected, setSelected] = useState<Calendar | null>(null);
   const [deleting, setDeleting] = useState<Calendar | null>(null);
   const [deletingInProgress, setDeletingInProgress] = useState(false);
+  // The mobile pill's measured height feeds `--c2-settings-pill-height` on the
+  // page column: its control strip wraps to a second row on narrow phones, so
+  // the page pad cannot assume the one-row height.
+  const [pillRef, pillHeight] = useElementHeight();
 
   const {
     displayRows: displayDepartments,
@@ -248,6 +253,11 @@ export function DepartmentTable({ departments, reorderDrag }: DepartmentTablePro
       ref={containerRef}
       gap="md"
       className={`${CONTENT_ENTER_CLASS} settings-pill-page-pad`}
+      style={
+        {
+          "--c2-settings-pill-height": pillHeight > 0 ? `${pillHeight}px` : undefined,
+        } as CSSProperties
+      }
     >
       <SettingsListChrome
         search={search}
@@ -262,7 +272,7 @@ export function DepartmentTable({ departments, reorderDrag }: DepartmentTablePro
             primary: true,
           },
         ]}
-        paneRef={containerRef}
+        pillRef={pillRef}
       />
 
       {departments.length === 0 ? (

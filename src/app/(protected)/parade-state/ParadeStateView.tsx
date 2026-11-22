@@ -62,6 +62,7 @@ import type { WeekStart } from "@/lib/events/datetime";
 import type { CalendarEvent } from "@/lib/events/queries";
 import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
 import { type Rect } from "@/lib/motion/origin";
+import { ControlPill } from "@/components/ControlPill";
 import { useMotion } from "@/components/MotionProvider";
 import { fadeTransitionProps } from "@/lib/motion/transitions";
 import { departmentPathLabels, departmentTreeRows } from "@/lib/roster/hierarchy";
@@ -75,7 +76,8 @@ import {
 import { buildParadeSections, type ParadeSection } from "@/lib/parade/sections";
 import { formatFullName } from "@/lib/settings/formatName";
 import { activatable } from "@/lib/ui/activatable";
-import { useChromeHide } from "@/lib/ui/chromeHide";
+import { PILL_CIRCLE } from "@/lib/ui/controlPill";
+import { useElementHeight } from "@/lib/ui/elementSize";
 import { useKeyboardInset } from "@/lib/ui/keyboardInset";
 import { fuzzyFilter } from "@/lib/search/fuzzy";
 import {
@@ -339,17 +341,12 @@ export function ParadeStateView({
   // lg+ layout: the day controls stay in the sticky top chrome; below `lg`
   // they move to the floating bottom control pill (calendar-page pattern).
   const isDesktop = useMediaQuery(DESKTOP_MEDIA_QUERY);
-  // The mobile floating chrome (control pill + attendance mode bar) hides
-  // while the user touches or scrolls the roster and slides back when the
-  // interaction fully stops — the content wrapper is the pane; both rows are
-  // `Affix`-portaled, so tapping their controls can't self-trigger. Mobile
-  // only (`enabled` detaches at `lg`+); an attendance-mode change forces it
-  // back so the bar never mounts in a hidden state.
-  const chromeHidden = useChromeHide({
-    enabled: !isDesktop,
-    paneRef: contentRef,
-    resetKey: attendanceMode,
-  });
+  // The mobile floating rows (control pill + attendance mode bar) stay put while
+  // the roster scrolls — only the calendar page hides its chrome on interaction.
+  // What the pill *does* need measured is its height: its control strip wraps to
+  // a second row on narrow phones, and both the attendance bar floating above it
+  // and the page pad below the roster are sized off that box.
+  const [pillRef, pillHeightMeasured] = useElementHeight();
   const swipedRef = useRef(false);
   // One-shot click suppression: a swipe arms `swipedRef` and the content
   // wrapper's `onClickCapture` swallows the synthesized click a drag emits
@@ -939,13 +936,16 @@ export function ParadeStateView({
 
   const dayLabel = dayjs(date).format("ddd, MMM D, YYYY");
 
-  // The floating control pill (below `lg` only, calendar-page pattern): the
+  // The floating control pill (below `lg` only, the shared `ControlPill`): the
   // day label centered in the space left of the circular search / step /
   // filter / date / attendance buttons, floating at the bottom inset 16px
   // from the viewport edges. The attendance mode bar floats above it (see
   // `mobileAttendanceBar`). The search circle (C3) swaps the day label for an
   // inline roster-search field and hides the other circles while it is open —
-  // the pill keeps its height, and closing restores the full row.
+  // the pill keeps its height, and closing restores the full row. Six circles
+  // cannot share a line with a readable date on a small phone, so they pan in
+  // their own strip and only drop to a second row when even the strip's minimum
+  // width cannot share the line (docs/dashboard-views.md §1.1).
   const mobilePill = (
     <Affix
       hiddenFrom="lg"
@@ -960,146 +960,147 @@ export function ParadeStateView({
       }}
       zIndex={100}
     >
-      {/* `c2-chrome-hide-able` + `c2-chrome-hidden`: the pill fades/slides away
-          while the user touches or scrolls the roster and returns when the
-          interaction stops (useChromeHide); the CSS carries the
-          pointer-events cutoff so a hidden pill never catches taps. */}
-      <Box
-        className={`c2-glass-surface c2-control-pill c2-chrome-hide-able${
-          chromeHidden ? " c2-chrome-hidden" : ""
-        }`}
-      >
-        <Group align="center" gap="xs" wrap="nowrap">
-          {searchActive ? (
+      <ControlPill
+        pillRef={pillRef}
+        actionsLabel="Roster day controls"
+        circleSize={PILL_CIRCLE.calendar}
+        minActions={searchActive ? 1 : 3}
+        leading={
+          searchActive ? (
             <TextInput
               ref={searchInputRef}
+              className="c2-pill-field"
               radius="999px"
               aria-label="Search roster by name or shortname"
               placeholder="Search roster"
               value={search}
               onChange={(e) => setSearch(e.currentTarget.value)}
-              style={{ flex: 1, minWidth: 0 }}
             />
           ) : (
             <Text
+              className="c2-pill-label c2-pill-label--fill"
               fw={600}
               size="sm"
               lineClamp={1}
               title={dayLabel}
-              style={{ flex: 1, minWidth: 0, textAlign: "center" }}
             >
               {dayLabel}
             </Text>
-          )}
-          <ActionIcon
-            radius="50%"
-            size={36}
-            variant="default"
-            className="c2-glass-btn"
-            aria-label={searchActive ? "Close roster search" : "Search roster"}
-            title={searchActive ? "Close roster search" : "Search roster"}
-            onClick={() => {
-              if (searchActive) {
-                closeRosterSearch();
-              } else {
-                setSearchOpen(true);
-              }
-            }}
-          >
-            {/* Keyed by the mode so the icon node remounts and replays its
-                fade + scale-in on the toggle (see `c2-icon-swap`). */}
-            <span
-              key={searchActive ? "close" : "open"}
-              className="c2-icon-swap"
-              style={{ display: "inline-flex" }}
+          )
+        }
+        actions={
+          <>
+            <ActionIcon
+              radius="50%"
+              size={36}
+              variant="default"
+              className="c2-glass-btn"
+              aria-label={searchActive ? "Close roster search" : "Search roster"}
+              title={searchActive ? "Close roster search" : "Search roster"}
+              onClick={() => {
+                if (searchActive) {
+                  closeRosterSearch();
+                } else {
+                  setSearchOpen(true);
+                }
+              }}
             >
-              {searchActive ? <IconX size={18} /> : <IconSearch size={18} />}
-            </span>
-          </ActionIcon>
-          {!searchActive && (
-            <>
-              <ActionIcon
-                radius="50%"
-                size={36}
-                variant="default"
-                className="c2-glass-btn"
-                aria-label="Previous day"
-                onClick={() => shiftDay(-1)}
-                onPointerEnter={() => prefetchDay(-1)}
-                onFocus={() => prefetchDay(-1)}
-                onPointerDown={() => prefetchDay(-1)}
-                onTouchStart={() => prefetchDay(-1)}
+              {/* Keyed by the mode so the icon node remounts and replays its
+                  fade + scale-in on the toggle (see `c2-icon-swap`). */}
+              <span
+                key={searchActive ? "close" : "open"}
+                className="c2-icon-swap"
+                style={{ display: "inline-flex" }}
               >
-                <IconChevronLeft size={18} />
-              </ActionIcon>
-              <ActionIcon
-                radius="50%"
-                size={36}
-                variant="default"
-                className="c2-glass-btn"
-                aria-label="Next day"
-                onClick={() => shiftDay(1)}
-                onPointerEnter={() => prefetchDay(1)}
-                onFocus={() => prefetchDay(1)}
-                onPointerDown={() => prefetchDay(1)}
-                onTouchStart={() => prefetchDay(1)}
-              >
-                <IconChevronRight size={18} />
-              </ActionIcon>
-              <FilterButton
-                activeCount={activeFilterCount}
-                onClick={(e) => {
-                  setFilterOriginRect(e.currentTarget.getBoundingClientRect());
-                  openFilter();
-                }}
-                size={36}
-                iconSize={18}
-                radius="50%"
-                className="c2-glass-btn"
-              />
-              <ActionIcon
-                radius="50%"
-                size={36}
-                variant="default"
-                className="c2-glass-btn"
-                aria-label="Select date"
-                title="Select date"
-                onClick={(e) => {
-                  setPickerOriginRect(e.currentTarget.getBoundingClientRect());
-                  openPicker();
-                }}
-              >
-                <IconCalendarDot size={18} />
-              </ActionIcon>
-              <ActionIcon
-                radius="50%"
-                size={36}
-                variant="default"
-                className={attendanceMode ? "c2-glass-btn c2-glass-fab--teal" : "c2-glass-btn"}
-                aria-label={attendanceMode ? "Exit attendance mode" : "Start attendance"}
-                title={attendanceMode ? "Exit attendance mode" : "Start attendance"}
-                onClick={attendanceMode ? exitAttendance : enterAttendance}
-              >
-                {/* Keyed by the mode so the icon node remounts and replays its
-                    fade + scale-in on the toggle (see `c2-icon-swap`). */}
-                <span
-                  key={attendanceMode ? "done" : "start"}
-                  className="c2-icon-swap"
-                  style={{ display: "inline-flex" }}
+                {searchActive ? <IconX size={18} /> : <IconSearch size={18} />}
+              </span>
+            </ActionIcon>
+            {!searchActive && (
+              <>
+                <ActionIcon
+                  radius="50%"
+                  size={36}
+                  variant="default"
+                  className="c2-glass-btn"
+                  aria-label="Previous day"
+                  onClick={() => shiftDay(-1)}
+                  onPointerEnter={() => prefetchDay(-1)}
+                  onFocus={() => prefetchDay(-1)}
+                  onPointerDown={() => prefetchDay(-1)}
+                  onTouchStart={() => prefetchDay(-1)}
                 >
-                  {attendanceMode ? <IconCheck size={18} /> : <IconClipboardCheck size={18} />}
-                </span>
-              </ActionIcon>
-            </>
-          )}
-        </Group>
-      </Box>
+                  <IconChevronLeft size={18} />
+                </ActionIcon>
+                <ActionIcon
+                  radius="50%"
+                  size={36}
+                  variant="default"
+                  className="c2-glass-btn"
+                  aria-label="Next day"
+                  onClick={() => shiftDay(1)}
+                  onPointerEnter={() => prefetchDay(1)}
+                  onFocus={() => prefetchDay(1)}
+                  onPointerDown={() => prefetchDay(1)}
+                  onTouchStart={() => prefetchDay(1)}
+                >
+                  <IconChevronRight size={18} />
+                </ActionIcon>
+                <FilterButton
+                  activeCount={activeFilterCount}
+                  onClick={(e) => {
+                    setFilterOriginRect(e.currentTarget.getBoundingClientRect());
+                    openFilter();
+                  }}
+                  size={36}
+                  iconSize={18}
+                  radius="50%"
+                  className="c2-glass-btn"
+                />
+                <ActionIcon
+                  radius="50%"
+                  size={36}
+                  variant="default"
+                  className="c2-glass-btn"
+                  aria-label="Select date"
+                  title="Select date"
+                  onClick={(e) => {
+                    setPickerOriginRect(e.currentTarget.getBoundingClientRect());
+                    openPicker();
+                  }}
+                >
+                  <IconCalendarDot size={18} />
+                </ActionIcon>
+                <ActionIcon
+                  radius="50%"
+                  size={36}
+                  variant="default"
+                  className={attendanceMode ? "c2-glass-btn c2-glass-fab--teal" : "c2-glass-btn"}
+                  aria-label={attendanceMode ? "Exit attendance mode" : "Start attendance"}
+                  title={attendanceMode ? "Exit attendance mode" : "Start attendance"}
+                  onClick={attendanceMode ? exitAttendance : enterAttendance}
+                >
+                  {/* Keyed by the mode so the icon node remounts and replays its
+                      fade + scale-in on the toggle (see `c2-icon-swap`). */}
+                  <span
+                    key={attendanceMode ? "done" : "start"}
+                    className="c2-icon-swap"
+                    style={{ display: "inline-flex" }}
+                  >
+                    {attendanceMode ? <IconCheck size={18} /> : <IconClipboardCheck size={18} />}
+                  </span>
+                </ActionIcon>
+              </>
+            )}
+          </>
+        }
+      />
     </Affix>
   );
-  // The pill's fixed height (6px padding + 36px buttons + hairlines) plus the
-  // 12px gap: the attendance mode bar floats above the pill (see
-  // `mobileAttendanceBar`), and the page pad clears the whole stack.
-  const pillHeightPx = 50;
+  // The pill's measured height (6px padding + 36px buttons + hairlines on one
+  // row, more once the strip wraps) plus the 12px gap: the attendance mode bar
+  // floats above the pill (see `mobileAttendanceBar`), and the page pad clears
+  // the whole stack. 50px is the one-row fallback for the pre-measurement frame.
+  const pillHeightPx = pillHeightMeasured > 0 ? pillHeightMeasured : 50;
   const attendanceBarBottomOffset = `calc(var(--app-floating-bottom-offset) + ${pillHeightPx + 12}px)`;
 
   // The attendance mode bar (below `lg`, only in attendance mode): the live
@@ -1113,9 +1114,9 @@ export function ParadeStateView({
       zIndex={100}
     >
       <Box
-        className={`c2-glass-surface c2-attendance-bar c2-chrome-hide-able${
-          chromeHidden ? " c2-chrome-hidden" : ""
-        }${attendanceBarClosing ? " c2-attendance-bar-closing" : ""}`}
+        className={`c2-glass-surface c2-attendance-bar${
+          attendanceBarClosing ? " c2-attendance-bar-closing" : ""
+        }`}
         style={{
           borderRadius: 999,
           border: "1px solid var(--mantine-color-default-border)",

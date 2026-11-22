@@ -1955,10 +1955,16 @@ html.c2-low-end::view-transition-group(*) {
 
 /* Settings list pages with the mobile floating control pill: the shell already
    clears the fixed tab strip, and this adds the pill's height + gap so the
-   last card scrolls above it. At lg the pill is hidden and the page keeps the
-   regular xl bottom padding (see the 40em block). */
+   last card scrolls above it. The pill's height is measured (`--c2-settings-pill-height`,
+   published by the page from `SettingsListChrome`'s pill ref) because its control
+   strip wraps to a second row on narrow phones; the 58px default is the
+   one-row height, so the pre-measurement frame matches the old hardcoded pad.
+   At lg the pill is hidden and the page keeps the regular xl bottom padding
+   (see the 40em block). */
 .settings-pill-page-pad {
-  padding-bottom: calc(var(--settings-fab-bottom) + 58px + 12px);
+  padding-bottom: calc(
+    var(--settings-fab-bottom) + var(--c2-settings-pill-height, 58px) + 12px
+  );
 }
 
 /*
@@ -2107,7 +2113,8 @@ html.c2-low-end::view-transition-group(*) {
    Mobile floating rows (below `lg`): `.c2-control-pill` is the bottom pill
    (calendar: a static period label on the left, the circular
    search/filter/date/view/fullscreen buttons panning in their own strip (see
-   `.c2-pill-row` below); Parade and Contacts reuse it for their day/search controls), inset
+   `.c2-pill-row` below); Parade State, Contacts and the settings list pages
+   reuse the same row for their day/search controls + action circles), inset
    16px from the
    viewport edges (same clearance as the FAB toolbar); `.c2-period-pill` is the
    `[< | >]` step pill in the right-anchored FAB row floating above the pill —
@@ -2139,15 +2146,22 @@ html.c2-low-end::view-transition-group(*) {
 }
 
 /*
-   Mobile control pill layout (the dashboard's pill — docs/dashboard-views.md
-   §1.1). The period label is a **static** left-hand read-out that keeps its
-   natural width, and the circular controls live in their own horizontally
-   scrollable strip. The strip's flex-basis is what decides the pill's shape:
-   flex line-breaking uses the *hypothetical* main size (ignoring shrink), so
-   the strip shares the row with the label whenever `label + min` fits and
-   otherwise drops to a full-width second row instead of collapsing to a sliver.
-   The pill's height is already measured by the dashboard's ResizeObserver, so a
-   stacked pill re-flows the page pads and the FAB offset on its own.
+   Mobile control pill layout (`.c2-pill-row`, rendered by the shared
+   `ControlPill` on the calendar, Parade State, Contacts and the settings list
+   pages — docs/dashboard-views.md §1.1). The pill's content is a wrapping flex
+   row: a **leading read-out** (the period/day label, or a search field) and the
+   circular controls in their own **horizontally scrollable strip**
+   (`.c2-pill-actions` → `.c2-pill-scroll`, right-anchored by an auto margin).
+   The strip's flex-basis is what decides the pill's shape: flex line-breaking
+   uses the *hypothetical* main size (ignoring shrink), so the strip shares the
+   row with the label whenever `label + min` fits and otherwise drops to a
+   full-width second row instead of collapsing to a sliver — a long run of
+   circles pans first and wraps second, so the label never truncates to three
+   characters and a circle never jams into the pill's rounded cap.
+   `--c2-pill-actions-min` is overridden per pill by `ControlPill`
+   (`pillActionsMin(circleSize, minActions)`); the value below is the calendar's
+   36px-circle floor. Each page measures the pill's height, so a stacked
+   (two-row) pill re-flows the page pads and the FAB offset on its own.
    The strip stays `pointer-events: none` (only its buttons opt back in), so a
    swipe starting on a button pans the strip while a swipe on the gap still
    reaches the grid beneath — the pill's existing tap-through contract.
@@ -2160,6 +2174,9 @@ html.c2-low-end::view-transition-group(*) {
   /* 3 × 36px circles + 2 gaps: the narrowest control strip allowed to share
      the row with the label; below that the strip takes its own row. */
   --c2-pill-actions-min: 128px;
+  /* The narrowest a search field may be squeezed before the strip gives up the
+     line — below this a search box stops being a search box. */
+  --c2-pill-field-min: 140px;
 }
 
 .c2-pill-label {
@@ -2167,6 +2184,23 @@ html.c2-low-end::view-transition-group(*) {
      label alone is wider than the pill (where its ellipsis + `title` remain
      the last resort). */
   flex: 0 1 auto;
+  min-width: 0;
+}
+
+/* Variant for a read-out that sits better centred in the space the controls
+   leave (Parade State's day label): same hypothetical basis for line breaking,
+   but it grows to fill the leftover. */
+.c2-pill-label--fill {
+  flex: 1 1 auto;
+  text-align: center;
+}
+
+/* Variant for a search field in the leading slot: it keeps a usable minimum
+   width and grows into the free space, so the circles never squeeze it into a
+   sliver — when `field-min + --c2-pill-actions-min` cannot share the line, the
+   strip wraps to its own row and the field takes the full first row. */
+.c2-pill-field {
+  flex: 1 1 var(--c2-pill-field-min);
   min-width: 0;
 }
 
@@ -2672,15 +2706,16 @@ html.c2-low-end::view-transition-group(*) {
     transform var(--c2-dur-quick) var(--c2-ease-in);
 }
 
-/* Mobile floating chrome hide-on-interaction (the dashboard's pill + FAB row,
-   the Contacts / Parade State pills — the rows are `Affix`-fixed, so hiding
-   causes no reflow): while the user touches or scrolls the page's content
-   pane the rows fade + sink and drop pointer-events; they return when the
-   interaction stops (`useChromeHide` toggles the state class). The target
-   state carries the transition (same recipe as the attendance bar above), so
-   the reveal animates on the way back. The `button`/`input` override beats
-   the `.c2-control-pill` tap-through rule — a hidden pill must not catch
-   taps. */
+/* Calendar page only (below `lg`): the dashboard's pill + FAB row hide while the
+   user touches or scrolls the calendar pane — the rows are `Affix`-fixed, so
+   hiding causes no reflow. The rows fade + sink and drop pointer-events, and
+   return when the interaction stops (`useChromeHide` toggles the state class).
+   Every other page's control pill (Parade State, Contacts, the settings lists)
+   deliberately stays put: their pills are the only path to search/filter, so
+   they must never disappear under a scrolling finger. The target state carries
+   the transition (same recipe as the attendance bar above), so the reveal
+   animates on the way back. The `button`/`input` override beats the
+   `.c2-control-pill` tap-through rule — a hidden pill must not catch taps. */
 .c2-chrome-hide-able {
   transition:
     opacity var(--c2-dur-quick) var(--c2-ease-out),
@@ -2941,15 +2976,22 @@ html.c2-low-end::view-transition-group(*) {
      above it; at `lg`+ the sticky search bar does too);
    - `max-height` = that space doubled, so when it binds the rail stays
      symmetric and scrolls its own tail instead of losing letters below the
-     viewport (the scrollbar is hidden — it is a tap surface).
+     viewport (the scrollbar is hidden — it is a tap + scrub surface).
    No `translateY(-50%)`: at the un-stuck static position (page top) a transform
-   would pull the rail up over the chrome. */
+   would pull the rail up over the chrome.
+   Press-and-hold scrubbing (the phone-Contacts index-bar gesture): dragging
+   along the rail must never pan the page or the rail itself — the rail's own
+   overflow is reached by holding the pointer at its edge (see
+   `railScrubEdgeDirection`), so `touch-action: none` is safe — and a mouse
+   scrub must not select the letters. */
 .c2-contact-rail {
   --c2-rail-top-min: calc(var(--app-shell-header-offset) + 8px);
   top: max(var(--c2-rail-top-min), calc(50dvh - var(--c2-rail-h, 0px) / 2));
   max-height: calc(100dvh - 2 * var(--c2-rail-top-min));
   overflow-y: auto;
   scrollbar-width: none;
+  touch-action: none;
+  user-select: none;
 }
 
 .c2-contact-rail::-webkit-scrollbar {

@@ -342,16 +342,27 @@ string maps to the first tab of that kind.
     clears the whole stack.
 
   **Pill layout: static label, panning control strip (`.c2-pill-row`).** The
-  pill's content is a wrapping flex row. The period label (`.c2-pill-label`) is
+  pill's content is a wrapping flex row, rendered by the shared
+  **`ControlPill`** (`src/components/ControlPill.tsx`) — the calendar's pill and
+  the Parade State / Contacts / settings-list pills are the same component, only
+  their leading slot and controls differ (a `.c2-pill-field` search box, or
+  Parade's centred `.c2-pill-label--fill` day read-out). The period label
+  (`.c2-pill-label`) is
   a **static read-out** — it keeps its natural width and is the last thing that
   would ever ellipsis — and the circular controls live in their own
   **horizontally scrollable strip** (`.c2-pill-actions` → `.c2-pill-scroll`,
   scrollbar hidden, `overscroll-behavior-x: contain`) that pans under a finger.
-  The strip's flex-basis is `--c2-pill-actions-min` (128px — three 36px circles
-  + two gaps), and because flex **line-breaking reads the hypothetical main
+  The strip's flex-basis is `--c2-pill-actions-min` — `pillActionsMin(circleSize,
+  minActions)` (`src/lib/ui/controlPill.ts`, unit-tested): three 36px circles +
+  two gaps (128px) on the calendar/Parade pills, three 44px circles (152px) on the
+  list pills, fewer when a page has fewer controls — and because flex
+  **line-breaking reads the hypothetical main
   size** (ignoring shrink), the strip shares the row with the label whenever
   `label + min` fits and otherwise drops to a full-width **second row** instead
-  of collapsing to a sliver — no JS measurement. The strip's inner box is
+  of collapsing to a sliver — no JS measurement. A `.c2-pill-field` behaves the
+  same way from the other side: its basis is `--c2-pill-field-min` (140px), so a
+  search box is never squeezed to a few characters — the strip gives up the line
+  first. The strip's inner box is
   right-anchored with an **auto margin**, never `justify-content: flex-end`
   (that clips the scroll start unrecoverably; auto margins resolve to zero on
   overflow). Frosted **edge fades** (`.c2-pill-edge`, the `RailEdgeControl`
@@ -363,8 +374,11 @@ string maps to the first tab of that kind.
   a circle pans the strip while a swipe on the gap still reaches the grid — and
   because `scroll` does not bubble, panning can never start a chrome hide.
   `padding-block`/`margin-block: ±4px` keeps the focus rings out of the
-  scroller's clip. The pill's height is still auto-measured, so a stacked
-  (two-row) pill re-flows the FAB offset and the page pads by itself.
+  scroller's clip. The pill's height is measured on every page that floats it
+  (the dashboard's `bottomBarRef`, the others' `useElementHeight` callback ref,
+  `src/lib/ui/elementSize.ts`) and published to that page's pad, so a stacked
+  (two-row) pill re-flows the FAB offset, the page pads and Parade's
+  attendance-bar offset by itself.
 
   The **prev/next chevrons** in the step pill call the same view-aware
   `navigatePeriod(±1)` dispatch and read their accessible name from
@@ -376,14 +390,14 @@ string maps to the first tab of that kind.
    everything is unchanged: one chrome box pinned top
    (tab strip + nav row incl. chevrons, New event and Quick links), FABs and
    pill hidden.
-- **Floating chrome auto-hide (below `lg`).** While the user is **touching the
-  page's content pane** (even without any scrolling) or **scrolling it** in
+- **Floating chrome auto-hide (below `lg`, calendar page only).** While the user
+  is **touching the calendar pane** (even without any scrolling) or **scrolling
+  it** in
    either direction (document scroll, the dashboard's month/week/day horizontal
    pan, Week (Grid) hour rows, Month & Agenda panes), the floating rows — the
    dashboard's control pill + FAB row (a docked minimized-draft chip rides its
-   FAB row), the Contacts control pill, the Parade
-   State control pill + attendance mode bar — fade out and sink away so the
-   content owns the whole viewport. They
+   FAB row) — fade out and sink away so the
+   canvas owns the whole viewport. They
    slide back **only once the interaction has fully stopped**: the last
    finger/pointer has lifted **AND** the scrolling has settled — so the chrome
    stays hidden through the scroll, the momentum, and any hold-still, and does
@@ -412,8 +426,8 @@ string maps to the first tab of that kind.
     `scrollend` sites; a
      context switch (the dashboard's `shownTabId` tab switch or a wizard
      minimize/restore — its `resetKey` is `${shownTabId}:${formMinimized}`, so
-     minimizing always puts the chrome and the docked draft chip back; Parade
-     State's attendance mode) forces the chrome back via a `reset` event.
+     minimizing always puts the chrome and the docked draft chip back) forces the
+     chrome back via a `reset` event.
    ```mermaid
    stateDiagram-v2
      [*] --> Visible
@@ -423,8 +437,8 @@ string maps to the first tab of that kind.
       Hidden --> Visible : context switch (reset)
    ```
     "**The pane**" is the page's content element: the dashboard's `weekBoxRef`
-    content box (every grid + the pinned day/hour strips), the Contacts page
-    column, the Parade State content wrapper. The floating rows are
+    content box (every grid + the pinned day/hour strips) — the only pane this
+    hook is mounted against today. The floating rows are
      `Affix`-portaled to `<body>` and the pan/zoom + fullscreen clusters are
      **siblings** of the box, so the pane-scoped **trigger** can never
      self-fire: tapping a pill button (or the zoom cluster) keeps the chrome up,
@@ -455,28 +469,41 @@ string maps to the first tab of that kind.
    tap-through rule) so a hidden pill never catches stray taps. The rows are
    `Affix`-fixed, so hiding causes **no reflow** (the measured
    `--c2-bottom-chrome-height` pads are unchanged). Desktop (`lg`+) is
-   untouched; the behavior is always on (no feature flag).
-- **Bottom control pill reuse (Parade State / Contacts).** Below `lg` both
-  pages shed their sticky top chrome and ride the same `.c2-control-pill`
-  Affix recipe (inset 16, zIndex 100; 50px on Parade, 58px on Contacts). The
+   untouched; the behavior is always on (no feature flag). The scope is the
+   **calendar page alone**: Parade State (pill + attendance mode bar), Contacts
+   and the settings list pages no longer mount `useChromeHide` at all — their
+   pill is the only path to that page's search and actions, so it stays put
+   under a scrolling finger (the pill's tap-through surface still keeps its
+   gaps from swallowing list taps).
+- **Bottom control pill reuse (Parade State / Contacts / settings lists).** Below
+  `lg` these pages shed their sticky top chrome and render the same
+  `ControlPill` + `.c2-control-pill`
+  Affix recipe as the calendar (inset 16, zIndex 100; one row is 50px on Parade
+  with its 36px circles, 58px on Contacts and the settings lists with 44px). The
   pill and the attendance bar are named view-transition groups
   (`c2-control-pill` / `c2-attendance-bar`, held above the page groups so a
   route transition can't paint the outgoing page over them — never name the
   Affix wrapper, which would starve the inner `backdrop-filter`):
-  **Parade** puts the day label + search + `<`/`>` step + filter + date-picker +
+  **Parade** puts the day label (`.c2-pill-label--fill`) + search + `<`/`>` step + filter + date-picker +
   attendance-toggle circles in one pill (the roster search (C3) swaps the day
-  label for an inline field and hides the other circles while open; the
+  label for an inline `.c2-pill-field` and hides the other circles while open —
+  and drops `minActions` to 1, so the lone close circle never wraps to a row of
+  its own; the
   attendance **mode bar** floats
   above it while in attendance mode and slides out on exit —
   `c2-attendance-bar-closing`, the pill's toggle icon swaps with a scale-in via
   `c2-icon-swap`; the top chrome is `lg`-only); **Contacts** puts a
-  **rounded search field** (pill-radius `TextInput` at the default `sm`
+  **rounded search field** (`.c2-pill-field`, a pill-radius `TextInput` at the default `sm`
   size — the themed ~43px input height, same as the lg+ search bar, with a
   matching 44px filter circle; sizing/padding props must go on the input
   via `size`, since `h`/`pl`/`pr` land on the label wrapper and desync the
   field from the pill's padding) + sort circle + filter circle + a brand-blue **download
   circle** (the export FAB's action moved into the pill, `c2-glass-btn
-   c2-glass-fab--brand`) in it, with a **keyboard lift** (`.c2-pill-lift`, a
+   c2-glass-fab--brand`) in it, and `SettingsListChrome` (Users / Departments /
+   Event Types) the same field + optional filter + action circles — the field
+   never surrenders `--c2-pill-field-min`, so the circles pan (and on a 320px
+   phone wrap to a second row) instead of squeezing the search box — with a
+   **keyboard lift** (`.c2-pill-lift`, a
    `bottom` transition on the Affix root): while the OS keyboard is up the pill
    floats to its **measured** top edge + a 16px gap (`useKeyboardInset`,
    `src/lib/ui/keyboardInset.ts` — a settled `visualViewport` measurement, so it
@@ -484,17 +511,22 @@ string maps to the first tab of that kind.
    guessed `vh` fraction that overshoots), and drops back the moment the
    keyboard closes — even when the field keeps focus (swipe-down dismiss never
    fires `blur`). Parade rides the same keyboard lift while its roster-search field
-   is open (C3), and sets
-  `--c2-bottom-chrome-height` (pill + gap) under `fab-page-pad`; the class's
-  hardcoded 65px FAB reserve now clears the floating attendance mode bar above
-  the pill. Contacts has no floating bar above its pill, so its var subtracts
-   the class's hardcoded 65px FAB diameter and carries just pill + gap; at `lg`+
-   their top chrome rows are unchanged. Both pages also ride the floating-chrome
-   auto-hide above (the shared `useChromeHide` on their content pane): the
-   Contacts pill, and on Parade State the pill **plus** the attendance mode bar,
-   hide while the user touches/scrolls the roster and return on settle; Parade
-   State passes its attendance mode as the `resetKey`, so the bar never mounts
-   in a hidden state.
+   is open (C3). Each page **measures** the pill with `useElementHeight`
+  (`src/lib/ui/elementSize.ts` — a callback ref, so the observer arms when the
+  `Affix` portal mounts, reading `offsetHeight` so a `display: none` pill reports
+  0) and publishes it: Parade and Contacts set
+  `--c2-bottom-chrome-height` (pill + gap) under `fab-page-pad` — Parade also
+  floats the attendance bar one measured pill-height + 12px above the pill, and
+  the class's hardcoded 65px FAB reserve now clears that floating bar. Contacts
+  has no floating bar above its pill, so its var subtracts
+   the class's hardcoded 65px FAB diameter and carries just pill + gap; the
+   settings pages publish `--c2-settings-pill-height` for
+   `.settings-pill-page-pad`, whose 58px CSS default keeps the pre-measurement
+   frame honest. At `lg`+
+   their top chrome rows are unchanged. **None of these pages rides the
+   floating-chrome auto-hide above** — that is the calendar page alone: their
+   pill (and Parade's attendance bar) stay put while the list scrolls, because
+   that pill is the only path to the page's search and actions.
 - **App-wide frosted glass (locked `subtle`).** Beyond the mobile cluster,
   the surfaces that overlap page content are translucent: the
   bottom nav, the settings tab strip, the desktop sidebar,   the dashboard sticky

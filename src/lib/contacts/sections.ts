@@ -180,3 +180,62 @@ export function buildContactRail(sections: readonly ContactSection[]): ContactRa
   }
   return rail;
 }
+
+/** How close to the rail's top/bottom edge (viewport px) a scrub pointer has
+ *  to sit before the rail auto-scrolls itself to reveal the letters beyond. */
+export const RAIL_SCRUB_EDGE_PX = 20;
+
+/** How far (px) the rail scrolls per animation frame while a scrub pointer is
+ *  held inside its edge band. */
+export const RAIL_SCRUB_AUTOSCROLL_PX = 6;
+
+/**
+ * The rail entry under a press-and-hold scrub pointer: the index of the band
+ * containing `y` (viewport coords). Bands are the rail buttons' live rects, so
+ * the mapping stays honest while the rail is internally scrolled. A band's
+ * bottom edge belongs to the next band (the last band includes its own bottom
+ * edge); a pointer above the first / below the last entry clamps to the first
+ * / last letter, so overshooting the rail still reaches its extremes.
+ * Returns `null` only when there are no entries.
+ */
+export function railIndexFromPoint(
+  entries: readonly { top: number; bottom: number }[],
+  y: number,
+): number | null {
+  if (entries.length === 0) {
+    return null;
+  }
+  if (y < entries[0].top) {
+    return 0;
+  }
+  const last = entries.length - 1;
+  if (y >= entries[last].bottom) {
+    return last;
+  }
+  for (let i = 0; i < entries.length; i += 1) {
+    if (y < entries[i].bottom) {
+      return i;
+    }
+  }
+  return last;
+}
+
+/**
+ * The direction the rail should auto-scroll while a scrub pointer is held:
+ * `-1` near the top edge, `+1` near the bottom edge, `0` in between. Pure
+ * geometry — the caller skips applying it when the rail has nothing to scroll.
+ */
+export function railScrubEdgeDirection(
+  y: number,
+  railTop: number,
+  railBottom: number,
+  edgePx: number = RAIL_SCRUB_EDGE_PX,
+): -1 | 0 | 1 {
+  if (y <= railTop + edgePx) {
+    return -1;
+  }
+  if (y >= railBottom - edgePx) {
+    return 1;
+  }
+  return 0;
+}

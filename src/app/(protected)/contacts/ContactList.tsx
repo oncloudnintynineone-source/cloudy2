@@ -29,6 +29,7 @@ import {
 } from "@tabler/icons-react";
 
 import { EmptyState } from "@/components/EmptyState";
+import { ControlPill } from "@/components/ControlPill";
 import { FilterButton } from "@/components/FilterButton";
 import { FilterModal, type FilterGroup } from "@/components/FilterModal";
 import { PageHeader } from "@/components/PageHeader";
@@ -42,9 +43,14 @@ import {
   CONTACT_RAIL_ENTRY_HEIGHT_PX,
   CONTACT_RAIL_PADDING_Y_PX,
   contactRailHeightPx,
+  railIndexFromPoint,
+  railScrubEdgeDirection,
+  RAIL_SCRUB_AUTOSCROLL_PX,
+  RAIL_SCRUB_EDGE_PX,
   type ContactSort,
 } from "@/lib/contacts/sections";
-import { useChromeHide } from "@/lib/ui/chromeHide";
+import { PILL_CIRCLE } from "@/lib/ui/controlPill";
+import { useElementHeight } from "@/lib/ui/elementSize";
 import { announce } from "@/lib/ui/announcer";
 import { useKeyboardInset } from "@/lib/ui/keyboardInset";
 import { buildContactsVcf } from "@/lib/contacts/vcf";
@@ -82,6 +88,20 @@ const NO_DEPARTMENT_LABEL = "No department";
 const RAIL_MIN_SECTIONS = 4;
 
 const LIST_BORDER = "1px solid var(--mantine-color-default-border)";
+
+/** One press-and-hold scrub gesture on the A–Z rail (see `startRailScrub`). */
+interface RailScrubSession {
+  /** Rail entry index the list was last scrolled to. */
+  lastIndex: number;
+  /** Whether the pointer moved to a new entry (the trailing click is swallowed). */
+  scrubbed: boolean;
+  /** The pointer's latest Y (viewport px) — re-read per frame by the edge auto-scroll. */
+  y: number;
+  /** Pending rAF handle (0 = none). */
+  frame: number;
+  /** Detach the window listeners and stop the loop. */
+  end: () => void;
+}
 
 function CopyPhoneButton({ phone, name }: CopyPhoneButtonProps) {
   const clipboard = useClipboard();
@@ -181,13 +201,11 @@ export function ContactList({
   // keyboard and let the pill settle back down.
   const keyboardInset = useKeyboardInset();
   const searchInputRef = useRef<HTMLInputElement>(null);
-  // The mobile floating control pill hides while the user touches or scrolls
-  // the contact list and slides back when the interaction fully stops — the
-  // page column is the pane; the pill is `Affix`-portaled, so tapping its
-  // search/filter/export controls can't self-trigger. Mobile only (`enabled`
-  // detaches at `lg`+).
-  const contentRef = useRef<HTMLDivElement | null>(null);
-  const chromeHidden = useChromeHide({ enabled: !isDesktop, paneRef: contentRef });
+  // The mobile floating control pill stays put while the list scrolls — only the
+  // calendar page hides its chrome on interaction. What this page measures is
+  // the pill's *height*: its control strip wraps to a second row on narrow
+  // phones, and the page pad below the list is sized off that box.
+  const [pillRef, pillHeightMeasured] = useElementHeight();
   const [confirmOpened, { open: openConfirm, close: closeConfirm }] = useDisclosure(false);
   const [downloading, setDownloading] = useState(false);
 
@@ -246,6 +264,121 @@ export function ContactList({
     }
     target.scrollIntoView({ behavior: "smooth", block: "start" });
     announce(`Jumped to contacts ${label}`);
+  }
+
+  // ---- Rail press-and-hold scrubbing ---------------------------------------
+  // The phone-Contacts index-bar gesture: press a letter, hold, and slide —
+  // the list follows the letter under the pointer, scrolling instantly (a
+  // smooth scroll per letter would queue and lag the finger). The plumbing
+  // rides window pointer events, deliberately NOT pointer capture: capture
+  // retargets `pointerup` onto the rail and kills the buttons' native
+  // `click`, which is what taps and keyboard Enter/Space jump on.
+  const railRef = useRef<HTMLDivElement | null>(null);
+  const scrubSessionRef = useRef<RailScrubSession | null>(null);
+  // A scrub's trailing `click` is pointer-generated (`detail > 0`) and must
+  // not re-jump; keyboard clicks carry `detail === 0` and always jump.
+  const railScrubbedRef = useRef(false);
+  // Route change mid-scrub: drop the window listeners with the component.
+  useEffect(() => () => scrubSessionRef.current?.end(), []);
+
+  /** Live viewport bands of the rail's letter buttons — correct even while
+   *  the rail is internally scrolled (see `.c2-contact-rail`'s `max-height`). */
+  function railEntryBands(): { top: number; bottom: number }[] {
+    const railEl = railRef.current;
+    if (!railEl) {
+      return [];
+    }
+    return Array.from(railEl.children, (child) => {
+      const rect = (child as HTMLElement).getBoundingClientRect();
+      return { top: rect.top, bottom: rect.bottom };
+    });
+  }
+
+  function startRailScrub(event: React.PointerEvent) {
+    // Primary pointer only; a second finger on the rail is ignored.
+    if (event.button !== 0 || !event.isPrimary || scrubSessionRef.current) {
+      return;
+    }
+    const startIndex = railIndexFromPoint(railEntryBands(), event.clientY);
+    if (startIndex === null) {
+      return;
+    }
+    railScrubbedRef.current = false;
+    const pointerId = event.pointerId;
+    const session: RailScrubSession = {
+      lastIndex: startIndex,
+      scrubbed: false,
+      y: event.clientY,
+      frame: 0,
+      end: () => {},
+    };
+
+    const apply = () => {
+      session.frame = 0;
+      const railEl = railRef.current;
+      if (!railEl || scrubSessionRef.current !== session) {
+        return;
+      }
+      // The rail scrolls itself when it is taller than the window; holding
+      // the pointer at its edge reveals the letters beyond (touch panning of
+      // the rail is off — see `.c2-contact-rail`'s `touch-action`).
+      const rect = railEl.getBoundingClientRect();
+      const edge = railScrubEdgeDirection(session.y, rect.top, rect.bottom, RAIL_SCRUB_EDGE_PX);
+      if (edge !== 0 && railEl.scrollHeight - railEl.clientHeight > 0) {
+        railEl.scrollTop += edge * RAIL_SCRUB_AUTOSCROLL_PX;
+        session.frame = requestAnimationFrame(apply);
+      }
+      const index = railIndexFromPoint(railEntryBands(), session.y);
+      if (index === null || index === session.lastIndex) {
+        return;
+      }
+      session.lastIndex = index;
+      session.scrubbed = true;
+      railScrubbedRef.current = true;
+      const entry = rail[index];
+      if (entry) {
+        setActiveRailKey(entry.key);
+        document
+          .getElementById(`c2-contact-section-${entry.sectionKey}`)
+          ?.scrollIntoView({ behavior: "auto", block: "start" });
+      }
+    };
+
+    const onMove = (moveEvent: PointerEvent) => {
+      if (moveEvent.pointerId !== pointerId) {
+        return;
+      }
+      session.y = moveEvent.clientY;
+      if (session.frame === 0) {
+        session.frame = requestAnimationFrame(apply);
+      }
+    };
+
+    const end = () => {
+      if (scrubSessionRef.current !== session) {
+        return;
+      }
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", end);
+      window.removeEventListener("pointercancel", end);
+      if (session.frame !== 0) {
+        cancelAnimationFrame(session.frame);
+        session.frame = 0;
+      }
+      scrubSessionRef.current = null;
+      if (session.scrubbed) {
+        const entry = rail[session.lastIndex];
+        if (entry) {
+          announce(`Scrolled to contacts ${entry.key}`);
+        }
+      }
+    };
+    session.end = end;
+
+    scrubSessionRef.current = session;
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", end);
+    window.addEventListener("pointercancel", end);
   }
 
   // One chip group listing only the departments that actually hold a contact,
@@ -332,14 +465,17 @@ export function ContactList({
   );
   const sortAriaLabel = `Sort contacts — currently ${sort === "name" ? "by name" : "by department"}`;
 
-  // The floating control pill (below `lg` only, calendar-page pattern): a
-  // rounded search field (flexible width) + the circular sort, filter and
-  // download triggers, inset 16px from the viewport edges. (The old standalone
-  // export FAB is gone — the download circle rides inside the pill.) While the
-  // OS keyboard is up it covers the bottom of the screen, so the pill lifts to
-  // the measured keyboard top plus a 16px gap — a fixed `vh` fraction
+  // The floating control pill (below `lg` only, the shared `ControlPill`): a
+  // rounded search field + the circular sort, filter and download triggers,
+  // inset 16px from the viewport edges. (The old standalone export FAB is gone —
+  // the download circle rides inside the pill.) The field keeps a usable minimum
+  // width and the circles pan in their own strip, so on a small phone they drop
+  // to a second row instead of squeezing the search box to a few characters.
+  // While the OS keyboard is up it covers the bottom of the screen, so the pill
+  // lifts to the measured keyboard top plus a 16px gap — a fixed `vh` fraction
   // overshoots on devices whose viewport doesn't shrink with the keyboard.
-  const pillHeightPx = 58;
+  // 58px is the one-row height: the fallback for the pre-measurement frame.
+  const pillHeightPx = pillHeightMeasured > 0 ? pillHeightMeasured : 58;
   const mobilePill = (
     <Affix
       hiddenFrom="lg"
@@ -354,77 +490,77 @@ export function ContactList({
       }}
       zIndex={100}
     >
-      {/* `c2-chrome-hide-able` + `c2-chrome-hidden`: the pill fades/slides away
-          while the user touches or scrolls the contact list and returns when
-          the interaction stops (useChromeHide); the CSS carries the
-          pointer-events cutoff so a hidden pill never catches taps. */}
-      <Box
-        className={`c2-glass-surface c2-control-pill c2-chrome-hide-able${
-          chromeHidden ? " c2-chrome-hidden" : ""
-        }`}
-      >
-        <Group align="center" gap="xs" wrap="nowrap">
-          {/* Default `sm` size = the themed 43px input height (same field
-              height as the lg+ search bar); `h`/`pl`/`pr` would land on the
-              label wrapper, not the input, so they'd desync the field from
-              the pill's padding. The filter circle grows to match (44px). */}
+      <ControlPill
+        pillRef={pillRef}
+        actionsLabel="Contact list controls"
+        circleSize={PILL_CIRCLE.list}
+        minActions={filterGroups.length > 0 ? 3 : 2}
+        leading={
+          /* Default `sm` size = the themed 43px input height (same field
+             height as the lg+ search bar); `h`/`pl`/`pr` would land on the
+             label wrapper, not the input, so they'd desync the field from
+             the pill's padding. The filter circle grows to match (44px). */
           <TextInput
             ref={searchInputRef}
+            className="c2-pill-field"
             radius="999px"
             aria-label="Search contacts by name, shortname, or phone"
             placeholder="Search by name, shortname, or phone"
             value={search}
             onChange={(e) => setSearch(e.currentTarget.value)}
-            style={{ flex: 1, minWidth: 0 }}
           />
-          <Menu shadow="md" width={200} position="top" withArrow>
-            <Menu.Target>
-              <ActionIcon
+        }
+        actions={
+          <>
+            <Menu shadow="md" width={200} position="top" withArrow>
+              <Menu.Target>
+                <ActionIcon
+                  size={44}
+                  radius="50%"
+                  variant="default"
+                  className="c2-glass-btn"
+                  aria-label={sortAriaLabel}
+                  title={sortAriaLabel}
+                  onClick={() => searchInputRef.current?.blur()}
+                >
+                  {sort === "name" ? <IconSortAZ size={20} /> : <IconBuildingArch size={20} />}
+                </ActionIcon>
+              </Menu.Target>
+              {sortMenuItems}
+            </Menu>
+            {filterGroups.length > 0 && (
+              <FilterButton
+                activeCount={activeFilterCount}
+                onClick={(event) => {
+                  searchInputRef.current?.blur();
+                  setFilterOriginRect(event.currentTarget.getBoundingClientRect());
+                  openFilter();
+                }}
                 size={44}
+                iconSize={20}
                 radius="50%"
-                variant="default"
                 className="c2-glass-btn"
-                aria-label={sortAriaLabel}
-                title={sortAriaLabel}
-                onClick={() => searchInputRef.current?.blur()}
-              >
-                {sort === "name" ? <IconSortAZ size={20} /> : <IconBuildingArch size={20} />}
-              </ActionIcon>
-            </Menu.Target>
-            {sortMenuItems}
-          </Menu>
-          {filterGroups.length > 0 && (
-            <FilterButton
-              activeCount={activeFilterCount}
-              onClick={(event) => {
-                searchInputRef.current?.blur();
-                setFilterOriginRect(event.currentTarget.getBoundingClientRect());
-                openFilter();
-              }}
+              />
+            )}
+            {/* Export/download trigger: the FAB's action moved into the pill
+                as a brand-blue circle beside the filter (frosted tint like the
+                pill's other buttons, solid identity kept via the brand hue). */}
+            <ActionIcon
               size={44}
-              iconSize={20}
               radius="50%"
-              className="c2-glass-btn"
-            />
-          )}
-          {/* Export/download trigger: the FAB's action moved into the pill
-              as a brand-blue circle beside the filter (frosted tint like the
-              pill's other buttons, solid identity kept via the brand hue). */}
-          <ActionIcon
-            size={44}
-            radius="50%"
-            variant="default"
-            className="c2-glass-btn c2-glass-fab--brand"
-            aria-label="Export contacts"
-            onClick={() => {
-              searchInputRef.current?.blur();
-              openConfirm();
-            }}
-          >
-            <IconDownload size={20} />
-          </ActionIcon>
-        </Group>
-      </Box>
+              variant="default"
+              className="c2-glass-btn c2-glass-fab--brand"
+              aria-label="Export contacts"
+              onClick={() => {
+                searchInputRef.current?.blur();
+                openConfirm();
+              }}
+            >
+              <IconDownload size={20} />
+            </ActionIcon>
+          </>
+        }
+      />
     </Affix>
   );
 
@@ -435,7 +571,6 @@ export function ContactList({
     // FAB row anymore, so the var subtracts it and carries just the pill
     // height + the 12px gap.
     <Stack
-      ref={contentRef}
       className={`${CONTENT_ENTER_CLASS} fab-page-pad`}
       style={
         {
@@ -546,7 +681,9 @@ export function ContactList({
         // is what uses the extra width. The A–Z rail rides beside the cards as
         // a sticky surface: vertically centred in the viewport while the list
         // scrolls (see `.c2-contact-rail`), lighting up the current section,
-        // with full tap targets per letter.
+        // with full tap targets per letter — and it scrubs: press, hold, and
+        // slide along it and the list follows the letter under the pointer
+        // (see `startRailScrub`).
         <Box style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
           <Stack gap="sm" style={{ flex: 1, minWidth: 0 }}>
             {sections.map((section) => (
@@ -585,9 +722,11 @@ export function ContactList({
           </Stack>
           {showRail && (
             <Box
+              ref={railRef}
               component="nav"
               aria-label="Jump to contacts section"
               className="c2-contact-rail"
+              onPointerDown={startRailScrub}
               style={
                 {
                   position: "sticky",
@@ -618,7 +757,16 @@ export function ContactList({
                     aria-label={`Jump to contacts section ${entry.key}`}
                     aria-current={isActive ? "true" : undefined}
                     title={entry.key}
-                    onClick={() => jumpToSection(entry.sectionKey, entry.key)}
+                    onClick={(clickEvent) => {
+                      // A scrub's trailing click (pointer-generated, `detail
+                      // > 0`) must not re-jump — the scrub already landed on
+                      // this section. Keyboard clicks carry `detail === 0`
+                      // and always jump.
+                      if (clickEvent.detail > 0 && railScrubbedRef.current) {
+                        return;
+                      }
+                      jumpToSection(entry.sectionKey, entry.key);
+                    }}
                     style={{
                       width: 26,
                       minHeight: CONTACT_RAIL_ENTRY_HEIGHT_PX,
@@ -632,7 +780,6 @@ export function ContactList({
                       fontSize: "11px",
                       fontWeight: isActive ? 800 : 600,
                       lineHeight: 1,
-                      touchAction: "manipulation",
                       color: isActive
                         ? "var(--mantine-color-brand-4)"
                         : "var(--mantine-color-dimmed)",

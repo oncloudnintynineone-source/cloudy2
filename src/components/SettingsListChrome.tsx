@@ -1,11 +1,12 @@
 "use client";
 
-import { type MouseEvent, type ReactNode, type RefObject, useRef } from "react";
+import { type MouseEvent, type ReactNode, type Ref, useRef } from "react";
 import { ActionIcon, Affix, Box, Button, Group, TextInput } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
 
+import { ControlPill } from "@/components/ControlPill";
 import { FilterButton } from "@/components/FilterButton";
-import { useChromeHide } from "@/lib/ui/chromeHide";
+import { PILL_CIRCLE } from "@/lib/ui/controlPill";
 import { useKeyboardInset } from "@/lib/ui/keyboardInset";
 import { DESKTOP_MEDIA_QUERY } from "@/lib/theme";
 
@@ -28,8 +29,13 @@ interface SettingsListChromeProps {
     onClick: (event: MouseEvent<HTMLButtonElement>) => void;
   };
   actions: SettingsListAction[];
-  /** Page content pane; drives the mobile pill's hide-on-interaction. */
-  paneRef: RefObject<HTMLElement | null>;
+  /**
+   * Ref for measuring the mobile pill's height. The page publishes it as
+   * `--c2-settings-pill-height` on its `.settings-pill-page-pad` column, because
+   * the pill's control strip wraps to a second row on narrow phones and the page
+   * pad has to clear the whole box.
+   */
+  pillRef?: Ref<HTMLDivElement>;
 }
 
 /**
@@ -39,8 +45,11 @@ interface SettingsListChromeProps {
  * - `lg`+: a frosted sticky bar docked just below the sticky settings tab
  *   strip (`--c2-settings-tabs-height`, published by `SettingsShell`).
  * - below `lg`: the floating bottom control pill (search field + optional
- *   filter + action circles), lifted above the OS keyboard and auto-hidden
- *   while the page content is touched/scrolled.
+ *   filter + action circles), lifted above the OS keyboard. The shared
+ *   `ControlPill` layout keeps the field at a usable width and lets the circles
+ *   pan in their own strip — three 44px circles plus a search box do not fit a
+ *   320px phone, so they wrap to a second row instead of squeezing the field.
+ *   The pill never hides on scroll (only the calendar page does that).
  *
  * The create/manage actions live in the chrome on both breakpoints; the pages
  * no longer render a separate mobile FAB.
@@ -52,12 +61,11 @@ export function SettingsListChrome({
   searchAriaLabel,
   filter,
   actions,
-  paneRef,
+  pillRef,
 }: SettingsListChromeProps) {
   const isDesktop = useMediaQuery(DESKTOP_MEDIA_QUERY);
   const keyboardInset = useKeyboardInset();
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const chromeHidden = useChromeHide({ enabled: !isDesktop, paneRef });
 
   return (
     <>
@@ -111,52 +119,56 @@ export function SettingsListChrome({
         }}
         zIndex={100}
       >
-        <Box
-          className={`c2-glass-surface c2-control-pill c2-chrome-hide-able${
-            chromeHidden ? " c2-chrome-hidden" : ""
-          }`}
-        >
-          <Group align="center" gap="xs" wrap="nowrap">
+        <ControlPill
+          pillRef={pillRef}
+          actionsLabel="List controls"
+          circleSize={PILL_CIRCLE.list}
+          minActions={Math.min(3, actions.length + (filter ? 1 : 0))}
+          leading={
             <TextInput
               ref={searchInputRef}
+              className="c2-pill-field"
               radius="999px"
               aria-label={searchAriaLabel}
               placeholder={searchPlaceholder}
               value={search}
               onChange={(event) => onSearchChange(event.currentTarget.value)}
-              style={{ flex: 1, minWidth: 0 }}
             />
-            {filter && (
-              <FilterButton
-                activeCount={filter.activeCount}
-                onClick={(event) => {
-                  searchInputRef.current?.blur();
-                  filter.onClick(event);
-                }}
-                size={44}
-                iconSize={20}
-                radius="50%"
-                className="c2-glass-btn"
-              />
-            )}
-            {actions.map((action) => (
-              <ActionIcon
-                key={action.label}
-                size={44}
-                radius="50%"
-                variant="default"
-                className={`c2-glass-btn${action.primary ? " c2-glass-fab--brand" : ""}`}
-                aria-label={action.label}
-                onClick={() => {
-                  searchInputRef.current?.blur();
-                  action.onClick();
-                }}
-              >
-                {action.icon}
-              </ActionIcon>
-            ))}
-          </Group>
-        </Box>
+          }
+          actions={
+            <>
+              {filter && (
+                <FilterButton
+                  activeCount={filter.activeCount}
+                  onClick={(event) => {
+                    searchInputRef.current?.blur();
+                    filter.onClick(event);
+                  }}
+                  size={44}
+                  iconSize={20}
+                  radius="50%"
+                  className="c2-glass-btn"
+                />
+              )}
+              {actions.map((action) => (
+                <ActionIcon
+                  key={action.label}
+                  size={44}
+                  radius="50%"
+                  variant="default"
+                  className={`c2-glass-btn${action.primary ? " c2-glass-fab--brand" : ""}`}
+                  aria-label={action.label}
+                  onClick={() => {
+                    searchInputRef.current?.blur();
+                    action.onClick();
+                  }}
+                >
+                  {action.icon}
+                </ActionIcon>
+              ))}
+            </>
+          }
+        />
       </Affix>
     </>
   );
