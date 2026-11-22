@@ -2852,6 +2852,20 @@ html.c2-low-end::view-transition-group(*) {
 
 .c2-contact-row {
   background: var(--mantine-color-body);
+  /* Grid items default to `min-width: auto`, so one cell holding an unbounded
+     string (a long department name) would push its track past the `minmax()`
+     floor and overflow the card, where `overflow: hidden` would clip the row's
+     action buttons. Zeroing it keeps the columns honest. */
+  min-width: 0;
+}
+
+/* Department names are unbounded text: inside a narrow column they ellipsize
+   rather than run over the copy/call buttons. */
+.c2-contact-dept {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 @media (min-width: 36em) {

@@ -133,7 +133,7 @@ function ContactRow({ user, nameTemplate }: { user: RosterUser; nameTemplate: st
             {user.phone}
           </Text>
           {user.department ? (
-            <Badge size="xs" variant="light" color="accent">
+            <Badge size="xs" variant="light" color="accent" className="c2-contact-dept">
               {user.department.name}
             </Badge>
           ) : (
