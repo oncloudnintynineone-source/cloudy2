@@ -383,8 +383,8 @@ section's letter highlighted as you scroll (capture-phase scroll listener + pure
 `contactRailHeightPx`), clamped under the sticky bar by `max()` and internally scrollable when it
 is taller than the window, so no letter is ever unreachable. And on wide screens the **rows inside**
 each group card flow into auto-filling columns (`.c2-contact-rows`, each cell drawing its own
-top/left hairline and the last row stretching across the empty tracks, so the matrix stays closed
-at every width) while the groups themselves stay **one per row** —
+top/left hairline, the blank area beside a partial last row ruled by the last cell, so columns stay
+uniform and the matrix stays closed) while the groups themselves stay **one per row** —
 gridding unevenly sized groups reintroduces exactly the empty space a phone list should not spend.
 §1.10.1.
 

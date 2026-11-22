@@ -389,9 +389,9 @@ band) and 3 from ~1024px. **Contacts** grids its rows, not its groups
 alphabetically or by department) stays **one per row** — a grid of unevenly sized
 groups leaves ragged gaps — and the dense contact rows **inside** each card flow
 into `.c2-contact-rows` auto-fill ≥320px columns, where each cell draws its own
-top/left hairline and the last row stretches across the tracks that would have
-sat beside it (container queries on the card restate the column count), so the
-matrix is closed at every width. The A–Z jump
+top/left hairline and the blank area beside a partially filled last row is ruled
+by a strip the last cell draws out to the card's edge — columns stay uniform and
+the matrix still closes. The A–Z jump
 rail is a sticky pill beside the cards, **vertically centred in the viewport**
 (clamped under the sticky chrome and internally scrollable when it is taller than
 the window), highlighting the current section once enough sections exist. Beyond that, the floating buttons swap for inline controls:

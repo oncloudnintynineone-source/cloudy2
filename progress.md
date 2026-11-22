@@ -2890,10 +2890,10 @@ mirror them (four such entries: 1.106.1, 1.122.1, 1.316.1, 1.331.1).
     clean; `max()` clamps it under the sticky chrome and `max-height` (that space doubled) keeps it
     symmetric, scrolling its own tail instead of losing letters below the viewport. On wide screens
     the dense rows **inside** each group card flow into `.c2-contact-rows` auto-fill columns — each
-    cell draws its own top/left hairline (inset shadow, offset under the header and card borders)
-    and the last row stretches across the tracks beside it (container queries on the card restate
-    the `floor(width/320)` column count), so the matrix stays closed at every width and a taller
-    sibling leaves no hole. The **groups stay one per row**: gridding unevenly sized groups reintroduces exactly the
+    cell draws its own top/left hairline (inset shadow, offset under the header and card borders),
+    and the blank area beside a partially filled last row is bounded by a strip the last cell draws
+    out to the card's edge (clipped by the card, so no column count is needed): columns stay
+    uniform, the empty space is accepted, and the matrix still closes. The **groups stay one per row**: gridding unevenly sized groups reintroduces exactly the
     ragged empty space the page should not spend. `activeSectionKey` now resolves level headers to
     the first of them, and the route skeleton rides the same row grid (no reflow on the
     skeleton→content swap). Docs: `desktop-responsive.md` §1.6, `ui-ux-improvements.md` C2.

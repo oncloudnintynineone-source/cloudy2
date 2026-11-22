@@ -2803,11 +2803,6 @@ html.c2-low-end::view-transition-group(*) {
    header below lg, plus the lg+ sticky search bar (~75px) at desktop. */
 .c2-contact-section {
   scroll-margin-top: calc(var(--app-shell-header-offset) + var(--mantine-spacing-md));
-  /* The row grid's column count is a function of the card's own width (the
-     sidebar collapse and the A–Z rail both change it), so the rules that depend
-     on that count are container queries on the card. */
-  container-type: inline-size;
-  container-name: c2-contact-group;
 }
 
 @media (min-width: 40em) {
@@ -2850,8 +2845,7 @@ html.c2-low-end::view-transition-group(*) {
    the empty area. The -1px offsets slide the first row's top line under the
    header's bottom border and the first column's left line under the card's own
    border (the card clips); the card's border closes the right and bottom edges,
-   so no line is doubled anywhere. A cell-drawn rule exists only where a cell
-   exists — hence the last-row stretch below. */
+   so no line is doubled anywhere. */
 .c2-contact-rows {
   display: grid;
   grid-template-columns: 1fr;
@@ -2876,42 +2870,38 @@ html.c2-low-end::view-transition-group(*) {
   white-space: nowrap;
 }
 
-/* One 320px floor for every wide tier (the shared `.card-grid` recipe steps
-   300 → 320; here a single floor keeps the container-query boundaries below to
-   one set). The card only reaches 640px of content at desktop widths, so this
-   still renders one column on phones. */
+/* One 320px floor for every wide tier — the shared `.card-grid` recipe steps
+   300 → 320 across its two tiers, and a single floor here keeps the column
+   arithmetic to one boundary. The card only reaches 640px of content at desktop
+   widths, so this still renders one column on phones. */
 @media (min-width: 36em) {
   .c2-contact-rows {
     grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   }
 }
 
-/* A partially filled last row would leave the card's bottom-right unruled: the
-   hairlines are drawn by the cells, and there is no cell beside an empty track
-   to draw the rules that close it. So the last row's cells stretch across the
-   tracks that would have sat after them — a wide final row reads better than a
-   hole, and it uses the width the grid exists to use.
-   `auto-fill` gives `floor(width / 320)` columns, restated as container queries
-   on the card so a span never exceeds the columns actually present (a 4-column
-   band is unreachable while `.page-container` caps the card near 1130px). The
-   thresholds sit 1–2px above the exact boundary: the grid runs 1px wider than
-   the card (its -1px offset tucks the first column's hairline under the card's
-   border), and lagging a column is a cosmetic miss where leading one would
-   stretch a row past the card and clip it. */
-@container c2-contact-group (min-width: 641px) and (max-width: 960px) {
-  .c2-contact-row:last-child:nth-child(odd) {
-    grid-column: span 2;
-  }
+/* A partially filled last row leaves the card's bottom-right empty. Every
+   column keeps its width — uniform cells read as a table, and one contact
+   stretching wider than every other one does not — so the blank area is
+   accepted rather than filled. It is still bounded, so the matrix closes rather
+   than trailing off: the last cell draws a strip out to the card's right edge
+   carrying only that area's top and left hairline. The strip is deliberately
+   oversized and relies on the card's `overflow: hidden` to clip it, which is
+   what makes this work without knowing the column count; when the last row is
+   full there is nothing past the last cell and the strip clips to nothing. */
+.c2-contact-row:last-child {
+  position: relative;
 }
 
-@container c2-contact-group (min-width: 961px) {
-  .c2-contact-row:last-child:nth-child(3n + 1) {
-    grid-column: span 3;
-  }
-
-  .c2-contact-row:last-child:nth-child(3n + 2) {
-    grid-column: span 2;
-  }
+.c2-contact-row:last-child::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 100%;
+  width: 100vw;
+  height: 100%;
+  pointer-events: none;
+  box-shadow: inset 1px 1px 0 var(--mantine-color-default-border);
 }
 
 @media (min-width: 40em) {
