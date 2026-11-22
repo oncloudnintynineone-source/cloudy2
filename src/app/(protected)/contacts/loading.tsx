@@ -33,6 +33,7 @@ export default function ContactsLoading() {
           {[2, 3].map((rows, groupIndex) => (
             <Box
               key={groupIndex}
+              className="c2-contact-section"
               style={{
                 border: LIST_BORDER,
                 borderRadius: "var(--mantine-radius-md)",
