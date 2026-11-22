@@ -162,14 +162,13 @@ Mechanics worth knowing:
   - **Centered at every width**: the host modal is `centered` on all screens, so the
     wizard always has **equal top/bottom gutters**. On phones (< 640px) the body
     **fills the modal's box** to take up as much vertical space as possible:
-    `DashboardView` sets `yOffset="44px"`, so Mantine centers inside a
-    `100dvh - 88px` (2 × 44px gutter) box, and `WIZARD_BODY_HEIGHT_MOBILE` =
-    `calc(100dvh - 164px)` fills it — the 88px of gutters plus the modal's own chrome
-    (sticky header ~60px + body bottom padding ~16px = 76px). Equal ~44px gutters
-    remain, and the "Tap outside or press Esc to minimize" caption sits in the bottom
-    gutter (it stays at the viewport bottom; the header's minimize chevron / X also
-    stay). The header controls are 44px targets and the header keeps its ~60px height
-    with `py={8}`.
+    `DashboardView` sets `yOffset="16px"`, so Mantine centers inside a
+    `100dvh - 32px` (2 × 16px gutter) box, and `WIZARD_BODY_HEIGHT_MOBILE` =
+    `calc(100dvh - 108px)` fills it — the 32px of gutters plus the modal's own chrome
+    (sticky header ~60px + body bottom padding ~16px = 76px). Equal ~16px gutters
+    remain and hold nothing: the caption that used to sit in the bottom gutter is
+    gone, while the header's minimize chevron / ✕ stay. The header controls are 44px
+    targets and the header keeps its ~60px height with `py={8}`.
     `100dvh` shrinking with the on-screen keyboard just shortens the body.
   - **Desktop height**: the centered modal's body grows with the viewport up to
     `min(68dvh, 720px, calc(100dvh - 200px))` so a tall screen is actually used up to a

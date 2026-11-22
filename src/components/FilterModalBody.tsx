@@ -205,10 +205,9 @@ export function FilterModalBody({
   textFilter,
   onClose,
   collapsedGroupLabels = [],
-  hint,
 }: Pick<
   FilterModalProps,
-  "groups" | "values" | "onApply" | "textFilter" | "onClose" | "collapsedGroupLabels" | "hint"
+  "groups" | "values" | "onApply" | "textFilter" | "onClose" | "collapsedGroupLabels"
 >) {
   const [draft, setDraft] = useState<Record<string, string[]>>(() => initialDraft(groups, values));
   // Free-text filter draft; blank means "no text filter". Staged like the
@@ -469,12 +468,6 @@ export function FilterModalBody({
         }}
         zIndex={200}
       />
-
-      {hint && (
-        <Text size="xs" c="dimmed">
-          {hint}
-        </Text>
-      )}
 
       <Group justify="space-between" mt="md" wrap="wrap">
         {/* "Reset filters" restores the role defaults; a group's own "None" is a

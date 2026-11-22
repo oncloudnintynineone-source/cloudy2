@@ -124,7 +124,7 @@ of toggleable badges with a search box on top:
 | `src/components/SelectableBadge.tsx` | Shared selectable badge — amber fill when selected (wizard + picker + filters) |
 | `src/components/AllNoneControls.tsx` | Shared compact All/None (or All/Clear) pair |
 | `src/components/PickerField.tsx` | The app-wide removable chip (`PickerChip`), its summary row (`PickerBadges`) and the picker trigger/field |
-| `src/lib/ui/picker.ts` | Pure trigger-label / removal-hint copy helpers |
+| `src/lib/ui/picker.ts` | Pure trigger-label copy helpers |
 | `src/lib/users/userSelect.ts` | Pure grouping/matching/merging helpers |
 | `src/lib/filters/filterSections.ts` | Pure section state + All/None math |
 
@@ -166,8 +166,7 @@ standalone as `PickerBadges` and one chip as `PickerChip`:
   `addLabel`/`editLabel` customize it.
 - **`PickerField`** composes the full affordance: an optional header (`label`, `count`
   suffix `(N)`, `description`) with the `PickerTrigger` pinned right, then
-  `PickerBadges`, then the dimmed removal hint (`pickerRemovalHint`;
-  `showRemovalHint={false}` opts out).
+  `PickerBadges`.
 
 The modal itself stays with each caller — open state, `zIndex`, and the `onConfirm`
 transform differ (prefixed invitees vs. flat member ids vs. FilterModal's staged draft
@@ -215,8 +214,7 @@ selection state visible everywhere and removal one tap:
   searches and the audit log's applied-filter pills did before they moved onto
   `PickerChip` (§1.6); chips ride the shared 36px `--c2-chip-height` so the row
   stays even. The `+N` overflow badge stays **inert** — its hidden picks are removed
-  inside the dialog, where they are named. `PickerField` adds the dimmed hint "Tap the
-  ✕ on a chip to remove it." under the row.
+  inside the dialog, where they are named.
 - **Inside the dialog:** no dedicated Selected area — picks show as amber
   badges in the pool itself, and the footer keeps a live "N selected" count
   beside Clear (§1.2).
@@ -225,7 +223,7 @@ selection state visible everywhere and removal one tap:
   defaults) are three different actions with three names — never merge them.
 
 The copy decisions live in pure helpers (`src/lib/ui/picker.ts`: `pickerTriggerLabel`,
-`pickerRemovalHint`, `pickerChipRemovable`) and the removal math in `userSelect.ts`
+`pickerChipRemovable`) and the removal math in `userSelect.ts`
 (`removeInvitee`) — unit-tested. Removal UI never silently deletes an id the user cannot
 see: summary chips resolve from the current option set (stale ids stay out of the
 summary), while `mergeInviteeSelection` still preserves unlistable ids on commit.

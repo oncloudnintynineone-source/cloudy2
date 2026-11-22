@@ -24,14 +24,6 @@ export function pickerTriggerLabel(count: number, labels: PickerTriggerLabels = 
 }
 
 /**
- * The one-line hint under a picked-chip summary: states the direct removal
- * gesture. Empty when nothing is picked (there is nothing to remove yet).
- */
-export function pickerRemovalHint(count: number): string {
-  return count > 0 ? "Tap the ✕ on a chip to remove it." : "";
-}
-
-/**
  * Whether a summary chip should offer a remove affordance: never on the `+N`
  * overflow badge, and never when the caller has no removal path.
  */

@@ -582,8 +582,7 @@ only.
 The **Users** picker uses the same `SelectableBadge` as the wizard and filter
 grids, now with department section counts, hierarchy indentation, per-section
 All/Clear, a global Select all/Clear, and an amber "(You)" badge for the acting
-user. A footer scope hint notes _"These filters apply to {view name} only."_ —
-filter scoping is **per tab**: each tab stores its own Calendars/Users/Event
+user. Filter scoping is **per tab**: each tab stores its own Calendars/Users/Event
 Types/Event-name selection, and clearing one tab's filters never touches the
 others.
 
@@ -797,19 +796,14 @@ Per-view mechanics (all client-side — no cache or server impact):
   day modal pass a `renderEvent` that adds `c2-my-agenda-event` to the
   user's rows: amber left bar + light tint + semibold title. The
   chronological order is intentionally not changed.
-- **Agenda — swipe hint.** Both agenda listings (the tab and the day modal)
-  support a horizontal swipe to change day (`useDrag`, `DAY_SWIPE_THRESHOLD`).
-  On touch-first devices only (`(pointer: coarse)`,
-  `COARSE_POINTER_MEDIA_QUERY` in `src/lib/theme.ts`) a small centered caption
-  — "Swipe left or right to change day" — sits beneath the list, styled like
-  the wizard's "Tap outside or press Esc to minimize" hint (xs, dimmed, `pointer-events:
-  none`). It is shown at most **once per browser session**: a `sessionStorage`
-  flag (`cloudy2.agenda-swipe-hint`) is set on the first successful swipe, so
-  the caption never returns once the gesture is discovered. A swipe arms a
-  one-shot click-suppression flag (`swipedRef`) so the synthesized click a mouse
-  drag emits on release can't open the row it ended over; the wrappers clear it
-  on every `pointerdown`, so a touch swipe (which emits no trailing click) can
-  never swallow the next event tap.
+- **Agenda — swipe to change day.** Both agenda listings (the tab and the day modal)
+  support a horizontal swipe to change day (`useDrag`, `DAY_SWIPE_THRESHOLD`) for every
+  pointer. The gesture is deliberately unannounced: no caption explains it — the day
+  header's ‹ › chevrons are the visible affordance, and the swipe simply reaches the
+  same day faster. A swipe arms a one-shot click-suppression flag (`swipedRef`) so the
+  synthesized click a mouse drag emits on release can't open the row it ended over; the
+  wrappers clear it on every `pointerdown`, so a touch swipe (which emits no trailing
+  click) can never swallow the next event tap.
 
 Colors: the brand amber `accent` family (secondary `#FBC02D`) — distinct from
 the event-type colors and the blue `brand` accents used for today/primary. The
@@ -1325,7 +1319,7 @@ the anchor day, Month & Agenda → Month keeps the anchor month).
 - **Agenda pane** (at `lg` and up — not rendered below `lg`). The Agenda tab's
   list under a day header (day label + ‹ › chevrons): `eventsOnDay`,
   `renderMyAgendaEvent`, the directional slide on a day change, and the touch
-  swipe-to-change-day gesture with its once-per-session hint. The header is
+  swipe-to-change-day gesture. The header is
   the pane's fixed header (bounded layout), and the bordered card fills the pane
   below it — a long day list scrolls inside the card (`agendaViewBody`), so a
   short day never leaves a blank strip under the card. Both the card root and
@@ -1421,7 +1415,6 @@ flowchart LR
 | `src/app/(protected)/dashboard/ViewTypePicker.tsx` | Shared seven-kind picker (Month & Agenda/Month/Week (H)/Week (D)/Week (Grid)/Day/Agenda): a **thumbnail grid** in the Add-view dialog and the Edit-view dialog's type chooser, a compact text list for other uses |
 | `src/app/(protected)/dashboard/DualPaneView.tsx` | Month & Agenda renderer: resizable Month + Agenda panes (§1.9) |
 | `src/app/(protected)/dashboard/MonthWeekdayStrip.tsx` | Pinned weekday-initials strip, shared by the Month view and the Month & Agenda view's Month pane |
-| `src/components/AgendaSwipeHint.tsx` | Touch-only agenda swipe caption, shared by the Agenda tab, day modal, Month & Agenda and Parade State |
 | `src/lib/ui/dualSplit.ts` | Pure Month & Agenda split levels + clamping (`clampDualSplit`, `stepDualSplit`) |
 | `src/app/(protected)/dashboard/viewMeta.tsx` | Kind → icon/label/thumbnail map shared by the strip, the type picker, the Manage-views rows |
 | `src/app/(protected)/dashboard/viewThumbnails.tsx` | Hand-drawn SVG wireframe previews (120×80, `currentColor` strokes + amber event chips) for each of the seven kinds |
@@ -1436,7 +1429,7 @@ flowchart LR
 | `src/lib/ui/monthZoom.ts` | Pure Month fit-width zoom levels + stepping (`clampMonthZoom`, `stepMonthZoom`) + the fit-height fill + chip-count math (`monthFillEvents`, `monthFitChipCount`, §1.8.1) |
 | `src/components/GridNavControls.tsx` | Day/Week (H) + Month right-edge cluster: zoom +/− + right pan, plus left-edge pan |
 | `src/components/FilterButton.tsx` | Dedicated filter button (icon + active-group badge) replacing the kebab's filter menu |
-| `src/components/FilterModal.tsx` | Filters dialog (unified group headers + state chips, badge grids, labeled rows + folder chips with yellow dotted/solid outline, removable summary chips, "Showing:" line, Reset filters, collapsible groups, per-tab scope hint) |
+| `src/components/FilterModal.tsx` | Filters dialog (unified group headers + state chips, badge grids, labeled rows + folder chips with yellow dotted/solid outline, removable summary chips, "Showing:" line, Reset filters, collapsible groups) |
 
 Related docs:
 

@@ -440,11 +440,11 @@ that its `size` prop resolves to, so the shrink stays in sync at every tier.
 The event form's **Timestamp step** pairs Start/End side by side in a 2-column
 `Grid` at `lg` (both the range pickers and the full-day date+AM/PM pairs). The host
 modal stays `centered` at every width (see event-lifecycle.md §1.4): on phones it sets
-`yOffset="44px"`, so Mantine centers inside a `100dvh - 88px` box and the body
-(`WIZARD_BODY_HEIGHT_MOBILE` = `calc(100dvh - 164px)`) fills it — equal ~44px top/bottom
-gutters remain, and the "Tap outside or press Esc to minimize" caption sits in the bottom
-gutter. The header's minimize / discard controls are 44px targets (`py={8}` on the header
-keeps the ~60px chrome height the body math assumes). Minimized, the wizard docks into the
+`yOffset="16px"`, so Mantine centers inside a `100dvh - 32px` box and the body
+(`WIZARD_BODY_HEIGHT_MOBILE` = `calc(100dvh - 108px)`) fills it — equal ~16px top/bottom
+gutters remain and carry no caption. The header's minimize / discard controls are 44px
+targets (`py={8}` on the header keeps the ~60px chrome height the body math assumes).
+Minimized, the wizard docks into the
 mobile chrome: below `lg` it becomes an `EventDraftChip` **inside the FAB row**, to the
 left of the period chevrons, flexing into the space the fixed 56px controls leave (label
 
@@ -492,7 +492,7 @@ left of the period chevrons, flexing into the space the fixed 56px controls leav
 | `src/app/(protected)/settings/event-types/EventTypeForm.tsx`                                                              | 2-col `Grid` at `lg`                                                                                                                                                                                                                                                                        |
 | `src/app/(protected)/settings/templates/TemplatesForm.tsx`                                                                | Side-by-side cards at `lg`                                                                                                                                                                                                                                                                  |
 | `src/app/(protected)/settings/general/SettingsForm.tsx`                                                                   | Side-by-side cards at `lg`                                                                                                                                                                                                                                                                  |
-| `src/app/(protected)/dashboard/DashboardView.tsx`                                                                         | Schedule label/slot widths, header New-event button, hidden FAB, modal size tiers (`isNarrow` → `xs`; event form `md` → `lg` on the wide band); event-form host `centered` at every width with `yOffset="44px"` (equal gutters, caption at the bottom)                                      |
+| `src/app/(protected)/dashboard/DashboardView.tsx`                                                                         | Schedule label/slot widths, header New-event button, hidden FAB, modal size tiers (`isNarrow` → `xs`; event form `md` → `lg` on the wide band); event-form host `centered` at every width with `yOffset="16px"` (equal gutters, no caption)                                      |
 | `src/app/(protected)/dashboard/WeekMatrixView.tsx`                                                                        | MOBILE_/DESKTOP_ label widths, responsive `contentMinWidth`/`labelLeft`                                                                                                                                                                                                                     |
 | `src/app/(protected)/dashboard/EventForm.tsx`                                                                             | Body-height tiers (phone fills the centered box vs desktop capped growth), Timestamp 2-col at `lg`, Review 2-col at wide band                                                                                                                                                               |
 | `src/app/(protected)/dashboard/EventDetail.tsx`, `src/components/FilterModal.tsx`, `src/components/DateSelectorModal.tsx` | `xs` → `sm` → `md` (compact/mobile/lg)                                                                                                                                                                                                                                                      |

@@ -18,8 +18,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.409 (Contacts: centred A–Z rail + wide-screen row grid)** is
-  shipped.
+- All work through changelog **1.410 (Gesture/explainer captions removed, their space
+  reclaimed)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -2897,6 +2897,20 @@ mirror them (four such entries: 1.106.1, 1.122.1, 1.316.1, 1.331.1).
     ragged empty space the page should not spend. `activeSectionKey` now resolves level headers to
     the first of them, and the route skeleton rides the same row grid (no reflow on the
     skeleton→content swap). Docs: `desktop-responsive.md` §1.6, `ui-ux-improvements.md` C2.
+  - 1.410 **Gesture/explainer captions removed, their space reclaimed**: the app stops
+    narrating itself. Gone are the wizard's "Tap outside or press Esc to minimize" caption, the
+    touch-only "Swipe left or right to change day" caption (Agenda tab, day modal, Month & Agenda
+    and Parade State — `AgendaSwipeHint.tsx`, its `agendaSwipeHint` store and the generic
+    `sessionHint` helper deleted with it), the picker's "Tap the ✕ on a chip to remove it." line
+    (`pickerRemovalHint`) and `FilterModal`'s optional `hint` explainer, whose only caller was
+    Contacts' "Filters combine with the search box." Only the words went: outside-tap / Escape
+    minimize, the `useDrag` day swipe with its one-shot click suppression, and the ✕ on every
+    summary chip behave exactly as before. The space is reclaimed — the phone wizard's
+    `yOffset` drops 44px → 16px so `WIZARD_BODY_HEIGHT_MOBILE` grows to `calc(100dvh - 108px)`
+    (~56px more body; the desktop `min(68dvh, 720px, …)` comfort cap is untouched), and the
+    agenda list, picker row and filter footer now end where their caption used to start. Docs:
+    `event-lifecycle.md` §1.4, `desktop-responsive.md` §1.7, `dashboard-views.md` §1.5/§1.9,
+    `user-picker.md` §1.6/§1.7.
 
 ## 1.4 Open items & next steps
 

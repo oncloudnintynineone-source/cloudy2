@@ -153,8 +153,8 @@ export const DESKTOP_WIDE_MEDIA_QUERY = "(min-width: 50em)";
 export const NARROW_MEDIA_QUERY = "(max-width: 22.5em)";
 
 /**
- * Media query matching touch-first devices (coarse pointer). Used to show
- * touch-only affordances like the agenda swipe hint, which would be noise on
- * a desktop mouse.
+ * Media query matching touch-first devices (coarse pointer). Used to gate
+ * touch-only affordances and to skip the costly month cross-slide on heavy
+ * grids, where a touch device keeps the passive nudge instead.
  */
 export const COARSE_POINTER_MEDIA_QUERY = "(pointer: coarse)";

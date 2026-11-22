@@ -24,8 +24,8 @@
  *
  * The Month pane keeps the standalone Month view's fit-to-width zoom
  * (`monthZoom`) and its own pan instance; the Agenda pane (at `lg` and up)
- * keeps the Agenda tab's day header, swipe-to-change-day gesture and
- * once-per-session hint. At `lg` and up, tapping a day cell in the grid
+ * keeps the Agenda tab's day header and swipe-to-change-day gesture. At `lg`
+ * and up, tapping a day cell in the grid
  * selects that day in the Agenda pane (chips are pass-through — see
  * `renderInertMonthEvent`).
  */
@@ -57,7 +57,6 @@ import { eventsOnDay } from "@/lib/events/agenda";
 import type { CalendarEvent } from "@/lib/events/queries";
 import { firstDayOfWeek, monthGridRows, type WeekStart } from "@/lib/events/datetime";
 import type { Rect } from "@/lib/motion/origin";
-import { markAgendaSwipeHintSeen } from "@/lib/ui/agendaSwipeHint";
 import {
   DUAL_SPLIT_DEFAULT,
   DUAL_SPLIT_MAX,
@@ -76,7 +75,6 @@ import {
 } from "@/lib/ui/monthZoom";
 import { usePinchZoom } from "@/lib/ui/pinchZoom";
 import { animateZoom, scrollAnchorTracker } from "@/lib/ui/zoomAnim";
-import { AgendaSwipeHint } from "@/components/AgendaSwipeHint";
 import { MonthWeekdayStrip } from "./MonthWeekdayStrip";
 
 /**
@@ -122,8 +120,6 @@ export interface DualPaneViewProps {
    * agenda day modal for a tapped cell — the standalone Month view's cell tap.
    */
   onDayOpen: (day: string, origin: Rect) => void;
-  /** Show the touch-only swipe hint (coarse pointer, not yet seen this session). */
-  showSwipeHint: boolean;
   /** Height of the sticky chrome block above the grid (tabs + date-nav row). */
   chromeOffset: number;
   /**
@@ -179,7 +175,6 @@ export function DualPaneView({
   onEventClick,
   onDaySelect,
   onDayOpen,
-  showSwipeHint,
   chromeOffset,
   bottomBarrierRef,
   matchMonthChipText,
@@ -426,7 +421,6 @@ export function DualPaneView({
       if (!state.last || state.canceled || state.tap) return;
       if (Math.abs(state.movement[0]) < DAY_SWIPE_THRESHOLD) return;
       swipedRef.current = true;
-      markAgendaSwipeHintSeen();
       onDaySelect(
         dayjs(day)
           .add(state.movement[0] < 0 ? 1 : -1, "day")
@@ -681,7 +675,7 @@ export function DualPaneView({
               minHeight: 0,
               // A flex column so the card below fills the pane (its own body
               // scrolls a long day) instead of leaving blank space under a
-              // content-height card; the swipe hint stays pinned beneath it.
+              // content-height card.
               display: "flex",
               flexDirection: "column",
               overflow: "hidden",
@@ -749,7 +743,6 @@ export function DualPaneView({
                 onEventClick={(event, e) => onEventClick(event as unknown as CalendarEvent, e)}
               />
             </div>
-            {showSwipeHint && <AgendaSwipeHint />}
           </Box>
         </Box>
       )}

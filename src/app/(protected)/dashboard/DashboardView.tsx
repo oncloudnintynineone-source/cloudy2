@@ -33,7 +33,6 @@ import {
   Menu,
   Modal,
   Paper,
-  Portal,
   Stack,
   Tabs,
   Text,
@@ -151,12 +150,6 @@ import {
   type ScheduleResources,
 } from "@/lib/events/schedule";
 import { gridWeekAllDayLayout, type GridWeekAllDayLayout } from "@/lib/events/gridWeek";
-import {
-  getAgendaSwipeHintServerSnapshot,
-  getAgendaSwipeHintSnapshot,
-  markAgendaSwipeHintSeen,
-  subscribeAgendaSwipeHint,
-} from "@/lib/ui/agendaSwipeHint";
 import { announce } from "@/lib/ui/announcer";
 import { useChromeHide } from "@/lib/ui/chromeHide";
 import { DUAL_SPLIT_DEFAULT, clampDualSplit } from "@/lib/ui/dualSplit";
@@ -211,7 +204,6 @@ import { WIZARD_WARM_DELAY_MS, tabWarmKinds } from "@/lib/dashboard/warmup";
 import { EventFormSkeleton } from "./EventFormSkeleton";
 import { ViewTypePicker } from "./ViewTypePicker";
 import { VIEW_TAB_META } from "./viewMeta";
-import { AgendaSwipeHint } from "@/components/AgendaSwipeHint";
 import { MonthWeekdayStrip } from "./MonthWeekdayStrip";
 import { useDashboardData, useDashboardTabStatus } from "./DashboardDataContext";
 import { prefetchTargetForPeriod, prefetchTargetForTab } from "@/lib/dashboard/prefetch";
@@ -1230,7 +1222,8 @@ function DashboardViewImpl({
   const isNarrowDesktop = isDesktop && !isDesktopWide;
   const viewportSize = useViewportSize();
   const isNarrow = useMediaQuery(NARROW_MEDIA_QUERY);
-  // Touch-first devices: only they get the agenda swipe hint (see below).
+  // Touch-first devices: heavy grids skip the real cross-slide on them (see
+  // `slidePeriod` below).
   const isCoarsePointer = useMediaQuery(COARSE_POINTER_MEDIA_QUERY);
 
   // Heights of the two chrome pieces. At lg ONE box pins at the top (view tabs
@@ -1549,11 +1542,6 @@ function DashboardViewImpl({
   const fabBottomOffset = isDesktop
     ? undefined
     : `calc(${floatingBaseOffset} + ${bottomChromeHeight + 12}px)`;
-  // The "Tap outside or press Esc to minimize" caption is anchored to the
-  // bottom of the viewport (not the dialog's bottom), so its position never
-  // depends on the dialog's measured size — resizing between wizard steps or
-  // opening the modal can't make it jump.
-  const hintVisible = formIsOpen && !formMinimized;
   useEffect(() => {
     if (formMinimized) {
       resumeDraftRef.current?.focus({ preventScroll: true });
@@ -1581,18 +1569,6 @@ function DashboardViewImpl({
     setPrevAgendaDate(agendaDate);
     setDisplayAgendaDate(agendaDate);
   }
-  // Agenda swipe hint: touch-only and shown at most once per browser session.
-  // The flag is an external store over sessionStorage (see
-  // `src/lib/ui/agendaSwipeHint.ts`), so it survives a reload within the
-  // session and updates without a setState-in-effect.
-  const agendaHintSeen = useSyncExternalStore(
-    subscribeAgendaSwipeHint,
-    getAgendaSwipeHintSnapshot,
-    getAgendaSwipeHintServerSnapshot,
-  );
-  // Only touch devices see the caption, and only until the first successful
-  // swipe (or a prior visit in this session) marks it seen.
-  const showAgendaHint = isCoarsePointer && !agendaHintSeen;
   // Neither deep link is a failure while its independent target read is still in
   // flight: the details modal opens as a skeleton and the edit form opens when
   // the target lands. The alert is raised only once the link settles without a
@@ -3502,7 +3478,6 @@ function DashboardViewImpl({
       if (!state.last || state.canceled || state.tap) return;
       if (Math.abs(state.movement[0]) < DAY_SWIPE_THRESHOLD) return;
       swipedRef.current = true;
-      markAgendaSwipeHintSeen();
       shiftAgendaDay(state.movement[0] < 0 ? 1 : -1);
     },
     { axis: "lock", axisThreshold: 8, threshold: 10, filterTaps: true },
@@ -3517,7 +3492,6 @@ function DashboardViewImpl({
       if (!isAgenda) return;
       if (Math.abs(state.movement[0]) < DAY_SWIPE_THRESHOLD) return;
       swipedRef.current = true;
-      markAgendaSwipeHintSeen();
       const base = viewedDay ?? date;
       applyAgendaDay(
         dayjs(base)
@@ -5376,7 +5350,6 @@ function DashboardViewImpl({
                   // Narrow only (agenda pane hidden below `lg`): the month pane is
                   // the standalone Month view, whose cell tap opens the day modal.
                   onDayOpen={openDayModal}
-                  showSwipeHint={showAgendaHint}
                   chromeOffset={topChromeHeight}
                   bottomBarrierRef={isDesktop ? null : fabStackRef}
                   // Full desktop only: the month pane's chip text matches the
@@ -5436,7 +5409,6 @@ function DashboardViewImpl({
                       }}
                     />
                   </div>
-                  {showAgendaHint && <AgendaSwipeHint />}
                 </div>
               ) : isGridWeek && week ? (
                 // Week (Grid): Mantine's conventional 7-day week grid with time on
@@ -6092,7 +6064,6 @@ function DashboardViewImpl({
                 />
               </div>
             </div>
-            {showAgendaHint && <AgendaSwipeHint />}
             <Button
               w="100%"
               mt="sm"
@@ -6197,11 +6168,10 @@ function DashboardViewImpl({
         keepMountedMode="display-none"
         centered
         // A fixed vertical gutter keeps the centered wizard's top/bottom gaps
-        // equal (Mantine centers inside a `100dvh - 2*gutter` box) and leaves
-        // room for the "Tap outside to minimize" caption at the bottom. The
-        // wizard body fills the box (WIZARD_BODY_HEIGHT_MOBILE), so the gaps
-        // stay equal instead of collapsing to the bottom edge.
-        yOffset="44px"
+        // equal (Mantine centers inside a `100dvh - 2*gutter` box). The wizard
+        // body fills the box (WIZARD_BODY_HEIGHT_MOBILE), so the gaps stay
+        // equal instead of collapsing to the bottom edge.
+        yOffset="16px"
         size={isNarrow ? "xs" : isDesktopWide ? "lg" : isDesktop ? "md" : "sm"}
         // While minimized, the mounted modal root must drop out of the floating
         // control layer so the docked draft bar remains visible with the month
@@ -6300,37 +6270,6 @@ function DashboardViewImpl({
           </Modal.Body>
         </Modal.Content>
       </Modal.Root>
-
-      {/* "Tap outside or press Esc to minimize" hint, anchored to the viewport
-          bottom (not the dialog's) so its position is stable regardless of
-          dialog size. It lives outside the Paper deliberately — the Paper
-          clips anything inside it (overflow-y) — and portals to <body> so its
-          z-index competes at the root level: 260 puts it above the modal's 250
-          overlay, cross-fading with the modal's own 250ms transitions.
-          pointer-events: none, so tapping the caption lands on the overlay
-          → minimizes, which is what it advertises. */}
-      <Portal>
-        <Text
-          size="xs"
-          aria-hidden={!hintVisible}
-          style={{
-            position: "fixed",
-            bottom: 16,
-            left: 0,
-            right: 0,
-            textAlign: "center",
-            margin: 0,
-            zIndex: 260,
-            color: "rgba(255, 255, 255, 0.85)",
-            opacity: hintVisible ? 1 : 0,
-            transition: `opacity ${motion.duration.fade}ms ${motion.easing.out}`,
-            pointerEvents: "none",
-            userSelect: "none",
-          }}
-        >
-          Tap outside or press Esc to minimize
-        </Text>
-      </Portal>
 
       {/* The standalone minimized-draft bar is the desktop (`lg`+) dock — there is
           no mobile FAB row there to dock the chip into. Below `lg` the draft always

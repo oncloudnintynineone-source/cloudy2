@@ -8,14 +8,14 @@
  * `centered` at every width, so the body height tiers on how the available
  * space is used (see docs/event-lifecycle.md §1.4):
  * - Mobile: the body **fills the centered modal's box**, taking up as much
- *   vertical space as possible. The host sets `yOffset="44px"`, so Mantine
- *   centers inside a `100dvh - 88px` (2 × 44px gutter) box; subtracting the
+ *   vertical space as possible. The host sets `yOffset="16px"`, so Mantine
+ *   centers inside a `100dvh - 32px` (2 × 16px gutter) box; subtracting the
  *   modal's own chrome (sticky header ~60px + body bottom padding ~16px =
- *   76px) gives `calc(100dvh - 88px - 76px)` = `calc(100dvh - 164px)`. That
- *   keeps the top/bottom gutters equal (~44px each) and leaves room for the
- *   "Tap outside or press Esc to minimize" caption at the bottom.
+ *   76px) gives `calc(100dvh - 32px - 76px)` = `calc(100dvh - 108px)`. That
+ *   keeps the top/bottom gutters equal (~16px each) so the wizard uses nearly
+ *   the whole phone screen.
  * - Desktop: the centered modal's body grows with the viewport up to
  *   68dvh / 720px so a tall screen is actually used.
  */
-export const WIZARD_BODY_HEIGHT_MOBILE = "calc(100dvh - 164px)";
+export const WIZARD_BODY_HEIGHT_MOBILE = "calc(100dvh - 108px)";
 export const WIZARD_BODY_HEIGHT_DESKTOP = "min(68dvh, 720px, calc(100dvh - 200px))";

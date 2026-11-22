@@ -163,8 +163,6 @@ export interface FilterModalProps {
    * and keep every group expanded.
    */
   collapsedGroupLabels?: string[];
-  /** Optional dimmed hint above the actions (e.g. the per-view scope note). */
-  hint?: string;
 }
 
 /**
@@ -190,7 +188,6 @@ export function FilterModal({
   onApply,
   textFilter,
   collapsedGroupLabels,
-  hint,
   originRect = null,
 }: FilterModalProps) {
   const bodyReady = useChunkReady(loadFilterModalBody, opened);
@@ -241,7 +238,6 @@ export function FilterModal({
           textFilter={textFilter}
           onClose={onClose}
           collapsedGroupLabels={collapsedGroupLabels}
-          hint={hint}
         />
       </CrossfadeSwap>
     </MotionModal>

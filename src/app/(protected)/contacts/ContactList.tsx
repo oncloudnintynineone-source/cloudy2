@@ -663,7 +663,6 @@ export function ContactList({
         values={filterValues}
         onApply={handleApplyFilters}
         originRect={filterOriginRect}
-        hint="Filters combine with the search box."
       />
 
       <ConfirmModal

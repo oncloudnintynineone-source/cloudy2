@@ -47,7 +47,6 @@ import {
   IconX,
 } from "@tabler/icons-react";
 
-import { AgendaSwipeHint } from "@/components/AgendaSwipeHint";
 import { CrossfadeSwap } from "@/components/CrossfadeSwap";
 import { EmptyState } from "@/components/EmptyState";
 import { FilterButton } from "@/components/FilterButton";
@@ -76,12 +75,6 @@ import {
 import { buildParadeSections, type ParadeSection } from "@/lib/parade/sections";
 import { formatFullName } from "@/lib/settings/formatName";
 import { activatable } from "@/lib/ui/activatable";
-import {
-  getAgendaSwipeHintServerSnapshot,
-  getAgendaSwipeHintSnapshot,
-  markAgendaSwipeHintSeen,
-  subscribeAgendaSwipeHint,
-} from "@/lib/ui/agendaSwipeHint";
 import { useChromeHide } from "@/lib/ui/chromeHide";
 import { useKeyboardInset } from "@/lib/ui/keyboardInset";
 import { fuzzyFilter } from "@/lib/search/fuzzy";
@@ -91,7 +84,7 @@ import {
   slideViewTransition,
   type SlideClasses,
 } from "@/lib/ui/viewTransition";
-import { COARSE_POINTER_MEDIA_QUERY, DESKTOP_MEDIA_QUERY } from "@/lib/theme";
+import { DESKTOP_MEDIA_QUERY } from "@/lib/theme";
 import { saveParadeFilters } from "@/lib/userPrefs/actions";
 import { invalidateCurrentPathCaches } from "@/lib/pwa/client";
 import { EventDetail } from "../dashboard/EventDetail";
@@ -342,9 +335,7 @@ export function ParadeStateView({
   const today = dayjs().format("YYYY-MM-DD");
 
   // Day swipe (touch or mouse drag), mirroring the dashboard agenda gesture:
-  // the roster slides in from the direction of travel. The caption is
-  // touch-only and shown at most once per session (shared with the dashboard).
-  const isCoarsePointer = useMediaQuery(COARSE_POINTER_MEDIA_QUERY);
+  // the roster slides in from the direction of travel.
   // lg+ layout: the day controls stay in the sticky top chrome; below `lg`
   // they move to the floating bottom control pill (calendar-page pattern).
   const isDesktop = useMediaQuery(DESKTOP_MEDIA_QUERY);
@@ -359,12 +350,6 @@ export function ParadeStateView({
     paneRef: contentRef,
     resetKey: attendanceMode,
   });
-  const swipeHintSeen = useSyncExternalStore(
-    subscribeAgendaSwipeHint,
-    getAgendaSwipeHintSnapshot,
-    getAgendaSwipeHintServerSnapshot,
-  );
-  const showSwipeHint = isCoarsePointer && !swipeHintSeen;
   const swipedRef = useRef(false);
   // One-shot click suppression: a swipe arms `swipedRef` and the content
   // wrapper's `onClickCapture` swallows the synthesized click a drag emits
@@ -379,7 +364,6 @@ export function ParadeStateView({
       if (!state.last || state.canceled || state.tap) return;
       if (Math.abs(state.movement[0]) < DAY_SWIPE_THRESHOLD) return;
       swipedRef.current = true;
-      markAgendaSwipeHintSeen();
       shiftDay(state.movement[0] < 0 ? 1 : -1);
     },
     { axis: "lock", axisThreshold: 8, threshold: 10, filterTaps: true },
@@ -1439,7 +1423,6 @@ export function ParadeStateView({
             </CrossfadeSwap>
           </Box>
         </Box>
-        {showSwipeHint && <AgendaSwipeHint />}
       </Box>
 
       {/* The floating control pill (below `lg` only): day label + step /

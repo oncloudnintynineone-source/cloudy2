@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { pickerChipRemovable, pickerRemovalHint, pickerTriggerLabel } from "./picker";
+import { pickerChipRemovable, pickerTriggerLabel } from "./picker";
 
 describe("pickerTriggerLabel", () => {
   it("invites adding while nothing is picked", () => {
@@ -15,16 +15,6 @@ describe("pickerTriggerLabel", () => {
   it("honors caller wording overrides", () => {
     expect(pickerTriggerLabel(0, { addLabel: "Choose people" })).toBe("Choose people");
     expect(pickerTriggerLabel(2, { editLabel: "Change people" })).toBe("Change people");
-  });
-});
-
-describe("pickerRemovalHint", () => {
-  it("is silent while nothing is picked", () => {
-    expect(pickerRemovalHint(0)).toBe("");
-  });
-
-  it("names the removal gesture once chips exist", () => {
-    expect(pickerRemovalHint(1)).toContain("✕");
   });
 });
 

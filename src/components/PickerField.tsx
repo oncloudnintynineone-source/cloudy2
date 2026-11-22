@@ -12,7 +12,7 @@ import {
 } from "@mantine/core";
 import { IconPencil, IconPlus, IconX } from "@tabler/icons-react";
 
-import { pickerRemovalHint, pickerTriggerLabel } from "@/lib/ui/picker";
+import { pickerTriggerLabel } from "@/lib/ui/picker";
 
 /** One resolved summary badge: the caller maps its own id domain to these. */
 export interface PickerBadgeItem {
@@ -248,8 +248,6 @@ export interface PickerFieldProps extends PickerBadgesProps {
   count?: number;
   /** Dimmed hint under the header row (e.g. what tagging a person means). */
   description?: ReactNode;
-  /** Set false to drop the automatic "tap ✕ to remove" line. */
-  showRemovalHint?: boolean;
   /** Explicit trigger label; wins over the Add/Edit pair. */
   triggerLabel?: string;
   /** Label while nothing is picked (default "Add"). */
@@ -263,7 +261,7 @@ export interface PickerFieldProps extends PickerBadgesProps {
 /**
  * A labelled user/department picker row: an optional header (label + count +
  * description) with the state-dependent `PickerTrigger` pinned right, then the
- * `PickerBadges` summary and the removal hint. Shared by the event wizard's
+ * `PickerBadges` summary. Shared by the event wizard's
  * invitees, KAH member fields, and the Double Booking scan target; FilterModal
  * composes `PickerBadges` + `PickerTrigger` directly for its search groups.
  * Every chip in the row is a `PickerChip` — the app-wide removable-chip recipe
@@ -273,7 +271,6 @@ export function PickerField({
   label,
   count,
   description,
-  showRemovalHint = true,
   items,
   cap,
   empty,
@@ -285,7 +282,6 @@ export function PickerField({
   editLabel,
   onOpen,
 }: PickerFieldProps) {
-  const hint = showRemovalHint ? pickerRemovalHint(items.length) : "";
   return (
     <Stack gap="xs">
       <Group justify="space-between" align="center" gap="xs" wrap="nowrap">
@@ -316,11 +312,6 @@ export function PickerField({
         removeLabel={removeLabel}
         tt={tt}
       />
-      {hint !== "" && (
-        <Text size="xs" c="dimmed">
-          {hint}
-        </Text>
-      )}
     </Stack>
   );
 }
