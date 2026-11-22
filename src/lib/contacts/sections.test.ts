@@ -196,8 +196,9 @@ describe("railIndexFromPoint", () => {
 
   it("maps correctly while the rail is internally scrolled (shifted bands)", () => {
     const shifted = bands.map((band) => ({ top: band.top - 80, bottom: band.bottom - 80 }));
-    expect(railIndexFromPoint(shifted, 50)).toBe(0);
-    expect(railIndexFromPoint(shifted, 70)).toBe(1);
+    expect(railIndexFromPoint(shifted, 30)).toBe(0);
+    expect(railIndexFromPoint(shifted, 50)).toBe(1);
+    expect(railIndexFromPoint(shifted, 70)).toBe(2);
   });
 
   it("returns null for an empty rail", () => {
