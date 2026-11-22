@@ -4,7 +4,8 @@ The app is a touch-first mobile PWA, but keyboard and screen-reader users get
 first-class support too. This doc collects the assistive-tech machinery: the
 skip link, the polite live region and what feeds it, the skeleton loading
 announcements, the text alternatives on count badges, the dark-scheme
-colour-contrast rules, and the deliberate page-zoom policy.
+colour-contrast rules, the deliberate page-zoom policy, and the touch-target
+floor.
 
 ## Table of contents
 
@@ -16,7 +17,9 @@ colour-contrast rules, and the deliberate page-zoom policy.
 - [1.6 Modal minimize, draft bar & focus transfer](#16-modal-minimize-draft-bar--focus-transfer)
 - [1.7 Colour contrast in the dark scheme](#17-colour-contrast-in-the-dark-scheme)
 - [1.8 Page zoom policy](#18-page-zoom-policy)
-- [1.9 File index & related docs](#19-file-index--related-docs)
+- [1.9 Touch targets](#19-touch-targets)
+  - [1.9.1 Radio choice rows (`RadioCardGroup`)](#191-radio-choice-rows-radiocardgroup)
+- [1.10 File index & related docs](#110-file-index--related-docs)
 
 ## 1.1 Skip-to-content link
 
@@ -265,7 +268,44 @@ app ships its own zoom for the one dense surface that needs it. What remains:
   That is redundant with the global rule now, but it documents the grids' intent
   and intersects to the same value — see [`grid-pan.md`](grid-pan.md) §1.3.
 
-## 1.9 File index & related docs
+## 1.9 Touch targets
+
+The app's minimum interactive target is **44×44 px** (WCAG 2.5.5 Target Size),
+measured on the control's own hit area rather than on its visible glyph. The
+fixed chrome already meets it — the mobile FAB row's 56px circles, the wizard's
+44px draft-bar/minimize controls (§1.6), the 44px time-picker cells, the 36px
+calendar-chrome `ActionIcon`s with their tap padding. What falls short are
+compact inline controls whose whole hit area is the glyph itself. The fix is
+never a bigger glyph: it is a **row-sized wrapper**, so the target grows without
+the control changing shape.
+
+### 1.9.1 Radio choice rows (`RadioCardGroup`)
+
+The calendar page's recurring-event dialogs (`EventDetailBody`: "Edit repeating
+event" / "Delete repeating event") offer *This event / This and following
+events / All events in the series*. They shipped as bare Mantine `Radio`s — a
+20px indicator beside a 14px label, ~24px tall — which is a fingertip miss on a
+phone, and a miss in the delete dialog costs a re-opened confirmation. Each
+option is now a **full-width row** (`src/components/RadioCardGroup.tsx`): a
+Mantine `Radio.Card` at `min-height: 48px` spanning the dialog, a 24px
+`Radio.Indicator`, and an optional one-line consequence under the label.
+
+- **The whole row is the target.** The card _is_ the `role="radio"` button, so
+  the label, the indicator and the empty space all accept the tap, and the row
+  is as wide as the dialog.
+- **Semantics stay Mantine's.** `Radio.Group` renders the `radiogroup` (named by
+  its visible label, "Apply to"), each card carries `aria-checked`, and
+  Up/Down/Left/Right are roving (move + select).
+- **Selection is not colour-only.** A checked row shows the brand ring + tint
+  (`.c2-radio-card[data-checked]` in `globals.css`) **and** the indicator's
+  filled dot. The ring is an inset shadow, so selecting never reflows the row.
+- **Rows stack vertically on purpose.** Three cards side by side would each be
+  under 44px wide at 360px.
+
+Any future small-square control that must stay compact on a dense surface should
+follow the same recipe instead of enlarging the glyph.
+
+## 1.10 File index & related docs
 
 | File                                              | Role                                                              |
 | ------------------------------------------------- | ----------------------------------------------------------------- |
@@ -280,6 +320,7 @@ app ships its own zoom for the one dense surface that needs it. What remains:
 | `src/app/(protected)/dashboard/EventForm.tsx`     | Wizard step announcements                                         |
 | `src/app/(protected)/dashboard/EventDraftBar.tsx` | Minimized-draft bar + docked FAB-row chip, resume/discard targets |
 | `src/components/ColdStartReady.tsx`               | Cold-start readiness announcement                                 |
+| `src/components/RadioCardGroup.tsx`               | 44px+ radio choice rows (series scopes), `.c2-radio-card` styling |
 
 Related docs:
 

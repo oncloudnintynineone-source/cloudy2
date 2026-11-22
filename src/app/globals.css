@@ -3076,6 +3076,69 @@ html.c2-low-end::view-transition-group(*) {
 }
 
 /*
+  Touch-sized radio choice row (`RadioCardGroup`, docs/accessibility.md §1.9):
+  the calendar page's series-scope choosers ("This event" / "This and following"
+  / "All events") were bare Mantine `Radio` rows — a 20px indicator beside a
+  14px label is ~24px tall, a fingertip-sized miss on the destructive delete
+  dialog. Each option is now a full-width row of at least 48px (WCAG 2.5.5 asks
+  44×44 minimum, and the row spans the dialog's whole width), with the 24px
+  indicator supplied by `Radio.Indicator size="md"`. Selection is the brand
+  ring + tint + the indicator's filled dot — ring/tint alone would be a
+  colour-only cue. The ring is an **inset shadow** rather than a second border
+  pixel so a selection never reflows the row's contents. Base border colour and
+  radius stay Mantine's (`withBorder`, `--card-radius`), so both schemes keep
+  the shared surface language.
+*/
+.mantine-RadioCard-root.c2-radio-card {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: calc(3rem * var(--mantine-scale)); /* 48px — 44px touch floor + padding */
+  padding: calc(0.5rem * var(--mantine-scale)) calc(0.75rem * var(--mantine-scale));
+  cursor: pointer;
+  transition:
+    border-color var(--c2-dur-micro) var(--c2-ease-out),
+    background-color var(--c2-dur-micro) var(--c2-ease-out),
+    box-shadow var(--c2-dur-micro) var(--c2-ease-out);
+}
+
+.mantine-RadioCard-root.c2-radio-card:hover {
+  border-color: var(--mantine-color-gray-5);
+}
+
+.mantine-RadioCard-root.c2-radio-card[data-checked] {
+  border-color: var(--mantine-color-brand-6);
+  background-color: var(--mantine-color-brand-0);
+  box-shadow: inset 0 0 0 1px var(--mantine-color-brand-6);
+}
+
+.mantine-RadioCard-root.c2-radio-card:focus-visible {
+  outline: 2px solid var(--mantine-color-brand-6);
+  outline-offset: 2px;
+}
+
+/* The dark scheme's near-white brand-0 would glow behind a row, so the tint is
+   mixed from the body instead; brand-4 keeps the selected label and ring
+   readable on that deep surface (brand-6 is 2.6:1 there). */
+[data-mantine-color-scheme="dark"] .mantine-RadioCard-root.c2-radio-card:hover {
+  border-color: var(--mantine-color-dark-3);
+}
+
+[data-mantine-color-scheme="dark"] .mantine-RadioCard-root.c2-radio-card[data-checked] {
+  border-color: var(--mantine-color-brand-4);
+  background-color: color-mix(
+    in srgb,
+    var(--mantine-color-brand-6) 22%,
+    var(--mantine-color-dark-7)
+  );
+  box-shadow: inset 0 0 0 1px var(--mantine-color-brand-4);
+}
+
+[data-mantine-color-scheme="dark"] .mantine-RadioCard-root.c2-radio-card:focus-visible {
+  outline-color: var(--mantine-color-brand-4);
+}
+
+/*
   "External events" highlight (dashboard calendar views — see
   docs/dashboard-views.md §1.6). Events created directly in Google Calendar
   (no internal marker, no notes block) get a purple treatment per view, in

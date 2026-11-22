@@ -447,7 +447,8 @@ the floating fullscreen button — never inline in the chrome, never over the ca
   `user-scalable=no`/`maximum-scale` (ignored by iOS Safari + modern Chrome, and a WCAG 1.4.4
   audit failure), and a future surface that needs page zoom must own the gesture, since
   `touch-action` can't be re-enabled below `html`. Design:
-  [docs/accessibility.md](docs/accessibility.md) §1.7 (contrast) / §1.8 (page zoom).
+  [docs/accessibility.md](docs/accessibility.md) §1.7 (contrast) / §1.8 (page zoom) /
+  §1.9 (touch targets — 44px floor, `RadioCardGroup` choice rows).
 
 ## Conventions
 

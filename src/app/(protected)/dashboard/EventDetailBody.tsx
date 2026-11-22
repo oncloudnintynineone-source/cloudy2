@@ -8,7 +8,6 @@ import {
   Group,
   Menu,
   Progress,
-  Radio,
   Stack,
   Text,
   Tooltip,
@@ -34,6 +33,7 @@ import { CrossfadeSwap } from "@/components/CrossfadeSwap";
 import { EventDetailSkeleton } from "./EventDetailSkeleton";
 import { EventHistoryModal } from "@/components/EventHistoryModal";
 import { ConfirmModal } from "@/components/ConfirmModal";
+import { RadioCardGroup, type RadioCardOption } from "@/components/RadioCardGroup";
 import { useActionPill } from "@/components/ActionPill";
 import { PickerBadges, type PickerBadgeItem } from "@/components/PickerField";
 import { deleteEvent, setEventRegistration, type EventActionOk, type EventMutationScope } from "@/lib/events/actions";
@@ -64,6 +64,51 @@ import { ShareEventDialog } from "./ShareEventDialog";
 
 /** Chips shown before the "+N" expander in the detail modal's badge rows (C6). */
 const DETAIL_BADGE_CAP = 5;
+
+/**
+ * The series scopes the detail modal's dialogs offer, each with the consequence
+ * it has (docs/recurring-events.md §1.8/§1.9) — the one line that tells "this"
+ * apart from "this and following" without opening the docs. Both dialogs filter
+ * the list to the event's `editScopes`, so a registration series offers only
+ * "All events" and an external/custom series only "This event".
+ */
+type ScopeOption = RadioCardOption & { value: EventMutationScope };
+
+const EDIT_SCOPE_OPTIONS: readonly ScopeOption[] = [
+  {
+    value: "single",
+    label: "This event",
+    description: "Change only the occurrence you opened.",
+  },
+  {
+    value: "following",
+    label: "This and following events",
+    description: "This occurrence and the later ones become a new series.",
+  },
+  {
+    value: "series",
+    label: "All events in the series",
+    description: "Change every occurrence in the series.",
+  },
+];
+
+const DELETE_SCOPE_OPTIONS: readonly ScopeOption[] = [
+  {
+    value: "single",
+    label: "This event",
+    description: "Remove only this occurrence; the rest of the series stays.",
+  },
+  {
+    value: "following",
+    label: "This and following events",
+    description: "Remove this occurrence and every later one.",
+  },
+  {
+    value: "series",
+    label: "All events in the series",
+    description: "Remove every occurrence in the series.",
+  },
+];
 
 /**
  * Fetch the series prefill from the read-only route handler. A route (not a
@@ -918,21 +963,14 @@ export function EventDetailBody({
           zIndex={300}
         >
           {isRecurring && (
-            <Radio.Group
+            <RadioCardGroup
+              label="Apply to"
               value={deleteScope}
               onChange={(value) => setDeleteScope(value as EventMutationScope)}
-              aria-label="Delete scope"
-            >
-              <Stack gap={6} mt="xs">
-                {editScopes.includes("single") && <Radio value="single" label="This event" />}
-                {editScopes.includes("following") && (
-                  <Radio value="following" label="This and following events" />
-                )}
-                {editScopes.includes("series") && (
-                  <Radio value="series" label="All events in the series" />
-                )}
-              </Stack>
-            </Radio.Group>
+              options={DELETE_SCOPE_OPTIONS.filter((option) =>
+                editScopes.includes(option.value),
+              )}
+            />
           )}
         </ConfirmModal>
       )}
@@ -947,28 +985,19 @@ export function EventDetailBody({
         onConfirm={() => void chooseEditScope(editScope)}
         zIndex={300}
       >
-        <Radio.Group
+        <RadioCardGroup
+          label="Apply to"
           value={editScope}
           onChange={(value) => setEditScope(value as EventMutationScope)}
-          aria-label="Edit scope"
-        >
-          <Stack gap={6}>
-            <Radio value="single" label="This event" />
-            {editScopes.includes("following") && (
-              <Radio value="following" label="This and following events" />
-            )}
-            {editScopes.includes("series") && (
-              <Radio value="series" label="All events in the series" />
-            )}
-          </Stack>
-        </Radio.Group>
-        <Text size="xs" c="dimmed" mt="xs">
-          {isExternalSeries
-            ? "This series was created outside the app. Only this occurrence can be edited here."
-            : registrationEnabled
-              ? "Registration events are edited as a whole series."
-              : "This event is part of a repeating series."}
-        </Text>
+          options={EDIT_SCOPE_OPTIONS.filter((option) => editScopes.includes(option.value))}
+          description={
+            isExternalSeries
+              ? "This series was created outside the app. Only this occurrence can be edited here."
+              : registrationEnabled
+                ? "Registration events are edited as a whole series."
+                : "This event is part of a repeating series."
+          }
+        />
       </ConfirmModal>
 
       <EventHistoryModal

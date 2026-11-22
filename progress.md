@@ -18,8 +18,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.405 (Recurring edit-scope lifecycle fix + per-occurrence registration)**
-  is shipped — the first items (A1/A2/A4) off the UI/UX backlog.
+- All work through changelog **1.406 (Touch-sized series-scope chooser)** is
+  shipped — the first items (A1/A2/A4) off the UI/UX backlog.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -2836,6 +2836,22 @@ mirror them (four such entries: 1.106.1, 1.122.1, 1.316.1, 1.331.1).
     registration flag/cap changes reset occurrence exceptions. Docs:
     `registration-events.md`, `recurring-events.md` §1.11, `event-mutations.md` §1.11,
     `AGENTS.md`.
+
+  - 1.406 **Touch-sized series-scope chooser (accessibility §1.9)**: the calendar page's
+    "Edit repeating event" / "Delete repeating event" dialogs offered This event / This and
+    following / All events as bare Mantine radios — a 20px indicator beside a 14px label,
+    ~24px tall, i.e. a fingertip miss in a destructive dialog. Both choosers now render
+    through the shared **`RadioCardGroup`** (`src/components/RadioCardGroup.tsx`): one
+    full-width `Radio.Card` row per scope, `min-height: 48px`, a 24px `Radio.Indicator` and
+    a one-line consequence under each label. The whole row is the tap target (≥44×44 for the
+    width of the dialog), the `radiogroup` is named by its visible "Apply to" label, each
+    card is a `role="radio"` button with `aria-checked`, and Up/Down/Left/Right are roving.
+    Selection is a brand ring + tint **plus** the indicator's filled dot
+    (`.c2-radio-card` in `globals.css`; the ring is an inset shadow so a selection never
+    reflows the row) with scheme-scoped dark values. The option list still follows
+    `editScopes` (registration series → "All events" only, external series → "This event"
+    only). Docs: `accessibility.md` §1.9 (new touch-target section — file index renumbered
+    to §1.10), `recurring-events.md` §1.8/§1.9, `AGENTS.md`.
 
 ## 1.4 Open items & next steps
 

@@ -144,6 +144,15 @@ The detail modal's Edit action opens a scope chooser for a repeating event
 (This event / This and following / All events). Registration series offer only
 "All events"; external/custom series offer only "This event".
 
+The chooser (and the identically built delete-scope chooser in §1.9) renders
+through the shared `RadioCardGroup` (`src/components/RadioCardGroup.tsx`): one
+full-width **48px row per scope**, each carrying a one-line consequence under its
+label ("This occurrence and the later ones become a new series."). The rows are
+touch-sized on purpose — a bare `Radio` row is ~24px tall — see
+[`accessibility.md`](accessibility.md) §1.9.1. The option list is filtered to the
+modal's `editScopes`, so a registration series shows one row and an external
+series one row.
+
 ### 1.8.1 This event
 
 Updates one Google exception per target calendar. Participants, pin, owner lock
@@ -188,6 +197,8 @@ repeat turns the parent into a single event.
 - **All events:** delete each target's parent (Google removes every instance
   and exception).
 - Registration events can only be deleted as a series.
+- The delete-scope chooser reuses the same touch-sized `RadioCardGroup` rows as
+  §1.8.
 
 ## 1.10 Exceptions & cleanup
 
