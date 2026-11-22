@@ -119,9 +119,10 @@ sequenceDiagram
   A->>L: event.create + whole-calendar invalidation
 ```
 
-The wizard's **Repeat** step sits between Time and Location. The review step
-shows the human summary. A failed multi-target create rolls back every parent
-it wrote (deleting a Google parent removes its instances).
+The wizard's **Other settings** step hosts the Repeat switch and its frequency,
+interval, weekday and duration controls. The review step shows the human summary.
+A failed multi-target create rolls back every parent it wrote (deleting a Google
+parent removes its instances).
 
 ## 1.7 Read path
 
@@ -252,7 +253,6 @@ out of scope for this phase.
 | `src/lib/events/actions.ts` | Create; single/following/series update & delete; registration |
 | `src/lib/events/seriesActions.ts` | Read-only series prefill for the edit-scope chooser |
 | `src/lib/google/types.ts`, `real.ts` | `getEvent`, recurrence/timeZone, `singleEvents` option, `_R` fallback |
-| `src/app/(protected)/dashboard/EventForm.tsx` | Repeat step, scoped prefill, read-only series fields |
+| `src/app/(protected)/dashboard/EventForm.tsx` | Repeat controls in Other settings, scoped prefill, read-only series fields |
 | `src/app/(protected)/dashboard/EventDetailBody.tsx` | Repeats badge, scope chooser, scoped delete, series registration copy |
-| `src/app/(protected)/dashboard/eventFormStepLogic.ts` | Repeat step in the wizard walk |
 | `src/lib/events/recurrence.test.ts`, `occurrence.test.ts` | Pure engine/identity tests |

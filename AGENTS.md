@@ -158,8 +158,8 @@ doc content here.
 - **Recurring events:** Google recurring parents (`RRULE`) with the compact rule
   mirrored in the notes block; occurrences are identified by
   `recurringEventId` + `originalStartTime`, and the read path dedupes department
-  copies per **occurrence**, never per group. The wizard has a Repeat step;
-  edit/delete offer This event / This and following / All events (scope is
+  copies per **occurrence**, never per group. The wizard's Other settings step has
+  the Repeat controls; edit/delete offer This event / This and following / All events (scope is
   chosen before the wizard, followed by a read-only series prefill action).
   "This and following" creates a successor group and truncates the old series;
   registration is series-level. Design:

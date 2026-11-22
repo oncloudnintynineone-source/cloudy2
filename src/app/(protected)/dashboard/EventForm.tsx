@@ -9,7 +9,6 @@ import {
   Group,
   NumberInput,
   Paper,
-  Radio,
   SegmentedControl,
   Stack,
   Switch,
@@ -33,6 +32,7 @@ import {
 } from "@tabler/icons-react";
 
 import { PickerBadges, PickerField, type PickerBadgeItem } from "@/components/PickerField";
+import { NoKeyboardSelect } from "@/components/NoKeyboardSelect";
 import { EventTypeGroupGrid } from "@/components/EventTypeGroupGrid";
 import { useActionPill } from "@/components/ActionPill";
 import { TimeSelectField } from "@/components/TimeSelectField";
@@ -214,7 +214,7 @@ const STEP_BY_FIELD: Partial<Record<EventResultField | "registrationCap" | "recu
   startAmPm: "time",
   endAmPm: "time",
   registrationCap: "settings",
-  recurrence: "repeat",
+  recurrence: "settings",
 };
 
 /** Section label of the flat department list inside the invitee badge picker. */
@@ -455,18 +455,30 @@ export function EventForm({
   };
   const changeFrequency = (value: string) => {
     if (value === "none") {
+      form.clearFieldError("recurrence");
       setRecurrence(null);
       return;
     }
     const freq = value as RecurrenceFrequency;
     const startDate = form.values.start.slice(0, 10);
     const weekday = /^\d{4}-\d{2}-\d{2}$/.test(startDate) ? weekdayOf(startDate) : 1;
-    setRecurrence({
+    const base = recurrence ?? { freq, interval: 1 };
+    const next: RecurrenceRule = {
+      ...base,
       freq,
-      interval: 1,
-      ...(freq === "weekly" ? { byWeekday: [weekday] } : {}),
-    });
-    announce(`Repeats ${recurrenceSummary({ freq, interval: 1 }, form.values.start)}`);
+      byWeekday:
+        freq === "weekly" ? (base.byWeekday?.length ? base.byWeekday : [weekday]) : undefined,
+    };
+    setRecurrence(next);
+    announce(`Repeats ${recurrenceSummary(next, form.values.start)}`);
+  };
+  const toggleRepeats = (checked: boolean) => {
+    if (checked) {
+      changeFrequency("weekly");
+    } else {
+      form.clearFieldError("recurrence");
+      setRecurrence(null);
+    }
   };
   const toggleWeekday = (day: number) => {
     if (!recurrence) {
@@ -694,12 +706,7 @@ export function EventForm({
   // render (a handful of tiny objects) because its deps derive from reactive
   // form values; the type is only ever changed on step 1, so the step index
   // stays valid when the list re-derives.
-  const steps = buildSteps(
-    showLocationStep,
-    showRemarksStep,
-    showInviteesStep,
-    scope !== "single",
-  );
+  const steps = buildSteps(showLocationStep, showRemarksStep, showInviteesStep);
   const [step, setStep] = useState(0);
   // Direction of the last step change ("forward"/"backward"), used to slide the
   // entering step in from the corresponding side (see `.wizard-step-enter` in
@@ -1474,7 +1481,7 @@ export function EventForm({
       span: 6,
       node: reviewDef("When", <Text size="sm">{whenText || "—"}</Text>),
     },
-    ...(scope !== "single"
+    ...(scope !== "single" && recurrence
       ? [
           {
             key: "repeat",
@@ -1732,177 +1739,6 @@ export function EventForm({
             </div>
           ))}
 
-        {currentStep.id === "repeat" && (
-          <div
-            key={currentStep.id}
-            className="wizard-step-enter"
-            style={{ "--slide-dir": direction === "forward" ? 1 : -1 } as React.CSSProperties}
-          >
-            <Stack gap="sm">
-              <SegmentedControl
-                aria-label="Repeat frequency"
-                fullWidth
-                value={recurrence?.freq ?? "none"}
-                data={[
-                  { value: "none", label: "Does not repeat" },
-                  { value: "daily", label: "Daily" },
-                  { value: "weekly", label: "Weekly" },
-                  { value: "monthly", label: "Monthly" },
-                  { value: "yearly", label: "Yearly" },
-                ]}
-                onChange={changeFrequency}
-              />
-              {recurrence && (
-                <>
-                  <Group gap="xs" align="flex-end" wrap="nowrap">
-                    <Text size="sm" fw={500}>
-                      Every
-                    </Text>
-                    <NumberInput
-                      aria-label="Repeat interval"
-                      w={80}
-                      min={1}
-                      max={MAX_RECURRENCE_INTERVAL}
-                      allowDecimal={false}
-                      clampBehavior="blur"
-                      hideControls
-                      value={recurrence.interval}
-                      onChange={(value) =>
-                        updateRecurrence({
-                          interval:
-                            typeof value === "number"
-                              ? Math.min(
-                                  MAX_RECURRENCE_INTERVAL,
-                                  Math.max(1, Math.trunc(value)),
-                                )
-                              : 1,
-                        })
-                      }
-                    />
-                    <Text size="sm">
-                      {recurrence.freq === "daily"
-                        ? recurrence.interval === 1
-                          ? "day"
-                          : "days"
-                        : recurrence.freq === "weekly"
-                          ? recurrence.interval === 1
-                            ? "week"
-                            : "weeks"
-                          : recurrence.freq === "monthly"
-                            ? recurrence.interval === 1
-                              ? "month"
-                              : "months"
-                            : recurrence.interval === 1
-                              ? "year"
-                              : "years"}
-                    </Text>
-                  </Group>
-                  {recurrence.freq === "weekly" && (
-                    <Stack gap={6}>
-                      <Text size="sm" fw={500}>
-                        Repeat on
-                      </Text>
-                      <Group gap={6} wrap="wrap">
-                        {WEEKDAY_PICKER_ORDER.map((day) => {
-                          const selected = (recurrence.byWeekday ?? []).includes(day);
-                          return (
-                            <UnstyledButton
-                              key={day}
-                              type="button"
-                              aria-pressed={selected}
-                              aria-label={`${WEEKDAY_LABELS[day]}${selected ? ", selected" : ""}`}
-                              onClick={() => toggleWeekday(day)}
-                              style={{ cursor: "pointer" }}
-                            >
-                              <Badge
-                                size="lg"
-                                variant={selected ? "filled" : "light"}
-                                styles={{ root: { minHeight: 36, minWidth: 48 } }}
-                              >
-                                {WEEKDAY_LABELS[day]}
-                              </Badge>
-                            </UnstyledButton>
-                          );
-                        })}
-                      </Group>
-                      <Text size="xs" c="dimmed">
-                        Keep the start day selected. Months without the start day are skipped for
-                        monthly repeats.
-                      </Text>
-                    </Stack>
-                  )}
-                  <Radio.Group
-                    aria-label="Repeat duration"
-                    value={recurrenceDuration}
-                    onChange={changeDuration}
-                  >
-                    <Stack gap="xs">
-                      <Radio value="forever" label="Forever" />
-                      <Group gap="xs" align="center" wrap="nowrap">
-                        <Radio value="count" label="After" />
-                        <NumberInput
-                          aria-label="Number of occurrences"
-                          w={90}
-                          min={2}
-                          max={MAX_RECURRENCE_COUNT}
-                          allowDecimal={false}
-                          clampBehavior="blur"
-                          hideControls
-                          disabled={recurrenceDuration !== "count"}
-                          value={recurrence.count ?? 10}
-                          onChange={(value) =>
-                            updateRecurrence({
-                              count:
-                                typeof value === "number"
-                                  ? Math.min(MAX_RECURRENCE_COUNT, Math.max(2, Math.trunc(value)))
-                                  : 10,
-                            })
-                          }
-                        />
-                        <Text size="sm">occurrences</Text>
-                      </Group>
-                      <Group gap="xs" align="center" wrap="nowrap">
-                        <Radio value="until" label="Until" />
-                        <DatePickerInput
-                          aria-label="Repeat until"
-                          valueFormat="YYYY-MM-DD"
-                          placeholder="End date"
-                          disabled={recurrenceDuration !== "until"}
-                          value={recurrence.until ?? null}
-                          minDate={
-                            /^\d{4}-\d{2}-\d{2}$/.test(form.values.start.slice(0, 10))
-                              ? new Date(`${form.values.start.slice(0, 10)}T00:00:00`)
-                              : undefined
-                          }
-                          onChange={(value) =>
-                            updateRecurrence({
-                              until: value ? String(value).slice(0, 10) : null,
-                            })
-                          }
-                          style={{ flex: 1 }}
-                        />
-                      </Group>
-                    </Stack>
-                  </Radio.Group>
-                  <Paper withBorder p="xs" bg="var(--mantine-color-gray-0)">
-                    <Text size="sm" fw={500} style={{ overflowWrap: "anywhere" }}>
-                      {recurrenceText}
-                    </Text>
-                    <Text size="xs" c="dimmed">
-                      Changing the repeat pattern later resets individually edited occurrences.
-                    </Text>
-                  </Paper>
-                </>
-              )}
-              {form.errors.recurrence && (
-                <Text size="xs" c="red">
-                  {form.errors.recurrence}
-                </Text>
-              )}
-            </Stack>
-          </div>
-        )}
-
         {currentStep.id === "location" && (
           <div
             key={currentStep.id}
@@ -2076,11 +1912,11 @@ export function EventForm({
           </div>
         )}
 
-        {/* Other settings: pin + the organizer-only edit lock + per-event
-            registration, grouped on their own always-present step before the
-            read-only review. The ownership controls are only relevant when the
-            acting user is the organizer or an admin (`canSetOwnerLock`); other
-            editors never see them. Registration requires the lock. */}
+        {/* Other settings: repeat controls + pin + the organizer-only edit lock
+            + per-event registration, grouped on their own always-present step
+            before the read-only review. The ownership controls are only relevant
+            when the acting user is the organizer or an admin (`canSetOwnerLock`);
+            other editors never see them. Registration requires the lock. */}
         {currentStep.id === "settings" && (
           <div
             key={currentStep.id}
@@ -2095,6 +1931,171 @@ export function EventForm({
                 </Text>
               ) : (
                 <>
+              <Switch
+                label="Repeats"
+                description="Create a repeating series. Changing the pattern later resets individually edited occurrences."
+                checked={Boolean(recurrence)}
+                onChange={(event) => toggleRepeats(event.currentTarget.checked)}
+              />
+              {recurrence && (
+                <Stack gap="sm">
+                  <NoKeyboardSelect
+                    label="Frequency"
+                    data={[
+                      { value: "daily", label: "Daily" },
+                      { value: "weekly", label: "Weekly" },
+                      { value: "monthly", label: "Monthly" },
+                      { value: "yearly", label: "Yearly" },
+                    ]}
+                    value={recurrence.freq}
+                    allowDeselect={false}
+                    onChange={(value) => {
+                      if (value) {
+                        changeFrequency(value);
+                      }
+                    }}
+                  />
+                  <Group gap="xs" align="flex-end" wrap="nowrap">
+                    <NumberInput
+                      label="Every"
+                      w={88}
+                      min={1}
+                      max={MAX_RECURRENCE_INTERVAL}
+                      allowDecimal={false}
+                      clampBehavior="blur"
+                      hideControls
+                      value={recurrence.interval}
+                      onChange={(value) =>
+                        updateRecurrence({
+                          interval:
+                            typeof value === "number"
+                              ? Math.min(
+                                  MAX_RECURRENCE_INTERVAL,
+                                  Math.max(1, Math.trunc(value)),
+                                )
+                              : 1,
+                        })
+                      }
+                    />
+                    <Text size="sm" pb={6}>
+                      {recurrence.freq === "daily"
+                        ? recurrence.interval === 1
+                          ? "day"
+                          : "days"
+                        : recurrence.freq === "weekly"
+                          ? recurrence.interval === 1
+                            ? "week"
+                            : "weeks"
+                          : recurrence.freq === "monthly"
+                            ? recurrence.interval === 1
+                              ? "month"
+                              : "months"
+                            : recurrence.interval === 1
+                              ? "year"
+                              : "years"}
+                    </Text>
+                  </Group>
+                  {recurrence.freq === "weekly" && (
+                    <Stack gap={6}>
+                      <Text size="sm" fw={500}>
+                        Repeat on
+                      </Text>
+                      <Group gap={6} wrap="wrap">
+                        {WEEKDAY_PICKER_ORDER.map((day) => {
+                          const selected = (recurrence.byWeekday ?? []).includes(day);
+                          return (
+                            <UnstyledButton
+                              key={day}
+                              type="button"
+                              aria-pressed={selected}
+                              aria-label={`${WEEKDAY_LABELS[day]}${selected ? ", selected" : ""}`}
+                              onClick={() => toggleWeekday(day)}
+                              style={{ cursor: "pointer" }}
+                            >
+                              <Badge
+                                size="lg"
+                                variant={selected ? "filled" : "light"}
+                                styles={{
+                                  root: { minHeight: "var(--c2-chip-height)" },
+                                }}
+                              >
+                                {WEEKDAY_LABELS[day]}
+                              </Badge>
+                            </UnstyledButton>
+                          );
+                        })}
+                      </Group>
+                    </Stack>
+                  )}
+                  <Stack gap={6}>
+                    <Text size="sm" fw={500}>
+                      Ends
+                    </Text>
+                    <SegmentedControl
+                      fullWidth
+                      aria-label="Repeat duration"
+                      value={recurrenceDuration}
+                      data={[
+                        { value: "forever", label: "Forever" },
+                        { value: "count", label: "After" },
+                        { value: "until", label: "Until" },
+                      ]}
+                      onChange={changeDuration}
+                    />
+                    {recurrenceDuration === "count" && (
+                      <Group gap="xs" align="center" wrap="nowrap">
+                        <NumberInput
+                          aria-label="Number of occurrences"
+                          w={88}
+                          min={2}
+                          max={MAX_RECURRENCE_COUNT}
+                          allowDecimal={false}
+                          clampBehavior="blur"
+                          hideControls
+                          value={recurrence.count ?? 10}
+                          onChange={(value) =>
+                            updateRecurrence({
+                              count:
+                                typeof value === "number"
+                                  ? Math.min(MAX_RECURRENCE_COUNT, Math.max(2, Math.trunc(value)))
+                                  : 10,
+                            })
+                          }
+                        />
+                        <Text size="sm">occurrences</Text>
+                      </Group>
+                    )}
+                    {recurrenceDuration === "until" && (
+                      <DatePickerInput
+                        aria-label="Repeat until"
+                        valueFormat="YYYY-MM-DD"
+                        placeholder="End date"
+                        value={recurrence.until ?? null}
+                        minDate={
+                          /^\d{4}-\d{2}-\d{2}$/.test(form.values.start.slice(0, 10))
+                            ? new Date(`${form.values.start.slice(0, 10)}T00:00:00`)
+                            : undefined
+                        }
+                        onChange={(value) =>
+                          updateRecurrence({
+                            until: value ? String(value).slice(0, 10) : null,
+                          })
+                        }
+                        attributes={{ input: { readOnly: true } }}
+                        popoverProps={{ trapFocus: false }}
+                      />
+                    )}
+                  </Stack>
+                  <Text size="xs" c="dimmed">
+                    {recurrenceText}
+                  </Text>
+                  {form.errors.recurrence && (
+                    <Text size="xs" c="red">
+                      {form.errors.recurrence}
+                    </Text>
+                  )}
+                </Stack>
+              )}
               <Switch
                 label="Pin this event"
                 description="Show this event in the Pinned Events panel and header ticker for the departments you choose."

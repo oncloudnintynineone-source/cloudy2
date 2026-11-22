@@ -10825,11 +10825,12 @@ compact `{freq, interval, byWeekday?, count?, until?}` rule plus `override` and
 Events collapse a series to one row; deep links pick the occurrence by `?date=`; KAH/clash
 dedupe by occurrence and suppress same-series self-clashes.
 
-**Write path.** Repeat step + validation; create writes the RRULE and SGT timeZone; This
-event creates an exception per target, This and following creates a successor first, removes
-future exceptions then truncates the old parents (idempotent via lineage notes), All events
-full-replaces each parent preserving EXDATE/RDATE and resets exceptions on a pattern change.
-Registration is series-level; single/following edits/deletes are rejected there.
+**Write path.** Repeat controls in Other settings + validation; create writes the RRULE and
+SGT timeZone; This event creates an exception per target, This and following creates a
+successor first, removes future exceptions then truncates the old parents (idempotent via
+lineage notes), All events full-replaces each parent preserving EXDATE/RDATE and resets
+exceptions on a pattern change. Registration is series-level; single/following edits/deletes
+are rejected there.
 
 **Google layer.** `getEvent`, recurrence/timeZone writes, `singleEvents:false` list mode
 (also fixes the event-type migration), `_R` PUT→PATCH fallback, occurrence metadata in the

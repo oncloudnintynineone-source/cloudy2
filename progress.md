@@ -2806,8 +2806,8 @@ mirror them (four such entries: 1.106.1, 1.122.1, 1.316.1, 1.331.1).
     Occurrence identity is `recurringEventId` + `originalStartTime`, so the read path now
     dedupes department copies **per occurrence** (grids/search/parade/KAH/double-booking
     keep every occurrence; Pinned Events and My Events collapse a series to its next/earliest
-    row; deep links pick the matching occurrence by `?date=`). The wizard gained a Repeat
-    step; edit/delete offer This event / This and following / All events, with the scope
+    row; deep links pick the matching occurrence by `?date=`). Other settings gained the
+    Repeat controls; edit/delete offer This event / This and following / All events, with the scope
     chosen before the wizard (a read-only `loadEventSeriesPrefill` action feeds the series
     anchor or the remaining rule). "This and following" creates a successor series first,
     removes the old future exceptions, then truncates the old parents; retries reuse the

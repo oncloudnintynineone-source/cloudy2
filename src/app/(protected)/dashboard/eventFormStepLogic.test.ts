@@ -10,7 +10,6 @@ import {
 const ALL_STEP_IDS: StepId[] = [
   "type",
   "time",
-  "repeat",
   "location",
   "invitees",
   "remarks",
@@ -27,14 +26,9 @@ describe("buildSteps", () => {
     expect(buildSteps(false, false, false).map((step) => step.id)).toEqual([
       "type",
       "time",
-      "repeat",
       "settings",
       "review",
     ]);
-  });
-
-  it("omits the repeat step for a single-occurrence edit", () => {
-    expect(buildSteps(true, true, true, false).map((step) => step.id)).not.toContain("repeat");
   });
 
   it("keeps the time fields gated and the other sections free to advance", () => {

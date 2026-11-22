@@ -76,7 +76,7 @@ pipeline solves:
   contract but the app does not set it — visibility is expressed through calendar ACLs
   ([`roster-sharing.md`](roster-sharing.md)), not per-event attendees.
 - Recurring events are supported as Google recurring series; see
-  [`recurring-events.md`](recurring-events.md) for the Repeat step, scopes and
+  [`recurring-events.md`](recurring-events.md) for the Repeat controls, scopes and
   occurrence identity.
 - No client-side title rendering is authoritative: the form's preview is a convenience
   (§1.8.3).
@@ -133,7 +133,7 @@ its draft. It is a **staged walk** — one input group visible at a time, built 
 | 3   | `location`                  | all | none (policy clamping is live, §1.9)                                                      |
 | 4   | `invitees` (Participants)   | all | none                                                                                      |
 | 5   | `remarks`                   | all | none                                                                                      |
-| 6   | `settings` (Other settings) | all | none — the "Pin this event" switch (+ its department picker) and organizer-only edit-lock |
+| 6   | `settings` (Other settings) | all | none — Repeat controls, the "Pin this event" switch (+ its department picker), the organizer-only edit-lock |
 | 7   | `review`                    | all | submit only (last step) — read-only summary of everything entered                         |
 
 The `invitees`, `remarks`, and `location` steps drop out per the selected type's config
@@ -216,7 +216,8 @@ Mechanics worth knowing:
   creation and never changed by an edit (the server re-derives it from the event itself,
   §1.5.2). Review always shows an **Organizer** row (the stored organizer, or "You" on a
   new/legacy-adopting event).
-- **Other settings**: the always-present "settings" step groups the two switches —
+- **Other settings**: the always-present "settings" step groups the **Repeats**
+  control (frequency/interval/duration; see [`recurring-events.md`](recurring-events.md)),
   **Pin this event** (sets the notes `pinned` flag, §Pinned Events) and the
   **organizer-only edit lock** — a switch shown only when the acting user is the
   organizer or an admin that sets the notes `ownerOnlyEdits` flag. It reads

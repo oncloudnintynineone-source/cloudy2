@@ -1,15 +1,7 @@
 import type { EventFormValues } from "@/lib/events/validate";
 
 /** Wizard step ids for the staged event form. */
-export type StepId =
-  | "type"
-  | "time"
-  | "repeat"
-  | "location"
-  | "invitees"
-  | "remarks"
-  | "settings"
-  | "review";
+export type StepId = "type" | "time" | "location" | "invitees" | "remarks" | "settings" | "review";
 
 export interface StepDef {
   id: StepId;
@@ -25,22 +17,18 @@ export interface StepDef {
  * exclusively in-camp type keeps the step but collapses the category selector
  * to a single, disabled option while still offering an optional specific
  * location. Types with remarks or invitees disabled have neither step.
- * Everyone passes through the always-present "Other settings" step (Pin +
- * organizer-only edit lock + per-event registration) and ends on a read-only
- * review of everything entered so far.
+ * Everyone passes through the always-present "Other settings" step (repeat
+ * controls, Pin + organizer-only edit lock + per-event registration) and ends on
+ * a read-only review of everything entered so far.
  */
 export function buildSteps(
   showLocationStep: boolean,
   showRemarksStep: boolean,
   showInviteesStep: boolean,
-  showRepeatStep = true,
 ): StepDef[] {
   return [
     { id: "type", fields: [] },
     { id: "time", fields: ["start", "end", "startAmPm", "endAmPm"] },
-    ...(showRepeatStep
-      ? [{ id: "repeat", fields: ["recurrence"] } satisfies StepDef]
-      : []),
     ...(showLocationStep ? [{ id: "location", fields: [] } satisfies StepDef] : []),
     ...(showInviteesStep ? [{ id: "invitees", fields: [] } satisfies StepDef] : []),
     ...(showRemarksStep ? [{ id: "remarks", fields: [] } satisfies StepDef] : []),
@@ -58,7 +46,6 @@ export function buildSteps(
 export const STEP_LABELS: Record<StepId, string> = {
   type: "Type",
   time: "Time",
-  repeat: "Repeat",
   location: "Location",
   invitees: "Participants",
   remarks: "Remarks",
@@ -70,7 +57,6 @@ export const STEP_LABELS: Record<StepId, string> = {
 export const STEP_SHORT_LABELS: Record<StepId, string> = {
   type: "Type",
   time: "Time",
-  repeat: "Repeat",
   location: "Location",
   invitees: "Participants",
   remarks: "Remarks",
