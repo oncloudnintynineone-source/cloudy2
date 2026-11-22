@@ -287,8 +287,10 @@ events / All events in the series*. They shipped as bare Mantine `Radio`s — a
 20px indicator beside a 14px label, ~24px tall — which is a fingertip miss on a
 phone, and a miss in the delete dialog costs a re-opened confirmation. Each
 option is now a **full-width row** (`src/components/RadioCardGroup.tsx`): a
-Mantine `Radio.Card` at `min-height: 48px` spanning the dialog, a 24px
-`Radio.Indicator`, and an optional one-line consequence under the label.
+borderless Mantine `Radio.Card` at `min-height: 48px` spanning the dialog, a
+24px `Radio.Indicator`, and an optional one-line consequence under the label.
+The chooser therefore reads as one list rather than three boxed cards; a neutral
+hover fill gives the row pointer feedback.
 
 - **The whole row is the target.** The card _is_ the `role="radio"` button, so
   the label, the indicator and the empty space all accept the tap, and the row
@@ -296,9 +298,9 @@ Mantine `Radio.Card` at `min-height: 48px` spanning the dialog, a 24px
 - **Semantics stay Mantine's.** `Radio.Group` renders the `radiogroup` (named by
   its visible label, "Apply to"), each card carries `aria-checked`, and
   Up/Down/Left/Right are roving (move + select).
-- **Selection is not colour-only.** A checked row shows the brand ring + tint
-  (`.c2-radio-card[data-checked]` in `globals.css`) **and** the indicator's
-  filled dot. The ring is an inset shadow, so selecting never reflows the row.
+- **Selection is not colour-only.** A checked row shows the brand tint **and**
+  the indicator's filled dot; there is no row outline. Keyboard focus still
+  draws the shared brand `:focus-visible` outline.
 - **Rows stack vertically on purpose.** Three cards side by side would each be
   under 44px wide at 360px.
 

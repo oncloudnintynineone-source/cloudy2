@@ -27,10 +27,11 @@ export interface RadioCardGroupProps {
  * bare Mantine `Radio`s. A plain radio row is a 20px indicator beside a 14px
  * label — ~24px tall, well under the 44px fingertip floor, which is a real miss
  * risk on the calendar page's series-scope choosers (docs/accessibility.md
- * §1.9). Each option here is a `Radio.Card`: the whole row (≥ 48px tall, the
- * dialog's full width) is the tap target, the indicator grows to 24px, and the
- * selected row carries a brand ring + tint so the choice is readable at a
- * glance in both colour schemes (`.c2-radio-card` in `globals.css`).
+ * §1.9). Each option here is a borderless `Radio.Card`: the whole row (≥ 48px
+ * tall, the dialog's full width) is the tap target, the indicator grows to
+ * 24px, and the selected row carries a brand tint + the indicator's filled dot
+ * so the choice is readable at a glance in both colour schemes
+ * (`.c2-radio-card` in `globals.css`).
  *
  * Semantics come from Mantine: `Radio.Group` renders a `radiogroup` named by
  * `label`, each card is a `role="radio"` button with `aria-checked`, and the
@@ -60,6 +61,7 @@ export function RadioCardGroup({
             key={option.value}
             value={option.value}
             className="c2-radio-card"
+            withBorder={false}
             disabled={disabled}
           >
             <Group gap="sm" align="center" wrap="nowrap">
