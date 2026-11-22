@@ -43,6 +43,7 @@ export function EventDetail({
   readOnly = false,
   onOpenInCalendar,
   onRegistrationChanged,
+  onViewDeletedHistory,
   loading = false,
   zIndex,
 }: EventDetailProps) {
@@ -103,6 +104,7 @@ export function EventDetail({
             readOnly={readOnly}
             onOpenInCalendar={onOpenInCalendar}
             onRegistrationChanged={onRegistrationChanged}
+            onViewDeletedHistory={onViewDeletedHistory}
             loading={loading}
           />
         </CrossfadeSwap>

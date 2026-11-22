@@ -393,6 +393,16 @@ the dashboard chrome. Render from a small typed content module, not a new CMS.
 **Effort.** M. **Respect.** It must not become a second source of truth for the user guide — link
 out, don't fork the prose.
 
+**Status.** Shipped **1.400** (2026-11-22): a `GuideSheet` modal rendered from the typed content
+module `src/lib/help/guideContent.ts` (pure route matcher, unit-tested) — one short "what this page
+is for" block per route, the current page's block first with a "This page" badge, and a footer
+pointing to the admin-held user guide (no prose forked; there is no hosted guide URL to link).
+Opened from the profile menu at every width **and** a **"?"** circle in the dashboard chrome — the
+wide toolbar's right-anchored tail and the mobile control pill (the compact tier's squircle is
+full, so there the profile menu is the entry). The **shortcut list is deliberately absent**: it was
+sourced from B5, which is not built, and a guide must not advertise folklore — add the section when
+B5 ships. §1.10.1.
+
 ### 1.7.2 D5 — saving the only preference reloads the whole document
 
 **Evidence.** `src/components/PreferencesModal.tsx:61` calls `window.location.reload()` after
@@ -407,6 +417,14 @@ document reload. Keep the dialog's layout extensible so a future control needs n
 
 **Effort.** S. **Respect.** The week start changes the fetch set for every week/month grid — the
 snapshot clear must stay, only the reload goes.
+
+**Status.** Shipped **1.400** (2026-11-22): the dialog now clears the snapshots (kept), fires a
+`cloudy2:prefs-changed` window event (`src/lib/ui/prefsChanged.ts`, mirroring the
+`events-changed` bus), confirms with a green toast and closes. A mounted `DashboardScreen` listens
+and calls its own `revalidate()` — the fresh record carries the new `weekStartsOn` and every grid
+rebuilds in place; scroll, drafts and warm state survive. On other routes no listener exists and
+none is needed: the cleared snapshots make the next dashboard visit re-read (Parade State's
+server-read week start refreshes on its next mount). §1.10.1.
 
 ### 1.7.3 D6 — success feedback is split between the action pill and raw toasts
 
@@ -424,6 +442,14 @@ confirmation → toast** — and migrate the actionable cases (e.g. "View delete
 **Effort.** S. **Respect.** The `savedEventToastVariant` flag already owns the post-save
 presentation (`docs/feature-flags.md`); don't fork that path — extend it.
 
+**Status.** Shipped **1.400** (2026-11-22): the boundary — **actionable → pill, inert confirmation
+→ toast** — is now stated in [`action-pill.md`](action-pill.md) §1.2. Migrated: the delete success
+in `EventDetailBody` is a pill offering **History**, opening the shared `EventHistoryModal` hosted
+by `DashboardView` (the details modal is gone by tap time; payload-less external events and hosts
+without a trail modal keep the green toast). Audited the other cited sites: `EditViewsModalBody`
+"View updated"/"View deleted" are inert confirmations (the boundary legitimizes the toast), and
+`EventForm.tsx:1042` is the flag's own `toastPlain` variant — flag-owned, untouched. §1.10.1.
+
 ### 1.7.4 D7 — offline writes fail after the user has done the work
 
 **Evidence.** [`user-guide.md`](user-guide.md) §1.10: "Offline is **read-only** — creating or editing
@@ -439,6 +465,18 @@ one-line reason, and route the user to the wizard draft (which already survives 
 
 **Effort.** S–M. **Respect.** Offline detection must be an enhancement, never a gate that
 misfires on a flaky connection; the server remains the authority.
+
+**Status.** Shipped **1.400** (2026-11-22): the connectivity signal is one shared hook,
+`useIsOffline` (`src/lib/ui/onlineStatus.ts` — the SSR-safe pattern the amber `OfflineBanner`
+already used, now refactored onto it, so strip and affordances can't disagree). While
+`navigator.onLine === false`: every wizard start is refused at the single `requestFormStart` choke
+point (nav button, FAB, day modal, agenda button alike) with a one-line toast reason, the New-event
+affordances render disabled beside the standing amber banner, and the wizard's
+"Create event"/"Save changes" submit is disabled with a quiet one-liner — *"You're offline — your
+draft is saved. Reconnect to submit."* — plus an `announce()` guard for implicit Enter-submits. The
+draft itself is untouched by all of it (it already survived minimize and reload), and because only
+a genuinely interface-less device reports offline, a flaky connection never trips the gate.
+§1.10.1.
 
 ## 1.8 Workflow level
 
@@ -531,7 +569,7 @@ Order is fixed; held items were removed without renumbering or re-ranking anythi
 
 ```mermaid
 flowchart TD
-  T1["Tier 1 — days, low risk<br/>B1 · B4 · C1 · C6 · D5 · D6"] --> T2["Tier 2 — a sprint<br/>B3 · B5 · C2 · C3 · C4 · C5 · D2 · D7"]
+  T1["Tier 1 — days, low risk<br/>B1 · B4 · C1 · C6"] --> T2["Tier 2 — a sprint<br/>B3 · B5 · C2 · C3 · C4 · C5"]
   T2 --> T3["Tier 3 — design-gated<br/>E3 · E6 hint"]
   T3 --> T4["Tier 4 — feature specs<br/>E1 · E4 · E6 sync"]
   H["Held — not scheduled<br/>A3 · A5 · A6 · B2 · D1 · D3 · D4 · E2 · E5"]
@@ -539,13 +577,12 @@ flowchart TD
 
 | Tier | Items | Why here |
 | --- | --- | --- |
-| **1 — days, low risk** | B1, B4, C1, C6, D5, D6 | Missing-affordance and correctness fixes. Each is local, reversible, needs no schema or data change, and closes a gap the codebase already knows about (B1). A1/A2/A4 left this tier shipped (§1.10.1). |
-| **2 — a sprint** | B3, B5, C2, C3, C4, C5, D2, D7 | Keyboard parity, the legibility floor, find-things surfaces, and guidance. Take **B5 before D2** so the guide sheet documents shortcuts that exist. |
+| **1 — days, low risk** | B1, B4, C1, C6 | Missing-affordance and correctness fixes. Each is local, reversible, needs no schema or data change, and closes a gap the codebase already knows about (B1). A1/A2/A4 and D5/D6 left this tier shipped (§1.10.1). |
+| **2 — a sprint** | B3, B5, C2, C3, C4, C5 | Keyboard parity, the legibility floor, and find-things surfaces. D2 shipped ahead of the tier (§1.10.1) **without** its shortcut section — fold that section in when B5 lands, per the original "B5 before D2" note. |
 | **3 — design-gated** | E3, E6-hint | Advisory and messaging that must be designed against the clashes engine and attendance docs rather than bolted on. |
 | **4 — feature work** | E1, E4, E6-sync | Each needs its own spec, schema, and subsystem doc. |
 
-**Intra-tier notes.** C1 and C6 are independent of everything else. D6 depends on no other item —
-it is a routing change, not a new component.
+**Intra-tier notes.** C1 and C6 are independent of everything else.
 
 ### 1.10.1 Shipped
 
@@ -557,6 +594,10 @@ land here.
 | A1 | 1.399 (2026-11-22) | Off-today-only Today jump, never inline and never over the canvas: at `lg`+ a **"Back to Today"** pill floats in the date-nav row's permanently empty center (compact desktop tier: an icon circle stacked under the floating fullscreen button); below `lg` a 56px frosted circle joins the FAB row left of the `[< \| >]` step pill (right-anchored, so existing controls never shift). Pure `isOffToday` (`src/lib/ui/todayAffordance.ts` + tests). Tap runs the existing `goToday` cross-slide + replace; intent prefetch like the chevrons; sr announcement rides the existing chrome watcher. Documented in [`dashboard-views.md`](dashboard-views.md) §1.1 (Today-jump bullet) and [`user-guide.md`](user-guide.md) §1.3.2. |
 | A2 | 1.399 (2026-11-22) | `user-guide.md` §1.3.1/§1.3.2 and `dashboard-views.md` §1.1/§1.2 describe the real chrome — no ⋮ menu, shared `FullscreenButton`, the A1 control — and no held item is described as existing. |
 | A4 | 1.399 (2026-11-22) | `navigate`/`navigateLocal`, the in-month agenda-day anchor and the one-shot `edit`/`event` strips `router.replace(…, { scroll: false })`; deep links, post-save nav and `openClashEventInCalendar` keep `push`. Back leaves the calendar in one press; the cookie path is history-method-agnostic (verified). |
+| D2 | 1.400 (2026-11-22) | In-app **Guide** sheet (`src/components/GuideSheet.tsx`) rendered from the typed `src/lib/help/guideContent.ts` (route matcher unit-tested): one short block per route, current page first. Opened from the profile menu at every width and a "?" circle in the dashboard chrome (wide toolbar tail + mobile control pill; compact tier → profile menu). Shortcut section deferred to B5 by design; the user guide's prose is not forked. |
+| D5 | 1.400 (2026-11-22) | Preferences save = snapshot clear + `cloudy2:prefs-changed` (`src/lib/ui/prefsChanged.ts`) + toast + close — no `window.location.reload()`. `DashboardScreen` listens and `revalidate()`s in place; grids rebuild from the fresh record with the new week start. |
+| D6 | 1.400 (2026-11-22) | Boundary stated in [`action-pill.md`](action-pill.md) §1.2 (actionable → pill, inert → toast). Delete success is now a pill offering **History** (trail modal hosted by `DashboardView`); inert toasts and the flag-owned post-save path audited and left as-is. |
+| D7 | 1.400 (2026-11-22) | Shared `useIsOffline` (`src/lib/ui/onlineStatus.ts`, `OfflineBanner` refactored onto it). Offline: wizard starts refused at `requestFormStart` with a reason toast, New-event affordances disabled, wizard submit disabled with a "draft is saved" one-liner + `announce()` guard. Drafts untouched; conservative signal only. |
 
 ## 1.11 Implementation guardrails
 

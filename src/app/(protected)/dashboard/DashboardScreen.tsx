@@ -49,6 +49,7 @@ import { takeDashboardBoot } from "@/lib/dashboard/boot";
 import { mark } from "@/lib/perf/marks";
 import { canPreloadTabs, canWarmRoutes } from "@/lib/pwa/warmup";
 import { resolveActiveTab, type DashboardViewTab } from "@/lib/dashboardViews/views";
+import { PREFS_CHANGED_EVENT } from "@/lib/ui/prefsChanged";
 import type { MonthZoom } from "@/lib/ui/monthZoom";
 import type { SlotZoom } from "@/lib/ui/slotZoom";
 
@@ -1014,6 +1015,18 @@ export function DashboardScreen({
     },
     [fetchFresh, userId, setWarmRecords],
   );
+
+  // Account preference saved (today: week start, docs/ui-ux-improvements.md
+  // D5): the dialog has already cleared the device snapshots and bumped the
+  // server value, so a plain revalidate re-reads the active context with the
+  // new week start and every grid rebuilds from the fresh record — no document
+  // reload, no lost scroll or drafts. On other routes no listener exists, and
+  // the cleared snapshots make the next dashboard visit re-read anyway.
+  useEffect(() => {
+    const onPrefsChanged = () => revalidate();
+    window.addEventListener(PREFS_CHANGED_EVENT, onPrefsChanged);
+    return () => window.removeEventListener(PREFS_CHANGED_EVENT, onPrefsChanged);
+  }, [revalidate]);
 
   // Optimistic View edit (rename / kind change from Manage views): patch the
   // held snapshot's tab definition in place so the strip and the manage list

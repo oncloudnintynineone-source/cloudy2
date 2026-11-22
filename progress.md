@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.399 (dashboard Today jump + replace-based view navigation)**
+- All work through changelog **1.400 (Guide sheet, in-place preferences, delete→History pill, offline-aware wizard)**
   is shipped — the first items (A1/A2/A4) off the UI/UX backlog.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
@@ -2722,6 +2722,29 @@ mirror them (four such entries: 1.106.1, 1.122.1, 1.316.1, 1.331.1).
    shared `FullscreenButton`) plus the new control. Docs: `dashboard-views.md`
    §1.1 (Today-jump bullet)/§1.2, `user-guide.md` §1.3, `ui-ux-improvements.md` §1.10.1 (Shipped),
    `AGENTS.md`.
+ - 1.400 **In-app Guide, in-place preferences, delete→History pill, offline-aware wizard (UI/UX
+   backlog D2/D5/D6/D7)**: four shipped findings. **D2**: a **Guide** sheet
+   (`src/components/GuideSheet.tsx`) rendered from a typed content module
+   (`src/lib/help/guideContent.ts`, route matcher unit-tested) — one short "what this page is
+   for" block per route, the current page first with a "This page" badge; opened from the
+   profile menu at every width and a **?** circle in the dashboard chrome (wide toolbar tail +
+   mobile control pill; compact tier → profile menu). The shortcut section is deliberately
+   absent until B5 ships; the user guide's prose is not forked. **D5**: saving **Preferences**
+   no longer reloads the document — the dialog clears the snapshots, fires
+   `cloudy2:prefs-changed` (`src/lib/ui/prefsChanged.ts`), confirms and closes; a mounted
+   `DashboardScreen` listens and `revalidate()`s, so the grids rebuild with the new week start
+   while scroll, drafts and warm state survive. **D6**: the pill-vs-toast boundary is now
+   written down (`action-pill.md` §1.2 — actionable → pill, inert confirmation → toast) and
+   the delete success is an action pill offering **History**, opening the shared
+   `EventHistoryModal` hosted by `DashboardView` (payload-less events and hosts without a
+   trail modal keep the green toast). **D7**: one shared `useIsOffline` hook
+   (`src/lib/ui/onlineStatus.ts`, `OfflineBanner` refactored onto it) — while offline every
+   wizard start is refused at the `requestFormStart` choke point with a reason toast, the
+   New-event affordances render disabled beside the amber banner, and the wizard's submit is
+   disabled with a "your draft is saved" one-liner (+ `announce()` guard); drafts stay
+   resumable and the conservative signal never gates a flaky connection. Docs:
+   `ui-ux-improvements.md` (statuses + Shipped), `action-pill.md` §1.2, `user-guide.md`
+   §1.2/§1.3/§1.10, `dashboard-views.md` §1.1/§1.2, `AGENTS.md`.
 
 ## 1.4 Open items & next steps
 

@@ -230,8 +230,8 @@ doc content here.
   recipe (`reorderUpDown.tsx`, `variant="subtle"`) + optimistic `useReorderRows` FLIP. Below
   `lg` the chrome **splits**: a thin view-name strip stays pinned at the top,
   and the date controls move to **floating bottom rows** — a frosted
-  control pill (period label left + circular **search**/filter/date/view/**fullscreen**
-  buttons right, inset 16px from the viewport edges) bottom-most, with the
+  control pill (period label left + circular **search**/filter/date/view/**fullscreen**/guide
+  **?** buttons right, inset 16px from the viewport edges) bottom-most, with the
   right-anchored FAB row (`[<|>]` step pill whose 56px chevron circles size it
   - Quick-links **circle button** — solid amber `c2-glass-fab--accent-solid` — +
     New-event **circle button** — solid brand-blue `c2-glass-fab--brand-solid`;

@@ -5,6 +5,7 @@ import { ActionIcon, Menu, Stack, Text, useMantineColorScheme } from "@mantine/c
 import { notifications } from "@mantine/notifications";
 import {
   IconBell,
+  IconBook,
   IconCalendarPlus,
   IconCalendarWeek,
   IconCheck,
@@ -26,6 +27,7 @@ import { clearUiState } from "@/lib/ui/uiStateClient";
 
 import { useReportActivity } from "./ActivityBar";
 import { CalendarAccessModal } from "./CalendarAccessModal";
+import { GuideSheet } from "./GuideSheet";
 import { NotificationSettings } from "./NotificationSettings";
 import { PreferencesModal } from "./PreferencesModal";
 
@@ -61,6 +63,7 @@ export function UserMenu({ name, role, phone }: UserMenuProps) {
   const [accessOpen, setAccessOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [preferencesOpen, setPreferencesOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const { colorScheme, setColorScheme } = useMantineColorScheme();
   // The stored scheme may be unset/unknown before first pick — normalize to
@@ -168,6 +171,13 @@ export function UserMenu({ name, role, phone }: UserMenuProps) {
             </Menu.Item>
           ))}
           <Menu.Divider />
+          {/* The in-app Guide (docs/ui-ux-improvements.md D2) — reachable from
+              here at every width; the dashboard additionally carries its own
+              "?" in the toolbar. */}
+          <Menu.Item leftSection={<IconBook size={16} />} onClick={() => setGuideOpen(true)}>
+            Guide
+          </Menu.Item>
+          <Menu.Divider />
           <Menu.Label>Settings</Menu.Label>
           <Menu.Item
             leftSection={<IconCalendarPlus size={16} />}
@@ -198,6 +208,7 @@ export function UserMenu({ name, role, phone }: UserMenuProps) {
         onClose={() => setNotificationsOpen(false)}
       />
       <PreferencesModal opened={preferencesOpen} onClose={() => setPreferencesOpen(false)} />
+      <GuideSheet opened={guideOpen} onClose={() => setGuideOpen(false)} />
     </>
   );
 }

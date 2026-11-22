@@ -72,6 +72,7 @@ import {
   IconChevronDown,
   IconChevronLeft,
   IconChevronRight,
+  IconHelp,
   IconLayoutGrid,
   IconLink,
   IconPlus,
@@ -104,6 +105,8 @@ import {
 import { DateSelectorModal, preloadDateSelectorBody } from "@/components/DateSelectorModal";
 import { EditViewsModal, preloadEditViewsBody } from "./EditViewsModal";
 import { EventDetail, preloadEventDetailBody } from "./EventDetail";
+import { EventHistoryModal } from "@/components/EventHistoryModal";
+import { GuideSheet } from "@/components/GuideSheet";
 import { ShareImportDialog } from "./ShareImportDialog";
 import { GridNavControls } from "@/components/GridNavControls";
 import { FullscreenButton, FullscreenToggle } from "@/components/FullscreenToggle";
@@ -160,6 +163,7 @@ import { useChromeHide } from "@/lib/ui/chromeHide";
 import { DUAL_SPLIT_DEFAULT, clampDualSplit } from "@/lib/ui/dualSplit";
 import { useGridPan } from "@/lib/ui/gridPan";
 import { useImmersiveMode } from "@/lib/ui/immersiveMode";
+import { useIsOffline } from "@/lib/ui/onlineStatus";
 import {
   clampMonthZoom,
   monthFillEvents,
@@ -1196,6 +1200,21 @@ function DashboardViewImpl({
   // component's props, so the view only mounts once the route's events have
   // streamed — reporting on mount is exactly "content painted".
   useColdStartContent();
+
+  // Post-delete history trail (docs/ui-ux-improvements.md D6): hosted here
+  // because the details modal is already gone by the time the pill's "History"
+  // action is tapped.
+  const [deletedHistory, setDeletedHistory] = useState<{ eventId: string; title: string } | null>(
+    null,
+  );
+  // The in-app Guide sheet (docs/ui-ux-improvements.md D2), opened from the
+  // "?" in the wide toolbar — the profile menu carries its own instance for
+  // every other surface.
+  const [guideOpen, setGuideOpen] = useState(false);
+  // The browser's offline report (docs/ui-ux-improvements.md D7): create
+  // affordances go unavailable with the amber OfflineBanner as the standing
+  // one-line reason, so nobody fills a wizard only to be rejected at submit.
+  const offline = useIsOffline();
 
   const theme = useMantineTheme();
   // Desktop = the theme's lg breakpoint: schedule label columns widen, the
@@ -3674,8 +3693,27 @@ function DashboardViewImpl({
   /**
    * Start a wizard, but never silently replace a live draft: if one is open
    * (minimized or otherwise), stash the request behind the discard prompt.
+   *
+   * Offline (docs/ui-ux-improvements.md D7): refuse at the door with the
+   * reason instead of after seven steps — every wizard road ends at a server
+   * write. This is the single choke point for every create/edit/duplicate
+   * entry (nav button, FAB, day modal, agenda button), and it never touches
+   * an open draft: the draft bar stays tappable, and the amber OfflineBanner
+   * is the standing signal. `navigator.onLine === false` is the conservative
+   * report — a flaky connection keeps reporting online, so this can only ever
+   * refuse on a genuinely interface-less device.
    */
   function requestFormStart(start: PendingFormStart) {
+    if (offline) {
+      notifications.show({
+        color: "orange",
+        message:
+          formState !== null
+            ? "You're offline — reconnect to submit. Your draft is kept."
+            : "You're offline — reconnect to create or edit events.",
+      });
+      return;
+    }
     if (formState !== null) {
       setPendingFormStart(start);
       setDiscardConfirmOpen(true);
@@ -4321,6 +4359,22 @@ function DashboardViewImpl({
       <IconCalendarDot size={18} />
     </ActionIcon>
   );
+  // Guide entry (docs/ui-ux-improvements.md D2): the profile menu carries the
+  // same sheet at every width; this is the dashboard's own "?" at the wide
+  // toolbar's right-anchored tail. The compact tier's squircle is full, so
+  // there its users reach the Guide from the profile menu.
+  const navGuide = (
+    <ActionIcon
+      size={36}
+      variant="default"
+      className="c2-glass-btn"
+      aria-label="Guide"
+      title="Guide"
+      onClick={() => setGuideOpen(true)}
+    >
+      <IconHelp size={18} />
+    </ActionIcon>
+  );
   const navNewEvent = isNarrowDesktop ? (
     <ActionIcon
       size={40}
@@ -4329,7 +4383,7 @@ function DashboardViewImpl({
       className="c2-glass-btn c2-glass-fab--brand-solid"
       aria-label="New event"
       title="New event"
-      disabled={!googleConfigured}
+      disabled={!googleConfigured || offline}
       {...warmOnIntent(warmWizardChunk)}
       onClick={(e) =>
         openCreate(
@@ -4347,7 +4401,7 @@ function DashboardViewImpl({
       className="c2-glass-btn c2-glass-fab--brand-solid"
       __vars={{ "--button-height": isCompactDesktop ? "40px" : "36px" }}
       leftSection={<IconPlus size={16} />}
-      disabled={!googleConfigured}
+      disabled={!googleConfigured || offline}
       {...warmOnIntent(warmWizardChunk)}
       onClick={(e) =>
         openCreate(
@@ -4517,6 +4571,7 @@ function DashboardViewImpl({
       {navQuickLinks}
       {navFilter}
       {navDate}
+      {navGuide}
     </Group>
   );
 
@@ -4633,6 +4688,20 @@ function DashboardViewImpl({
             size={36}
             variant="default"
           />
+          {/* Guide (docs/ui-ux-improvements.md D2): the dashboard's own "?",
+              styled like its circular peers; the profile menu carries the
+              same sheet at every width. */}
+          <ActionIcon
+            radius="50%"
+            size={36}
+            variant="default"
+            className="c2-glass-btn"
+            aria-label="Guide"
+            title="Guide"
+            onClick={() => setGuideOpen(true)}
+          >
+            <IconHelp size={18} />
+          </ActionIcon>
         </Group>
       </Box>
     </Affix>
@@ -5985,7 +6054,7 @@ function DashboardViewImpl({
               w="100%"
               mt="sm"
               leftSection={<IconPlus size={20} />}
-              disabled={!googleConfigured}
+              disabled={!googleConfigured || offline}
               onClick={(e) => {
                 // Close the agenda and grow the event form out of the button,
                 // prefilled with the day being viewed.
@@ -6048,6 +6117,7 @@ function DashboardViewImpl({
             notifyEventsChanged();
             refreshAfterSave();
           }}
+          onViewDeletedHistory={setDeletedHistory}
           onOptimistic={applyOptimistic}
           onOptimisticSettled={settleOptimistic}
           onOptimisticRollback={rollbackOptimistic}
@@ -6059,6 +6129,21 @@ function DashboardViewImpl({
           myActiveDepartmentIds={myActiveDepartmentIds}
         />
       )}
+
+      {/* Post-delete history trail (docs/ui-ux-improvements.md D6): the pill's
+          "History" action arrives seconds after the details modal closed, so
+          the trail modal is hosted at the view level. No `detailLink` — the
+          copies are gone, so there is nothing to open in the calendar. */}
+      <EventHistoryModal
+        eventId={deletedHistory?.eventId ?? null}
+        title={deletedHistory?.title}
+        originRect={null}
+        onClose={() => setDeletedHistory(null)}
+      />
+
+      {/* The in-app Guide (docs/ui-ux-improvements.md D2), opened from the "?"
+          in the wide toolbar and the mobile control pill. */}
+      <GuideSheet opened={guideOpen} onClose={() => setGuideOpen(false)} />
 
       <Modal.Root
         opened={formModalOpened}
@@ -6519,7 +6604,7 @@ function DashboardViewImpl({
                     e.currentTarget.getBoundingClientRect(),
                   )
                 }
-                disabled={!googleConfigured}
+                disabled={!googleConfigured || offline}
                 style={{ flexShrink: 0, pointerEvents: "auto" }}
               >
                 <IconPlus size={24} />

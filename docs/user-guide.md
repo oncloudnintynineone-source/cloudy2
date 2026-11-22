@@ -51,8 +51,8 @@ flowchart LR
 On phones the pages sit in the bottom navigation bar; on desktop they move to the
 left sidebar (which can collapse to an icon rail). The header carries the
 **Pinned events** ticker on the left and, on the right, search, the **Force
-refresh** button, and the profile menu — the light/dark theme switch lives inside
-that menu.
+refresh** button, and the profile menu — the light/dark theme switch and the
+**Guide** (a quick orientation for the page you're on) live inside that menu.
 
 ## 1.3 The calendar
 
@@ -100,6 +100,10 @@ them with the tabs above the grid:
   circle in the bottom control pill on phones) hides all app
   chrome (and the browser UI where supported) for a wall-display calendar; press
   Esc or use the same button to go back.
+- **Guide** — the **?** button (right end of the desktop toolbar; a circle in
+  the phone's bottom control pill) opens a quick orientation for the page
+  you're on, with a block for every page. The profile menu carries the same
+  Guide at every width (and is the only entry on a narrow desktop window).
 
 ### 1.3.2 Dates & filters
 
@@ -261,8 +265,10 @@ full-screen app icon.
   then refreshes in the background.
 - **Offline:** previously viewed pages stay available, marked with an amber
   offline banner; any navigation falls back to your most recently saved view.
-  Offline is **read-only** — creating or editing shows an error until you're
-  back online.
+  Offline is **read-only** — while the banner is up the **New event** button and
+  the wizard's **Create/Save** button wait with it, so you never fill the whole
+  wizard only to be rejected at the end. A draft you already started is kept
+  and stays resumable; everything resumes the moment the connection returns.
 - **Notifications:** your profile menu (avatar, top-right) → **Notifications** lets
   you allow event notifications — you'll get a banner when you're added as a
   participant to an event. On iPhone/iPad this works only from the **installed**

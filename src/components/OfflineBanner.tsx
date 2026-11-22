@@ -1,27 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { Box, Text } from "@mantine/core";
+
+import { useIsOffline } from "@/lib/ui/onlineStatus";
 
 /**
  * Full-width amber strip pinned to the viewport top whenever the browser
  * reports offline. Mounted once (in AppProviders) so it covers every route,
- * including /login and error fallbacks. Starts hidden and flips in an effect
- * to avoid a hydration mismatch with `navigator.onLine`.
+ * including /login and error fallbacks. The connectivity signal is the shared
+ * `useIsOffline` hook — the same one the dashboard's create affordances and
+ * the wizard's submit button consult (docs/ui-ux-improvements.md D7), so the
+ * strip and the affordances can never disagree.
  */
 export function OfflineBanner() {
-  const [offline, setOffline] = useState(false);
-
-  useEffect(() => {
-    const update = () => setOffline(!navigator.onLine);
-    update();
-    window.addEventListener("online", update);
-    window.addEventListener("offline", update);
-    return () => {
-      window.removeEventListener("online", update);
-      window.removeEventListener("offline", update);
-    };
-  }, []);
+  const offline = useIsOffline();
 
   if (!offline) return null;
 

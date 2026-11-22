@@ -26,6 +26,7 @@ import { notifications } from "@mantine/notifications";
 import {
   IconChevronLeft,
   IconChevronRight,
+  IconCloudOff,
   IconUserMinus,
   IconUserPlus,
 } from "@tabler/icons-react";
@@ -94,6 +95,7 @@ import {
 import { BUTTON_LOADER_PROPS, DESKTOP_WIDE_MEDIA_QUERY } from "@/lib/theme";
 import type { SavedEventToastVariant, WizardStepIndicator } from "@/lib/settings/featureFlags";
 import { announce } from "@/lib/ui/announcer";
+import { useIsOffline } from "@/lib/ui/onlineStatus";
 import { firstErrorField, showValidationFailure } from "@/lib/ui/validationFeedback";
 import {
   buildUserGroups,
@@ -236,6 +238,12 @@ export function EventForm({
   // Back/Next/Submit bar never move.
   const bodyHeight = isDesktop ? WIZARD_BODY_HEIGHT_DESKTOP : WIZARD_BODY_HEIGHT_MOBILE;
   const { show: showActionPill } = useActionPill();
+  // Offline (docs/ui-ux-improvements.md D7): the submit button goes
+  // unavailable with a one-line reason next to it — the draft already
+  // survives minimize and reload, so the work is never lost, only the write
+  // waits for the connection. Enhancement only: `navigator.onLine === false`
+  // is the conservative report, and the server stays the authority.
+  const offline = useIsOffline();
 
   const form = useForm<EventFormState>({
     initialValues: buildInitialValues(),
@@ -1077,6 +1085,12 @@ export function EventForm({
       // The submit button only renders on the last step; guard against
       // implicit form submission (e.g. Enter in a textbox) from earlier steps.
       if (!isLastStep) {
+        return;
+      }
+      // Offline: the disabled button already says why; this covers implicit
+      // submission (Enter in a textbox) so no doomed write is even attempted.
+      if (offline) {
+        announce("You're offline. Reconnect to submit — your draft is kept.");
         return;
       }
       const payload = valuesToPayload(values);
@@ -2023,6 +2037,19 @@ export function EventForm({
         onJump={goToStep}
       />
 
+      {/* Offline reason (docs/ui-ux-improvements.md D7): one quiet line beside
+          the disabled submit button — the standing amber OfflineBanner says
+          "offline", this says what it means *here*: the draft is safe, only
+          the write waits. */}
+      {offline && (
+        <Group gap={6} justify="center" wrap="nowrap">
+          <IconCloudOff size={15} aria-hidden />
+          <Text size="xs" c="dimmed">
+            You&apos;re offline — your draft is saved. Reconnect to submit.
+          </Text>
+        </Group>
+      )}
+
       <Group justify={step === 0 ? "flex-end" : "space-between"} gap="sm">
         {step > 0 && (
           <Button
@@ -2040,6 +2067,7 @@ export function EventForm({
             key="submit"
             type="submit"
             loading={form.submitting}
+            disabled={offline}
             loaderProps={BUTTON_LOADER_PROPS}
             style={step > 0 ? { flexGrow: 1 } : undefined}
           >

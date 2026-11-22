@@ -9,10 +9,11 @@ next" moment (e.g. **View event** after a save, or an undo action).
 ## Table of contents
 
 - [1.1 Shape & behavior](#11-shape--behavior)
-- [1.2 The two-tone progress fill](#12-the-two-tone-progress-fill)
-- [1.3 API](#13-api)
-- [1.4 Lifecycle](#14-lifecycle)
-- [1.5 File index](#15-file-index)
+- [1.2 Pill or toast?](#12-pill-or-toast)
+- [1.3 The two-tone progress fill](#13-the-two-tone-progress-fill)
+- [1.4 API](#14-api)
+- [1.5 Lifecycle](#15-lifecycle)
+- [1.6 File index](#16-file-index)
 
 ## 1.1 Shape & behavior
 
@@ -20,7 +21,7 @@ next" moment (e.g. **View event** after a save, or an undo action).
   The `default` variant sits centered at the bottom edge. On mobile it sits above
   the bottom nav (via `--app-floating-bottom-offset`), on desktop 16px from the
   edge. The `toast` variant instead nests into the notification corners
-  (top-center on mobile, bottom-right on desktop — see §1.3). It is rendered
+  (top-center on mobile, bottom-right on desktop — see §1.4). It is rendered
   from the app root, so it survives route navigations.
 - Clicking the pill dismisses it and runs the configured `onAction`.
 - Only one pill shows at a time; a new `show(...)` replaces the current one.
@@ -44,7 +45,29 @@ flowchart LR
   G --> H
 ```
 
-## 1.2 The two-tone progress fill
+## 1.2 Pill or toast?
+
+The house boundary (docs/ui-ux-improvements.md D6, locked 2026-11-22) splits the
+app's two confirmation surfaces by whether the moment has a follow-up:
+
+- **Actionable → pill.** If the user could reasonably do one thing next — open
+  the saved event, read a deleted event's history, reload for an update — the
+  confirmation is a pill carrying that action. Rendering those as inert toasts
+  hides the follow-up.
+- **Inert confirmation → toast.** "View updated", "View deleted", "Registered
+  for event" — nothing follows, so a plain `notifications.show` is correct.
+  Do not wrap a confirmation in a pill with a ceremonial action.
+
+Two sanctioned exceptions, both flag- or context-owned:
+
+- The **post-save** confirmation is owned by the `savedEventToastVariant`
+  feature flag, whose four variants include a deliberately plain toast — that
+  path is extended, never forked ([`feature-flags.md`](feature-flags.md)).
+- A pill is only offered when its action actually works at tap time: the
+  delete pill falls back to the green toast for payload-less (external)
+  events, which have no history to open.
+
+## 1.3 The two-tone progress fill
 
 The pill body is a **darker** color with white text; a **lighter** color fills it from
 the leading edge as a progress indicator.
@@ -63,7 +86,7 @@ default to the project brand blue — light `--mantine-color-brand-3` (#8ca8e2) 
 auto-dismiss timer. Under `prefers-reduced-motion: reduce` the pop-in/fade and the sweep
 are disabled (the fill snaps; the countdown timer still runs).
 
-## 1.3 API
+## 1.4 API
 
 ```ts
 import { useActionPill } from "@/components/ActionPill";
@@ -87,7 +110,7 @@ dismiss(id); // or dismiss() to dismiss the current pill
 The `variant` is the presentation, independent of the sweep and the timer:
 
 - **`"default"`** — the classic two-tone pill: dark body, white copy, light
-  sweep (§1.2). Right for *timed/auto* actions where the sweep reads as a
+  sweep (§1.3). Right for *timed/auto* actions where the sweep reads as a
   countdown (the SW-update "Reload", which auto-applies when the fill fills).
 - **`"toast"`** — a confirmation, not a countdown: light surface + border,
   a green success rail, no sweep fill, single-line copy (title + the action
@@ -97,7 +120,7 @@ The `variant` is the presentation, independent of the sweep and the timer:
   `.c2-action-pill-host--toast` / `.c2-action-pill--toast`). The `"empty"`
   auto-dismiss timer still runs, just without the visible drain.
 
-## 1.4 Lifecycle
+## 1.5 Lifecycle
 
 - `show` stores one active pill and returns its id; the previous pill (if any) is
   replaced.
@@ -108,7 +131,7 @@ The `variant` is the presentation, independent of the sweep and the timer:
 - All timers are cleared on unmount; the provider mounts once in `AppProviders` so the
   hook is usable app-wide.
 
-## 1.5 File index
+## 1.6 File index
 
 | File | Role |
 | ---- | ---- |
@@ -116,6 +139,7 @@ The `variant` is the presentation, independent of the sweep and the timer:
 | `src/components/AppProviders.tsx` | Mounts `ActionPillProvider` at the app root |
 | `src/app/globals.css` | `.c2-action-pill*` styles, fill clip + motion, `--toast` variant + corner placement |
 | `src/app/(protected)/dashboard/EventForm.tsx` | Post-save confirmation dispatch (`savedEventToastVariant`) |
+| `src/app/(protected)/dashboard/EventDetailBody.tsx` | Delete → **History** pill (§1.2); falls back to the green toast when no action exists |
 | `src/lib/settings/featureFlags.ts` | `savedEventToastVariantFlag` — classic pill / restyled pill / toast + action / plain toast |
 
 Related docs:

@@ -33,6 +33,7 @@ import { CrossfadeSwap } from "@/components/CrossfadeSwap";
 import { EventDetailSkeleton } from "./EventDetailSkeleton";
 import { EventHistoryModal } from "@/components/EventHistoryModal";
 import { ConfirmModal } from "@/components/ConfirmModal";
+import { useActionPill } from "@/components/ActionPill";
 import { deleteEvent, setEventRegistration, type EventActionOk } from "@/lib/events/actions";
 import { buildEventIcs, buildGoogleCalendarUrl, icsFileName } from "@/lib/events/calendarExport";
 import { subOneDay } from "@/lib/events/datetime";
@@ -87,6 +88,14 @@ export interface EventDetailProps {
   /** Refresh the surrounding calendar after a successful register/deregister. */
   onRegistrationChanged?: () => void;
   /**
+   * Offered the "History" action on the post-delete pill (docs/
+   * ui-ux-improvements.md D6): the trail modal is hosted by the caller, since
+   * this body unmounts with the details modal right after the delete. Callers
+   * that don't host it get the old inert confirmation toast instead — never a
+   * pill whose action would do nothing.
+   */
+  onViewDeletedHistory?: (target: { eventId: string; title: string }) => void;
+  /**
    * The event is still being fetched: opens the modal immediately and shows a
    * shaped skeleton instead of a spinner/dim (skeleton-only loading rule).
    */
@@ -114,9 +123,11 @@ export function EventDetailBody({
   readOnly = false,
   onOpenInCalendar,
   onRegistrationChanged,
+  onViewDeletedHistory,
   loading = false,
 }: Omit<EventDetailProps, "originRect" | "zIndex" | "onClose">) {
   const pathname = usePathname();
+  const { show: showActionPill } = useActionPill();
   // The calendar page itself: this body's details modal is already open there,
   // so the history modal's "Open in calendar" would navigate to what the user
   // is looking at — it is hidden on `/dashboard` and offered from the read-only
@@ -226,10 +237,25 @@ export function EventDetailBody({
     try {
       const result = await deleteEvent(ref);
       if (result.ok) {
-        notifications.show({ color: "green", message: "Event deleted" });
         onOptimisticSettled(optimisticId, result);
         close();
         onDeleted();
+        // Actionable confirmation → action pill (docs/ui-ux-improvements.md
+        // D6): the trail is the one follow-up worth offering after a delete.
+        // External (payload-less) events have no history rows, and callers
+        // without a hosted trail modal can't offer the action either — both
+        // fall back to the inert green toast.
+        if (ref.eventId && onViewDeletedHistory) {
+          const eventId = ref.eventId;
+          const title = showEvent.title;
+          showActionPill({
+            title: "Event deleted",
+            label: "History",
+            onAction: () => onViewDeletedHistory({ eventId, title }),
+          });
+        } else {
+          notifications.show({ color: "green", message: "Event deleted" });
+        }
       } else {
         notifications.show({ color: "red", message: result.error });
         onOptimisticRollback(optimisticId);

@@ -290,7 +290,8 @@ string maps to the first tab of that kind.
   **control pill** (`.c2-control-pill`, an `Affix` inset **16px from the
   viewport edges** — `left: 16, right: 16`, the same clearance as the FAB
   toolbar) sits **bottom-most** with the period label on the **left** and the
-  **circular** search / filter / date / view-menu / fullscreen buttons on the
+  **circular** search / filter / date / view-menu / fullscreen / guide **?**
+  buttons on the
   **right** (the search circle is the mobile trigger, used below `lg`; at
   `lg`+ the shell header's "Search events" button is the trigger; both open
   the shell-owned modal through
@@ -501,7 +502,7 @@ management hidden.
 
 Filtering has **one primary affordance**: a dedicated filter button (funnel icon + active-group-count badge, `FilterButton`) in the nav row
   opens `FilterModal` (`src/components/FilterModal.tsx`). The nav row's date controls are the period label, the ‹ › steppers
-  and the **Select date** circle (the **Today** jump floats in the toolbar row at `lg`+ — compact tier: under the fullscreen button — / on the FAB row below `lg` — see the Today-jump bullet in §1.1); Force refresh
+  and the **Select date** circle (the **Today** jump floats in the toolbar row at `lg`+ — compact tier: under the fullscreen button — / on the FAB row below `lg` — see the Today-jump bullet in §1.1); the row's right tail carries the **Guide "?"** circle (wide tier only — the profile menu carries the same sheet at every width, which is also the compact tier's entry); Force refresh
   is a header button, view management lives on the strip's right settings
   button, and fullscreen is the shared `FullscreenButton` (floating top-right at `lg`+, inline in the mobile control pill below). Dashboards'
   "Myself" quick action lives inside the filter modal
