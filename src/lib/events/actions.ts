@@ -32,6 +32,7 @@ import {
   parseEventPeople,
   parseEventOwnerOnlyEdits,
   parseEventRecurrence,
+  parseEventRegistrationCap,
   parseEventRegistrationEnabled,
   rewriteEventNotes,
   withEditLink,
@@ -911,15 +912,22 @@ async function performEventUpdate({
     }
   }
 
-  // A pattern change on "All events" resets the individually edited
-  // occurrences: their original slots no longer align with the new rule. The
-  // cleanup is best-effort — the parent update itself is idempotent.
+  // A pattern or registration-policy change on "All events" resets the
+  // individually edited occurrences: their slots/rosters no longer align with
+  // the series. The cleanup is best-effort — the parent update itself is
+  // idempotent.
   if (scope === "series" && firstCopy) {
     const oldRule =
       parseEventRecurrence(firstCopy.description) ?? parseRRule(firstCopy.recurrence).rule;
+    const registrationChanged =
+      parseEventRegistrationEnabled(firstCopy.description) !==
+        (effectiveInput.registrationEnabled === true) ||
+      parseEventRegistrationCap(firstCopy.description) !==
+        (effectiveInput.registrationCap ?? null);
     const patternChanged =
       ref.start !== effectiveInput.start ||
       ref.end !== effectiveInput.end ||
+      registrationChanged ||
       !sameRecurrence(oldRule, effectiveInput.recurrence ?? null);
     if (patternChanged) {
       const finiteEnd = effectiveInput.recurrence
@@ -1368,6 +1376,7 @@ async function performSingleOccurrenceUpdate(
   if (!ref.recurringEventId) {
     return { ok: false, error: "This event is not part of a repeating series" };
   }
+  const occurrenceRef = ref;
   const resolved = await resolveParentRef(ref);
   if (!resolved) {
     return { ok: false, error: "Could not find the repeating series" };
@@ -1471,7 +1480,7 @@ async function performSingleOccurrenceUpdate(
     end: parentEndNaive(firstInstance),
     allDay: firstInstance.allDay,
     recurringEventId: ref.recurringEventId,
-    originalStartTime: ref.originalStartTime,
+    originalStartTime: occurrenceRef.originalStartTime,
   };
   const before = snapshotFromCopy(instanceRef, firstInstance, namesResolved, targets);
   const after = buildEventSnapshot({
@@ -1833,6 +1842,252 @@ async function findExistingSuccessor(
  * stored Google copy, never from the client. The shared update pipeline then
  * reconciles department copies, re-renders the title, and records the change.
  */
+/**
+ * Register/deregister the acting user for one occurrence of a repeating
+ * registration event. The roster lives on that occurrence's Google exception
+ * (all department copies), while the parent remains the series configuration
+ * and keeps every other occurrence's roster untouched.
+ */
+async function setOccurrenceRegistration(
+  session: Awaited<ReturnType<typeof requireSession>>,
+  ref: EventRef,
+  intent: RegistrationIntent,
+): Promise<EventActionResult> {
+  if (!ref.recurringEventId || !ref.eventId) {
+    return { ok: false, error: "This event is not open for registration" };
+  }
+  const resolved = await resolveParentRef(ref);
+  if (!resolved) {
+    return { ok: false, error: "Could not find the repeating series" };
+  }
+  if (!parseEventRegistrationEnabled(resolved.parent.description)) {
+    return { ok: false, error: "This event is not open for registration" };
+  }
+  const parentValues = eventFormValuesFromCopy(resolved.parent);
+  if (!parentValues) {
+    return { ok: false, error: "This event is not open for registration" };
+  }
+  const integration = await getGoogleIntegration();
+  const googleCalendarId = await resolveGoogleCalendarId(ref.calendarId);
+  const instance = googleCalendarId
+    ? await integration.getEvent(googleCalendarId, ref.googleEventId)
+    : null;
+  const occurrenceValues = eventFormValuesFromCopy(instance ?? resolved.parent);
+  if (!occurrenceValues) {
+    return { ok: false, error: "Could not read this occurrence" };
+  }
+  // Older/foreign payloads may omit the occurrence slot; recover it from the
+  // instance so every department copy can be matched by `originalStartTime`.
+  const occurrenceRef: EventRef =
+    ref.originalStartTime || !instance?.originalStartTime
+      ? ref
+      : {
+          ...ref,
+          originalStartTime: normalizeOriginalStartTime(
+            instance.originalStartTime,
+            instance.allDay,
+          ),
+        };
+  const nextInvitees = applyRegistrationIntent(
+    occurrenceValues.inviteeUserIds,
+    session.user.id,
+    intent,
+  );
+  const unchanged =
+    nextInvitees.length === occurrenceValues.inviteeUserIds.length &&
+    nextInvitees.every((id, index) => id === occurrenceValues.inviteeUserIds[index]);
+  if (unchanged) {
+    return { ok: true, eventId: ref.eventId, copies: [], scope: "single" };
+  }
+  // The series cap is authoritative; an occurrence exception's copied cap may
+  // be stale after a series cap edit (those exceptions are reset anyway).
+  const cap = parentValues.registrationCap ?? null;
+  if (
+    intent === "register" &&
+    isRegistrationFull(occurrenceValues.inviteeUserIds, cap, session.user.id)
+  ) {
+    return {
+      ok: false,
+      error: `This event is full (${registrationSeatCount(occurrenceValues.inviteeUserIds)} / ${cap}).`,
+    };
+  }
+  const seriesRule =
+    parseEventRecurrence(resolved.parent.description) ?? occurrenceValues.recurrence ?? null;
+  const normalized = clampEventEnd({
+    ...occurrenceValues,
+    inviteeUserIds: nextInvitees,
+    creatorId: parentValues.creatorId || occurrenceValues.creatorId,
+    ownerOnlyEdits: parentValues.ownerOnlyEdits,
+    registrationEnabled: true,
+    registrationCap: cap,
+    recurrence: seriesRule,
+  });
+  const errors = validateEventForm(normalized);
+  if (Object.keys(errors).length > 0) {
+    return { ok: false, error: "This event cannot be updated" };
+  }
+  const titleContext = await buildEventTitleContext(normalized);
+  const effectiveInput = resolveEffectiveInput(normalized, titleContext);
+  if (intent === "register" && !effectiveInput.inviteeUserIds.includes(session.user.id)) {
+    return { ok: false, error: "This event is not open for registration" };
+  }
+  const eventId = resolved.ref.eventId ?? ref.eventId;
+  const targets = await refTargetCalendars(resolved.ref);
+  const [googleIds, baseUrl] = await Promise.all([
+    resolveGoogleCalendarIds(targets),
+    appBaseUrl(),
+  ]);
+  const namesPromise = Promise.all([
+    calendarNames(targets),
+    getUsersByIds([
+      ...new Set([
+        ...(resolved.ref.creatorId ? [resolved.ref.creatorId] : []),
+        ...resolved.ref.inviteeUserIds,
+        ...nextInvitees,
+      ]),
+    ]),
+  ]).catch(() => null);
+
+  const live: EventMutationCopy[] = [];
+  let firstInstance: GcalEventItem | null = instance;
+  const touchedGoogleIds = new Set<string>();
+  try {
+    for (const target of targets) {
+      const targetGoogleId = googleIds[target];
+      if (!targetGoogleId) {
+        continue;
+      }
+      const found = await findOccurrenceInstances({
+        googleCalendarId: targetGoogleId,
+        eventId: resolved.ref.eventId,
+        ref: occurrenceRef,
+        input: null,
+      });
+      for (const copy of found) {
+        if (!firstInstance) {
+          firstInstance = copy;
+        }
+        await integration.updateEvent(
+          copy.id,
+          buildGcalEventInput(
+            targetGoogleId,
+            target,
+            effectiveInput,
+            eventId,
+            titleContext,
+            baseUrl,
+            {
+              recurrence: seriesRule,
+              writeRecurrence: false,
+              override: true,
+              timedSeries: true,
+            },
+          ),
+        );
+        live.push({ calendarId: target, googleEventId: copy.id });
+        touchedGoogleIds.add(targetGoogleId);
+      }
+    }
+  } catch (error) {
+    return { ok: false, error: describeError(error, "Could not update registration") };
+  }
+  if (live.length === 0 || !firstInstance) {
+    return { ok: false, error: "This occurrence no longer exists" };
+  }
+  const names = await namesPromise;
+  const namesResolved: EventSnapshotNames = {
+    departmentNames: names?.[0] ?? {},
+    userNames: namesById(names?.[1] ?? []),
+  };
+  const instanceRef: EventRef = {
+    ...resolved.ref,
+    googleEventId: firstInstance.id,
+    start: firstInstance.allDay
+      ? `${utcToDateString(firstInstance.start)} 00:00:00`
+      : formatInstantToNaive(firstInstance.start),
+    end: parentEndNaive(firstInstance),
+    allDay: firstInstance.allDay,
+    recurringEventId: ref.recurringEventId,
+    originalStartTime: occurrenceRef.originalStartTime,
+  };
+  const before = snapshotFromCopy(instanceRef, firstInstance, namesResolved, targets);
+  const renderedTitle = renderEventTitle({
+    description: effectiveInput.title,
+    eventType: titleContext.eventType,
+    people: titleContext.people,
+    departments: titleContext.departments,
+    location: effectiveInput.location,
+    recipe: titleContext.recipe,
+    timeOption: effectiveInput.timeOption,
+    startTime: naiveTimePart(effectiveInput.start),
+    endTime: naiveTimePart(effectiveInput.end),
+    startAmPm: effectiveInput.startAmPm,
+    endAmPm: effectiveInput.endAmPm,
+  });
+  const after = buildEventSnapshot({
+    title: renderedTitle,
+    description: effectiveInput.title,
+    type: effectiveInput.eventType,
+    timeParts: timePartsOf(effectiveInput),
+    outOfCamp: effectiveInput.outOfCamp,
+    overseas: effectiveInput.overseas,
+    pinned: effectiveInput.pinned,
+    registrationEnabled: true,
+    registrationCap: effectiveInput.registrationCap ?? null,
+    repeats: seriesRule ? recurrenceSummary(seriesRule, resolved.ref.start) : null,
+    location: effectiveInput.location,
+    departmentIds: targets,
+    inviteeUserIds: effectiveInput.inviteeUserIds,
+    creatorId: effectiveInput.creatorId || null,
+    names: namesResolved,
+  });
+  const changes = diffFields(before, after);
+  const occurrenceWindow = absEventRange(
+    effectiveInput.start,
+    effectiveInput.end,
+    effectiveInput.timeOption !== "range",
+  );
+  await Promise.all([
+    logAction({
+      ...actorFromSession(session),
+      action: AUDIT_ACTIONS.eventUpdate,
+      entityType: "calendar",
+      entityId: targets[0] ?? ref.calendarId,
+      entityName: after.title ?? "Untitled event",
+      method: "setEventRegistration",
+      details: {
+        ...changes,
+        eventId,
+        seriesScope: "This event",
+        occurrenceStart: occurrenceRef.originalStartTime,
+        registration: intent === "register" ? "Registered" : "Deregistered",
+      },
+    }),
+    invalidateGcalCache([...touchedGoogleIds], monthsInRange(ref.start, ref.end)),
+    invalidatePinnedCache(),
+  ]);
+  dispatchEventWebhook({
+    action: WEBHOOK_ACTIONS.eventUpdated,
+    eventId,
+    googleEventIds: live.map((copy) => copy.googleEventId),
+    snapshot: after,
+    timeParts: timePartsOf(effectiveInput),
+    changes: changes.changes,
+    actor: webhookActorFrom(session),
+    occurredAt: new Date(),
+  });
+  dispatchKahBreachCheck({
+    windowStart: occurrenceWindow.start,
+    windowEnd: occurrenceWindow.end,
+    allDay: effectiveInput.timeOption !== "range",
+    eventTitle: renderedTitle,
+    actor: actorFromSession(session),
+    savedEventOverseas: effectiveInput.outOfCamp && effectiveInput.overseas,
+    savedEventUserIds: effectiveInput.inviteeUserIds,
+  });
+  return { ok: true, eventId, copies: live, scope: "single" };
+}
+
 export async function setEventRegistration(
   ref: EventRef,
   intent: RegistrationIntent,
@@ -1850,6 +2105,12 @@ export async function setEventRegistration(
 
   if (!googleCalendarConfigured()) {
     return { ok: false, error: "Google Calendar is not configured" };
+  }
+
+  // A recurring registration event keeps one roster per occurrence, stored on
+  // that occurrence's Google exception. The parent only owns the series config.
+  if (ref.recurringEventId) {
+    return setOccurrenceRegistration(session, ref, intent);
   }
 
   try {
@@ -1926,7 +2187,6 @@ export async function setEventRegistration(
       eventId: ref.eventId,
       method: "setEventRegistration",
       mode: "registration",
-      scope: "series",
       extraAudit: {
         registration: intent === "register" ? "Registered" : "Deregistered",
       },
@@ -1947,6 +2207,7 @@ async function deleteSingleOccurrence(
   if (!ref.recurringEventId) {
     return { ok: false, error: "This event is not part of a repeating series" };
   }
+  const occurrenceRef = ref;
   const resolved = await resolveParentRef(ref);
   if (!resolved) {
     return { ok: false, error: "Could not find the repeating series" };
@@ -2011,7 +2272,7 @@ async function deleteSingleOccurrence(
     end: parentEndNaive(first),
     allDay: first.allDay,
     recurringEventId: ref.recurringEventId,
-    originalStartTime: ref.originalStartTime,
+    originalStartTime: occurrenceRef.originalStartTime,
   };
   const snapshot = snapshotFromCopy(instanceRef, first, namesResolved, targets);
   const affected = [

@@ -160,9 +160,10 @@ doc content here.
   `recurringEventId` + `originalStartTime`, and the read path dedupes department
   copies per **occurrence**, never per group. The wizard's Other settings step has
   the Repeat controls; edit/delete offer This event / This and following / All events (scope is
-  chosen before the wizard, followed by a read-only series prefill action).
+  chosen before the wizard, followed by an abortable read-only series prefill route).
   "This and following" creates a successor group and truncates the old series;
-  registration is series-level. Design:
+  registration is per occurrence (the series parent owns the flag/cap, each
+  occurrence's roster lives on its Google exception). Design:
   [docs/recurring-events.md](docs/recurring-events.md).
 - **Event-type rename migration:** events reference their type by **name** in the notes
   block, so a rename leaves existing Google copies stale. Settings → Event Types →
@@ -189,7 +190,9 @@ doc content here.
   per-event registration cap (notes `registrationCap`, empty = unlimited) limits
   explicit registrants; the detail modal shows `N / cap`, disables Register when
   full, and departments are not valid participants on registration events (the
-  wizard hides them and the write path strips legacy tags). Design:
+  wizard hides them and the write path strips legacy tags). On a repeating event
+  the roster is per occurrence (a Google exception per occurrence) while the
+  flag/cap stay on the series parent. Design:
   [docs/registration-events.md](docs/registration-events.md).
 - **Optimistic mutations:** the dashboard renders a short-lived stand-in chip at confirm
   (not after the Google write) by merging an `optimisticOps` overlay into the server

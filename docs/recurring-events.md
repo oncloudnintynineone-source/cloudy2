@@ -194,25 +194,28 @@ repeat turns the parent into a single event.
 Stored exceptions are enumerated with `singleEvents:false` (parents + stored
 exceptions, not generated instances) and filtered by `recurringEventId`,
 excluding cancelled rows. Finite series use their exact end; Forever series use
-the 10-year horizon. A pattern change deletes the exceptions because their
-original slots no longer align.
+the 10-year horizon. A pattern or registration-policy change deletes the
+exceptions because their slots/rosters no longer align.
 
 ## 1.11 Registration events on a series
 
-Phase 1 registration is **series-level**: one roster and one cap for every
-occurrence, stored in the parent's notes as before. `setEventRegistration`
-resolves the parent, toggles only the acting user's participant entry, and runs
-the shared update pipeline with the series scope. Registering occupies the user
-on every occurrence (schedule/clash/KAH/parade). Single-occurrence edits and
-deletes are rejected on registration events so an exception can never carry a
-stale roster.
+Registration is **per occurrence**. The series parent carries the
+`registrationEnabled`/`registrationCap` configuration and the starting roster;
+registering or deregistering writes a Google exception for the clicked occurrence
+in every target calendar. The exception's notes hold that occurrence's roster,
+so other occurrences are untouched. `setEventRegistration` branches to
+`setOccurrenceRegistration`; the cap is applied per occurrence from the parent
+configuration. Single-occurrence parameter edits and deletes remain rejected on
+registration events (only the register/deregister toggle is per occurrence).
+Changing the series registration flag/cap or the repeat pattern deletes the
+occurrence exceptions so every occurrence starts from the new configuration;
+series-level roster edits update generated occurrences but not existing
+per-occurrence overrides.
 
-Per-occurrence registration would need a relational roster keyed by
-`(event_group_id, occurrence_start, user_id)` with atomic cap enforcement, a
-read-path merge into every occurrence's participants (dashboard snapshot,
-search, My Events, parade, KAH, clash, deep links), series-split/delete
-lifecycle handling, and occurrence-aware audit/notifications. It is deliberately
-out of scope for this phase.
+A per-occurrence exception snapshots the roster at edit time and registration
+still uses last-write-wins semantics (no atomic cap). A relational roster keyed
+by `(event_group_id, occurrence_start, user_id)` with atomic cap enforcement
+remains the future hardening path; the current model needs no schema change.
 
 ## 1.12 Cache, audit, webhooks & notifications
 
@@ -251,7 +254,7 @@ out of scope for this phase.
 | `src/lib/events/occurrence.ts` | Occurrence identity, dedupe, deep-link pick, series collapse |
 | `src/lib/events/notes.ts` | `recurrence`/`override`/split-lineage notes + rewrite helper |
 | `src/lib/events/actions.ts` | Create; single/following/series update & delete; registration |
-| `src/lib/events/seriesActions.ts` | Read-only series prefill for the edit-scope chooser |
+| `src/lib/events/seriesPrefill.ts` + `src/app/api/dashboard/series-prefill/route.ts` | Read-only series prefill for the edit-scope chooser (abortable route handler) |
 | `src/lib/google/types.ts`, `real.ts` | `getEvent`, recurrence/timeZone, `singleEvents` option, `_R` fallback |
 | `src/app/(protected)/dashboard/EventForm.tsx` | Repeat controls in Other settings, scoped prefill, read-only series fields |
 | `src/app/(protected)/dashboard/EventDetailBody.tsx` | Repeats badge, scope chooser, scoped delete, series registration copy |

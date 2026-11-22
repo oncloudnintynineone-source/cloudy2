@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.404 (Recurring events: Google-series create, three edit/delete scopes, occurrence-aware reads, series registration)**
+- All work through changelog **1.405 (Recurring edit-scope lifecycle fix + per-occurrence registration)**
   is shipped — the first items (A1/A2/A4) off the UI/UX backlog.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
@@ -2808,12 +2808,13 @@ mirror them (four such entries: 1.106.1, 1.122.1, 1.316.1, 1.331.1).
     keep every occurrence; Pinned Events and My Events collapse a series to its next/earliest
     row; deep links pick the matching occurrence by `?date=`). Other settings gained the
     Repeat controls; edit/delete offer This event / This and following / All events, with the scope
-    chosen before the wizard (a read-only `loadEventSeriesPrefill` action feeds the series
+    chosen before the wizard (an abortable `/api/dashboard/series-prefill` route feeds the series
     anchor or the remaining rule). "This and following" creates a successor series first,
     removes the old future exceptions, then truncates the old parents; retries reuse the
     successor by its `splitFromEventId`/`splitAt` notes. Single-occurrence edits create
     Google exceptions and keep participants/pin/lock/registration series-level. Registration
-    is series-level (one roster/cap; single/following edits and deletes are rejected).
+    was series-level in 1.404 (superseded by 1.405: per-occurrence rosters; single/following
+    parameter edits and deletes are still rejected).
     Google integration gained `getEvent`, recurrence/timeZone writes, a `singleEvents:false`
     read mode (also used by the event-type migration so it patches parents, not instances),
     and an `_R` sub-series PUT→PATCH fallback; series mutations clear the affected
@@ -2821,6 +2822,20 @@ mirror them (four such entries: 1.106.1, 1.122.1, 1.316.1, 1.331.1).
     [`recurring-events.md`](docs/recurring-events.md), `event-lifecycle.md`,
     `event-mutations.md`, `registration-events.md`, `google-integration.md`,
     `events-cache.md`, `AGENTS.md`.
+
+  - 1.405 **Recurring edit-scope lifecycle + per-occurrence registration**: fixed the
+    discard→re-edit hang by tokenizing the series prefill (latest request wins), bounding it
+    with `withTimeout`, invalidating on dialog/detail close, resetting busy state on every
+    open/event change, guarding double-clicks and offline, raising the scope dialogs above
+    the detail modal, and refusing to discard/start a draft while a save is in flight
+    (`EventForm.onSubmittingChange`). Registration on a recurring event is now
+    **per occurrence**: the parent owns the flag/cap, the occurrence roster is written as a
+    Google exception across the series target calendars, and other occurrences are
+    untouched; `setOccurrenceRegistration` reuses the occurrence-exception write/audit/cache/
+    webhook/KAH tail, the detail patch is keyed by `eventId + originalStartTime`, and series
+    registration flag/cap changes reset occurrence exceptions. Docs:
+    `registration-events.md`, `recurring-events.md` §1.11, `event-mutations.md` §1.11,
+    `AGENTS.md`.
 
 ## 1.4 Open items & next steps
 

@@ -1,5 +1,3 @@
-"use server";
-
 import { formatInstantToNaive, utcToDateString } from "@/lib/events/datetime";
 import {
   mapCalendarItem,
@@ -22,7 +20,6 @@ import {
 import { listEventTypes } from "@/lib/eventTypes/queries";
 import { getGoogleIntegration, googleCalendarConfigured } from "@/lib/google";
 import { resolveGoogleCalendarId } from "@/lib/roster/shares";
-import { requireSession } from "@/lib/session";
 
 export type SeriesPrefillScope = "series" | "following";
 
@@ -41,7 +38,9 @@ function naiveStart(allDay: boolean, date: Date): string {
 }
 
 /**
- * Read-only prefill for the "All events" / "This and following" edit scopes.
+ * Read-only prefill for the "All events" / "This and following" edit scopes,
+ * served by `/api/dashboard/series-prefill` (a route handler, not a server
+ * action, so opening the chooser can never queue behind a save).
  *
  * Google is the authority for the series start and rule; the notes mirror is a
  * fallback. External series (no app group id / no parseable rule) are refused
@@ -52,7 +51,6 @@ export async function loadEventSeriesPrefill(
   ref: EventRef,
   scope: SeriesPrefillScope,
 ): Promise<SeriesPrefillResult> {
-  await requireSession();
   if (!googleCalendarConfigured()) {
     return { ok: false, error: "Google Calendar is not configured" };
   }

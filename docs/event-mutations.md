@@ -358,8 +358,16 @@ Registration events add one server action,
    mode that skips the organizer-only registration guard (the action already
    enforced self-only) and allows an empty roster.
 
-Because it reuses the update pipeline, copy reconciliation, title rendering,
-audit (`event.update` with a `registration` context field), the
+For a **repeating** ref it branches to `setOccurrenceRegistration` instead: the
+parent is read for the series registration flag/cap, the occurrence's roster is
+read from its instance (or the parent for a generated occurrence), the session
+user is toggled, and the occurrence is written as a Google exception across the
+series' existing target calendars. The parent and every other occurrence are
+untouched; the cache invalidation is month-scoped and KAH runs for that
+occurrence's window.
+
+Because the one-off path reuses the update pipeline, copy reconciliation, title
+rendering, audit (`event.update` with a `registration` context field), the
 `event.updated` webhook, KAH checks, notifications and cache invalidation all behave
 exactly like an ordinary edit (including the client-owned post-save re-read).
 

@@ -30,6 +30,18 @@ import type { GcalEventItem } from "@/lib/google/types";
 
 export type RegistrationIntent = "register" | "deregister";
 
+/**
+ * Identity of one occurrence's locally patched roster. The detail modal applies
+ * a Register/Deregister result optimistically; keying by the group id alone
+ * would bleed the patch onto another occurrence of the same series.
+ */
+export function registrationPatchKey(
+  eventId: string | null | undefined,
+  originalStartTime: string | null | undefined,
+): string | null {
+  return eventId ? `${eventId}:${originalStartTime ?? "series"}` : null;
+}
+
 /** Unique, non-empty explicit registrant ids — the seats a cap counts. */
 export function registrationSeatCount(userIds: readonly string[] | null | undefined): number {
   return new Set((userIds ?? []).filter((id) => typeof id === "string" && id.length > 0)).size;

@@ -193,6 +193,8 @@ interface EventFormProps {
    * series-level controls.
    */
   scope?: EventMutationScope | null;
+  /** Reports the form's submit-in-flight state to the host's discard guards. */
+  onSubmittingChange?: (submitting: boolean) => void;
 }
 
 interface EventFormState extends EventFormValues {
@@ -243,6 +245,7 @@ export function EventForm({
   onOptimisticRollback,
   optimisticHome,
   scope = null,
+  onSubmittingChange,
 }: EventFormProps) {
   const isEdit = event !== null;
   const theme = useMantineTheme();
@@ -272,6 +275,10 @@ export function EventForm({
     // location); the wizard's goNext already gates every other step.
     validateInputOnBlur: true,
   });
+
+  useEffect(() => {
+    onSubmittingChange?.(form.submitting);
+  }, [form.submitting, onSubmittingChange]);
 
   function buildInitialValues(): EventFormState {
     if (event) {
@@ -1839,7 +1846,7 @@ export function EventForm({
                   label={registrationType ? "Registered attendees" : "Participants"}
                   description={
                     registrationType
-                      ? "Registered attendees. The organizer is not added automatically — add yourself only if you'll attend. People can register themselves from the event; only you and admins can edit it. Departments can't be tagged on registration events."
+                      ? "Starting roster for each occurrence. The organizer is not added automatically — add yourself only if you'll attend. People can register themselves for each occurrence; only you and admins can edit the series. Departments can't be tagged on registration events."
                       : "Participants can edit this event too. You're in by default — remove yourself if you won't take part; an event must keep at least one participant or department"
                   }
                   items={inviteeSummaryItems}
@@ -2157,8 +2164,8 @@ export function EventForm({
                     label="Open for registration"
                     description={
                       registrationType
-                        ? "Anyone who can see the event can register or deregister themselves. Only you and admins can edit the event or manage participants."
-                        : "Let people register or deregister themselves. Requires the organizer-only edit lock above."
+                        ? "Anyone who can see the event can register or deregister themselves for each occurrence. Only you and admins can edit the series or manage its starting roster."
+                        : "Let people register or deregister themselves for each occurrence. Requires the organizer-only edit lock above."
                     }
                     disabled={!form.values.ownerOnlyEdits}
                     checked={registrationType}
@@ -2191,7 +2198,7 @@ export function EventForm({
                     <Stack gap="xs">
                       <Switch
                         label="Limit registrations"
-                        description="Cap self-service registrations. You and admins can still add or remove participants beyond it; departments are not participants on registration events."
+                        description="Cap self-service registrations per occurrence. You and admins can still add or remove participants beyond it; departments are not participants on registration events."
                         checked={form.values.registrationCap != null}
                         onChange={(event) => {
                           if (!event.currentTarget.checked) {

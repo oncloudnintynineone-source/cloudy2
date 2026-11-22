@@ -10842,5 +10842,27 @@ clash advisories; external/custom series are occurrence-only.
 **Verification.** `pnpm lint`, `pnpm typecheck`, `pnpm test` green (159 files / 1992 tests).
 No schema migration.
 
+## Recurring edit-scope lifecycle + per-occurrence registration (1.405)
+
+**Bug 1.** Discarding a recurring edit and re-editing could hang because the
+series-prefill server action was unguarded/uncancellable: a late result reopened the
+wizard, a second click fired a second prefill, and the next dialog inherited a stuck
+`editScopeBusy` when the request never settled. `EventDetailBody` now uses a monotonic
+request token + synchronous busy ref, `withTimeout(…, 15s)`, offline/double-click guards,
+invalidation on close/event change, `zIndex={300}` on the scope dialogs, and the
+`DashboardView`/`EventForm` `onSubmittingChange` handshake refuses discard/start while a
+save is in flight.
+
+**Bug 2.** Recurring registration was series-level (the action resolved the parent and ran
+`performEventUpdate` scope series). It now branches to `setOccurrenceRegistration`: the
+parent remains the flag/cap authority, the occurrence's roster is toggled and written as a
+Google exception across the series' target calendars, and other occurrences are untouched.
+The detail patch is keyed by group id + `originalStartTime`; series registration flag/cap
+changes reset occurrence exceptions. No schema change; last-write-wins per occurrence
+remains documented.
+
+**Verification.** `pnpm lint`, `pnpm typecheck`, `pnpm test` green (159 files / 1992 tests).
+
+
 
 

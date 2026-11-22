@@ -1498,6 +1498,10 @@ function DashboardViewImpl({
         }
       : null,
   );
+  // The wizard's submit-in-flight state. Discarding/minimizing while a save is
+  // still running leaves the server action (and the serialized action queue)
+  // behind a torn-down draft; the host refuses those paths until it settles.
+  const [formSubmitting, setFormSubmitting] = useState(false);
   // Minimize: the wizard collapses into the docked draft bar while
   // `formMinimized` is true. The modal stays mounted (`keepMounted`) so the
   // draft survives.
@@ -3689,6 +3693,7 @@ function DashboardViewImpl({
     warmWizardChunk();
     captureModalViewport();
     setFormMinimized(false);
+    setFormSubmitting(false);
     setFormOriginRect(start.originRect);
     setFormState(start.state);
   }
@@ -3707,6 +3712,10 @@ function DashboardViewImpl({
    * refuse on a genuinely interface-less device.
    */
   function requestFormStart(start: PendingFormStart) {
+    if (formSubmitting) {
+      notifications.show({ color: "orange", message: "Saving — please wait." });
+      return;
+    }
     if (offline) {
       notifications.show({
         color: "orange",
@@ -3771,6 +3780,7 @@ function DashboardViewImpl({
   function closeForm() {
     setDiscardConfirmOpen(false);
     setFormMinimized(false);
+    setFormSubmitting(false);
     setFormState(null);
   }
 
@@ -3792,6 +3802,10 @@ function DashboardViewImpl({
   }
 
   function requestDiscard() {
+    if (formSubmitting) {
+      notifications.show({ color: "orange", message: "Saving — please wait." });
+      return;
+    }
     setPendingFormStart(null);
     setDiscardConfirmOpen(true);
   }
@@ -3809,6 +3823,11 @@ function DashboardViewImpl({
   }
 
   function confirmDiscard() {
+    if (formSubmitting) {
+      setDiscardConfirmOpen(false);
+      notifications.show({ color: "orange", message: "Saving — please wait." });
+      return;
+    }
     const pending = pendingFormStart;
     setDiscardConfirmOpen(false);
     closeForm();
@@ -6242,6 +6261,7 @@ function DashboardViewImpl({
                   templateEvent={formState.templateEvent}
                   defaultDate={formState.defaultDate}
                   scope={formState.scope ?? null}
+                  onSubmittingChange={setFormSubmitting}
                   eventTypes={eventTypes}
                   eventTypeGroups={eventTypeGroups}
                   eventTitleRecipe={eventTitleRecipe}

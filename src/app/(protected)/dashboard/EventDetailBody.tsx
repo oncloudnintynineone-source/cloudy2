@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActionIcon,
   Badge,
@@ -37,28 +37,72 @@ import { ConfirmModal } from "@/components/ConfirmModal";
 import { useActionPill } from "@/components/ActionPill";
 import { PickerBadges, type PickerBadgeItem } from "@/components/PickerField";
 import { deleteEvent, setEventRegistration, type EventActionOk, type EventMutationScope } from "@/lib/events/actions";
+import { withTimeout } from "@/lib/async";
 import { buildEventIcs, buildGoogleCalendarUrl, icsFileName } from "@/lib/events/calendarExport";
-import { loadEventSeriesPrefill } from "@/lib/events/seriesActions";
+import type {
+  SeriesPrefillResult,
+  SeriesPrefillScope,
+} from "@/lib/events/seriesPrefill";
 import { subOneDay } from "@/lib/events/datetime";
 import { buildEventDeepLink } from "@/lib/events/deepLink";
 import { prefetchEventHistory } from "@/lib/events/historyCache";
+import { registrationPatchKey } from "@/lib/events/registration";
 import type { CalendarEvent } from "@/lib/events/queries";
 import {
   nextOptimisticOpId,
   optimisticRemove,
   type OptimisticRemoveOp,
 } from "@/lib/events/optimistic";
-import { eventRefFromCalendarEvent } from "@/lib/events/targets";
-import type { Rect } from "@/lib/motion/origin";
+import { eventRefFromCalendarEvent, type EventRef } from "@/lib/events/targets";import type { Rect } from "@/lib/motion/origin";
 import { popoverTransitionProps } from "@/lib/motion/transitions";
 import { useMotion } from "@/components/MotionProvider";
 import { capBadgeItems } from "@/lib/ui/badgeCap";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
+import { useIsOffline } from "@/lib/ui/onlineStatus";
 import { formatDateTime } from "./clientDateTime";
 import { ShareEventDialog } from "./ShareEventDialog";
 
 /** Chips shown before the "+N" expander in the detail modal's badge rows (C6). */
 const DETAIL_BADGE_CAP = 5;
+
+/**
+ * Fetch the series prefill from the read-only route handler. A route (not a
+ * server action) keeps the chooser off the serialized action queue and lets
+ * closing the dialog abort the request.
+ */
+async function requestSeriesPrefill(
+  ref: EventRef,
+  scope: SeriesPrefillScope,
+  signal: AbortSignal,
+): Promise<SeriesPrefillResult> {
+  try {
+    const response = await fetch("/api/dashboard/series-prefill", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-cloudy2-api": "1" },
+      credentials: "same-origin",
+      body: JSON.stringify({ ref, scope }),
+      signal,
+    });
+    if (!response.ok) {
+      return {
+        ok: false,
+        error:
+          response.status === 401
+            ? "Your session expired — sign in again."
+            : "Could not read the repeating series",
+      };
+    }
+    return (await response.json()) as SeriesPrefillResult;
+  } catch (error) {
+    if (signal.aborted) {
+      return { ok: false, error: "Request cancelled" };
+    }
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Could not read the repeating series",
+    };
+  }
+}
 
 export interface EventDetailProps {
   event: CalendarEvent | null;
@@ -144,9 +188,21 @@ export function EventDetailBody({
   const [deleting, setDeleting] = useState(false);
   const [registrationBusy, setRegistrationBusy] = useState(false);
   const [registrationPatch, setRegistrationPatch] = useState<{
-    eventId: string;
+    /** Group id + occurrence slot this optimistic roster belongs to. */
+    key: string;
     inviteeUserIds: string[];
   } | null>(null);
+  const [editScopeOpen, setEditScopeOpen] = useState(false);
+  const [editScope, setEditScope] = useState<EventMutationScope>("single");
+  const [editScopeBusy, setEditScopeBusy] = useState(false);
+  const [deleteScope, setDeleteScope] = useState<EventMutationScope>("single");
+  // The scope prefill is a server action: guard it synchronously against
+  // double-clicks and invalidate its result when the dialog/detail closes, so a
+  // late response can never reopen the wizard over a discarded draft.
+  const editScopeRequestRef = useRef(0);
+  const editScopeBusyRef = useRef(false);
+  const editScopeAbortRef = useRef<AbortController | null>(null);
+  const offline = useIsOffline();
   // The shared history modal, opened by the History button (stacked above this
   // modal via zIndex, replacing the old navigation to the history page).
   const [historyEventId, setHistoryEventId] = useState<string | null>(null);
@@ -166,6 +222,10 @@ export function EventDetailBody({
   // the previous event for the exit frame.
   const [displayEvent, setDisplayEvent] = useState<CalendarEvent | null>(event);
   const [prevEvent, setPrevEvent] = useState<CalendarEvent | null>(event);
+  const eventKey = event
+    ? `${event.id}:${event.payload.originalStartTime ?? ""}`
+    : null;
+  const [prevEventKey, setPrevEventKey] = useState<string | null>(eventKey);
   if (event && event !== prevEvent) {
     setPrevEvent(event);
     setDisplayEvent(event);
@@ -174,12 +234,34 @@ export function EventDetailBody({
     setPeopleExpanded(false);
     setDepartmentsExpanded(false);
   }
+  // Close the scope chooser only when the shown occurrence actually changes, not
+  // when the same event object is refreshed with a new identity after a load.
+  if (eventKey !== prevEventKey) {
+    setPrevEventKey(eventKey);
+    setEditScopeOpen(false);
+    setEditScopeBusy(false);
+    setDeleteScope("single");
+  }
+
+  // Invalidate an in-flight scope prefill when the shown event changes/closes.
+  // Refs are mutated in an effect (never during render); the modal's own state
+  // is reset by the render-phase key adjustment above.
+  useEffect(() => {
+    editScopeRequestRef.current += 1;
+    editScopeBusyRef.current = false;
+    editScopeAbortRef.current?.abort();
+    editScopeAbortRef.current = null;
+  }, [eventKey]);
 
   const showEvent = event ?? displayEvent;
   const payload = showEvent?.payload;
   const registrationEnabled = payload?.registrationEnabled === true;
+  const registrationKey = registrationPatchKey(
+    payload?.eventId ?? null,
+    payload?.originalStartTime ?? null,
+  );
   const effectiveInviteeUserIds =
-    payload && registrationPatch && payload.eventId === registrationPatch.eventId
+    payload && registrationPatch && registrationKey && registrationPatch.key === registrationKey
       ? registrationPatch.inviteeUserIds
       : (payload?.inviteeUserIds ?? []);
   const isRegistered = effectiveInviteeUserIds.includes(currentUserId);
@@ -202,10 +284,6 @@ export function EventDetailBody({
       : isExternalSeries
         ? ["single"]
         : ["single", "following", "series"];
-  const [editScopeOpen, setEditScopeOpen] = useState(false);
-  const [editScope, setEditScope] = useState<EventMutationScope>("single");
-  const [editScopeBusy, setEditScopeBusy] = useState(false);
-  const [deleteScope, setDeleteScope] = useState<EventMutationScope>("single");
 
   const ownerName = payload && payload.creatorId ? (peopleNames[payload.creatorId] ?? null) : null;
   // Attendees are the full invitee list — an organizer who tagged themselves
@@ -338,22 +416,69 @@ export function EventDetailBody({
     }
   }
 
+  function openEditScope() {
+    editScopeAbortRef.current?.abort();
+    editScopeAbortRef.current = null;
+    editScopeRequestRef.current += 1;
+    editScopeBusyRef.current = false;
+    setEditScopeBusy(false);
+    setEditScope(editScopes[0] ?? "single");
+    setEditScopeOpen(true);
+  }
+
+  function closeEditScope() {
+    editScopeAbortRef.current?.abort();
+    editScopeAbortRef.current = null;
+    editScopeRequestRef.current += 1;
+    editScopeBusyRef.current = false;
+    setEditScopeBusy(false);
+    setEditScopeOpen(false);
+  }
+
   async function chooseEditScope(scope: EventMutationScope) {
     if (!showEvent) {
       return;
     }
     if (!isRecurring || scope === "single") {
-      setEditScopeOpen(false);
+      closeEditScope();
       onEdit(showEvent, null, isRecurring ? "single" : null);
       return;
     }
+    if (offline) {
+      notifications.show({
+        color: "orange",
+        message: "You're offline — reconnect to edit the repeating series.",
+      });
+      return;
+    }
+    // Synchronous guard: a double-click can beat the React state update.
+    if (editScopeBusyRef.current) {
+      return;
+    }
+    editScopeBusyRef.current = true;
     setEditScopeBusy(true);
+    const requestId = ++editScopeRequestRef.current;
+    const controller = new AbortController();
+    editScopeAbortRef.current?.abort();
+    editScopeAbortRef.current = controller;
     try {
-      const result = await loadEventSeriesPrefill(eventRefFromCalendarEvent(showEvent), scope);
+      const result = await withTimeout(
+        requestSeriesPrefill(eventRefFromCalendarEvent(showEvent), scope, controller.signal),
+        15_000,
+      );
+      if (requestId !== editScopeRequestRef.current) {
+        return;
+      }
       if (!result.ok) {
         notifications.show({ color: "red", message: result.error });
         return;
       }
+      // Invalidate before handing off, so neither a duplicate result nor the
+      // detail's close can race this open.
+      editScopeRequestRef.current += 1;
+      editScopeBusyRef.current = false;
+      editScopeAbortRef.current = null;
+      setEditScopeBusy(false);
       setEditScopeOpen(false);
       if (scope === "series") {
         if (!result.event) {
@@ -379,10 +504,24 @@ export function EventDetailBody({
           "following",
         );
       }
-    } catch {
-      notifications.show({ color: "red", message: "Could not read the repeating series" });
+    } catch (error) {
+      if (requestId !== editScopeRequestRef.current) {
+        return;
+      }
+      controller.abort();
+      const timedOut = error instanceof Error && /timed out/i.test(error.message);
+      notifications.show({
+        color: "red",
+        message: timedOut
+          ? "The repeating series took too long to load — try again."
+          : "Could not read the repeating series",
+      });
     } finally {
-      setEditScopeBusy(false);
+      if (requestId === editScopeRequestRef.current) {
+        editScopeBusyRef.current = false;
+        editScopeAbortRef.current = null;
+        setEditScopeBusy(false);
+      }
     }
   }
 
@@ -406,7 +545,10 @@ export function EventDetailBody({
           intent === "register"
             ? [...new Set([...effectiveInviteeUserIds, currentUserId])]
             : effectiveInviteeUserIds.filter((id) => id !== currentUserId);
-        setRegistrationPatch({ eventId: payload.eventId, inviteeUserIds: next });
+        const key = registrationPatchKey(payload.eventId, payload.originalStartTime ?? null);
+        if (key) {
+          setRegistrationPatch({ key, inviteeUserIds: next });
+        }
         notifications.show({
           color: "green",
           message: intent === "register" ? "Registered for event" : "Deregistered from event",
@@ -658,8 +800,7 @@ export function EventDetailBody({
                         aria-label="Edit event"
                         onClick={(e) => {
                           if (isRecurring) {
-                            setEditScope(editScopes[0] ?? "single");
-                            setEditScopeOpen(true);
+                            openEditScope();
                             return;
                           }
                           onEdit(showEvent, e.currentTarget.getBoundingClientRect());
@@ -705,7 +846,8 @@ export function EventDetailBody({
                       </Button>
                       {isRecurring && (
                         <Text size="xs" c="dimmed">
-                          Registration applies to every occurrence in the series.
+                          Registration applies to this event only. Other events in the series are
+                          unaffected.
                         </Text>
                       )}
                     </Stack>
@@ -737,6 +879,12 @@ export function EventDetailBody({
                     )}
                     <AddToCalendarMenu event={showEvent} />
                   </Group>
+                  {isRecurring && (
+                    <Text size="xs" c="dimmed">
+                      Registration applies to this event only. Other events in the series are
+                      unaffected.
+                    </Text>
+                  )}
                 </Stack>
               ) : (
                 <>
@@ -767,6 +915,7 @@ export function EventDetailBody({
           message={<>Delete &quot;{showEvent.title}&quot;?</>}
           loading={deleting}
           onConfirm={handleDelete}
+          zIndex={300}
         >
           {isRecurring && (
             <Radio.Group
@@ -790,12 +939,13 @@ export function EventDetailBody({
 
       <ConfirmModal
         opened={editScopeOpen}
-        onClose={() => setEditScopeOpen(false)}
+        onClose={closeEditScope}
         title="Edit repeating event"
         confirmLabel="Continue"
         confirmColor="brand"
         loading={editScopeBusy}
         onConfirm={() => void chooseEditScope(editScope)}
+        zIndex={300}
       >
         <Radio.Group
           value={editScope}

@@ -39,10 +39,13 @@ event store would duplicate identity, notes, copies, audit and cache logic.
 (like `pinned` and `ownerOnlyEdits`). There is no event-type setting: the event
 type is only a template for other form fields.
 
-On a repeating event the flag is **series-level**: the roster and cap apply to every
-occurrence, and single-occurrence edits/deletes are rejected. `setEventRegistration`
-resolves the Google parent and runs the shared update with the series scope. See
-[`recurring-events.md`](recurring-events.md) §1.11 for the per-occurrence alternative.
+On a repeating event the **flag and cap are series-level configuration**, but the
+**roster is per occurrence**: registering/deregistering writes a Google exception
+for the clicked occurrence only (the parent roster is copied into the exception as
+the starting list; every other occurrence is untouched). `setEventRegistration`
+branches to `setOccurrenceRegistration` for a recurring ref; single-occurrence
+parameter edits/deletes remain rejected. See
+[`recurring-events.md`](recurring-events.md) §1.11.
 
 The organizer configures it in the wizard's **Other settings** step as **Open
 for registration**. The switch is only available once **“Only I can edit this
@@ -118,8 +121,11 @@ Key properties:
 - the action toggles only the session user's id (idempotent);
 - a Register intent is rejected when the stored explicit roster is already at
   or above the event's cap (Deregister is always allowed);
-- registration reuses the ordinary update reconciliation, so copies in
-  departments gained/lost by the roster change are created/retired correctly;
+- for a **one-off** event registration reuses the ordinary update reconciliation,
+  so copies in departments gained/lost by the roster change are created/retired;
+- for a **repeating** event the action writes the occurrence's exception across
+  the series' existing target calendars (the parent and other occurrences are
+  untouched; no new department copy is added for one occurrence);
 - no new database table is introduced.
 
 ## 1.5 Registration cap
@@ -133,13 +139,15 @@ means **unlimited**.
   on registration events and cannot be tagged in the wizard; any legacy
   department tags are stripped on the next save (the creator's home department
   is still included as a target independently).
+- On a repeating event the cap applies **per occurrence**; the effective cap is
+  read from the series parent (the exception's copied cap is not authoritative).
 - The cap constrains **self-service registration only**. The organizer and
   admins can still add or remove participants in the wizard; lowering the cap
   below the current roster is allowed and simply marks the event full.
 - Enforcement is server-side in `setEventRegistration`: it reads the stored
-  copy, resolves the type, and rejects a Register intent when the explicit
-  roster is already at/above the cap. The check cannot be bypassed by a forged
-  client ref.
+  occurrence roster (or the one-off copy), resolves the type, and rejects a
+  Register intent when the explicit roster is already at/above the cap. The
+  check cannot be bypassed by a forged client ref.
 - The detail modal shows `Registered (N / cap)` plus a progress bar. At
   capacity the Register button is disabled and a “Registration is full” notice
   is shown; an existing registrant can always Deregister. A stale/racing
@@ -149,18 +157,21 @@ means **unlimited**.
 
 Registrations **are participants** (`inviteeUsers`). Consequently registering:
 
-- adds the user to schedule rows, clash occupancy and KAH checks;
+- adds the user to schedule rows, clash occupancy and KAH checks for that
+  occurrence (or for the one-off event);
 - makes them eligible for participant push notifications;
-- adds their department's calendar copy when that department is newly involved
-  (the existing target rule).
+- for a one-off event, adds their department's calendar copy when that
+  department is newly involved (the existing target rule). On a repeating event
+  the series target set is fixed, so a per-occurrence registrant does **not**
+  add a new department calendar; the occurrence exception is written to the
+  series' existing target calendars.
 
 Registration events always include the **organizer's home department** as a
 target, even though the organizer is not a participant. That gives the event a
-stable home the creator can still see and manage, while registrant departments
-are added as people register. Zero registrants are therefore allowed too: the
-organizer's department keeps the event alive. If the organizer has no
-department, creation fails with the usual “Assign yourself to a department…”
-message.
+stable home the creator can still see and manage. Zero registrants are
+therefore allowed too: the organizer's department keeps the event alive. If the
+organizer has no department, creation fails with the usual “Assign yourself to
+a department…” message.
 
 The organizer is **not** a participant unless they include themselves. A
 zero-registrant event is only visible in the calendars it lives in; pinning it
@@ -193,6 +204,8 @@ belong to one event, not to its duplicate.
   - "Registration event" badge;
   - the roster is labelled "Registered (N)" or "Registered (N / cap)" and
     shows an empty state; a capped event adds a progress bar;
+  - on a repeating event the roster/cap/full state is for **that occurrence**
+    and the modal says “Registration applies to this event only”;
   - at capacity, a non-registered user's **Register** button is disabled and
     the modal says “Registration is full”; an existing registrant can still
     deregister;
@@ -200,8 +213,8 @@ belong to one event, not to its duplicate.
     non-organizer/non-admin users see it _instead of_ Edit/Delete/Duplicate,
     while the organizer and admins see it _last_ (below their action-icon row,
     so they can add/remove themselves without opening the wizard);
-  - the button patches the local roster immediately and asks the dashboard to
-    revalidate after success.
+  - the button patches the local roster for that occurrence immediately and asks
+    the dashboard to revalidate after success.
 - **Read-only surfaces** (Double Booking, KAH status, wizard clash detail) never
   show the registration action.
 
@@ -233,9 +246,14 @@ There is no dedicated organizer-notification on someone else registering.
   The cap is checked against the copy read at the start of the action, so two
   racing registrations can both pass and exceed the cap by one or more.
   Expected volume is low; a future hardening path is a per-event lock or a
-  relational roster.
+  relational roster. On a repeating event this race is per occurrence.
+- **Repeating-event rosters**: each occurrence's exception snapshots the roster
+  when it is first edited. A later series-level roster change updates generated
+  occurrences but not existing per-occurrence exceptions; changing the series
+  registration flag/cap (or the repeat pattern) resets those exceptions.
 - **Copy churn**: joining/leaving a department can create/retire that
-  department's Google copy.
+  department's Google copy on a one-off event; a repeating event's per-occurrence
+  registration never creates a new series parent.
 - **Discovery**: with the existing target rule, an event with no registrants
   lives only in the organizer's department. Pinning is the org-wide discovery
   mechanism.

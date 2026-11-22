@@ -7,6 +7,7 @@ import {
   applyRegistrationIntent,
   eventFormValuesFromCopy,
   isRegistrationFull,
+  registrationPatchKey,
   registrationSeatCount,
 } from "./registration";
 
@@ -40,6 +41,19 @@ describe("applyRegistrationIntent", () => {
   it("removes every matching entry and is idempotent", () => {
     expect(applyRegistrationIntent(["u-1", "u-2"], "u-1", "deregister")).toEqual(["u-2"]);
     expect(applyRegistrationIntent(["u-2"], "u-1", "deregister")).toEqual(["u-2"]);
+  });
+});
+
+describe("registrationPatchKey", () => {
+  it("separates occurrences of the same series and distinguishes a one-off", () => {
+    expect(registrationPatchKey("g-1", "2026-01-05 09:00:00")).toBe(
+      "g-1:2026-01-05 09:00:00",
+    );
+    expect(registrationPatchKey("g-1", "2026-01-12 09:00:00")).not.toBe(
+      registrationPatchKey("g-1", "2026-01-05 09:00:00"),
+    );
+    expect(registrationPatchKey("g-1", null)).toBe("g-1:series");
+    expect(registrationPatchKey(null, null)).toBeNull();
   });
 });
 
