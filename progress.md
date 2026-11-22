@@ -18,9 +18,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.398 (UI/UX research backlog)** is shipped; the last functional
-  change is **1.397 (event-search toolbar alignment, wrapping-free date range, tiered result
-  sections)**.
+- All work through changelog **1.399 (dashboard Today jump + replace-based view navigation)**
+  is shipped — the first items (A1/A2/A4) off the UI/UX backlog.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -2704,6 +2703,25 @@ mirror them (four such entries: 1.106.1, 1.122.1, 1.316.1, 1.331.1).
    login affordances, first-run coach, pull-to-refresh, registrant export, print CSS) are recorded
    in a **held register** with the date — not to be implemented without a new decision. No code,
    schema or `APP_VERSION` change. Docs: `ui-ux-improvements.md` (new), `AGENTS.md` project state.
+- 1.399 **Dashboard Today jump + replace-based view navigation (UI/UX backlog A1/A2/A4)**:
+   the off-today **Back to Today** jump now appears without shifting any existing control and
+   without covering the calendar: at `lg`+ a pill floats in the date-nav row's permanently empty
+   center (compact desktop tier: an icon circle stacked under the floating fullscreen button);
+   below `lg` a 56px circle joins the
+   FAB row left of the `[<|>]` step pill (right-anchored row). It renders only while today is
+   outside the shown period — pure `isOffToday` (`src/lib/ui/todayAffordance.ts`, unit-tested)
+   reads the same optimistic `shown*` state as the period label, so control and label never
+   disagree. The tap runs the existing `goToday` cross-slide (no new loading surface), the
+   hover/focus/press handlers prefetch today's context like the chevrons', and the sr announcement
+   rides the existing chrome watcher. **A4**: `navigate`/`navigateLocal`, the in-month agenda-day
+   anchor and the one-shot `edit`/`event` URL strips now `router.replace(…, { scroll: false })` —
+   view state no longer stacks history entries, so system Back leaves the calendar in one press
+   (deep links, post-save nav and `openClashEventInCalendar` keep `push`); the `edit`/`event`
+   strips finally honour their own "Back doesn't re-open" comments. **A2**: `user-guide.md` and
+   `dashboard-views.md` describe the real chrome (the phantom ⋮ menu is gone; fullscreen is the
+   shared `FullscreenButton`) plus the new control. Docs: `dashboard-views.md`
+   §1.1 (Today-jump bullet)/§1.2, `user-guide.md` §1.3, `ui-ux-improvements.md` §1.10.1 (Shipped),
+   `AGENTS.md`.
 
 ## 1.4 Open items & next steps
 

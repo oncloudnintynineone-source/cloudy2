@@ -66,6 +66,7 @@ import {
 } from "./scheduleViews";
 import {
   IconBuilding,
+  IconCalendarClock,
   IconCalendarDot,
   IconCheck,
   IconChevronDown,
@@ -181,6 +182,7 @@ import {
   type SlotZoom,
 } from "@/lib/ui/slotZoom";
 import { usePersistDashboardNav } from "@/lib/ui/uiStateClient";
+import { isOffToday } from "@/lib/ui/todayAffordance";
 import { PINNED_EVENTS_CHANGED_EVENT } from "@/lib/ui/pinnedPanel";
 import { useSearchPanel } from "@/lib/ui/searchPanel";
 import { notifyEventsChanged } from "@/lib/ui/eventChanges";
@@ -1543,7 +1545,7 @@ function DashboardViewImpl({
   const [agendaSlideDir, setAgendaSlideDir] = useState<0 | 1 | -1>(0);
   // The day the Agenda *tab* is showing (client source of truth while the tab
   // is up); null = follow the `?date=` prop. In-month changes apply locally
-  // and sync the URL with a no-transition push so no skeleton flashes.
+  // and sync the URL with a no-transition replace so no skeleton flashes.
   const [viewedDay, setViewedDay] = useState<string | null>(null);
   // `?date=` prop value before the last day write from the Agenda tab: while
   // the prop still holds it, a prop ≠ viewedDay diff is our own write in
@@ -2073,7 +2075,7 @@ function DashboardViewImpl({
   // `CrossfadeSwap` below (the outgoing skeleton dissolves over the content);
   // on a cold mount the static `content-enter` class ships in the SSR HTML and
   // fades the shell in once, then the crossfade owns every later reveal. The
-  // one-shot `edit`/`event` strips are plain pushes (no transition), so they
+  // one-shot `edit`/`event` strips are plain replaces (no transition), so they
   // never set the pending flag and never replay the reveal. (Force refresh is a
   // full page reload from the profile menu now — its wait is the route
   // loading.tsx, not this skeleton.)
@@ -2390,6 +2392,21 @@ function DashboardViewImpl({
   }, [shownTabName, shownView, periodLabel, dayLabel, shownIsDual]);
   const today = dayjs().format("YYYY-MM-DD");
   const todayMonth = dayjs().format("YYYY-MM");
+  // A1: the Today jump (mobile pill + compact cluster) exists only while today
+  // is outside the shown period — the same optimistic `shown*` state the period
+  // label reads, so the control and the label never disagree. Agenda passes
+  // its viewed day, Dual Pane its day anchor (the month pane follows it), week
+  // kinds the whole week (a week merely containing today is on today).
+  const offToday = isOffToday(
+    shownIsAgenda
+      ? { kind: "day", date: viewedDay ?? shownDate }
+      : shownIsWeek
+        ? { kind: "week", date: shownDate, weekStartsOn }
+        : shownIsAnchored
+          ? { kind: "day", date: shownDate }
+          : { kind: "month", month: shownMonth },
+    today,
+  );
   // Start-scroll anchor for the Day/Week (H) timelines: when the shown period
   // contains today the grid opens at the current time, otherwise the 07:00
   // working-day default. Only consumed by the library's client mount effect
@@ -2917,14 +2934,20 @@ function DashboardViewImpl({
       }
       reportNavigationPending(true);
       startTransition(() => {
-        router.push(plainHref);
+        // View state, not a destination (docs/ui-ux-improvements.md A4): period
+        // steps and tab switches REPLACE the current history entry, so the
+        // system Back gesture leaves the calendar in one press instead of
+        // walking every chevron/tab tap. The URL still carries
+        // ?date=/?view=/?month=, so deep links and share links are unaffected.
+        router.replace(plainHref, { scroll: false });
       });
     },
     [buildHref, router, startTransition, pathname, searchParams, reportNavigationPending],
   );
 
-  // A data-neutral URL update — an in-month day/week move. A plain push, never a
-  // transition, so `isPending` stays false and no skeleton flashes. The month
+  // A data-neutral URL update — an in-month day/week move. A plain replace,
+  // never a transition, so `isPending` stays false and no skeleton flashes (and
+  // no history entry: view state, not a destination — A4). The month
   // set is unchanged, so `DashboardScreen` performs no read; the date anchors
   // (chrome + cookie) update locally and the cross-month case still fetches and
   // shows the skeleton via `isNavigating`.
@@ -2936,7 +2959,7 @@ function DashboardViewImpl({
       if (plainHref === currentHref) {
         return;
       }
-      router.push(plainHref);
+      router.replace(plainHref, { scroll: false });
     },
     [buildHref, router, pathname, searchParams],
   );
@@ -3078,9 +3101,10 @@ function DashboardViewImpl({
     }
   }, [initialDetailEventId, initialEditEventId]);
 
-  // Strip the one-shot `edit` param from the URL so a refresh doesn't reopen
-  // the edit form. A plain push (no transition): the grid shows no skeleton
-  // and no fade for a URL-only change.
+  // Strip the one-shot `edit` param from the URL so a refresh or Back doesn't
+  // reopen the edit form. A plain replace (no transition): the grid shows no
+  // skeleton and no fade for a URL-only change, and the deep link leaves no
+  // history entry behind (A4).
   const editParamClearedRef = useRef(false);
   useEffect(() => {
     if (!initialEditEventId || editParamClearedRef.current) {
@@ -3092,7 +3116,7 @@ function DashboardViewImpl({
       return;
     }
     editParamClearedRef.current = true;
-    router.push(buildHref({ edit: null }));
+    router.replace(buildHref({ edit: null }), { scroll: false });
   }, [buildHref, initialEditEventId, deepLinkSettled, router]);
 
   // Strip the one-shot `event` param (Google Calendar note / search / Pinned
@@ -3119,7 +3143,7 @@ function DashboardViewImpl({
       return;
     }
     detailParamClearedRef.current = true;
-    router.push(buildHref({ event: null, _eventCal: null }));
+    router.replace(buildHref({ event: null, _eventCal: null }), { scroll: false });
   }, [buildHref, initialDetailEventId, deepLinkSettled, router]);
 
   /**
@@ -3297,7 +3321,7 @@ function DashboardViewImpl({
     // definition-blind). Without it the keyed fetch treats the target as already
     // covered and the change would not apply until a Force refresh. Use the
     // target period (not the not-yet-committed URL) so the fetch matches the
-    // href the navigation is about to push.
+    // href the navigation is about to write.
     if (plan.needsReload) {
       const params = buildParams(target);
       // A definition reload is not a Google force-refresh.
@@ -3379,7 +3403,7 @@ function DashboardViewImpl({
   /**
    * Applies a day change in the Agenda tab. The viewed day updates locally and
    * the change plays the real cross-slide (§1.14.1) — `?date=` is kept in sync
-   * with a plain no-transition push in-month (no new fetch identity, so the
+   * with a plain no-transition replace in-month (no new fetch identity, so the
    * page re-renders silently behind the slide) or a data navigation across a
    * month edge (the optimistic period preview paints the preloaded adjacent
    * month, so no skeleton flashes either). The keyed `agenda-slide-*` CSS slide
@@ -3408,9 +3432,10 @@ function DashboardViewImpl({
       navigate({ date: next, month: nextMonth });
       return;
     }
-    // Plain push outside startTransition: it never sets the pending flag
-    // (same pattern as the ?edit=/?event= URL strips), so no skeleton.
-    router.push(buildHref({ date: next }));
+    // Plain replace outside startTransition: it never sets the pending flag
+    // (same pattern as the ?edit=/?event= URL strips), so no skeleton — and no
+    // history entry for an in-month day step (A4).
+    router.replace(buildHref({ date: next }), { scroll: false });
   }
 
   function shiftAgendaDay(delta: number) {
@@ -4210,6 +4235,25 @@ function DashboardViewImpl({
   // the actions drop to icon-only so the row fits the ~544px content width the
   // 64px icon rail leaves; a wide-but-short viewport has room for their labels
   // (docs/dashboard-views.md §1.1).
+  // A1: the Today jump (docs/ui-ux-improvements.md A1) exists only while today
+  // is outside the shown period (`offToday`) and never inline in the chrome —
+  // an inline control would shift its neighbours the moment it appears. Below
+  // `lg` it is a 56px circle in the FAB row left of the `[< | >]` step pill
+  // (the row is right-anchored, so nothing moves); at `lg`+ it floats over the
+  // pinned chrome, never the canvas: the wide tier centers the "Back to Today"
+  // pill in the date-nav row's permanently empty middle (absolutely positioned,
+  // so out of flow), the compact tier docks an icon circle under the floating
+  // fullscreen button. All run the existing `goToday`
+  // path (real period slide + the view-state URL replace — no new loading
+  // surface) and announce through the chrome watcher above; the intent
+  // handlers warm today's context exactly like the chevrons warm the adjacent
+  // period.
+  const prefetchTodayContext = (immediate: boolean) => {
+    prefetchContextOnIntent(
+      { view: shownTabId, month: todayMonth, date: shownView === "month" ? null : today },
+      immediate,
+    );
+  };
   const navPrev = (
     <ActionIcon
       size={36}
@@ -4388,6 +4432,36 @@ function DashboardViewImpl({
         {shownTabName}
       </Text>
     );
+  // A1: the "Back to Today" pill for the wide desktop tier — floated in the
+  // permanently empty center of the pinned date-nav row (the period label is
+  // left-aligned, every control is right-anchored), absolutely positioned so it
+  // is out of flow and the row is identical whether it shows or not. Rendered
+  // inside the sticky chrome box, so it stays pinned, follows immersive mode,
+  // and never overlaps the calendar canvas. The compact desktop tier has no
+  // empty row center (the squircle fills it) and docks an icon circle under the
+  // floating fullscreen button instead (see `FullscreenToggle below`); below
+  // `lg` the jump rides the FAB row left of the step pill.
+  const todayPillWide = offToday ? (
+    <Button
+      radius={50}
+      fw={600}
+      className="c2-glass-btn c2-glass-btn--bordered"
+      leftSection={<IconCalendarClock size={16} />}
+      style={{
+        position: "absolute",
+        left: "50%",
+        top: "50%",
+        transform: "translate(-50%, -50%)",
+      }}
+      onClick={() => goToday()}
+      onPointerEnter={() => prefetchTodayContext(false)}
+      onFocus={() => prefetchTodayContext(true)}
+      onPointerDown={() => prefetchTodayContext(true)}
+      onTouchStart={() => prefetchTodayContext(true)}
+    >
+      Back to Today
+    </Button>
+  ) : null;
   const navRow = isCompactDesktop ? (
     <Group align="center" gap={8} wrap="nowrap" style={{ width: "100%" }}>
       <Box className="c2-compact-cluster">
@@ -4416,7 +4490,16 @@ function DashboardViewImpl({
       </Group>
     </Group>
   ) : (
-    <Group align="center" gap="xs" wrap="nowrap" mt="xs">
+    <Group
+      align="center"
+      gap="xs"
+      wrap="nowrap"
+      mt="xs"
+      // Positioning context for the absolutely-centered "Back to Today" pill —
+      // it floats over this row's permanently empty middle (label left, all
+      // controls right), out of flow, so nothing shifts when it appears.
+      style={{ position: "relative" }}
+    >
       <Text fw={600} size="md" lineClamp={1} style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
         {/* Label flavor follows the optimistic chrome (same contract as the
             skeleton below): the period you asked for is what reads, even while
@@ -4425,6 +4508,7 @@ function DashboardViewImpl({
             falls back to the optimistic date (today). */}
         {periodLabel}
       </Text>
+      {todayPillWide}
       {/* Period chevrons: in the nav row at lg; below `lg` they ride the FAB
           cluster as the `[< | >]` pill (see the mobile FloatingToolbar). */}
       {navPrev}
@@ -5780,7 +5864,11 @@ function DashboardViewImpl({
       {/* Floating fullscreen (immersive) toggle — anchored to the top-right of
           the calendar at lg+, beside the zoom/pan cluster. Below `lg` the
           control pill's inline FullscreenButton takes over (visibleFrom="lg"),
-          so it is not gated on grid content like GridNavControls. */}
+          so it is not gated on grid content like GridNavControls. In the
+          compact desktop tier it also carries the A1 "Back to Today" circle
+          stacked below it (that tier's nav row is full — the squircle fills it
+          — so the jump docks into this top-right cluster; the wide tier floats
+          the pill in the nav row's empty center instead). */}
       <FullscreenToggle
         anchorRef={weekBoxRef}
         chromeRef={tabsListRef}
@@ -5788,6 +5876,25 @@ function DashboardViewImpl({
         visibleFrom="lg"
         active={immersiveMode.active}
         onToggle={immersiveMode.active ? immersiveMode.exit : immersiveMode.enter}
+        below={
+          isCompactDesktop && offToday ? (
+            <ActionIcon
+              size={40}
+              radius="50%"
+              variant="default"
+              className="c2-glass-btn c2-glass-btn--bordered"
+              aria-label="Back to Today"
+              title="Back to Today"
+              onClick={() => goToday()}
+              onPointerEnter={() => prefetchTodayContext(false)}
+              onFocus={() => prefetchTodayContext(true)}
+              onPointerDown={() => prefetchTodayContext(true)}
+              onTouchStart={() => prefetchTodayContext(true)}
+            >
+              <IconCalendarClock size={18} />
+            </ActionIcon>
+          ) : null
+        }
       />
 
       <MotionModal
@@ -5909,7 +6016,7 @@ function DashboardViewImpl({
             // navigation). The settled-path strip normally handles this.
             if (initialDetailEventId) {
               detailParamClearedRef.current = true;
-              router.push(buildHref({ event: null, _eventCal: null }));
+              router.replace(buildHref({ event: null, _eventCal: null }), { scroll: false });
             }
           }}
           onEdit={(event, originRect) => {
@@ -6261,7 +6368,9 @@ function DashboardViewImpl({
           row replace these FABs, and the row is always mounted below `lg` (the
           Affix carries `hiddenFrom="lg"`) so its measured width never goes stale
           while the wizard modal is open — it just sits behind the modal overlay.
-          The row floats right-anchored above the control pill: the period-step
+          The row floats right-anchored above the control pill: the **Today** circle (A1 —
+          rendered only while today is off-screen; the row's right anchor means
+          adding it never shifts the other controls), then the period-step
           chevrons `[< | >]` pill left, then the fully saturated amber
           Quick-links **circle** (`c2-glass-fab--accent-solid`) when the org has
           links, and the fully saturated New-event **circle**
@@ -6313,6 +6422,23 @@ function DashboardViewImpl({
                 pointerEvents: "auto",
               }}
             >
+              {offToday && (
+                <ActionIcon
+                  size={56}
+                  radius="50%"
+                  variant="default"
+                  className="c2-glass-btn c2-glass-btn--bordered"
+                  aria-label="Back to Today"
+                  title="Back to Today"
+                  onClick={() => goToday()}
+                  onPointerEnter={() => prefetchTodayContext(false)}
+                  onFocus={() => prefetchTodayContext(true)}
+                  onPointerDown={() => prefetchTodayContext(true)}
+                  onTouchStart={() => prefetchTodayContext(true)}
+                >
+                  <IconCalendarClock size={24} />
+                </ActionIcon>
+              )}
               <Box
                 className="c2-glass-surface c2-period-pill"
                 style={{ display: "flex", alignItems: "center" }}

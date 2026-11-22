@@ -80,7 +80,7 @@ Each finding is one block:
 - **Effort** — `S` (hours), `M` (a day or two), `L` (a design-gated week), `XL` (needs a spec).
 - **Respect** — the convention or existing machinery the change must not break.
 
-Statuses: **Tier 1–4** (see §1.10) or **Held** (see §1.9).
+Statuses: **Tier 1–4** (see §1.10), **Held** (see §1.9) or **Shipped** (see §1.10.1).
 
 ## 1.4 Calendar core and the touch model
 
@@ -123,6 +123,16 @@ flowchart LR
 added *outside* it must carry the class or be excluded deliberately. Do not add a second surface
 that duplicates the date picker.
 
+**Status.** Shipped **1.399** (2026-11-22; placement revised twice the same day — the first floating version sat top-center over the canvas and covered weekday labels/chips): visible only while
+today is outside the shown period — pure `isOffToday` (`src/lib/ui/todayAffordance.ts`,
+unit-tested) reads the same optimistic `shown*` state as the period label — and **never inline in
+the chrome, never over the canvas**, so nothing shifts and nothing is covered: at `lg`+ a
+**"Back to Today"** pill floats in the date-nav row's permanently empty center (compact desktop
+tier: an icon circle stacked under the floating fullscreen button); below `lg` a 56px circle joins
+the FAB row left of the `[< | >]` step pill (right-anchored
+row). The label tap/long-press variant from the fix sketch was **not** built: a hidden gesture,
+and the label stays a pure read-out. §1.10.1.
+
 ### 1.4.2 A2 — two docs describe chrome that no longer exists
 
 **Evidence.** [`user-guide.md`](user-guide.md) line 105: "Date-nav arrows move day/week/month; the
@@ -139,6 +149,11 @@ While editing, make sure neither doc documents held items (§1.9) as if they exi
 
 **Effort.** S. **Respect.** Doc conventions: TOC anchors, hierarchical numbering, Mermaid where it
 helps.
+
+**Status.** Shipped **1.399** (2026-11-22): both docs now describe the real chrome plus the A1
+control (Today-jump bullet in `dashboard-views.md` §1.1); the same stale ⋮-menu claim in
+`user-guide.md`'s **Fullscreen** bullet was corrected in the same pass. No held item is documented
+as existing. §1.10.1.
 
 ### 1.4.3 A4 — every period step and tab switch pushes a history entry
 
@@ -168,6 +183,14 @@ flowchart TD
 (`docs/ui-state.md`) still lands on the last context after a replace-only session. Keep
 `router.push` for genuine destinations — opening an event deep link, post-save navigation, and
 `openClashEventInCalendar` (`:2520-2530`).
+
+**Status.** Shipped **1.399** (2026-11-22): `navigate`/`navigateLocal`, the in-month agenda-day
+anchor and the one-shot `edit`/`event` strips all `router.replace(…, { scroll: false })` now;
+genuine destinations (event deep links, post-save nav, `openClashEventInCalendar`) keep `push`.
+Correction to the Respect note above: at 1.397 only `refresh`/`share` stripped with `replace` —
+`edit`/`event` pushed, even though their own comments promised Back would not re-open the modal;
+they now honour it. The remembered-page cookie is written client-side from the snapshot state
+(`src/lib/ui/uiStateClient.ts`), so replace-only sessions still land on the last context. §1.10.1.
 
 ### 1.4.4 Not re-proposed here
 
@@ -508,7 +531,7 @@ Order is fixed; held items were removed without renumbering or re-ranking anythi
 
 ```mermaid
 flowchart TD
-  T1["Tier 1 — days, low risk<br/>A1 · A2 · A4 · B1 · B4 · C1 · C6 · D5 · D6"] --> T2["Tier 2 — a sprint<br/>B3 · B5 · C2 · C3 · C4 · C5 · D2 · D7"]
+  T1["Tier 1 — days, low risk<br/>B1 · B4 · C1 · C6 · D5 · D6"] --> T2["Tier 2 — a sprint<br/>B3 · B5 · C2 · C3 · C4 · C5 · D2 · D7"]
   T2 --> T3["Tier 3 — design-gated<br/>E3 · E6 hint"]
   T3 --> T4["Tier 4 — feature specs<br/>E1 · E4 · E6 sync"]
   H["Held — not scheduled<br/>A3 · A5 · A6 · B2 · D1 · D3 · D4 · E2 · E5"]
@@ -516,13 +539,24 @@ flowchart TD
 
 | Tier | Items | Why here |
 | --- | --- | --- |
-| **1 — days, low risk** | A1, A2, A4, B1, B4, C1, C6, D5, D6 | Missing-affordance and correctness fixes. Each is local, reversible, needs no schema or data change, and closes a gap the codebase already knows about (B1) or a contract that drifted (A2). |
+| **1 — days, low risk** | B1, B4, C1, C6, D5, D6 | Missing-affordance and correctness fixes. Each is local, reversible, needs no schema or data change, and closes a gap the codebase already knows about (B1). A1/A2/A4 left this tier shipped (§1.10.1). |
 | **2 — a sprint** | B3, B5, C2, C3, C4, C5, D2, D7 | Keyboard parity, the legibility floor, find-things surfaces, and guidance. Take **B5 before D2** so the guide sheet documents shortcuts that exist. |
 | **3 — design-gated** | E3, E6-hint | Advisory and messaging that must be designed against the clashes engine and attendance docs rather than bolted on. |
 | **4 — feature work** | E1, E4, E6-sync | Each needs its own spec, schema, and subsystem doc. |
 
-**Intra-tier notes.** A2 rides with A1 (same docs, same chrome). C1 and C6 are independent of
-everything else. D6 depends on no other item — it is a routing change, not a new component.
+**Intra-tier notes.** C1 and C6 are independent of everything else. D6 depends on no other item —
+it is a routing change, not a new component.
+
+### 1.10.1 Shipped
+
+Findings stay in place (evidence and rationale included); their blocks carry a **Status** line and
+land here.
+
+| ID | Shipped | Landed as |
+| --- | --- | --- |
+| A1 | 1.399 (2026-11-22) | Off-today-only Today jump, never inline and never over the canvas: at `lg`+ a **"Back to Today"** pill floats in the date-nav row's permanently empty center (compact desktop tier: an icon circle stacked under the floating fullscreen button); below `lg` a 56px frosted circle joins the FAB row left of the `[< \| >]` step pill (right-anchored, so existing controls never shift). Pure `isOffToday` (`src/lib/ui/todayAffordance.ts` + tests). Tap runs the existing `goToday` cross-slide + replace; intent prefetch like the chevrons; sr announcement rides the existing chrome watcher. Documented in [`dashboard-views.md`](dashboard-views.md) §1.1 (Today-jump bullet) and [`user-guide.md`](user-guide.md) §1.3.2. |
+| A2 | 1.399 (2026-11-22) | `user-guide.md` §1.3.1/§1.3.2 and `dashboard-views.md` §1.1/§1.2 describe the real chrome — no ⋮ menu, shared `FullscreenButton`, the A1 control — and no held item is described as existing. |
+| A4 | 1.399 (2026-11-22) | `navigate`/`navigateLocal`, the in-month agenda-day anchor and the one-shot `edit`/`event` strips `router.replace(…, { scroll: false })`; deep links, post-save nav and `openClashEventInCalendar` keep `push`. Back leaves the calendar in one press; the cookie path is history-method-agnostic (verified). |
 
 ## 1.11 Implementation guardrails
 

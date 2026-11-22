@@ -1,6 +1,6 @@
 "use client";
 
-import { type CSSProperties, type RefObject, useLayoutEffect, useState } from "react";
+import { type CSSProperties, type ReactNode, type RefObject, useLayoutEffect, useState } from "react";
 import { ActionIcon, type ActionIconProps } from "@mantine/core";
 import { IconArrowsMaximize, IconArrowsMinimize } from "@tabler/icons-react";
 
@@ -75,6 +75,11 @@ export function FullscreenButton({
  * is never gated on grid content: it must stay reachable in every view (and in
  * immersive mode, at lg+, it is the in-page exit path, so it re-measures when
  * `active` flips and the header collapses).
+ *
+ * An optional `below` node stacks directly under the button in the same fixed
+ * column (8px gap, right-aligned), so callers can dock one more small control
+ * into this top-right cluster without a second measurement pass — the
+ * dashboard uses it for the compact-desktop "Back to Today" circle.
  */
 export function FullscreenToggle({
   anchorRef,
@@ -83,6 +88,7 @@ export function FullscreenToggle({
   onToggle,
   layoutKey,
   visibleFrom,
+  below,
 }: {
   anchorRef: RefObject<HTMLDivElement | null>;
   chromeRef: RefObject<HTMLDivElement | null>;
@@ -98,6 +104,8 @@ export function FullscreenToggle({
   /** Mantine responsive prop forwarded to the button (the dashboard passes
    *  `"lg"` so the floating toggle yields to the mobile pill below `lg`). */
   visibleFrom?: string;
+  /** Optional control stacked under the button in the same fixed column. */
+  below?: ReactNode;
 }) {
   // Static anchor: the chrome's bottom edge (top) and the grid's right edge,
   // measured on load (null before first paint so the button never flashes
@@ -152,10 +160,7 @@ export function FullscreenToggle({
   }
 
   return (
-    <FullscreenButton
-      active={active}
-      onToggle={onToggle}
-      visibleFrom={visibleFrom}
+    <div
       style={{
         position: "fixed",
         top: pos.top,
@@ -164,7 +169,14 @@ export function FullscreenToggle({
         // behind them, but below the sticky date-nav chrome (50) and the
         // modals.
         zIndex: 46,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "flex-end",
+        gap: FULLSCREEN_EDGE_INSET,
       }}
-    />
+    >
+      <FullscreenButton active={active} onToggle={onToggle} visibleFrom={visibleFrom} />
+      {below ?? null}
+    </div>
   );
 }

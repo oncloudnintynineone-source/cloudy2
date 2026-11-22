@@ -249,7 +249,12 @@ doc content here.
     New-event / Quick-links actions sit outside it at the same 40px/12px squircle,
     **fully saturated** (`c2-glass-fab--brand-solid` / `--accent-solid`, no frosted
     tint) at every width. They go icon-only only in the narrow band (a wide-but-short
-    viewport keeps the labels). Saves a full row of chrome. The mobile floating rows
+    viewport keeps the labels). Saves a full row of chrome. While today is off-screen the
+**Back to Today** jump appears **without shifting anything**: a 56px circle in the mobile
+FAB row left of the `[<|>]` step pill (right-anchored row), and at `lg`+ a pill floated in
+the date-nav row's permanently empty center — compact tier: an icon circle stacked under
+the floating fullscreen button — never inline in the chrome, never over the canvas
+(`src/lib/ui/todayAffordance.ts`, `dashboard-views.md` §1.1). The mobile floating rows
     **auto-hide while the user touches the calendar pane** (touch alone, or any
     scroll, either axis) and slide back only when the last finger/pointer is
     lifted AND the scroll has settled — they stay hidden through the scroll,

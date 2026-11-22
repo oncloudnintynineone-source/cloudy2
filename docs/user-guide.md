@@ -96,13 +96,20 @@ them with the tabs above the grid:
   copy at the end of their tab strip. The link carries only the view definition,
   never event access; it has no separate revoke button (new links stop working
   only when the app's signing secret is rotated).
-- **Fullscreen** (⋮ menu → **Enter fullscreen**) hides all app
+- **Fullscreen** (the fullscreen button — floating top-right on desktop, a
+  circle in the bottom control pill on phones) hides all app
   chrome (and the browser UI where supported) for a wall-display calendar; press
-  Esc or use ⋮ menu → **Exit fullscreen** to go back.
+  Esc or use the same button to go back.
 
 ### 1.3.2 Dates & filters
 
-- Date-nav arrows move day/week/month; the ⋮ menu has **Today** and **Select date**.
+- Date-nav arrows (‹ ›) step the period: a day in Day and Agenda, a week in
+  the Week views, a month in Month and Month & Agenda. The calendar icon opens
+  the **date picker** (which has its own **Today** button).
+- **Back to Today** appears **only while you are looking at another period**:
+  on desktop a pill sits at the center of the toolbar row (on a narrow desktop
+  window it's a circle under the fullscreen button); on phones a circle joins
+  the step buttons, left of ‹ ›. One tap slides straight back to today.
 - The **filter button** (funnel icon, with a badge when filters are active) opens
   the filter dialog: Calendars/departments and Users (searchable badge list grouped
   by department) up front, Event Types behind a **Show** toggle, and a **Myself**

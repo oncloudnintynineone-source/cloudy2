@@ -246,6 +246,35 @@ string maps to the first tab of that kind.
   optimistic period preview, so a warm target paints the **real** next period in
   the same commit — no skeleton flash. Only genuinely cold targets slide the
   skeleton in (the skeleton now matches the grid's header/row geometry).
+- **Today jump (A1).** Rendered **only while today is outside the shown
+  period**, and never inline in the chrome — an inline control would shift its
+  neighbours the moment it appears. Below `lg` it is a 56px frosted circle in
+  the **FAB row, immediately left of the `[< | >]` step pill** (the row is
+  right-anchored, so the step pill, Quick links and New-event circle never
+  move); at `lg`+ it floats over the pinned chrome — **never over the canvas**,
+  where it would cover the weekday labels and first-row chips: the wide tier
+  centers a **"Back to Today"** pill in the **date-nav row's permanently empty
+  middle** (the period label is left-aligned and every control is
+  right-anchored; the pill is absolutely positioned — out of flow, so the row
+  is identical whether it shows or not — and rides the sticky chrome, staying
+  pinned and following immersive mode for free), while the compact tier, whose
+  row is full (the squircle fills it), docks a 40px icon circle **stacked under
+  the floating fullscreen button** in that top-right cluster
+  (`FullscreenToggle`'s `below` slot). The period rule: Month compares the
+  shown month, the week kinds the whole
+  shown week (Monday/Sunday per `weekStartsOn` — a week merely *containing*
+  today is on today), and Day / Agenda / Dual Pane the anchored day (Agenda its
+  viewed day). Pure `isOffToday` (`src/lib/ui/todayAffordance.ts`, unit-tested)
+  reads the same optimistic `shown*` state the period label renders, so control
+  and label never disagree — and on today the control is simply absent, leaving
+  the date picker's own **Today** button as the only other jump (nothing
+  duplicates it). The tap runs the existing `goToday` path (real period
+  cross-slide + the view-state URL replace —
+  [`loading-transitions.md`](loading-transitions.md) §1.14.1 and
+  [`ui-ux-improvements.md`](ui-ux-improvements.md) A4), the hover/focus/press
+  handlers prefetch today's context exactly like the chevrons', and the sr
+  announcement rides the single chrome watcher
+  ([`accessibility.md`](accessibility.md) §1.2) — no new live-region path.
 - **Mobile tab-switch entrance (below `lg`).** The fallback grid swipe (WAAPI
   on `gridSlideRef`, `DashboardView.tsx` — used when the View Transitions API
   is unavailable or reduced motion is on, and always for tab switches) slides
@@ -268,7 +297,7 @@ string maps to the first tab of that kind.
   `SearchPanelContext`, §1.9 of [`event-search.md`](event-search.md))
    (the fullscreen button is `FullscreenButton`, the same inline toggle the
    floating lg-only `FullscreenToggle` uses); above it floats the
-   **FAB row** — pinned **edge-to-edge** so it has a measurable width, with the
+   **FAB row** — pinned **edge-to-edge** so it has a measurable width, with the **Today** circle (A1 — 56px frosted, left of the step pill while today is off-screen; the row's right anchor means nothing else moves) and the
    `[< | >]` **period-step
    pill** (`.c2-period-pill`, sized by its 56px chevron circles), then the
     **Quick-links circle button** (`c2-glass-fab--accent`, amber —
@@ -470,13 +499,11 @@ management hidden.
 
 ## 1.2 Filters
 
-Filtering has **one primary affordance**: a dedicated filter button (funnel icon
-
-- active-group-count badge, `FilterButton`) beside the ⋮ menu in the nav row
-  opens `FilterModal` (`src/components/FilterModal.tsx`). The ⋮ menu keeps
-  **Today / Select date / Enter fullscreen** only (Force refresh
-  is a header button; view management lives on the strip's right settings
-  button). Dashboards'
+Filtering has **one primary affordance**: a dedicated filter button (funnel icon + active-group-count badge, `FilterButton`) in the nav row
+  opens `FilterModal` (`src/components/FilterModal.tsx`). The nav row's date controls are the period label, the ‹ › steppers
+  and the **Select date** circle (the **Today** jump floats in the toolbar row at `lg`+ — compact tier: under the fullscreen button — / on the FAB row below `lg` — see the Today-jump bullet in §1.1); Force refresh
+  is a header button, view management lives on the strip's right settings
+  button, and fullscreen is the shared `FullscreenButton` (floating top-right at `lg`+, inline in the mobile control pill below). Dashboards'
   "Myself" quick action lives inside the filter modal
   beside the Users group; "Reset filters" clears (role defaults).
 
