@@ -1,6 +1,6 @@
 "use client";
 
-import { type CSSProperties, useMemo, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActionIcon,
   Affix,
@@ -35,8 +35,10 @@ import { PageHeader } from "@/components/PageHeader";
 import { FAB_SIZE } from "@/components/FloatingToolbar";
 import { filterContacts, NO_DEPARTMENT_FILTER } from "@/lib/contacts/filter";
 import {
+  activeSectionKey,
   buildContactRail,
   buildContactSections,
+  contactInitial,
   type ContactSort,
 } from "@/lib/contacts/sections";
 import { useChromeHide } from "@/lib/ui/chromeHide";
@@ -196,6 +198,35 @@ export function ContactList({
   const sections = useMemo(() => buildContactSections(filtered, sort), [filtered, sort]);
   const rail = useMemo(() => buildContactRail(sections), [sections]);
   const showRail = rail.length >= RAIL_MIN_SECTIONS;
+  const [activeRailKey, setActiveRailKey] = useState<string | null>(null);
+
+  // Keep the rail's highlight on the section under the activation line (the
+  // upper third of the viewport). Capture-phase `scroll` on `document`: the
+  // page may scroll on the window or on an inner container, and every scroll
+  // event reaches `document` during capture either way. The first measurement
+  // rides a frame so the effect body itself never sets state.
+  useEffect(() => {
+    if (!showRail) {
+      return;
+    }
+    const measure = () => {
+      const entries = sections.flatMap((section) => {
+        const el = document.getElementById(`c2-contact-section-${section.key}`);
+        return el
+          ? [{ key: contactInitial(section.label), top: el.getBoundingClientRect().top }]
+          : [];
+      });
+      setActiveRailKey(activeSectionKey(entries, Math.min(280, window.innerHeight * 0.35)));
+    };
+    const frame = window.requestAnimationFrame(measure);
+    document.addEventListener("scroll", measure, true);
+    window.addEventListener("resize", measure);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      document.removeEventListener("scroll", measure, true);
+      window.removeEventListener("resize", measure);
+    };
+  }, [sections, showRail]);
 
   function changeSort(next: ContactSort) {
     if (next === sort) {
@@ -205,10 +236,13 @@ export function ContactList({
     announce(next === "name" ? "Contacts sorted by name" : "Contacts sorted by department");
   }
 
-  function jumpToSection(sectionKey: string) {
-    document
-      .getElementById(`c2-contact-section-${sectionKey}`)
-      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  function jumpToSection(sectionKey: string, label: string) {
+    const target = document.getElementById(`c2-contact-section-${sectionKey}`);
+    if (!target) {
+      return;
+    }
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+    announce(`Jumped to contacts ${label}`);
   }
 
   // One chip group listing only the departments that actually hold a contact,
@@ -500,74 +534,94 @@ export function ContactList({
           <EmptyState icon={<IconUsers size={18} />} description="No contacts found." />
         )
       ) : (
-        // Sectioned dense list (C2): one bordered container, hairline row
-        // separators, section headers as jump targets. The right-edge A–Z
-        // rail (iOS-Contacts style) appears once enough sections exist; the
-        // list reserves its gutter so the rail never covers a row's actions.
-        <Box
-          style={{
-            border: LIST_BORDER,
-            borderRadius: "var(--mantine-radius-md)",
-            overflow: "hidden",
-            paddingRight: showRail ? 28 : 0,
-          }}
-        >
-          {sections.map((section, sectionIndex) => (
-            <Box key={section.key}>
+        // Sectioned dense list (C2): every group is its own rounded card — the
+        // letter groups for the name sort, the department groups for the
+        // department sort — so a group reads as one bounded block instead of a
+        // seam in a continuous list. The A–Z rail rides beside the cards as a
+        // sticky surface: it stays pinned under the chrome through the list,
+        // lights up the current section, and its letters are full tap targets.
+        <Box style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
+          <Stack gap="sm" style={{ flex: 1, minWidth: 0 }}>
+            {sections.map((section) => (
               <Box
+                key={section.key}
                 id={`c2-contact-section-${section.key}`}
                 className="c2-contact-section"
                 style={{
-                  padding: "6px var(--mantine-spacing-sm)",
-                  borderTop: sectionIndex === 0 ? undefined : LIST_BORDER,
+                  border: LIST_BORDER,
+                  borderRadius: "var(--mantine-radius-md)",
+                  overflow: "hidden",
                 }}
               >
-                <Text size="xs" fw={700} c="dimmed" tt="uppercase" lh={1}>
-                  {section.label}
-                </Text>
-              </Box>
-              {section.users.map((user, userIndex) => (
-                <Box key={user.id} style={{ borderTop: userIndex === 0 ? undefined : LIST_BORDER }}>
-                  <ContactRow user={user} nameTemplate={nameTemplate} />
+                <Box style={{ padding: "6px var(--mantine-spacing-sm)" }}>
+                  <Text size="xs" fw={700} c="dimmed" tt="uppercase" lh={1}>
+                    {section.label}
+                  </Text>
                 </Box>
-              ))}
-            </Box>
-          ))}
-        </Box>
-      )}
-
-      {/* The A–Z jump rail (C2): one letter per section initial, pinned to the
-          right edge and vertically centred clear of the floating pill. */}
-      {showRail && (
-        <Affix
-          position={{ right: 2, top: "50%" }}
-          style={{ transform: "translateY(-50%)" }}
-          zIndex={90}
-        >
-          <Box
-            component="nav"
-            aria-label="Jump to contacts section"
-            style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}
-          >
-            {rail.map((entry) => (
-              <UnstyledButton
-                key={entry.key}
-                aria-label={`Jump to contacts section ${entry.key}`}
-                title={entry.key}
-                onClick={() => jumpToSection(entry.sectionKey)}
-                style={{
-                  fontSize: "11px",
-                  fontWeight: 700,
-                  lineHeight: 1.45,
-                  paddingInline: 6,
-                  color: "var(--mantine-color-dimmed)",
-                }}
-              >
-                {entry.key}
-              </UnstyledButton>
+                {section.users.map((user, userIndex) => (
+                  <Box
+                    key={user.id}
+                    style={{ borderTop: userIndex === 0 ? undefined : LIST_BORDER }}
+                  >
+                    <ContactRow user={user} nameTemplate={nameTemplate} />
+                  </Box>
+                ))}
+              </Box>
             ))}
-          </Box>
-        </Affix>
+          </Stack>
+          {showRail && (
+            <Box
+              component="nav"
+              aria-label="Jump to contacts section"
+              className="c2-contact-rail"
+              style={{
+                position: "sticky",
+                alignSelf: "flex-start",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                padding: "6px 3px",
+                zIndex: 2,
+                background: "var(--mantine-color-default)",
+                border: LIST_BORDER,
+                borderRadius: 999,
+              }}
+            >
+              {rail.map((entry) => {
+                const isActive = entry.key === activeRailKey;
+                return (
+                  <UnstyledButton
+                    key={entry.key}
+                    type="button"
+                    aria-label={`Jump to contacts section ${entry.key}`}
+                    aria-current={isActive ? "true" : undefined}
+                    title={entry.key}
+                    onClick={() => jumpToSection(entry.sectionKey, entry.key)}
+                    style={{
+                      width: 26,
+                      minHeight: 20,
+                      display: "grid",
+                      placeItems: "center",
+                      borderRadius: 6,
+                      fontSize: "11px",
+                      fontWeight: isActive ? 800 : 600,
+                      lineHeight: 1,
+                      touchAction: "manipulation",
+                      color: isActive
+                        ? "var(--mantine-color-brand-4)"
+                        : "var(--mantine-color-dimmed)",
+                      background: isActive
+                        ? "var(--mantine-color-brand-light)"
+                        : "transparent",
+                    }}
+                  >
+                    {entry.key}
+                  </UnstyledButton>
+                );
+              })}
+            </Box>
+          )}
+        </Box>
       )}
 
       {/* The floating control pill (below `lg` only): rounded search field +

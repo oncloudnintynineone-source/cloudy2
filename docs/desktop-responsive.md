@@ -386,9 +386,9 @@ effectively vestigial (two 300px columns don't fit until ~644px, which is
 already desktop); the ≥320px desktop grid shows 2 columns from ~800px (rail
 band) and 3 from ~1024px. **Contacts** no longer uses the card grid at all
 (docs/ui-ux-improvements.md C2): a phone list is a lookup tool, so it renders
-one bordered container of hairline-separated dense rows, sectioned
-alphabetically or by department, with a right-edge A–Z jump rail once enough
-sections exist. Beyond that, the floating buttons swap for inline controls:
+one bordered card per group of hairline-separated dense rows, sectioned
+alphabetically or by department, with an A–Z jump rail as a sticky pill beside the
+cards (highlighting the current section) once enough sections exist. Beyond that, the floating buttons swap for inline controls:
 
 - **Contacts** — the search bar gains a **sort** menu (name ↔ department), a
   `FilterButton` (all breakpoints; opens the shared `FilterModal` with a

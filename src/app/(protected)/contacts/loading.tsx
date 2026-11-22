@@ -24,35 +24,49 @@ export default function ContactsLoading() {
           </Group>
         </Box>
 
-        {/* The sectioned dense row list (C2): one bordered container of
-            hairline-separated rows — name line + phone/chips line + the two
-            action circles. */}
-        <Box style={{ border: LIST_BORDER, borderRadius: "var(--mantine-radius-md)", overflow: "hidden" }}>
-          {Array.from({ length: 6 }).map((_, i) => (
+        {/* The sectioned dense row list (C2): one rounded card per group, each
+            with a hairline-separated set of rows — name line + phone/chips line
+            + the two action circles. */}
+        <Stack gap="sm">
+          {[2, 3].map((rows, groupIndex) => (
             <Box
-              key={i}
+              key={groupIndex}
               style={{
-                padding: "10px var(--mantine-spacing-sm)",
-                borderTop: i === 0 ? undefined : LIST_BORDER,
+                border: LIST_BORDER,
+                borderRadius: "var(--mantine-radius-md)",
+                overflow: "hidden",
               }}
             >
-              <Group justify="space-between" wrap="nowrap" gap="sm">
-                <Stack gap={6} style={{ flex: 1, minWidth: 0 }}>
-                  <Skeleton height={16} width="45%" />
-                  <Group gap={6}>
-                    <Skeleton height={12} width={70} />
-                    <Skeleton height={16} width={48} radius="xl" />
-                    <Skeleton height={16} width={64} radius="xl" />
+              <Box style={{ padding: "6px var(--mantine-spacing-sm)" }}>
+                <Skeleton height={10} width={12} />
+              </Box>
+              {Array.from({ length: rows }).map((_, i) => (
+                <Box
+                  key={i}
+                  style={{
+                    padding: "10px var(--mantine-spacing-sm)",
+                    borderTop: i === 0 ? undefined : LIST_BORDER,
+                  }}
+                >
+                  <Group justify="space-between" wrap="nowrap" gap="sm">
+                    <Stack gap={6} style={{ flex: 1, minWidth: 0 }}>
+                      <Skeleton height={16} width="45%" />
+                      <Group gap={6}>
+                        <Skeleton height={12} width={70} />
+                        <Skeleton height={16} width={48} radius="xl" />
+                        <Skeleton height={16} width={64} radius="xl" />
+                      </Group>
+                    </Stack>
+                    <Group gap={6} wrap="nowrap">
+                      <Skeleton width={36} height={36} radius="xl" />
+                      <Skeleton width={36} height={36} radius="xl" />
+                    </Group>
                   </Group>
-                </Stack>
-                <Group gap={6} wrap="nowrap">
-                  <Skeleton width={36} height={36} radius="xl" />
-                  <Skeleton width={36} height={36} radius="xl" />
-                </Group>
-              </Group>
+                </Box>
+              ))}
             </Box>
           ))}
-        </Box>
+        </Stack>
       </Stack>
     </PageContainer>
   );

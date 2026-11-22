@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.401 (Find-things batch: grouped settings tabs, sectioned Contacts, roster/title search, relative audit times, capped detail chips)**
+- All work through changelog **1.402 (Contacts A–Z rail rebuild: sticky inside the list, scroll-synced highlight, real jumps)**
   is shipped — the first items (A1/A2/A4) off the UI/UX backlog.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
@@ -2770,6 +2770,18 @@ mirror them (four such entries: 1.106.1, 1.122.1, 1.316.1, 1.331.1).
     absolute. Docs: `ui-ux-improvements.md` (statuses + tier table + Shipped), `user-guide.md`
     §1.4.2/§1.7/§1.8, `audit-log.md` §1.10, `event-history.md` §1.4, `desktop-responsive.md`
     §1.6, `dashboard-views.md` §1.1, `loading-transitions.md`, `AGENTS.md`.
+  - 1.402 **Contacts A–Z rail rebuild + per-group cards (C2 follow-up, on-device report)**: the
+    rail shipped viewport-fixed *outside* the list border on the scrollbar zone, with no active
+    state and ~16px rows — users reported it unclickable, unlit and detached — and the list read
+    as one continuous wall. Now **every group is its own rounded card** (letter groups under the
+    name sort, department groups under the department sort), and the rail is a **sticky pill
+    beside the cards** (pinned under the app header / lg search bar through the list), with 26×20
+    letter targets, the **current section's letter highlighted** while scrolling (capture-phase
+    `document` scroll listener + pure `activeSectionKey`, unit-tested — catches window *or*
+    inner-container scrolling), a working `scrollIntoView` jump honouring the existing
+    `scroll-margin-top`, and a live-region announcement. Route skeleton reshaped to per-group
+    cards. Docs: `ui-ux-improvements.md` C2 status, `user-guide.md` §1.8,
+    `desktop-responsive.md` §1.6.
 
 ## 1.4 Open items & next steps
 

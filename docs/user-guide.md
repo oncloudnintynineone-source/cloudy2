@@ -246,10 +246,12 @@ sub-departments, with aggregated counts):
 Searchable phone list (name, shortname, or number), with a **Department filter**
 (the funnel button beside the search box — e.g. show only Logistics) that combines
 with the search text. The list is **sectioned** — alphabetically by name, or
-grouped by department with the **sort** control beside the search box — and on
-wider lists a vertical **A–Z rail** on the right edge jumps straight to a letter
-(or to the first department starting with it). Copy a number with one tap, or
-download the currently-filtered list as a `.vcf` file to import into your phone.
+grouped by department with the **sort** control beside the search box — and each
+group sits in **its own card** ("A", "B", … or the department name). The **A–Z
+rail** on the right jumps straight to a letter (or to the first department
+starting with it); the letter for the section you are looking at is highlighted,
+and the rail stays beside you as you scroll. Copy a number with one tap,
+or download the currently-filtered list as a `.vcf` file to import into your phone.
 
 ## 1.9 KAH status
 

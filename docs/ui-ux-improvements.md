@@ -330,7 +330,14 @@ department, a menu beside the search box; pure `buildContactSections`/`buildCont
 section initial, tap = smooth scroll to the section, `scroll-margin` clears the sticky chrome)
 appears from four sections up. Deliberate deviation from the Respect note, by decision: the
 denser row recipe replaces `.card-grid` on this page (`c2-defer-render` stays, per row). The VCF
-export still follows the active search + filters. §1.10.1.
+export still follows the active search + filters. **Follow-up 1.402:** the first cut drew one
+continuous container with plain section seams, and floated the rail as a viewport-fixed column
+*outside* the border on the scrollbar zone with no active state and ~16px rows — users reported
+it detached, unclickable and unlit. Now **every group is its own rounded card** (letter groups
+for the name sort, department groups for the department sort), the rail is a **sticky pill beside
+the cards** — pinned under the chrome through the list, 26×20 letter targets, the current
+section's letter highlighted as you scroll (capture-phase scroll listener + pure
+`activeSectionKey`), and the jump announced. §1.10.1.
 
 ### 1.6.3 C3 — Parade State has no name search
 

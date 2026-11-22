@@ -98,6 +98,34 @@ export interface ContactRailKey {
   sectionKey: string;
 }
 
+/** One measured section header, in document order (`top` = viewport-relative px). */
+export interface ContactSectionOffset {
+  key: string;
+  top: number;
+}
+
+/**
+ * The rail letter to highlight for the current scroll position: the last
+ * section header already above `activationLine` (a viewport-relative y),
+ * falling back to the first section when the list starts below it. Entries
+ * must be in document order — the caller maps each section to its rail letter
+ * (`contactInitial(section.label)`).
+ */
+export function activeSectionKey(
+  entries: readonly ContactSectionOffset[],
+  activationLine: number,
+): string | null {
+  let active: string | null = null;
+  for (const entry of entries) {
+    if (entry.top <= activationLine) {
+      active = entry.key;
+    } else {
+      break;
+    }
+  }
+  return active ?? entries[0]?.key ?? null;
+}
+
 /**
  * The A–Z rail: one entry per distinct section initial (in section order),
  * each targeting the first section that starts with that letter. On name

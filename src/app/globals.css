@@ -2679,6 +2679,19 @@ html.c2-low-end::view-transition-group(*) {
   }
 }
 
+/* The rail column itself sticks under the same chrome while the list is in
+   view (C2 follow-up): below `lg` only the app header sits above it; at `lg`
+   the sticky search bar does too. */
+.c2-contact-rail {
+  top: calc(var(--app-shell-header-offset) + 8px);
+}
+
+@media (min-width: 40em) {
+  .c2-contact-rail {
+    top: calc(var(--app-shell-header-offset) + 84px);
+  }
+}
+
 @media (min-width: 36em) {
   .card-grid {
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));

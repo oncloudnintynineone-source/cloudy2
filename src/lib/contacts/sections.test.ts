@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { RosterUser } from "@/lib/roster/queries";
 import {
+  activeSectionKey,
   buildContactRail,
   buildContactSections,
   contactInitial,
@@ -111,5 +112,28 @@ describe("buildContactRail", () => {
       { key: "L", sectionKey: "log" },
       { key: "M", sectionKey: "med" },
     ]);
+  });
+});
+
+describe("activeSectionKey", () => {
+  const entries = [
+    { key: "A", top: -400 },
+    { key: "B", top: -120 },
+    { key: "C", top: 60 },
+    { key: "D", top: 320 },
+  ];
+
+  it("picks the last header already above the activation line", () => {
+    expect(activeSectionKey(entries, 0)).toBe("B");
+    expect(activeSectionKey(entries, 100)).toBe("C");
+    expect(activeSectionKey(entries, 400)).toBe("D");
+  });
+
+  it("falls back to the first section before anything scrolls", () => {
+    expect(activeSectionKey([{ key: "A", top: 300 }], 100)).toBe("A");
+  });
+
+  it("returns null for an empty list", () => {
+    expect(activeSectionKey([], 100)).toBeNull();
   });
 });
