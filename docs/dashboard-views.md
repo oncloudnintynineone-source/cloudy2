@@ -166,7 +166,7 @@ string maps to the first tab of that kind.
    divider and **Add view** / **Manage views** entries (the latter two only for
    accounts that own stored views). It is icon-only: the active view's name
    rides the button's accessible name (`Calendar view: <name>`) and its
-   tooltip, keeping the period label the pill's flexible element — the name
+   tooltip, the period label stays the pill's static read-out — the name
    itself is shown on its own line (see below). The dropdown opens **upward**
    (`position="top-end"`): the pill floats inset 16px at the bottom below
     `lg` (see the floating-control-pill bullet below). At `lg` and up this pill button
@@ -289,9 +289,9 @@ string maps to the first tab of that kind.
   **two floating rows at the bottom** (thumb-zone reach): the frosted
   **control pill** (`.c2-control-pill`, an `Affix` inset **16px from the
   viewport edges** — `left: 16, right: 16`, the same clearance as the FAB
-  toolbar) sits **bottom-most** with the period label on the **left** and the
-  **circular** search / filter / date / view-menu / fullscreen / guide **?**
-  buttons on the
+  toolbar) sits **bottom-most**: the period label is a **static read-out** on
+  the **left** and the **circular** search / filter / date / view-menu /
+  fullscreen buttons on the
   **right** (the search circle is the mobile trigger, used below `lg`; at
   `lg`+ the shell header's "Search events" button is the trigger; both open
   the shell-owned modal through
@@ -333,6 +333,31 @@ string maps to the first tab of that kind.
     diameter the formula already adds — the docked draft chip rides inside the FAB
     row, so it needs no extra clearance) so the last row
     clears the whole stack.
+
+  **Pill layout: static label, panning control strip (`.c2-pill-row`).** The
+  pill's content is a wrapping flex row. The period label (`.c2-pill-label`) is
+  a **static read-out** — it keeps its natural width and is the last thing that
+  would ever ellipsis — and the circular controls live in their own
+  **horizontally scrollable strip** (`.c2-pill-actions` → `.c2-pill-scroll`,
+  scrollbar hidden, `overscroll-behavior-x: contain`) that pans under a finger.
+  The strip's flex-basis is `--c2-pill-actions-min` (128px — three 36px circles
+  + two gaps), and because flex **line-breaking reads the hypothetical main
+  size** (ignoring shrink), the strip shares the row with the label whenever
+  `label + min` fits and otherwise drops to a full-width **second row** instead
+  of collapsing to a sliver — no JS measurement. The strip's inner box is
+  right-anchored with an **auto margin**, never `justify-content: flex-end`
+  (that clips the scroll start unrecoverably; auto margins resolve to zero on
+  overflow). Frosted **edge fades** (`.c2-pill-edge`, the `RailEdgeControl`
+  gradient recipe) sit on the non-scrolling wrapper and appear only on the side
+  that still has content (`useScrollEdges` + pure `measureScrollEdges`,
+  `src/lib/ui/scrollEdges.ts` — it also watches the element with a
+  `ResizeObserver`, since a sibling reflow changes the clip). The strip stays
+  `pointer-events: none` (only its buttons opt back in), so a swipe starting on
+  a circle pans the strip while a swipe on the gap still reaches the grid — and
+  because `scroll` does not bubble, panning can never start a chrome hide.
+  `padding-block`/`margin-block: ±4px` keeps the focus rings out of the
+  scroller's clip. The pill's height is still auto-measured, so a stacked
+  (two-row) pill re-flows the FAB offset and the page pads by itself.
 
   The **prev/next chevrons** in the step pill call the same view-aware
   `navigatePeriod(±1)` dispatch and read their accessible name from
@@ -505,7 +530,7 @@ management hidden.
 
 Filtering has **one primary affordance**: a dedicated filter button (funnel icon + active-group-count badge, `FilterButton`) in the nav row
   opens `FilterModal` (`src/components/FilterModal.tsx`). The nav row's date controls are the period label, the ‹ › steppers
-  and the **Select date** circle (the **Today** jump floats in the toolbar row at `lg`+ — compact tier: under the fullscreen button — / on the FAB row below `lg` — see the Today-jump bullet in §1.1); the row's right tail carries the **Guide "?"** circle (wide tier only — the profile menu carries the same sheet at every width, which is also the compact tier's entry); Force refresh
+  and the **Select date** circle (the **Today** jump floats in the toolbar row at `lg`+ — compact tier: under the fullscreen button — / on the FAB row below `lg` — see the Today-jump bullet in §1.1); the dashboard chrome carries **no Guide "?"** of its own (the profile menu is the only entry to the sheet, at every width); Force refresh
   is a header button, view management lives on the strip's right settings
   button, and fullscreen is the shared `FullscreenButton` (floating top-right at `lg`+, inline in the mobile control pill below). Dashboards'
   "Myself" quick action lives inside the filter modal

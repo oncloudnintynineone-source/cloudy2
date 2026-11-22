@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.402 (Contacts A–Z rail rebuild: sticky inside the list, scroll-synced highlight, real jumps)**
+- All work through changelog **1.403 (Mobile control pill: static period label + panning control strip)**
   is shipped — the first items (A1/A2/A4) off the UI/UX backlog.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
@@ -2782,6 +2782,22 @@ mirror them (four such entries: 1.106.1, 1.122.1, 1.316.1, 1.331.1).
     `scroll-margin-top`, and a live-region announcement. Route skeleton reshaped to per-group
     cards. Docs: `ui-ux-improvements.md` C2 status, `user-guide.md` §1.8,
     `desktop-responsive.md` §1.6.
+  - 1.403 **Mobile control pill: static period label + panning control strip (A7)**: the pill's six
+    circles left the date label ≈30–100px on a 360–430px phone, so it truncated on every device in
+    the range. The label is now a **static read-out** (`.c2-pill-label`) and the circles live in a
+    **horizontally scrollable strip** (`.c2-pill-actions` / `.c2-pill-scroll`, scrollbar hidden,
+    `overscroll-behavior-x: contain`) right-anchored with an **auto margin** — never
+    `justify-content: flex-end`, which clips the scroll start — behind `RailEdgeControl`-style edge
+    fades driven by `useScrollEdges`. The row wraps to a second line only when the label +
+    `--c2-pill-actions-min` (128px) genuinely cannot share it: flex line-breaking reads the
+    **hypothetical** main size, so no JS measurement is involved. `useScrollEdges` gained a
+    `ResizeObserver` (a sibling reflow changes the clip) and starts unclipped on both edges, so no
+    false fade flashes before the first measurement. The strip keeps `pointer-events: none` (only
+    its buttons catch taps), so a pan never starts a chrome hide and never swallows a grid tap, and
+    the pill's height stays auto-measured, so a stacked pill reflows the FAB offset + page pads by
+    itself. The Guide **"?"** is gone from the dashboard chrome at **both** tiers — the profile menu
+    is the only entry to the sheet. Docs: `ui-ux-improvements.md` (A7 + D2 statuses, tier table,
+    Shipped), `dashboard-views.md` §1.1/§1.2, `user-guide.md` §1.3.1, `AGENTS.md`.
 
 ## 1.4 Open items & next steps
 

@@ -72,7 +72,6 @@ import {
   IconChevronDown,
   IconChevronLeft,
   IconChevronRight,
-  IconHelp,
   IconLayoutGrid,
   IconLink,
   IconPlus,
@@ -106,7 +105,6 @@ import { DateSelectorModal, preloadDateSelectorBody } from "@/components/DateSel
 import { EditViewsModal, preloadEditViewsBody } from "./EditViewsModal";
 import { EventDetail, preloadEventDetailBody } from "./EventDetail";
 import { EventHistoryModal } from "@/components/EventHistoryModal";
-import { GuideSheet } from "@/components/GuideSheet";
 import { ShareImportDialog } from "./ShareImportDialog";
 import { GridNavControls } from "@/components/GridNavControls";
 import { FullscreenButton, FullscreenToggle } from "@/components/FullscreenToggle";
@@ -190,6 +188,7 @@ import { isOffToday } from "@/lib/ui/todayAffordance";
 import { PINNED_EVENTS_CHANGED_EVENT } from "@/lib/ui/pinnedPanel";
 import { useSearchPanel } from "@/lib/ui/searchPanel";
 import { notifyEventsChanged } from "@/lib/ui/eventChanges";
+import { useScrollEdges } from "@/lib/ui/scrollEdges";
 import { createDashboardView, saveDashboardViewFilters } from "@/lib/dashboardViews/actions";
 import {
   DASHBOARD_VIEW_KIND_LABELS,
@@ -1207,10 +1206,6 @@ function DashboardViewImpl({
   const [deletedHistory, setDeletedHistory] = useState<{ eventId: string; title: string } | null>(
     null,
   );
-  // The in-app Guide sheet (docs/ui-ux-improvements.md D2), opened from the
-  // "?" in the wide toolbar — the profile menu carries its own instance for
-  // every other surface.
-  const [guideOpen, setGuideOpen] = useState(false);
   // The browser's offline report (docs/ui-ux-improvements.md D7): create
   // affordances go unavailable with the amber OfflineBanner as the standing
   // one-line reason, so nobody fills a wizard only to be rejected at submit.
@@ -4359,22 +4354,10 @@ function DashboardViewImpl({
       <IconCalendarDot size={18} />
     </ActionIcon>
   );
-  // Guide entry (docs/ui-ux-improvements.md D2): the profile menu carries the
-  // same sheet at every width; this is the dashboard's own "?" at the wide
-  // toolbar's right-anchored tail. The compact tier's squircle is full, so
-  // there its users reach the Guide from the profile menu.
-  const navGuide = (
-    <ActionIcon
-      size={36}
-      variant="default"
-      className="c2-glass-btn"
-      aria-label="Guide"
-      title="Guide"
-      onClick={() => setGuideOpen(true)}
-    >
-      <IconHelp size={18} />
-    </ActionIcon>
-  );
+  // Guide entry (docs/ui-ux-improvements.md D2): the dashboard chrome carries
+  // **no** "?" of its own — the profile menu (`src/components/UserMenu.tsx`) is
+  // the single entry at every width, so the mobile pill keeps its room for the
+  // period label and the wide toolbar's tail stays short.
   const navNewEvent = isNarrowDesktop ? (
     <ActionIcon
       size={40}
@@ -4571,18 +4554,23 @@ function DashboardViewImpl({
       {navQuickLinks}
       {navFilter}
       {navDate}
-      {navGuide}
     </Group>
   );
 
-  // The floating control pill (below `lg` only): the period label (centered in
-  // the space left of the circular search / filter / date / view-menu /
-  // fullscreen buttons on the right), floating at the bottom with the same 16px
+  // The floating control pill (below `lg` only): the period label as a **static**
+  // left-hand read-out that never surrenders its width, and the circular search /
+  // filter / date / view-menu / fullscreen controls in their own horizontally
+  // scrollable strip on the right. The strip shrinks (and pans) before the label
+  // does, and only drops to a full-width second row when even its minimum width
+  // cannot share the line (`.c2-pill-row` in globals.css) — so the date reads in
+  // full at every phone width. Floating at the bottom with the same 16px
   // viewport-edge clearance as the FAB toolbar (thumb-zone reach), with the FAB
   // row (chevron pill + quick-links circle + create circle) above it. Frosted like
   // the top strip; the grid scrolls beneath it. Its measured height
   // (bottomChromeHeight) feeds the FAB offset and the page pads so the last
-  // content row clears the whole stack.
+  // content row clears the whole stack — a stacked (two-row) pill included.
+  const pillScrollRef = useRef<HTMLDivElement | null>(null);
+  const pillEdges = useScrollEdges(pillScrollRef);
   const mobilePill = (
     <Affix
       hiddenFrom="lg"
@@ -4597,112 +4585,125 @@ function DashboardViewImpl({
         ref={bottomBarRef}
         className={`c2-glass-surface c2-control-pill c2-chrome-hide-able${chromeHidden ? " c2-chrome-hidden" : ""}`}
       >
-        <Group align="center" gap="xs" wrap="nowrap">
-          <Text
-            fw={600}
-            size="sm"
-            lineClamp={1}
-            title={periodLabel}
-            style={{ flex: 1, minWidth: 0, textAlign: "center" }}
-          >
+        <Box className="c2-pill-row">
+          <Text className="c2-pill-label" fw={600} size="sm" truncate title={periodLabel}>
+            {/* Label flavor follows the optimistic chrome (same contract as the
+                skeleton below): the period you asked for is what reads, even
+                while its data is still in flight. */}
             {periodLabel}
           </Text>
-          {/* Search rides the pill (left of the filter circle) below `lg` —
-              the shell header carries its own "Search events" button at `lg`+,
-              so this circle is the mobile trigger. */}
-          <ActionIcon
-            radius="50%"
-            size={36}
-            variant="default"
-            className="c2-glass-btn"
-            aria-label="Search events"
-            title="Search events"
-            onClick={(e) => searchPanel.openSearch(e.currentTarget.getBoundingClientRect())}
-          >
-            <IconSearch size={18} />
-          </ActionIcon>
-          <FilterButton
-            activeCount={activeFilterCount}
-            onIntent={preloadFilterModal}
-            onClick={(e) => {
-              setFilterOriginRect(e.currentTarget.getBoundingClientRect());
-              openFilter();
-            }}
-            size={36}
-            iconSize={18}
-            radius="50%"
-            className="c2-glass-btn"
-          />
-          <ActionIcon
-            radius="50%"
-            size={36}
-            variant="default"
-            className="c2-glass-btn"
-            aria-label="Select date"
-            title="Select date"
-            onClick={(e) => {
-              warmDatePickerChunk();
-              setPickerOriginRect(e.currentTarget.getBoundingClientRect());
-              openPicker();
-            }}
-            {...warmOnIntent(warmDatePickerChunk)}
-          >
-            <IconCalendarDot size={18} />
-          </ActionIcon>
-          {(tabs.length > 1 || canManageViews) && (
-            <Menu
-              shadow="md"
-              width={240}
-              position="top-end"
-              withinPortal
-              transitionProps={{
-                transition: "pop-bottom-right",
-                duration: motion.duration.popover,
-                timingFunction: motion.easing.out,
-              }}
-              styles={{
-                dropdown: { maxHeight: "min(60vh, 380px)", overflowY: "auto" },
-              }}
+          <Box className="c2-pill-actions">
+            {/* The pan surface. It stays `pointer-events: none` (only its buttons
+                opt back in), so a swipe starting on a circle pans the strip while
+                a swipe on the gap still reaches the grid beneath — and a press
+                anywhere here is inside a `.c2-chrome-hide-able` rect, so it never
+                starts a chrome hide. */}
+            <Box
+              ref={pillScrollRef}
+              className="c2-pill-scroll"
+              role="group"
+              aria-label="Calendar controls"
             >
-              <Menu.Target>
+              <Box className="c2-pill-scroll-inner">
+                {/* Search rides the pill (left of the filter circle) below `lg` —
+                    the shell header carries its own "Search events" button at `lg`+,
+                    so this circle is the mobile trigger. */}
                 <ActionIcon
                   radius="50%"
-                  variant="default"
                   size={36}
+                  variant="default"
                   className="c2-glass-btn"
-                  aria-label={`Calendar view: ${shownTabName}`}
-                  title={`Calendar view: ${shownTabName}`}
+                  aria-label="Search events"
+                  title="Search events"
+                  onClick={(e) => searchPanel.openSearch(e.currentTarget.getBoundingClientRect())}
                 >
-                  <IconLayoutGrid size={18} />
+                  <IconSearch size={18} />
                 </ActionIcon>
-              </Menu.Target>
-              <Menu.Dropdown>{viewMenuItems}</Menu.Dropdown>
-            </Menu>
-          )}
-          {/* Fullscreen (immersive-mode) toggle: inline in the pill below `lg`
-              (the floating top-right `FullscreenToggle` is lg-only), styled
-              like its circular peers (36px, `variant="default"`). */}
-          <FullscreenButton
-            active={immersiveMode.active}
-            onToggle={immersiveMode.active ? immersiveMode.exit : immersiveMode.enter}
-            size={36}
-            variant="default"
-          />
-          {/* Guide (docs/ui-ux-improvements.md D2): the dashboard's own "?",
-              styled like its circular peers; the profile menu carries the
-              same sheet at every width. */}
-          <ActionIcon
-            radius="50%"
-            size={36}
-            variant="default"
-            className="c2-glass-btn"
-            aria-label="Guide"
-            title="Guide"
-            onClick={() => setGuideOpen(true)}
-          >
-            <IconHelp size={18} />
-          </ActionIcon>
-        </Group>
+                <FilterButton
+                  activeCount={activeFilterCount}
+                  onIntent={preloadFilterModal}
+                  onClick={(e) => {
+                    setFilterOriginRect(e.currentTarget.getBoundingClientRect());
+                    openFilter();
+                  }}
+                  size={36}
+                  iconSize={18}
+                  radius="50%"
+                  className="c2-glass-btn"
+                />
+                <ActionIcon
+                  radius="50%"
+                  size={36}
+                  variant="default"
+                  className="c2-glass-btn"
+                  aria-label="Select date"
+                  title="Select date"
+                  onClick={(e) => {
+                    warmDatePickerChunk();
+                    setPickerOriginRect(e.currentTarget.getBoundingClientRect());
+                    openPicker();
+                  }}
+                  {...warmOnIntent(warmDatePickerChunk)}
+                >
+                  <IconCalendarDot size={18} />
+                </ActionIcon>
+                {(tabs.length > 1 || canManageViews) && (
+                  <Menu
+                    shadow="md"
+                    width={240}
+                    position="top-end"
+                    withinPortal
+                    transitionProps={{
+                      transition: "pop-bottom-right",
+                      duration: motion.duration.popover,
+                      timingFunction: motion.easing.out,
+                    }}
+                    styles={{
+                      dropdown: { maxHeight: "min(60vh, 380px)", overflowY: "auto" },
+                    }}
+                  >
+                    <Menu.Target>
+                      <ActionIcon
+                        radius="50%"
+                        variant="default"
+                        size={36}
+                        className="c2-glass-btn"
+                        aria-label={`Calendar view: ${shownTabName}`}
+                        title={`Calendar view: ${shownTabName}`}
+                      >
+                        <IconLayoutGrid size={18} />
+                      </ActionIcon>
+                    </Menu.Target>
+                    <Menu.Dropdown>{viewMenuItems}</Menu.Dropdown>
+                  </Menu>
+                )}
+                {/* Fullscreen (immersive-mode) toggle: inline in the pill below `lg`
+                    (the floating top-right `FullscreenToggle` is lg-only), styled
+                    like its circular peers (36px, `variant="default"`). */}
+                <FullscreenButton
+                  active={immersiveMode.active}
+                  onToggle={immersiveMode.active ? immersiveMode.exit : immersiveMode.enter}
+                  size={36}
+                  variant="default"
+                />
+              </Box>
+            </Box>
+            {/* Edge fades: the shared rail affordance (`RailEdgeControl`'s
+                gradient, minus the chevron — the half-visible circle is the
+                affordance at this height), driven by `useScrollEdges` on the pan
+                surface. They dissolve once that side is fully revealed. */}
+            <Box
+              className="c2-pill-edge c2-pill-edge--start"
+              aria-hidden
+              style={{ opacity: pillEdges.atStart ? 0 : 1 }}
+            />
+            <Box
+              className="c2-pill-edge c2-pill-edge--end"
+              aria-hidden
+              style={{ opacity: pillEdges.atEnd ? 0 : 1 }}
+            />
+          </Box>
+        </Box>
       </Box>
     </Affix>
   );
@@ -6140,10 +6141,6 @@ function DashboardViewImpl({
         originRect={null}
         onClose={() => setDeletedHistory(null)}
       />
-
-      {/* The in-app Guide (docs/ui-ux-improvements.md D2), opened from the "?"
-          in the wide toolbar and the mobile control pill. */}
-      <GuideSheet opened={guideOpen} onClose={() => setGuideOpen(false)} />
 
       <Modal.Root
         opened={formModalOpened}

@@ -100,10 +100,10 @@ them with the tabs above the grid:
   circle in the bottom control pill on phones) hides all app
   chrome (and the browser UI where supported) for a wall-display calendar; press
   Esc or use the same button to go back.
-- **Guide** — the **?** button (right end of the desktop toolbar; a circle in
-  the phone's bottom control pill) opens a quick orientation for the page
-  you're on, with a block for every page. The profile menu carries the same
-  Guide at every width (and is the only entry on a narrow desktop window).
+- **Guide** — the **Guide** row in the profile menu opens a quick orientation
+  for the page you're on, with a block for every page. It is the **only** entry
+  at every width: the calendar toolbar and the phone's bottom control pill carry
+  no **?** button of their own.
 
 ### 1.3.2 Dates & filters
 

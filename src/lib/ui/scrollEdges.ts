@@ -31,12 +31,17 @@ export function measureScrollEdges(
  * Live {@link measureScrollEdges} result for a horizontal scroller element.
  * Re-measures on scroll (passive — the state only changes at the extremes, so
  * mid-scroll events are cheap), on pointer release (momentum settles without a
- * `scrollend` on older Safari), and on resize (the clip can appear/disappear
- * without any scroll). Programmatic scrolls (scroll-into-view) fire `scroll`
- * too, so the edges follow a jump automatically.
+ * `scrollend` on older Safari), on window resize, and on **the scroller's own
+ * box changing** (a `ResizeObserver`: a sibling reflowing — a longer label, a
+ * tab added — changes the clip with no window event at all). Programmatic
+ * scrolls (scroll-into-view) fire `scroll` too, so the edges follow a jump
+ * automatically.
  */
 export function useScrollEdges(ref: RefObject<HTMLElement | null>): ScrollEdges {
-  const [edges, setEdges] = useState<ScrollEdges>({ atStart: true, atEnd: false });
+  // Both extremes first: a scroller is assumed to clip nothing until measured,
+  // so an edge affordance never flashes on the pre-measurement frame (and a
+  // genuinely clipped scroller shows it one frame later, not a false one).
+  const [edges, setEdges] = useState<ScrollEdges>({ atStart: true, atEnd: true });
 
   useEffect(() => {
     const el = ref.current;
@@ -54,11 +59,17 @@ export function useScrollEdges(ref: RefObject<HTMLElement | null>): ScrollEdges 
     el.addEventListener("pointerup", measure);
     el.addEventListener("pointercancel", measure);
     window.addEventListener("resize", measure);
+    // The clip depends on the scroller's own width, which a sibling can change
+    // without any window event (the dashboard pill's label getting longer, a
+    // settings tab being added).
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
     return () => {
       el.removeEventListener("scroll", measure);
       el.removeEventListener("pointerup", measure);
       el.removeEventListener("pointercancel", measure);
       window.removeEventListener("resize", measure);
+      observer.disconnect();
     };
   }, [ref]);
 

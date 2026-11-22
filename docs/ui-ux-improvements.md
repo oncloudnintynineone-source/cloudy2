@@ -192,7 +192,44 @@ Correction to the Respect note above: at 1.397 only `refresh`/`share` stripped w
 they now honour it. The remembered-page cookie is written client-side from the snapshot state
 (`src/lib/ui/uiStateClient.ts`), so replace-only sessions still land on the last context. §1.10.1.
 
-### 1.4.4 Not re-proposed here
+### 1.4.4 A7 — the mobile control pill packs so many circles the date truncates
+
+**Evidence.** Below `lg` the floating control pill (`DashboardView.tsx`, `mobilePill`) renders the
+period label and **six** circles — search / filter / date / view menu / fullscreen / guide **?** —
+in one non-wrapping row. Six 36px circles + five 10px gaps are **266px** of fixed width; the pill
+leaves the viewport minus 54px (16px edge insets + 10px padding + hairline), so the label's budget
+is **≈30px at 360px**, **≈60px at 390px** and **≈100px at 430px** — against ~122px for
+"Wed, Nov 22, 2026". Its `truncate` therefore fires on every phone in the range, and the row
+neither wraps nor pans, so nothing else is reachable either.
+
+**Impact.** The period label is the pill's only text and the anchor of the whole screen: a
+truncated "Wed, N…" costs the user exactly the fact they were checking. The pill also has no
+overflow affordance — the controls simply compress everything else.
+
+**Fix.** Make the label a **static read-out** that never surrenders width and let the controls
+**pan**: a wrapping flex row (`.c2-pill-row`) with the label on the left and a horizontally
+scrollable strip (`.c2-pill-scroll`) on the right, flex-basis `--c2-pill-actions-min` so the row
+breaks to a second line only when the label and a minimum strip genuinely cannot share it.
+Right-anchor the strip with an auto margin (never `justify-content: flex-end`, which clips the
+scroll start), keep the strip `pointer-events: none` so the tap-through contract and the
+chrome-hide hit-test are untouched, and reuse the `RailEdgeControl` fade recipe (`useScrollEdges`)
+to show which side still has content. Drop the pill's **Guide "?"** in the same pass — the profile
+menu already carries the sheet at every width — which frees 76px on every phone.
+
+**Effort.** S.
+
+**Respect.** `.c2-control-pill` is shared with the Contacts and Parade State pills — their layout
+must not change. The pill's height is auto-measured (`bottomBarRef` → `--c2-bottom-chrome-height`),
+so a two-line pill reflows the FAB offset and the page pads by itself; do not hard-code a height.
+`scroll` does not bubble, so a strip pan must never start a chrome hide — keep it that way.
+
+**Status.** Shipped **1.403** (2026-11-22): `.c2-pill-row` / `.c2-pill-label` / `.c2-pill-actions`
+/ `.c2-pill-scroll` / `.c2-pill-edge` in `globals.css`; `useScrollEdges` gained a `ResizeObserver`
+(a sibling reflow changes the clip) and starts unclipped on both edges so no false fade flashes
+before the first measurement; the Guide "?" is gone from the dashboard chrome at **both** tiers.
+`dashboard-views.md` §1.1 (pill-layout bullet) and §1.2. §1.10.1.
+
+### 1.4.5 Not re-proposed here
 
 Swipe-to-change-period on the non-Agenda grids (A3), drag-to-create/reschedule (A5) and delete undo
 (A6) were reviewed and are **held** — see §1.9.
@@ -452,9 +489,10 @@ module `src/lib/help/guideContent.ts` (pure route matcher, unit-tested) — one 
 is for" block per route, the current page's block first with a "This page" badge, and a footer
 pointing to the admin-held user guide (no prose forked; there is no hosted guide URL to link).
 Opened from the profile menu at every width **and** a **"?"** circle in the dashboard chrome — the
-wide toolbar's right-anchored tail and the mobile control pill (the compact tier's squircle is
-full, so there the profile menu is the entry). The **shortcut list is deliberately absent**: it was
-sourced from B5, which is not built, and a guide must not advertise folklore — add the section when
+wide toolbar's right-anchored tail and the mobile control pill. **1.403 removed both "?" triggers**
+(A7): the profile menu is now the only entry at every width. The **shortcut list is
+deliberately absent**: it was sourced from B5, which is not built, and a guide must not
+advertise folklore — add the section when
 B5 ships. §1.10.1.
 
 ### 1.7.2 D5 — saving the only preference reloads the whole document
@@ -631,7 +669,7 @@ flowchart TD
 
 | Tier | Items | Why here |
 | --- | --- | --- |
-| **1 — days, low risk** | B1, B4 | Missing-affordance and correctness fixes. Each is local, reversible, needs no schema or data change, and closes a gap the codebase already knows about (B1). A1/A2/A4, C1/C6 and D5/D6 left this tier shipped (§1.10.1). |
+| **1 — days, low risk** | B1, B4 | Missing-affordance and correctness fixes. Each is local, reversible, needs no schema or data change, and closes a gap the codebase already knows about (B1). A1/A2/A4, C1/C6 and D5/D6 left this tier shipped (§1.10.1), as did A7 — added and shipped at 1.403. |
 | **2 — a sprint** | B3, B5 | Keyboard parity and the legibility floor. D2 shipped ahead of the tier (§1.10.1) **without** its shortcut section — fold that section in when B5 lands, per the original "B5 before D2" note. C2/C3/C4/C5 left this tier shipped (§1.10.1). |
 | **3 — design-gated** | E3, E6-hint | Advisory and messaging that must be designed against the clashes engine and attendance docs rather than bolted on. |
 | **4 — feature work** | E1, E4, E6-sync | Each needs its own spec, schema, and subsystem doc. |
@@ -648,7 +686,7 @@ land here.
 | A1 | 1.399 (2026-11-22) | Off-today-only Today jump, never inline and never over the canvas: at `lg`+ a **"Back to Today"** pill floats in the date-nav row's permanently empty center (compact desktop tier: an icon circle stacked under the floating fullscreen button); below `lg` a 56px frosted circle joins the FAB row left of the `[< \| >]` step pill (right-anchored, so existing controls never shift). Pure `isOffToday` (`src/lib/ui/todayAffordance.ts` + tests). Tap runs the existing `goToday` cross-slide + replace; intent prefetch like the chevrons; sr announcement rides the existing chrome watcher. Documented in [`dashboard-views.md`](dashboard-views.md) §1.1 (Today-jump bullet) and [`user-guide.md`](user-guide.md) §1.3.2. |
 | A2 | 1.399 (2026-11-22) | `user-guide.md` §1.3.1/§1.3.2 and `dashboard-views.md` §1.1/§1.2 describe the real chrome — no ⋮ menu, shared `FullscreenButton`, the A1 control — and no held item is described as existing. |
 | A4 | 1.399 (2026-11-22) | `navigate`/`navigateLocal`, the in-month agenda-day anchor and the one-shot `edit`/`event` strips `router.replace(…, { scroll: false })`; deep links, post-save nav and `openClashEventInCalendar` keep `push`. Back leaves the calendar in one press; the cookie path is history-method-agnostic (verified). |
-| D2 | 1.400 (2026-11-22) | In-app **Guide** sheet (`src/components/GuideSheet.tsx`) rendered from the typed `src/lib/help/guideContent.ts` (route matcher unit-tested): one short block per route, current page first. Opened from the profile menu at every width and a "?" circle in the dashboard chrome (wide toolbar tail + mobile control pill; compact tier → profile menu). Shortcut section deferred to B5 by design; the user guide's prose is not forked. |
+| D2 | 1.400 (2026-11-22) | In-app **Guide** sheet (`src/components/GuideSheet.tsx`) rendered from the typed `src/lib/help/guideContent.ts` (route matcher unit-tested): one short block per route, current page first. Opened from the profile menu at every width; the "?" triggers in the dashboard chrome (wide toolbar tail + mobile control pill) were **removed at 1.403** (A7), so the profile menu is the only entry. Shortcut section deferred to B5 by design; the user guide's prose is not forked. |
 | D5 | 1.400 (2026-11-22) | Preferences save = snapshot clear + `cloudy2:prefs-changed` (`src/lib/ui/prefsChanged.ts`) + toast + close — no `window.location.reload()`. `DashboardScreen` listens and `revalidate()`s in place; grids rebuild from the fresh record with the new week start. |
 | D6 | 1.400 (2026-11-22) | Boundary stated in [`action-pill.md`](action-pill.md) §1.2 (actionable → pill, inert → toast). Delete success is now a pill offering **History** (trail modal hosted by `DashboardView`); inert toasts and the flag-owned post-save path audited and left as-is. |
 | D7 | 1.400 (2026-11-22) | Shared `useIsOffline` (`src/lib/ui/onlineStatus.ts`, `OfflineBanner` refactored onto it). Offline: wizard starts refused at `requestFormStart` with a reason toast, New-event affordances disabled, wizard submit disabled with a "draft is saved" one-liner + `announce()` guard. Drafts untouched; conservative signal only. |
@@ -658,6 +696,7 @@ land here.
 | C4 | 1.401 (2026-11-22) | My Events title search mirrored in `?q=` (decision: mirror, like range/page), debounced, server-side `filterMyEventRowsByTitle` before the page slice; adoption gate compares range + page + q. |
 | C5 | 1.401 (2026-11-22) | Audit-log rows lead with the relative age (`relativeChangeLabel`) + absolute UTC+8 secondary; computed once per render; detail modal + CSV stay absolute. |
 | C6 | 1.401 (2026-11-22) | Event detail participants/departments capped at 5 via `PickerBadges` with "+N" as the expand trigger; self chip pinned first by pure `capBadgeItems` (`src/lib/ui/badgeCap.ts`, unit-tested). |
+| A7 | 1.403 (2026-11-22) | Mobile control pill: the period label is a **static read-out** (`.c2-pill-label`) and the circles pan in a scrollable strip (`.c2-pill-actions` / `.c2-pill-scroll`) that wraps to a second row only when the label + `--c2-pill-actions-min` cannot share the line (flex-basis line-breaking, no JS); auto-margin right-anchoring, `RailEdgeControl`-style edge fades from `useScrollEdges` (now `ResizeObserver`-aware, starts unclipped). Guide "?" removed from the dashboard chrome at both tiers — profile menu only. |
 
 ## 1.11 Implementation guardrails
 

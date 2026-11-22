@@ -1985,8 +1985,9 @@ html.c2-low-end::view-transition-group(*) {
 
 /*
    Mobile floating rows (below `lg`): `.c2-control-pill` is the bottom pill
-   (calendar: period label centered left of the circular search/filter/date/view/fullscreen
-   buttons; Parade and Contacts reuse it for their day/search controls), inset
+   (calendar: a static period label on the left, the circular
+   search/filter/date/view/fullscreen buttons panning in their own strip (see
+   `.c2-pill-row` below); Parade and Contacts reuse it for their day/search controls), inset
    16px from the
    viewport edges (same clearance as the FAB toolbar); `.c2-period-pill` is the
    `[< | >]` step pill in the right-anchored FAB row floating above the pill —
@@ -2015,6 +2016,99 @@ html.c2-low-end::view-transition-group(*) {
 .c2-control-pill button,
 .c2-control-pill input {
   pointer-events: auto;
+}
+
+/*
+   Mobile control pill layout (the dashboard's pill — docs/dashboard-views.md
+   §1.1). The period label is a **static** left-hand read-out that keeps its
+   natural width, and the circular controls live in their own horizontally
+   scrollable strip. The strip's flex-basis is what decides the pill's shape:
+   flex line-breaking uses the *hypothetical* main size (ignoring shrink), so
+   the strip shares the row with the label whenever `label + min` fits and
+   otherwise drops to a full-width second row instead of collapsing to a sliver.
+   The pill's height is already measured by the dashboard's ResizeObserver, so a
+   stacked pill re-flows the page pads and the FAB offset on its own.
+   The strip stays `pointer-events: none` (only its buttons opt back in), so a
+   swipe starting on a button pans the strip while a swipe on the gap still
+   reaches the grid beneath — the pill's existing tap-through contract.
+*/
+.c2-pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mantine-spacing-xs);
+  /* 3 × 36px circles + 2 gaps: the narrowest control strip allowed to share
+     the row with the label; below that the strip takes its own row. */
+  --c2-pill-actions-min: 128px;
+}
+
+.c2-pill-label {
+  /* Never squeezed to make room for the controls — it shrinks only when the
+     label alone is wider than the pill (where its ellipsis + `title` remain
+     the last resort). */
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.c2-pill-actions {
+  position: relative;
+  flex: 1 1 var(--c2-pill-actions-min);
+  min-width: 0;
+}
+
+.c2-pill-scroll {
+  /* A flex container so its single inner group can be right-anchored with an
+     auto margin (see `.c2-pill-scroll-inner`). */
+  display: flex;
+  align-items: center;
+  overflow-x: auto;
+  /* `overflow-x: auto` forces the block axis to clip too, so the box grows past
+     the circles by their focus ring / shadow and gives that growth straight
+     back with a negative margin — otherwise the rings are cut off. */
+  padding-block: 4px;
+  margin-block: -4px;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+}
+
+.c2-pill-scroll::-webkit-scrollbar {
+  display: none;
+  width: 0;
+}
+
+.c2-pill-scroll-inner {
+  display: flex;
+  align-items: center;
+  gap: var(--mantine-spacing-xs);
+  width: max-content;
+  /* Right-anchored like the rest of the pill. Auto margins resolve to zero once
+     the content overflows, which is what keeps the strip's start reachable by
+     scroll (`justify-content: flex-end` would clip it unrecoverably). */
+  margin-inline-start: auto;
+}
+
+/* Edge fades over the clipped sides — `RailEdgeControl`'s gradient without the
+   chevron (at this height the half-visible circle is the affordance). They ride
+   the non-scrolling wrapper, because an absolutely positioned child of the
+   scroller would scroll away with the content. */
+.c2-pill-edge {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 28px;
+  pointer-events: none;
+  z-index: 1;
+  transition: opacity var(--c2-dur-micro) var(--c2-ease-out);
+}
+
+.c2-pill-edge--start {
+  left: 0;
+  background: linear-gradient(to right, var(--mantine-color-default), transparent);
+}
+
+.c2-pill-edge--end {
+  right: 0;
+  background: linear-gradient(to left, var(--mantine-color-default), transparent);
 }
 
 /* Keyboard lift (Contacts): while the OS keyboard is up the Affix root moves to
