@@ -388,8 +388,9 @@ band) and 3 from ~1024px. **Contacts** grids its rows, not its groups
 (docs/ui-ux-improvements.md C2): one bordered card per group (sectioned
 alphabetically or by department) stays **one per row** — a grid of unevenly sized
 groups leaves ragged gaps — and the dense contact rows **inside** each card flow
-into `.c2-contact-rows` auto-fill ≥300px / ≥320px columns, where the 1px gap
-*is* the hairline so the rules stay continuous across columns. The A–Z jump
+into `.c2-contact-rows` auto-fill ≥300px / ≥320px columns, where each cell draws
+its own top/left hairline — the rules stay continuous across columns and a
+partially filled last row keeps the page colour. The A–Z jump
 rail is a sticky pill beside the cards, **vertically centred in the viewport**
 (clamped under the sticky chrome and internally scrollable when it is taller than
 the window), highlighting the current section once enough sections exist. Beyond that, the floating buttons swap for inline controls:

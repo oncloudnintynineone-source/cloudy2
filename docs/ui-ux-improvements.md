@@ -382,8 +382,9 @@ section's letter highlighted as you scroll (capture-phase scroll listener + pure
 `50dvh − height/2` from the height the component declares (`--c2-rail-h` from
 `contactRailHeightPx`), clamped under the sticky bar by `max()` and internally scrollable when it
 is taller than the window, so no letter is ever unreachable. And on wide screens the **rows inside**
-each group card flow into auto-filling columns (`.c2-contact-rows`, whose 1px gap *is* the hairline,
-so the rules stay continuous across columns) while the groups themselves stay **one per row** —
+each group card flow into auto-filling columns (`.c2-contact-rows`, each cell drawing its own
+top/left hairline, so the rules run continuously across columns while a partially filled last row
+keeps the page colour) while the groups themselves stay **one per row** —
 gridding unevenly sized groups reintroduces exactly the empty space a phone list should not spend.
 §1.10.1.
 

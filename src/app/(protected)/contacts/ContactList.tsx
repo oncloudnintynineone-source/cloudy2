@@ -570,9 +570,9 @@ export function ContactList({
                     {section.label}
                   </Text>
                 </Box>
-                {/* Rows flow into auto-filling columns on wide screens; the 1px
-                    gap between cells is the hairline (see `.c2-contact-rows`),
-                    so the rules stay continuous across columns. */}
+                {/* Rows flow into auto-filling columns on wide screens; each
+                    cell draws its own hairline, so a partially filled last row
+                    stays the page colour (see `.c2-contact-rows`). */}
                 <Box component="div" className="c2-contact-rows">
                   {section.users.map((user) => (
                     <Box key={user.id} className="c2-contact-row">

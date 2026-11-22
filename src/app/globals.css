@@ -2839,19 +2839,22 @@ html.c2-low-end::view-transition-group(*) {
 /* Wide screens put the **rows inside** a group card into auto-filling columns
    (docs/ui-ux-improvements.md C2). The groups themselves stay one per row: a
    grid of unevenly sized groups leaves ragged gaps, while columns of rows use
-   the width with none. The 1px gap IS the hairline — the container paints the
-   border colour and every cell paints the page surface over it — so the rules
-   stay continuous across columns (a per-cell border would break at every
-   column gutter). Cells stretch, so a taller sibling never leaves a hole. */
+   the width with none.
+   Each cell draws its own top/left hairline (inset shadow), which keeps the
+   rules continuous across columns AND leaves the trailing area beside a
+   partially filled last row the page colour — a container background showing
+   through a 1px gap paints that area grey instead. The -1px offsets slide the
+   first row's top line under the header's bottom border and the first
+   column's left line under the card's own border (the card clips); the card's
+   border closes the right and bottom edges, so no line is doubled anywhere. */
 .c2-contact-rows {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 1px;
-  background: var(--mantine-color-default-border);
+  margin: -1px 0 0 -1px;
 }
 
 .c2-contact-row {
-  background: var(--mantine-color-body);
+  box-shadow: inset 1px 1px 0 var(--mantine-color-default-border);
   /* Grid items default to `min-width: auto`, so one cell holding an unbounded
      string (a long department name) would push its track past the `minmax()`
      floor and overflow the card, where `overflow: hidden` would clip the row's
