@@ -286,6 +286,10 @@ export function EventDetailBody({
     setEditScopeOpen(false);
     setEditScopeBusy(false);
     setDeleteScope("single");
+    // A hidden detail body (keepMounted) must never keep a nested dialog open:
+    // its portal would outlive the parent's hide and block whatever opens next
+    // (docs/event-lifecycle.md §1.4.4).
+    setHistoryEventId(null);
   }
 
   // Invalidate an in-flight scope prefill when the shown event changes/closes.

@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.406 (Touch-sized series-scope chooser)** is
+- All work through changelog **1.407 (Hidden keepMounted surfaces & nested dialogs)** is
   shipped — the first items (A1/A2/A4) off the UI/UX backlog.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
@@ -2852,6 +2852,24 @@ mirror them (four such entries: 1.106.1, 1.122.1, 1.316.1, 1.331.1).
     `editScopes` (registration series → "All events" only, external series → "This event"
     only). Docs: `accessibility.md` §1.9 (new touch-target section — file index renumbered
     to §1.10), `recurring-events.md` §1.8/§1.9, `AGENTS.md`.
+
+  - 1.407 **Hidden keepMounted surfaces & nested dialogs (bugfix)**: after editing a
+    recurring event, opening any event's detail modal could open fully dead — the dialog
+    painted, every click swallowed, only Escape working (and every later event modal dead
+    the same way). Cause: the detail modal is `keepMounted` in Mantine's default `activity`
+    mode. Choosing a scope (or deleting) closes the nested z-300 `ConfirmModal` and the
+    detail in one commit; the detail's exit is `modalZoomExit` 200 ms while the nested
+    dialog's is `popover` 220 ms, so React 19 `<Activity mode="hidden">` hid the parent
+    first and destroyed the subtree's effects, cancelling the child `Transition`'s exit
+    timer. `useTransition` only reacts to `mounted` changes, so the dialog never unmounted
+    and its portaled, full-screen, z-300 overlay stayed in the DOM as an invisible click
+    blocker above every next z-200 detail modal. `EventDetail` and `EventHistoryModal` now
+    hide with **`keepMountedMode="display-none"`** (effects stay alive, the child finishes
+    its exit); the detail body drops its history dialog on an occurrence change, and the
+    wizard's read-only clash detail closes when the wizard minimizes
+    (`EventForm.hidden` → `EventClashCheck.paused`). Docs: `event-lifecycle.md` §1.4.4,
+    `component-framework.md` §1.6.5, `recurring-events.md` §1.8, `event-history.md`,
+    `AGENTS.md`.
 
 ## 1.4 Open items & next steps
 

@@ -85,6 +85,10 @@ sequenceDiagram
   `zIndex={300}`). The History button is hidden when `payload.eventId === null`
   (external or never-app-edited legacy events have no group id and no history)
   and is not shown in the read-only details (Double Booking / KAH Status).
+  The modal is `keepMounted` in **`keepMountedMode="display-none"`**: it can be
+  hosted from inside the event detail body, and a nested portaled dialog must not
+  be hidden with React 19 `<Activity>` (that cancels its exit transition and strands
+  its overlay above later modals — [`event-lifecycle.md`](event-lifecycle.md) §1.4.4).
 - **Perceived-latency design:** rows prefetch on `onMouseEnter`/`onPointerDown`
   into a session-lifetime `Map` (`src/lib/events/historyCache.ts`, cleared on
   sign-out so the next account never paints the previous user's history), so

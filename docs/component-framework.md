@@ -20,6 +20,7 @@
   - [1.6.2 LazyModal for dialogs](#162-lazymodal-for-dialogs)
   - [1.6.3 useOpenQuery + InlineError](#163-useopenquery--inlineerror)
   - [1.6.4 preloadLazyBody](#164-preloadlazybody)
+  - [1.6.5 Nested dialogs inside keepMounted surfaces](#165-nested-dialogs-inside-keepmounted-surfaces)
 - [1.7 Adoption map](#17-adoption-map)
 - [1.8 Deferred candidates](#18-deferred-candidates)
 - [1.9 Verification](#19-verification)
@@ -187,6 +188,20 @@ Event History (cache-first) and Event Search (submit-driven) stay bespoke.
 
 `preloadLazyBody(loader)` replaces the hand-written `void loadChunk(loader).catch(() => {})`
 wrappers. `loadChunk` already joins in-flight loads and retries after a failure.
+
+### 1.6.5 Nested dialogs inside keepMounted surfaces
+
+A dialog that portals to `<body>` is not a DOM child of its host's hidden box, so a
+`keepMounted` host must run in **`keepMountedMode="display-none"`** whenever it can host a
+nested dialog — never Mantine's default `activity` mode. React 19 `<Activity mode="hidden">`
+unmounts the subtree's effects when it hides, which cancels a nested dialog `Transition`'s
+exit timer mid-exit; the dialog never unmounts, and its fixed full-screen overlay (at its
+nested `zIndex`, e.g. 300) stays in the DOM as an invisible click blocker above the next
+modal. `display-none` keeps the effects alive so the child completes its exit and unmounts.
+A nested dialog that is still **open** when the host hides must be closed first, or its
+portal stays painted over the page. `EventDetail` / `EventHistoryModal` set the mode and
+`EventClashCheck` closes on the wizard's minimize. Full rationale:
+[`event-lifecycle.md`](event-lifecycle.md) §1.4.4.
 
 ## 1.7 Adoption map
 

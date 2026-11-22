@@ -217,6 +217,11 @@ export function EventHistoryModal({
       centered={isDesktop}
       size="lg"
       keepMounted
+      // Same contract as the event detail body that hosts this dialog: a
+      // hidden keepMounted surface must not use React 19 `<Activity>`, or a
+      // nested dialog's exit timer is cleared mid-exit and its portaled overlay
+      // strands above later modals (docs/event-lifecycle.md §1.4.4).
+      keepMountedMode="display-none"
       zIndex={zIndex}
       transitionProps={transitionProps}
     >

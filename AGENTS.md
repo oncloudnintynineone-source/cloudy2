@@ -620,8 +620,13 @@ none` so taps pass through to the clipped tile, and it hides on a side once
   `useOpenQuery` + `InlineError`; admin server actions use `commitAdminWrite` +
   `applyWriteEffects`; read APIs use `withApiSession`/`withApiJson`. Do not re-type the
   open/edit/close, confirm, submit or revalidate wiring. Entity validation, DB writes,
-  Google/ACL effects and audit payloads stay at each call site. Design:
-  [docs/component-framework.md](docs/component-framework.md).
+  Google/ACL effects and audit payloads stay at each call site. A `keepMounted` surface that
+  can host a portaled (nested) dialog hides with **`keepMountedMode="display-none"`**, never
+  the default `activity` mode (Activity destroys the subtree's effects and strands the
+  child's exit transition as an invisible click blocker), and a nested dialog is closed
+  before its host hides. Design:
+  [docs/component-framework.md](docs/component-framework.md),
+  [docs/event-lifecycle.md](docs/event-lifecycle.md) §1.4.4.
 - **Buttons triggering async work show loading in the button itself:** Mantine `loading`
   prop + shared `loaderProps={BUTTON_LOADER_PROPS}` (`src/lib/theme.ts`);
   `loading={form.submitting}` for useForm submits; local `loading` state set before /

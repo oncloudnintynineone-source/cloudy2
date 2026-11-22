@@ -45,11 +45,19 @@ type View = { kind: "checking" } | { kind: "error" } | { kind: "done"; result: C
 export function EventClashCheck({
   request,
   isAdmin,
+  paused = false,
   onOpenInCalendar,
 }: {
   request: EventClashCheckRequest | null;
   /** Admins may edit any event; passed through to the read-only detail modal. */
   isAdmin: boolean;
+  /**
+   * The hosting wizard is hidden (minimized). This card's read-only detail and
+   * its "Discard draft?" dialog portal out of the wizard, so they would stay
+   * painted above the calendar while the wizard is display-none — close them
+   * when the host hides (docs/event-lifecycle.md §1.4.4).
+   */
+  paused?: boolean;
   /** Leave the wizard and open the tapped event on the calendar (after confirm). */
   onOpenInCalendar?: (event: CalendarEvent) => void;
 }) {
@@ -83,6 +91,27 @@ export function EventClashCheck({
   // "Open in calendar" leaves the wizard, so it is confirmed first (the draft
   // is discarded on the way out).
   const [leaveEvent, setLeaveEvent] = useState<CalendarEvent | null>(null);
+  // While the host wizard is hidden, no nested dialog may stay mounted (see
+  // `paused`). Guarded render-phase adjustment — the same derived-state pattern
+  // the dashboard uses; an effect would leave one frame with the stranded
+  // portals still up.
+  const [prevPaused, setPrevPaused] = useState(paused);
+  if (paused !== prevPaused) {
+    setPrevPaused(paused);
+    if (paused) {
+      setDetailOpen(false);
+      setDetailLoading(false);
+      setLeaveEvent(null);
+    }
+  }
+  // Invalidate an in-flight detail read when the host hides. Refs are mutated
+  // in an effect (never during render); the dialogs themselves are closed by the
+  // render-phase adjustment above.
+  useEffect(() => {
+    if (paused) {
+      detailRequestRef.current += 1;
+    }
+  }, [paused]);
 
   useEffect(() => {
     if (!request) {

@@ -6262,6 +6262,7 @@ function DashboardViewImpl({
                   defaultDate={formState.defaultDate}
                   scope={formState.scope ?? null}
                   onSubmittingChange={setFormSubmitting}
+                  hidden={formMinimized}
                   eventTypes={eventTypes}
                   eventTypeGroups={eventTypeGroups}
                   eventTitleRecipe={eventTitleRecipe}

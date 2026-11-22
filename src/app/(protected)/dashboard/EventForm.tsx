@@ -195,6 +195,13 @@ interface EventFormProps {
   scope?: EventMutationScope | null;
   /** Reports the form's submit-in-flight state to the host's discard guards. */
   onSubmittingChange?: (submitting: boolean) => void;
+  /**
+   * The hosting modal is hidden (minimized to the draft bar). Nested dialogs
+   * (the review step's read-only clash detail) portal out of the keepMounted
+   * wizard, so they must close rather than stay painted over the calendar —
+   * see docs/event-lifecycle.md §1.4.4.
+   */
+  hidden?: boolean;
 }
 
 interface EventFormState extends EventFormValues {
@@ -246,6 +253,7 @@ export function EventForm({
   optimisticHome,
   scope = null,
   onSubmittingChange,
+  hidden = false,
 }: EventFormProps) {
   const isEdit = event !== null;
   const theme = useMantineTheme();
@@ -2318,6 +2326,7 @@ export function EventForm({
               <EventClashCheck
                 request={clashRequest}
                 isAdmin={isAdmin}
+                paused={hidden}
                 onOpenInCalendar={onOpenInCalendar}
               />
 

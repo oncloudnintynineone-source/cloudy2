@@ -153,6 +153,14 @@ touch-sized on purpose — a bare `Radio` row is ~24px tall — see
 modal's `editScopes`, so a registration series shows one row and an external
 series one row.
 
+Both choosers portal out of the event detail body at `zIndex={300}`. That host is
+`keepMounted` in **`keepMountedMode="display-none"`**, so the closing chooser's exit
+transition (and its cleanup) always runs even when choosing a scope closes the detail in
+the same commit — otherwise React 19 `<Activity>` would cancel the chooser mid-exit and
+leave its invisible overlay swallowing clicks on every later event modal
+([`event-lifecycle.md`](event-lifecycle.md) §1.4.4). The detail body also drops its
+history dialog on an occurrence change, so no nested dialog can outlive the host.
+
 ### 1.8.1 This event
 
 Updates one Google exception per target calendar. Participants, pin, owner lock

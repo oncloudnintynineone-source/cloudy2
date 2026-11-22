@@ -77,6 +77,16 @@ export function EventDetail({
       centered
       size={size}
       keepMounted
+      // Never hide this surface with React 19 `<Activity>`: the body hosts
+      // nested dialogs (the edit-scope/delete `ConfirmModal`s, History, Share)
+      // that portal to <body> at zIndex 300. Activity destroys the subtree's
+      // effects when it hides, which clears a nested dialog's exit timer
+      // mid-transition; `useTransition` only reacts to `mounted` changes, so the
+      // dialog never unmounts and its overlay stays in the DOM as an invisible,
+      // full-screen, z-300 click blocker over every later event modal
+      // (docs/event-lifecycle.md §1.4.4). `display-none` keeps the React subtree
+      // (and those timers) alive, so nested dialogs finish unmounting normally.
+      keepMountedMode="display-none"
       zIndex={zIndex}
       transitionProps={transitionProps}
     >

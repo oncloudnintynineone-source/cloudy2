@@ -18,6 +18,7 @@ month cache is covered in [`events-cache.md`](events-cache.md).
   - [1.4.1 Step details](#141-step-details)
   - [1.4.2 Deep links back to the event](#142-deep-links-back-to-the-event)
   - [1.4.3 Minimize, the draft bar & discard safety](#143-minimize-the-draft-bar--discard-safety)
+  - [1.4.4 Hiding keepMounted surfaces & their nested dialogs](#144-hiding-keepmounted-surfaces--their-nested-dialogs)
 - [1.5 Guards & validation](#15-guards--validation)
 - [1.6 Target derivation](#16-target-derivation)
 - [1.7 The notes block](#17-the-notes-block)
@@ -458,6 +459,49 @@ stateDiagram-v2
   DiscardPrompt --> Closed: Discard
   DiscardPrompt --> Open: Discard and continue
   Open --> Closed: Save
+```
+
+### 1.4.4 Hiding keepMounted surfaces & their nested dialogs
+
+Two long-lived event surfaces stay mounted while closed so their enter/exit animation and
+their state survive: the **detail modal** (`EventDetail`, `keepMounted`) and the
+**wizard** (`Modal.Root`, `keepMounted`). Both host dialogs that portal to `<body>` — the
+edit/delete scope `ConfirmModal`s at `zIndex={300}`, History, Share, and the review step's
+read-only clash detail. A portal is not a child of the hidden surface's DOM box, so
+hiding the host with `display: none` alone cannot be relied on to hide them.
+
+The rule, in both directions:
+
+- A keepMounted surface that can host a portaled dialog hides with
+  **`keepMountedMode="display-none"`**, never Mantine's default `activity` mode. React 19
+  `<Activity mode="hidden">` hides the subtree **and unmounts its effects**, which clears
+  a nested dialog `Transition`'s exit timer mid-exit; `useTransition` only reacts to
+  `mounted` changes, so the dialog never reaches `exited` and its overlay (fixed,
+  full-screen, `zIndex={300}`) stays in the DOM as an invisible click blocker above the
+  next z-200 detail modal. Keyboard Escape still works (the active modal owns a `window`
+  keydown handler), so the symptom reads as "the modal opens but nothing responds".
+  `display-none` keeps the subtree's effects alive, so the nested dialog finishes its exit
+  and unmounts normally. `EventDetail` and `EventHistoryModal` set this explicitly; the
+  wizard and the narrow-tab surfaces already do.
+- A nested dialog is **closed when its host hides**, so an open portal can never outlive
+  it: the detail body drops its scope chooser/history on an occurrence change, and the
+  review step's clash detail closes when the wizard minimizes (`EventForm.hidden` →
+  `EventClashCheck.paused`).
+
+The durations are what make the first failure deterministic: the detail modal exits over
+`modalZoomExit` (200 ms) while a nested `MotionModal` exits over `popover` (220 ms), so the
+host's Activity hides before the child's exit completes.
+
+```mermaid
+sequenceDiagram
+  participant Scope as Scope dialog (z 300)
+  participant Detail as Detail modal (z 200)
+  participant Activity as React Activity
+  Detail->>Detail: onEdit → opened=false (exit 200 ms)
+  Scope->>Scope: opened=false (exit 220 ms)
+  Detail-->>Activity: exit ends at 200 ms → subtree hidden
+  Activity--xScope: effects unmount → exit timer cleared
+  Note over Scope: overlay never unmounts → invisible click blocker
 ```
 
 ## 1.5 Guards & validation
