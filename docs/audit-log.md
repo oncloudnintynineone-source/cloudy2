@@ -356,14 +356,19 @@ double-quotes fields containing `"`, `,`, `\r`, or `\n` and doubles inner quotes
   Actors get per-department sections from the roster map ("Other" for
   unmatched). Applied selections show as a row of removable chips under the filter
   row (`PickerBadges` — the app-wide removable chip, [`user-picker.md`](user-picker.md) §1.6, natural case — one chip per value: actor name, `actionLabel(action)`, entity type,
-  search term, From/To dates). Mobile card rows (action label, UTC+8 timestamp,
+  search term, From/To dates). Mobile card rows (action label, relative age with the UTC+8 timestamp under it,
   actor, entity badge, route/method badges, Details button); the desktop data
   table (Time / Actor / Action / Entity / Details) uses a **fixed table layout**
   — pinned Time/Actor/Details column widths with Action and Entity sharing the
-  remaining width, and **2-line Time/Actor cells** (time under date, role under
+  remaining width, and **stacked Time/Actor cells** — Time leads with the
+  **relative age** ("12 min ago", the shared `relativeChangeLabel`) and the
+  absolute UTC+8 date/time rides dimmed under it; Actor shows role under
   name) — so no column is squeezed into an ellipsis at narrow desktop widths
   (the previous auto layout let the nowrap timestamp and untruncated text push
-  the page into horizontal overflow). Route and method are omitted from the
+  the page into horizontal overflow). The relative label is computed once per
+  render — this route is fresh on entry and on Force refresh, so it reads as
+  "age at load", never as a live countdown; the detail modal and the CSV
+  export stay absolute. Route and method are omitted from the
   overview table — they remain in the detail modal and are still matched by
   search (`?q=`) and included in the CSV export. A centered Mantine
   `Pagination` control (numbered pages, first/prev/next/last) plus a

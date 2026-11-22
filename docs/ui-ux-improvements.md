@@ -298,6 +298,14 @@ Security, Audit Log, Feature Flags) — as section separators at `lg`+ and an in
 **Effort.** S–M. **Respect.** `SettingsTabs` owns the sticky-height measurement published through
 `SettingsShell`; grouping must not change the measured chrome height contract.
 
+**Status.** Shipped **1.401** (2026-11-22): the 13 tabs now read as four groups — **Roster ·
+Events · Delivery · System** — with labelled separators at `lg`+ (only KAH Groups moved to fit
+the groups; below `lg` the strip stays the same scroller, since separators would grow the
+measured chrome height). Both tiers gained the bottom-nav rail's fade + chevron edge affordance
+(`RailEdgeControl` extracted to a shared component; pure `measureScrollEdges` +
+`useScrollEdges` in `src/lib/ui/scrollEdges.ts`, unit-tested), and the active tab is centred in
+the scroller on entry. The height contract is measured, so it adapts unchanged. §1.10.1.
+
 ### 1.6.2 C2 — Contacts is a flat card wall
 
 **Evidence.** `src/app/(protected)/contacts/ContactList.tsx:356-403`: every match renders a bordered
@@ -312,6 +320,17 @@ slowest possible interaction for the page's actual job.
 
 **Effort.** M. **Respect.** Keep the `.card-grid` responsive recipe and `c2-defer-render`; the VCF
 export must keep following the active search + filter set (`:160-162`).
+
+**Status.** Shipped **1.401** (2026-11-22): the card wall is now one bordered container of
+hairline-separated **dense rows** (template name + shortname, phone + department/role chips,
+copy/call pinned right — the duplicated raw-name line is gone; the template line is the primary,
+matching the VCF export and Parade State). Sections follow the active **sort** (name ↔
+department, a menu beside the search box; pure `buildContactSections`/`buildContactRail` in
+`src/lib/contacts/sections.ts`, unit-tested), and a right-edge **A–Z rail** (one letter per
+section initial, tap = smooth scroll to the section, `scroll-margin` clears the sticky chrome)
+appears from four sections up. Deliberate deviation from the Respect note, by decision: the
+denser row recipe replaces `.card-grid` on this page (`c2-defer-render` stays, per row). The VCF
+export still follows the active search + filters. §1.10.1.
 
 ### 1.6.3 C3 — Parade State has no name search
 
@@ -330,6 +349,14 @@ semantics. Attendance mode must be unaffected — a filtered list must not silen
 **Effort.** S–M. **Respect.** The attendance report (`attendanceReport.ts`) and the `X/Y` headers are
 aggregations; a search filter must not narrow them.
 
+**Status.** Shipped **1.401** (2026-11-22): a **Search roster** field in the sticky day-nav row at
+`lg`+, and below `lg` a search **circle** in the control pill that swaps the day label for an
+inline field (✕ clears and restores the label; the other circles hide while it is open, and the
+pill rides the Contacts keyboard lift). The filter is client-side over the already-loaded users
+with the Contacts text semantics (fuzzy over name + shortname). The Respect note holds exactly:
+only the cards filter — section headers keep the section's full aggregate, the attendance bar's
+`X/Y present`, the roll-call summary and the Copy report all stay org-wide. §1.10.1.
+
 ### 1.6.4 C4 — My Events has range and paging but no text filter
 
 **Evidence.** The sticky chrome holds only `TimeRangeSelect`
@@ -346,6 +373,13 @@ vocabulary is identical across surfaces.
 `history.replaceState`, `docs/loading-transitions.md` §1.8); a search term should follow the same
 rule or stay deliberately ephemeral — decide, don't drift.
 
+**Status.** Shipped **1.401** (2026-11-22): decision — **mirror `?q=`**, same rule as range/page.
+A search box in the sticky chrome, debounced 300 ms, resetting to page 1; the filter runs
+**server-side** inside `buildMyEventsPage` before the page slice (paging is server-side, so a
+client-only filter would miss rows on other pages) via pure `filterMyEventRowsByTitle`
+(`src/lib/events/myEvents.ts`, unit-tested) over the dashboard filter's substring semantics
+(`textFilter.ts`). The always-fresh adoption gate compares range + page + q. §1.10.1.
+
 ### 1.6.5 C5 — audit-log timestamps are absolute only
 
 **Evidence.** `AuditLogView.tsx:607` and `:672` render `formatLogTimestamp(row.createdAt)`; the
@@ -358,6 +392,12 @@ keep the CSV export absolute.
 
 **Effort.** S. **Respect.** The audit log is the one always-fresh route
 (`docs/audit-log.md`) — a relative label must not imply live polling that doesn't exist.
+
+**Status.** Shipped **1.401** (2026-11-22): the relative age leads (reusing the shared
+`relativeChangeLabel` from `changeTrail.ts`) with the absolute UTC+8 stamp as the secondary line
+— stacked under the age on the desktop Time column, under the action label on mobile cards. The
+age is computed once per render, so it reads as "age at load" on this fresh-on-entry route; no
+polling added or implied. The detail modal and the CSV export stay absolute. §1.10.1.
 
 ### 1.6.6 C6 — the event detail modal renders every participant badge
 
@@ -372,6 +412,13 @@ overflow), with the full list in an expandable section.
 
 **Effort.** S. **Respect.** Keep the `(You)` marker and `c2-my-badge` ring on the current user even
 when they fall outside the visible cap — pin that chip first.
+
+**Status.** Shipped **1.401** (2026-11-22): participants and departments render through the shared
+`PickerBadges` recipe capped at 5, and the **"+N" is the expand trigger** (tap → full list →
+"Show less"; state resets when a different event opens). The signed-in user's chip is pinned
+first by pure `capBadgeItems` (`src/lib/ui/badgeCap.ts`, unit-tested), so the `(You)` marker and
+`c2-my-badge` ring survive any cap; `PickerChip self` carries the same amber treatment as before.
+§1.10.1.
 
 ## 1.7 Feedback, guidance and trust
 
@@ -569,7 +616,7 @@ Order is fixed; held items were removed without renumbering or re-ranking anythi
 
 ```mermaid
 flowchart TD
-  T1["Tier 1 — days, low risk<br/>B1 · B4 · C1 · C6"] --> T2["Tier 2 — a sprint<br/>B3 · B5 · C2 · C3 · C4 · C5"]
+  T1["Tier 1 — days, low risk<br/>B1 · B4"] --> T2["Tier 2 — a sprint<br/>B3 · B5"]
   T2 --> T3["Tier 3 — design-gated<br/>E3 · E6 hint"]
   T3 --> T4["Tier 4 — feature specs<br/>E1 · E4 · E6 sync"]
   H["Held — not scheduled<br/>A3 · A5 · A6 · B2 · D1 · D3 · D4 · E2 · E5"]
@@ -577,8 +624,8 @@ flowchart TD
 
 | Tier | Items | Why here |
 | --- | --- | --- |
-| **1 — days, low risk** | B1, B4, C1, C6 | Missing-affordance and correctness fixes. Each is local, reversible, needs no schema or data change, and closes a gap the codebase already knows about (B1). A1/A2/A4 and D5/D6 left this tier shipped (§1.10.1). |
-| **2 — a sprint** | B3, B5, C2, C3, C4, C5 | Keyboard parity, the legibility floor, and find-things surfaces. D2 shipped ahead of the tier (§1.10.1) **without** its shortcut section — fold that section in when B5 lands, per the original "B5 before D2" note. |
+| **1 — days, low risk** | B1, B4 | Missing-affordance and correctness fixes. Each is local, reversible, needs no schema or data change, and closes a gap the codebase already knows about (B1). A1/A2/A4, C1/C6 and D5/D6 left this tier shipped (§1.10.1). |
+| **2 — a sprint** | B3, B5 | Keyboard parity and the legibility floor. D2 shipped ahead of the tier (§1.10.1) **without** its shortcut section — fold that section in when B5 lands, per the original "B5 before D2" note. C2/C3/C4/C5 left this tier shipped (§1.10.1). |
 | **3 — design-gated** | E3, E6-hint | Advisory and messaging that must be designed against the clashes engine and attendance docs rather than bolted on. |
 | **4 — feature work** | E1, E4, E6-sync | Each needs its own spec, schema, and subsystem doc. |
 
@@ -598,6 +645,12 @@ land here.
 | D5 | 1.400 (2026-11-22) | Preferences save = snapshot clear + `cloudy2:prefs-changed` (`src/lib/ui/prefsChanged.ts`) + toast + close — no `window.location.reload()`. `DashboardScreen` listens and `revalidate()`s in place; grids rebuild from the fresh record with the new week start. |
 | D6 | 1.400 (2026-11-22) | Boundary stated in [`action-pill.md`](action-pill.md) §1.2 (actionable → pill, inert → toast). Delete success is now a pill offering **History** (trail modal hosted by `DashboardView`); inert toasts and the flag-owned post-save path audited and left as-is. |
 | D7 | 1.400 (2026-11-22) | Shared `useIsOffline` (`src/lib/ui/onlineStatus.ts`, `OfflineBanner` refactored onto it). Offline: wizard starts refused at `requestFormStart` with a reason toast, New-event affordances disabled, wizard submit disabled with a "draft is saved" one-liner + `announce()` guard. Drafts untouched; conservative signal only. |
+| C1 | 1.401 (2026-11-22) | Settings tabs grouped Roster/Events/Delivery/System with labelled separators at `lg+` (scroller kept below `lg`); shared `RailEdgeControl` fade + chevron edges on both tiers (`useScrollEdges` + pure `measureScrollEdges`, unit-tested); active tab centred on entry. |
+| C2 | 1.401 (2026-11-22) | Contacts: dense sectioned row list (name/department sort, duplicated name line gone) + right-edge A–Z jump rail (`src/lib/contacts/sections.ts`, unit-tested); VCF export still follows search + filters. |
+| C3 | 1.401 (2026-11-22) | Parade State roster search: nav-row field at `lg+`, search circle in the mobile pill (label ↔ inline field). Client-side fuzzy filter over loaded users; attendance `X/Y`, summary and Copy report stay org-wide aggregates. |
+| C4 | 1.401 (2026-11-22) | My Events title search mirrored in `?q=` (decision: mirror, like range/page), debounced, server-side `filterMyEventRowsByTitle` before the page slice; adoption gate compares range + page + q. |
+| C5 | 1.401 (2026-11-22) | Audit-log rows lead with the relative age (`relativeChangeLabel`) + absolute UTC+8 secondary; computed once per render; detail modal + CSV stay absolute. |
+| C6 | 1.401 (2026-11-22) | Event detail participants/departments capped at 5 via `PickerBadges` with "+N" as the expand trigger; self chip pinned first by pure `capBadgeItems` (`src/lib/ui/badgeCap.ts`, unit-tested). |
 
 ## 1.11 Implementation guardrails
 

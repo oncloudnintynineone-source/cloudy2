@@ -34,6 +34,7 @@ import { EventDetailSkeleton } from "./EventDetailSkeleton";
 import { EventHistoryModal } from "@/components/EventHistoryModal";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { useActionPill } from "@/components/ActionPill";
+import { PickerBadges, type PickerBadgeItem } from "@/components/PickerField";
 import { deleteEvent, setEventRegistration, type EventActionOk } from "@/lib/events/actions";
 import { buildEventIcs, buildGoogleCalendarUrl, icsFileName } from "@/lib/events/calendarExport";
 import { subOneDay } from "@/lib/events/datetime";
@@ -49,9 +50,13 @@ import { eventRefFromCalendarEvent } from "@/lib/events/targets";
 import type { Rect } from "@/lib/motion/origin";
 import { popoverTransitionProps } from "@/lib/motion/transitions";
 import { useMotion } from "@/components/MotionProvider";
+import { capBadgeItems } from "@/lib/ui/badgeCap";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { formatDateTime } from "./clientDateTime";
 import { ShareEventDialog } from "./ShareEventDialog";
+
+/** Chips shown before the "+N" expander in the detail modal's badge rows (C6). */
+const DETAIL_BADGE_CAP = 5;
 
 export interface EventDetailProps {
   event: CalendarEvent | null;
@@ -144,6 +149,12 @@ export function EventDetailBody({
   // modal via zIndex, replacing the old navigation to the history page).
   const [historyEventId, setHistoryEventId] = useState<string | null>(null);
   const [historyOrigin, setHistoryOrigin] = useState<Rect | null>(null);
+  // Participant/department chip caps (docs/ui-ux-improvements.md C6): a
+  // department-wide event used to paint a wall of chips that pushed the action
+  // row off-screen. Collapsed rows show `DETAIL_BADGE_CAP` chips (the signed-in
+  // user's chip pinned first) with the "+N" as the expand trigger.
+  const [peopleExpanded, setPeopleExpanded] = useState(false);
+  const [departmentsExpanded, setDepartmentsExpanded] = useState(false);
   // The share dialog (stacked at zIndex 300 like the history modal): holds the
   // event whose link is shown, null keeps it closed.
   const [shareEvent, setShareEvent] = useState<CalendarEvent | null>(null);
@@ -158,6 +169,8 @@ export function EventDetailBody({
     setDisplayEvent(event);
     setRegistrationPatch(null);
     setShareEvent(null);
+    setPeopleExpanded(false);
+    setDepartmentsExpanded(false);
   }
 
   const showEvent = event ?? displayEvent;
@@ -191,6 +204,19 @@ export function EventDetailBody({
         .map((id) => calendarNames[id])
         .filter((name, index, all): name is string => Boolean(name) && all.indexOf(name) === index)
     : [];
+  // Capped chip rows (C6): the shared PickerBadges recipe with the signed-in
+  // user's chip pinned first, and the "+N" doubling as the expand trigger so
+  // the full list stays reachable without pushing the action row off-screen.
+  const peopleCap = capBadgeItems(peopleResolved, DETAIL_BADGE_CAP, (person) =>
+    person.id === currentUserId,
+  );
+  const peopleBadges: PickerBadgeItem[] = (
+    peopleExpanded ? peopleResolved : peopleCap.visible
+  ).map(({ id, name }) => ({ key: id, label: name, self: id === currentUserId }));
+  const departmentsCap = capBadgeItems(departmentNamesResolved, DETAIL_BADGE_CAP);
+  const departmentBadges: PickerBadgeItem[] = (
+    departmentsExpanded ? departmentNamesResolved : departmentsCap.visible
+  ).map((name) => ({ key: name, label: name, color: "accent" }));
   // Who may edit/delete/duplicate: admins always; otherwise the organizer, any
   // attendee, and active members of tagged departments — unless the organizer
   // locked the event to themselves (admins bypass the lock). Registration
@@ -398,17 +424,25 @@ export function EventDetailBody({
                         : `Registered (${registeredCount})`
                       : "Participants"}
                   </Text>
-                  <Group gap={6} wrap="wrap">
-                    {peopleResolved.map(({ id, name }) => (
-                      <Badge
-                        key={id}
-                        variant="light"
-                        className={id === currentUserId ? "c2-my-badge" : undefined}
+                  <Stack gap={4}>
+                    <PickerBadges items={peopleBadges} />
+                    {peopleResolved.length > DETAIL_BADGE_CAP && (
+                      <Button
+                        variant="subtle"
+                        size="compact-xs"
+                        w="fit-content"
+                        aria-expanded={peopleExpanded}
+                        aria-label={
+                          peopleExpanded
+                            ? "Show fewer participants"
+                            : `Show all ${peopleResolved.length} participants`
+                        }
+                        onClick={() => setPeopleExpanded((value) => !value)}
                       >
-                        {id === currentUserId ? `${name} (You)` : name}
-                      </Badge>
-                    ))}
-                  </Group>
+                        {peopleExpanded ? "Show less" : `+${peopleCap.overflow}`}
+                      </Button>
+                    )}
+                  </Stack>
                 </>
               ) : registrationEnabled ? (
                 <>
@@ -444,13 +478,25 @@ export function EventDetailBody({
                   <Text size="xs" c="dimmed" fw={600}>
                     Departments
                   </Text>
-                  <Group gap={6} wrap="wrap">
-                    {departmentNamesResolved.map((name) => (
-                      <Badge key={name} variant="light" color="accent">
-                        {name}
-                      </Badge>
-                    ))}
-                  </Group>
+                  <Stack gap={4}>
+                    <PickerBadges items={departmentBadges} />
+                    {departmentNamesResolved.length > DETAIL_BADGE_CAP && (
+                      <Button
+                        variant="subtle"
+                        size="compact-xs"
+                        w="fit-content"
+                        aria-expanded={departmentsExpanded}
+                        aria-label={
+                          departmentsExpanded
+                            ? "Show fewer departments"
+                            : `Show all ${departmentNamesResolved.length} departments`
+                        }
+                        onClick={() => setDepartmentsExpanded((value) => !value)}
+                      >
+                        {departmentsExpanded ? "Show less" : `+${departmentsCap.overflow}`}
+                      </Button>
+                    )}
+                  </Stack>
                 </>
               )}
 

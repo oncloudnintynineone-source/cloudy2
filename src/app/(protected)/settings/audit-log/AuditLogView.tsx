@@ -39,6 +39,7 @@ import { useColdStartContent } from "@/components/ColdStartReady";
 import { purgeAuditLogs } from "@/lib/audit/actions";
 import { listAuditActions } from "@/lib/audit/build";
 import { actionLabel, actorLabel, formatLogTimestamp } from "@/lib/audit/format";
+import { relativeChangeLabel } from "@/lib/events/changeTrail";
 import type { AuditFilters } from "@/lib/audit/queries";
 import { useLiveRouteRefresh } from "@/lib/loading/liveRefresh";
 import { type Rect } from "@/lib/motion/origin";
@@ -387,6 +388,14 @@ export function AuditLogView({
     }
   };
 
+  // Relative timestamps (docs/ui-ux-improvements.md C5): in a log you scan
+  // for "what just happened", so the age leads and the absolute UTC+8 stamp
+  // rides as the secondary line. The age is computed once per render — this
+  // is the always-fresh route (fresh on entry and on Force refresh,
+  // docs/audit-log.md), and the label reflects the moment the page rendered;
+  // it is not a live countdown and implies no polling that doesn't exist.
+  const now = new Date();
+
   return (
     <Stack pb="xl">
       {isDesktop ? (
@@ -603,9 +612,14 @@ export function AuditLogView({
                         <Text fw={600} size="sm">
                           {actionLabel(row.action)}
                         </Text>
-                        <Text size="xs" c="dimmed" style={{ whiteSpace: "nowrap" }}>
-                          {formatLogTimestamp(row.createdAt)}
-                        </Text>
+                        <Stack gap={0} align="flex-end">
+                          <Text size="xs" fw={600} style={{ whiteSpace: "nowrap" }}>
+                            {relativeChangeLabel(row.createdAt, now)}
+                          </Text>
+                          <Text size="xs" c="dimmed" style={{ whiteSpace: "nowrap" }}>
+                            {formatLogTimestamp(row.createdAt)}
+                          </Text>
+                        </Stack>
                       </Group>
                       <Group gap={6} wrap="wrap">
                         <Text size="sm" c="dimmed">
@@ -658,7 +672,7 @@ export function AuditLogView({
                 <Table withRowBorders={false} highlightOnHover tabularNums layout="fixed">
                   <Table.Thead>
                     <Table.Tr>
-                      <Table.Th w={92}>Time</Table.Th>
+                      <Table.Th w={110}>Time</Table.Th>
                       <Table.Th w={160}>Actor</Table.Th>
                       <Table.Th>Action</Table.Th>
                       <Table.Th>Entity</Table.Th>
@@ -674,10 +688,13 @@ export function AuditLogView({
                         <Table.Tr key={row.id}>
                           <Table.Td>
                             <Stack gap={0}>
-                              <Text size="sm" c="dimmed" style={{ whiteSpace: "nowrap" }}>
+                              <Text size="sm" fw={600} style={{ whiteSpace: "nowrap" }}>
+                                {relativeChangeLabel(row.createdAt, now)}
+                              </Text>
+                              <Text size="xs" c="dimmed" style={{ whiteSpace: "nowrap" }}>
                                 {datePart}
                               </Text>
-                              <Text size="sm" c="dimmed" style={{ whiteSpace: "nowrap" }}>
+                              <Text size="xs" c="dimmed" style={{ whiteSpace: "nowrap" }}>
                                 {timePart}
                               </Text>
                             </Stack>

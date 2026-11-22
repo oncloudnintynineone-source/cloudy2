@@ -24,6 +24,7 @@ import {
   Paper,
   Stack,
   Text,
+  TextInput,
   useComputedColorScheme,
 } from "@mantine/core";
 import { useClipboard, useDisclosure, useDrag, useMediaQuery } from "@mantine/hooks";
@@ -39,6 +40,8 @@ import {
   IconDotsVertical,
   IconMapPin,
   IconRefresh,
+  IconSearch,
+  IconSearchOff,
   IconSitemap,
   IconUser,
   IconX,
@@ -80,6 +83,8 @@ import {
   subscribeAgendaSwipeHint,
 } from "@/lib/ui/agendaSwipeHint";
 import { useChromeHide } from "@/lib/ui/chromeHide";
+import { useKeyboardInset } from "@/lib/ui/keyboardInset";
+import { fuzzyFilter } from "@/lib/search/fuzzy";
 import {
   PARADE_SLIDE_NEXT,
   PARADE_SLIDE_PREV,
@@ -124,6 +129,24 @@ type DepartmentSection = ParadeSection<ParadeStateUser>;
 function sectionHasUsers(section: DepartmentSection): boolean {
   if (section.users.length > 0) return true;
   return section.children.some(sectionHasUsers);
+}
+
+/**
+ * Like `sectionHasUsers` under the roster name search (C3): a section stays
+ * visible when it holds a matching user anywhere in its subtree. `null`
+ * means no search is active (every populated section is visible).
+ */
+function sectionHasVisibleUsers(
+  section: DepartmentSection,
+  matches: ReadonlySet<string> | null,
+): boolean {
+  if (matches === null) {
+    return sectionHasUsers(section);
+  }
+  if (section.users.some((user) => matches.has(user.id))) {
+    return true;
+  }
+  return section.children.some((child) => sectionHasVisibleUsers(child, matches));
 }
 
 function countCheckedIn(section: DepartmentSection, checkedIds: ReadonlySet<string>): number {
@@ -265,6 +288,38 @@ export function ParadeStateView({
     () => users.filter((user) => checkedIds.has(user.id)).length,
     [users, checkedIds],
   );
+
+  // Roster name search (docs/ui-ux-improvements.md C3): a display-only filter
+  // over the already-loaded users, reusing the Contacts text semantics (fuzzy
+  // over name + shortname). The attendance bar's X/Y, the roll-call summary
+  // and the Copy report stay org-wide aggregates — a search must never narrow
+  // what "present" counts (finding's Respect note).
+  const [search, setSearch] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const matchesSearch = useMemo(() => {
+    if (search.trim() === "") {
+      return null;
+    }
+    return new Set(
+      fuzzyFilter(users, search, (user) => [user.name, user.shortname]).map((user) => user.id),
+    );
+  }, [users, search]);
+  const searchActive = searchOpen || matchesSearch !== null;
+  useEffect(() => {
+    if (searchOpen) {
+      searchInputRef.current?.focus();
+    }
+  }, [searchOpen]);
+  function closeRosterSearch() {
+    setSearch("");
+    setSearchOpen(false);
+    searchInputRef.current?.blur();
+  }
+  // While the mobile search field is up the OS keyboard covers the bottom of
+  // the screen, so the control pill lifts to the measured keyboard top (the
+  // Contacts pill recipe).
+  const keyboardInset = useKeyboardInset();
 
   // The floating mobile attendance mode bar fades + slides out before it
   // unmounts: `exitAttendance` holds it mounted through the exit transition
@@ -871,21 +926,26 @@ export function ParadeStateView({
   // One level of the hierarchy: header (headcount aggregated over every
   // sub-department below), the direct members' card grid, then the nested
   // sub-departments. Each level indents within its parent, so depth
-  // accumulates naturally.
+  // accumulates naturally. Under the roster search (C3) only matching cards
+  // render, but the header counts stay the section's full aggregate — the
+  // search filters the list, never the roll-call numbers.
   function renderSection(section: DepartmentSection, depth: number) {
-    if (!sectionHasUsers(section)) return null;
+    if (!sectionHasVisibleUsers(section, matchesSearch)) return null;
     const headcount = departmentTreeHeadcount(section, eventsByUser);
     const presentCount = attendanceMode ? countCheckedIn(section, checkedIds) : headcount.present;
+    const visibleUsers = matchesSearch
+      ? section.users.filter((user) => matchesSearch.has(user.id))
+      : section.users;
     return (
       <Box key={section.id ?? "__unassigned__"} style={{ marginLeft: depth * 16 }}>
         <Text fw={700} size="sm" c="dimmed" mb="xs" tt="uppercase" lh={1}>
           {section.name} — {presentCount}/{headcount.total} {attendanceMode ? "present" : "in camp"}
         </Text>
-        {section.users.length > 0 && (
+        {visibleUsers.length > 0 && (
           // Single column on mobile; auto-filling card grid at lg
           // (see .card-grid in globals.css).
           <Box component="div" className="card-grid">
-            {section.users.map(renderUserCard)}
+            {visibleUsers.map(renderUserCard)}
           </Box>
         )}
         {section.children.map((child) => renderSection(child, depth + 1))}
@@ -896,13 +956,24 @@ export function ParadeStateView({
   const dayLabel = dayjs(date).format("ddd, MMM D, YYYY");
 
   // The floating control pill (below `lg` only, calendar-page pattern): the
-  // day label centered in the space left of the circular step / filter / date /
-  // attendance buttons, floating at the bottom inset 16px from the viewport
-  // edges. The attendance mode bar floats above it (see `mobileAttendanceBar`).
+  // day label centered in the space left of the circular search / step /
+  // filter / date / attendance buttons, floating at the bottom inset 16px
+  // from the viewport edges. The attendance mode bar floats above it (see
+  // `mobileAttendanceBar`). The search circle (C3) swaps the day label for an
+  // inline roster-search field and hides the other circles while it is open —
+  // the pill keeps its height, and closing restores the full row.
   const mobilePill = (
     <Affix
       hiddenFrom="lg"
-      position={{ bottom: "var(--app-floating-bottom-offset)", left: 16, right: 16 }}
+      className="c2-pill-lift"
+      position={{
+        bottom:
+          keyboardInset > 0
+            ? `calc(${keyboardInset}px + 16px)`
+            : "var(--app-floating-bottom-offset)",
+        left: 16,
+        right: 16,
+      }}
       zIndex={100}
     >
       {/* `c2-chrome-hide-able` + `c2-chrome-hidden`: the pill fades/slides away
@@ -915,87 +986,128 @@ export function ParadeStateView({
         }`}
       >
         <Group align="center" gap="xs" wrap="nowrap">
-          <Text
-            fw={600}
-            size="sm"
-            lineClamp={1}
-            title={dayLabel}
-            style={{ flex: 1, minWidth: 0, textAlign: "center" }}
-          >
-            {dayLabel}
-          </Text>
+          {searchActive ? (
+            <TextInput
+              ref={searchInputRef}
+              radius="999px"
+              aria-label="Search roster by name or shortname"
+              placeholder="Search roster"
+              value={search}
+              onChange={(e) => setSearch(e.currentTarget.value)}
+              style={{ flex: 1, minWidth: 0 }}
+            />
+          ) : (
+            <Text
+              fw={600}
+              size="sm"
+              lineClamp={1}
+              title={dayLabel}
+              style={{ flex: 1, minWidth: 0, textAlign: "center" }}
+            >
+              {dayLabel}
+            </Text>
+          )}
           <ActionIcon
             radius="50%"
             size={36}
             variant="default"
             className="c2-glass-btn"
-            aria-label="Previous day"
-            onClick={() => shiftDay(-1)}
-            onPointerEnter={() => prefetchDay(-1)}
-            onFocus={() => prefetchDay(-1)}
-            onPointerDown={() => prefetchDay(-1)}
-            onTouchStart={() => prefetchDay(-1)}
-          >
-            <IconChevronLeft size={18} />
-          </ActionIcon>
-          <ActionIcon
-            radius="50%"
-            size={36}
-            variant="default"
-            className="c2-glass-btn"
-            aria-label="Next day"
-            onClick={() => shiftDay(1)}
-            onPointerEnter={() => prefetchDay(1)}
-            onFocus={() => prefetchDay(1)}
-            onPointerDown={() => prefetchDay(1)}
-            onTouchStart={() => prefetchDay(1)}
-          >
-            <IconChevronRight size={18} />
-          </ActionIcon>
-          <FilterButton
-            activeCount={activeFilterCount}
-            onClick={(e) => {
-              setFilterOriginRect(e.currentTarget.getBoundingClientRect());
-              openFilter();
+            aria-label={searchActive ? "Close roster search" : "Search roster"}
+            title={searchActive ? "Close roster search" : "Search roster"}
+            onClick={() => {
+              if (searchActive) {
+                closeRosterSearch();
+              } else {
+                setSearchOpen(true);
+              }
             }}
-            size={36}
-            iconSize={18}
-            radius="50%"
-            className="c2-glass-btn"
-          />
-          <ActionIcon
-            radius="50%"
-            size={36}
-            variant="default"
-            className="c2-glass-btn"
-            aria-label="Select date"
-            title="Select date"
-            onClick={(e) => {
-              setPickerOriginRect(e.currentTarget.getBoundingClientRect());
-              openPicker();
-            }}
-          >
-            <IconCalendarDot size={18} />
-          </ActionIcon>
-          <ActionIcon
-            radius="50%"
-            size={36}
-            variant="default"
-            className={attendanceMode ? "c2-glass-btn c2-glass-fab--teal" : "c2-glass-btn"}
-            aria-label={attendanceMode ? "Exit attendance mode" : "Start attendance"}
-            title={attendanceMode ? "Exit attendance mode" : "Start attendance"}
-            onClick={attendanceMode ? exitAttendance : enterAttendance}
           >
             {/* Keyed by the mode so the icon node remounts and replays its
                 fade + scale-in on the toggle (see `c2-icon-swap`). */}
             <span
-              key={attendanceMode ? "done" : "start"}
+              key={searchActive ? "close" : "open"}
               className="c2-icon-swap"
               style={{ display: "inline-flex" }}
             >
-              {attendanceMode ? <IconCheck size={18} /> : <IconClipboardCheck size={18} />}
+              {searchActive ? <IconX size={18} /> : <IconSearch size={18} />}
             </span>
           </ActionIcon>
+          {!searchActive && (
+            <>
+              <ActionIcon
+                radius="50%"
+                size={36}
+                variant="default"
+                className="c2-glass-btn"
+                aria-label="Previous day"
+                onClick={() => shiftDay(-1)}
+                onPointerEnter={() => prefetchDay(-1)}
+                onFocus={() => prefetchDay(-1)}
+                onPointerDown={() => prefetchDay(-1)}
+                onTouchStart={() => prefetchDay(-1)}
+              >
+                <IconChevronLeft size={18} />
+              </ActionIcon>
+              <ActionIcon
+                radius="50%"
+                size={36}
+                variant="default"
+                className="c2-glass-btn"
+                aria-label="Next day"
+                onClick={() => shiftDay(1)}
+                onPointerEnter={() => prefetchDay(1)}
+                onFocus={() => prefetchDay(1)}
+                onPointerDown={() => prefetchDay(1)}
+                onTouchStart={() => prefetchDay(1)}
+              >
+                <IconChevronRight size={18} />
+              </ActionIcon>
+              <FilterButton
+                activeCount={activeFilterCount}
+                onClick={(e) => {
+                  setFilterOriginRect(e.currentTarget.getBoundingClientRect());
+                  openFilter();
+                }}
+                size={36}
+                iconSize={18}
+                radius="50%"
+                className="c2-glass-btn"
+              />
+              <ActionIcon
+                radius="50%"
+                size={36}
+                variant="default"
+                className="c2-glass-btn"
+                aria-label="Select date"
+                title="Select date"
+                onClick={(e) => {
+                  setPickerOriginRect(e.currentTarget.getBoundingClientRect());
+                  openPicker();
+                }}
+              >
+                <IconCalendarDot size={18} />
+              </ActionIcon>
+              <ActionIcon
+                radius="50%"
+                size={36}
+                variant="default"
+                className={attendanceMode ? "c2-glass-btn c2-glass-fab--teal" : "c2-glass-btn"}
+                aria-label={attendanceMode ? "Exit attendance mode" : "Start attendance"}
+                title={attendanceMode ? "Exit attendance mode" : "Start attendance"}
+                onClick={attendanceMode ? exitAttendance : enterAttendance}
+              >
+                {/* Keyed by the mode so the icon node remounts and replays its
+                    fade + scale-in on the toggle (see `c2-icon-swap`). */}
+                <span
+                  key={attendanceMode ? "done" : "start"}
+                  className="c2-icon-swap"
+                  style={{ display: "inline-flex" }}
+                >
+                  {attendanceMode ? <IconCheck size={18} /> : <IconClipboardCheck size={18} />}
+                </span>
+              </ActionIcon>
+            </>
+          )}
         </Group>
       </Box>
     </Affix>
@@ -1093,6 +1205,15 @@ export function ParadeStateView({
             >
               {dayLabel}
             </Text>
+            {/* Roster name search (C3): filters the rendered cards in place;
+                the attendance aggregates are untouched. */}
+            <TextInput
+              aria-label="Search roster by name or shortname"
+              placeholder="Search roster"
+              value={search}
+              onChange={(e) => setSearch(e.currentTarget.value)}
+              style={{ width: 200, flexShrink: 0 }}
+            />
             <ActionIcon
               size={36}
               variant="default"
@@ -1248,8 +1369,15 @@ export function ParadeStateView({
                 </Stack>
               }
             >
-              {!sections.some(sectionHasUsers) ? (
-                isAdmin ? (
+              {!sections.some((section) => sectionHasVisibleUsers(section, matchesSearch)) ? (
+                matchesSearch ? (
+                  <EmptyState
+                    icon={<IconSearchOff size={18} />}
+                    description="No one matches your search."
+                    actionLabel="Clear search"
+                    onAction={closeRosterSearch}
+                  />
+                ) : isAdmin ? (
                   <EmptyState
                     icon={users.length === 0 ? <IconSitemap size={18} /> : <IconUser size={18} />}
                     description={users.length === 0 ? "No departments found." : "No users found."}

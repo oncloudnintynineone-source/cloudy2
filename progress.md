@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.400 (Guide sheet, in-place preferences, delete→History pill, offline-aware wizard)**
+- All work through changelog **1.401 (Find-things batch: grouped settings tabs, sectioned Contacts, roster/title search, relative audit times, capped detail chips)**
   is shipped — the first items (A1/A2/A4) off the UI/UX backlog.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
@@ -2745,6 +2745,31 @@ mirror them (four such entries: 1.106.1, 1.122.1, 1.316.1, 1.331.1).
    resumable and the conservative signal never gates a flaky connection. Docs:
    `ui-ux-improvements.md` (statuses + Shipped), `action-pill.md` §1.2, `user-guide.md`
    §1.2/§1.3/§1.10, `dashboard-views.md` §1.1/§1.2, `AGENTS.md`.
+  - 1.401 **Find-things batch (UI/UX backlog C1/C6 + C2/C3/C4/C5)**: six shipped findings.
+    **C1**: the Settings tab strip groups into **Roster · Events · Delivery · System** with
+    labelled separators at `lg`+ (only KAH Groups moved; the scroller stays below `lg`), and
+    both tiers gained the bottom-nav rail's fade + chevron edges — `RailEdgeControl` extracted
+    to a shared component, with pure `measureScrollEdges` + `useScrollEdges`
+    (`src/lib/ui/scrollEdges.ts`, unit-tested) — plus a scroll-into-view of the active tab on
+    entry. **C6**: the event detail modal caps participants and departments at 5 chips via the
+    shared `PickerBadges` recipe with the **"+N" as the expand trigger**; the signed-in user's
+    chip is pinned first by pure `capBadgeItems` (`src/lib/ui/badgeCap.ts`, unit-tested).
+    **C2**: Contacts is no longer a card wall — one bordered container of dense hairline rows
+    (template name primary, duplicated name line gone), sectioned by **name or department**
+    (sort menu in both chrome tiers) with a right-edge **A–Z jump rail** from four sections up
+    (pure `src/lib/contacts/sections.ts`, unit-tested); the VCF export still follows the active
+    search + filters. **C3**: Parade State gained a **roster search** — a field in the sticky
+    day-nav row at `lg`+, a search circle in the mobile pill that swaps the day label for an
+    inline field (keyboard lift included); client-side fuzzy filter over the loaded users, and
+    the attendance `X/Y`, roll-call summary and Copy report stay org-wide aggregates. **C4**:
+    My Events gained a **title search mirrored in `?q=`** (decision: mirror, like range/page),
+    debounced 300 ms, applied server-side in `buildMyEventsPage` before the page slice via pure
+    `filterMyEventRowsByTitle` (unit-tested) so paging stays honest. **C5**: audit-log rows lead
+    with the **relative age** (shared `relativeChangeLabel`) and the absolute UTC+8 stamp rides
+    under it — computed once per render on this fresh-on-entry route; detail modal and CSV stay
+    absolute. Docs: `ui-ux-improvements.md` (statuses + tier table + Shipped), `user-guide.md`
+    §1.4.2/§1.7/§1.8, `audit-log.md` §1.10, `event-history.md` §1.4, `desktop-responsive.md`
+    §1.6, `dashboard-views.md` §1.1, `loading-transitions.md`, `AGENTS.md`.
 
 ## 1.4 Open items & next steps
 

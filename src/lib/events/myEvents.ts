@@ -7,6 +7,7 @@
 
 import { subOneDay } from "./datetime";
 import type { ChangeTrailItem } from "./changeTrail";
+import { eventNameMatchesText } from "@/lib/events/textFilter";
 import type { MantineColor } from "@mantine/core";
 
 /** One row in the My Events list, from either the live or the audit source. */
@@ -121,4 +122,23 @@ export function mergeMyEvents(active: MyEventRow[], deleted: MyEventRow[]): MyEv
       b.sortKey.localeCompare(a.sortKey) ||
       a.key.localeCompare(b.key),
   );
+}
+
+/**
+ * Narrow My Events rows by title (docs/ui-ux-improvements.md C4): the same
+ * case-insensitive substring semantics as the dashboard's event-name filter
+ * (`textFilter.ts`), so the vocabulary is identical across surfaces. Rows
+ * carry only the rendered title (audit-shaped rows never saw the raw typed
+ * name), so that is the searched field. A blank query returns the input
+ * unchanged.
+ */
+export function filterMyEventRowsByTitle(
+  rows: readonly MyEventRow[],
+  query: string | null | undefined,
+): MyEventRow[] {
+  const q = (query ?? "").trim();
+  if (q === "") {
+    return [...rows];
+  }
+  return rows.filter((row) => eventNameMatchesText(null, row.title, q));
 }

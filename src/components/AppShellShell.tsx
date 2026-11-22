@@ -17,8 +17,6 @@ import {
   IconAddressBook,
   IconCalendarClock,
   IconCalendarMonth,
-  IconChevronLeft,
-  IconChevronRight,
   IconClipboardList,
   IconHistory,
   IconLayoutSidebarLeftCollapse,
@@ -60,6 +58,7 @@ import {
   type NavItem,
 } from "@/components/navChrome";
 
+import { RailEdgeControl } from "@/components/RailEdgeControl";
 import { UserMenu } from "@/components/UserMenu";
 import { BANNER_HEIGHT_PX, type BannerConfig } from "@/lib/banner/banner";
 import { BOTTOM_NAV_HEIGHT, RAIL_ORDER, RAIL_TILE_WIDTHS } from "@/lib/bottomNav";
@@ -186,66 +185,6 @@ const HEADER_STYLE: React.CSSProperties = {
   // The safe-area region stays brand blue; the banner + header render below it.
   paddingTop: "env(safe-area-inset-top)",
 };
-
-/**
- * The `scrollRail` variant's edge affordance: a gradient fade over the clipped
- * tile signalling "more destinations this way" plus a purely decorative
- * chevron. The whole control is `pointer-events: none`, so taps pass through
- * to the clipped tile behind the fade; panning happens by touch swipe, and
- * each side's control hides once the rail reaches that extreme (nothing is
- * clipped on that side any more).
- */
-function RailEdgeControl({
-  side,
-  hidden,
-  hint,
-}: {
-  side: "left" | "right";
-  hidden?: boolean;
-  hint?: boolean;
-}) {
-  return (
-    <Box
-      // Kept mounted so the affordance can dissolve (`.c2-rail-edge`) when the
-      // rail reaches its extreme instead of snapping out of the layout; the
-      // whole control is `pointer-events: none`, so a faded edge never blocks
-      // taps on the clipped tile behind it.
-      className={`c2-rail-edge${hidden ? " c2-rail-edge--hidden" : ""}`}
-      style={{
-        position: "absolute",
-        top: 0,
-        bottom: 0,
-        width: 44,
-        left: side === "left" ? 0 : "auto",
-        right: side === "left" ? "auto" : 0,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        pointerEvents: "none",
-        background:
-          side === "right"
-            ? "linear-gradient(to left, var(--mantine-color-default), transparent)"
-            : "linear-gradient(to right, var(--mantine-color-default), transparent)",
-        zIndex: 1,
-      }}
-      aria-hidden
-    >
-      <Box
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: 8,
-          color: NAV_IDLE_COLOR,
-        }}
-      >
-        <Box className={hint ? "c2-rail-hint" : undefined}>
-          {side === "right" ? <IconChevronRight size={20} /> : <IconChevronLeft size={20} />}
-        </Box>
-      </Box>
-    </Box>
-  );
-}
 
 // How long an optimistic nav highlight survives without a commit before
 // reverting (stalled or offline request). Long enough to never flicker on a

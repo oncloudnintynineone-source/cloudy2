@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   auditTimeSortKey,
+  filterMyEventRowsByTitle,
   formatMyEventTime,
   humanizeMyEventTime,
   mergeMyEvents,
@@ -122,5 +123,31 @@ describe("mergeMyEvents", () => {
   it("keeps legacy deleted rows without a group id", () => {
     const merged = mergeMyEvents([], [row({ key: "legacy", eventId: null, sortKey: "2026-08-01 00:00", deleted: true })]);
     expect(merged).toHaveLength(1);
+  });
+});
+
+describe("filterMyEventRowsByTitle", () => {
+  const rows = [
+    row({ key: "a", sortKey: "2026-06-01 09:00", title: "June Parade" }),
+    row({ key: "b", sortKey: "2026-06-02 09:00", title: "Medical Board" }),
+    row({ key: "c", sortKey: "2026-06-03 09:00", title: "june inspection" }),
+  ];
+
+  it("matches case-insensitively over the title", () => {
+    expect(filterMyEventRowsByTitle(rows, "JUNE").map((entry) => entry.key)).toEqual(["a", "c"]);
+  });
+
+  it("matches substrings", () => {
+    expect(filterMyEventRowsByTitle(rows, "par").map((entry) => entry.key)).toEqual(["a"]);
+  });
+
+  it("returns everything for a blank or missing query", () => {
+    expect(filterMyEventRowsByTitle(rows, "   ")).toHaveLength(3);
+    expect(filterMyEventRowsByTitle(rows, null)).toHaveLength(3);
+    expect(filterMyEventRowsByTitle(rows, undefined)).toHaveLength(3);
+  });
+
+  it("returns nothing when no title matches", () => {
+    expect(filterMyEventRowsByTitle(rows, "zebra")).toEqual([]);
   });
 });

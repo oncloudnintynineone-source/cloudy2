@@ -30,6 +30,7 @@ export default async function MyEventsPage({ searchParams }: MyEventsPageProps) 
     rangeMonths: parseMyEventsRange(typeof params.range === "string" ? params.range : null),
     page: parsePage(typeof params.page === "string" ? params.page : null),
     pageSize: MY_EVENTS_PAGE_SIZE,
+    q: typeof params.q === "string" ? params.q.trim().slice(0, 100) : null,
   });
 
   return (
@@ -41,6 +42,7 @@ export default async function MyEventsPage({ searchParams }: MyEventsPageProps) 
           pageCount={data.pageCount}
           total={data.total}
           rangeMonths={data.rangeMonths}
+          q={data.q}
           retentionDays={data.retentionDays}
           renderedAt={data.renderedAt}
         />

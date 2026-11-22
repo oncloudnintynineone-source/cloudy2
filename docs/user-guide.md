@@ -177,6 +177,8 @@ Calendar**, **Download .ics file**). Everyone who can view the event also gets
 organizer locked the event to themselves, only they and admins can edit or delete.)
 Editing prefills the wizard with the original details and always keeps the original
 organizer; deleting asks for confirmation and removes every department copy.
+Long participant and department lists are capped to five chips with a **+N** you
+can tap to see the rest — yours is always among the first five.
 
 ## 1.5 Pinned events
 
@@ -220,6 +222,11 @@ sub-departments, with aggregated counts):
   sub-department.
 - The day never auto-drifts: Parade State always opens on today; navigate days
   explicitly with the arrows or date picker.
+- **Search the roster** (magnifier): a field in the day-nav row on desktop, and a
+  circle in the bottom control pill on phones (it swaps the day label for the
+  field; the ✕ closes it). It filters the cards as you type — by name or
+  shortname — without touching the day, the filters, or the `X/Y` counts: the
+  roll-call numbers always describe everyone.
 - **Attendance mode** (clipboard icon — a circle in the bottom control pill on
   phones, a nav-row button on desktop): tap to start, then tap each person's card
   to mark them present (the card tints green; a live `X/Y present` count sits in
@@ -238,8 +245,11 @@ sub-departments, with aggregated counts):
 
 Searchable phone list (name, shortname, or number), with a **Department filter**
 (the funnel button beside the search box — e.g. show only Logistics) that combines
-with the search text. Copy a number with one tap, or download the currently-filtered
-list as a `.vcf` file to import into your phone.
+with the search text. The list is **sectioned** — alphabetically by name, or
+grouped by department with the **sort** control beside the search box — and on
+wider lists a vertical **A–Z rail** on the right edge jumps straight to a letter
+(or to the first department starting with it). Copy a number with one tap, or
+download the currently-filtered list as a `.vcf` file to import into your phone.
 
 ## 1.9 KAH status
 

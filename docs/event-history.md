@@ -186,6 +186,16 @@ previous selection with a red toast. A request token makes the last click win
 when several ranges are chosen in a row. `?range=`/`?page=` remain the server's
 input on a cold load, parsed by the thin `page.tsx` shell.
 
+**A title search rides the same rails.** The sticky chrome carries a search box
+(docs/ui-ux-improvements.md C4): the dashboard event-name filter's semantics
+(case-insensitive substring, `filterMyEventRowsByTitle` in
+`src/lib/events/myEvents.ts` over `textFilter.ts`), applied **server-side**
+inside `buildMyEventsPage` before the page slice — paging is server-side, so a
+client-only filter would silently miss rows on other pages. The box debounces
+300 ms, resets to page 1, and mirrors the term in `?q=` with the same
+`history.replaceState` rule as `?range=`/`?page=` (reload/share keep the
+search; the always-fresh adoption gate compares all three).
+
 It is a **union of two sources** (`buildMyEventsData`,
 `src/lib/events/myEventsData.ts`):
 
@@ -465,17 +475,17 @@ functions, `buildMyEventsData`, the My Events route page, and the client views
 | `src/components/EventHistorySkeleton.tsx` | Shared shaped skeleton (rail bullets + lines) |
 | `src/lib/events/historyActions.ts` | `getEventHistory` server action |
 | `src/lib/events/historyCache.ts` | Hover-prefetch + open cache (session lifetime; cleared on sign-out) |
-| `src/app/(protected)/my-events/page.tsx` | Thin server shell (`?range` / `?page` → `buildMyEventsPage`) |
-| `src/lib/events/myEventsActions.ts` | `getMyEventsPage` server action — the in-place range/page refetch (§1.4) |
-| `src/app/(protected)/my-events/MyEventsView.tsx` | Client view + range selector + pagination + inline trail |
+| `src/app/(protected)/my-events/page.tsx` | Thin server shell (`?range` / `?page` / `?q` → `buildMyEventsPage`) |
+| `src/lib/events/myEventsActions.ts` | `getMyEventsPage` server action — the in-place range/page/search refetch (§1.4) |
+| `src/app/(protected)/my-events/MyEventsView.tsx` | Client view + range selector + title search + pagination + inline trail |
 | `src/components/TimeRangeSelect.tsx` | Shared month-range menu (My Events range; KAH Status + Double Booking look-ahead) |
 | `src/components/AuditDetails.tsx` | Shared `details` renderer (audit log + history); no inner scroll, options curate the history view |
 | `src/app/(protected)/dashboard/EventDetail.tsx` | The History button (opens the modal at `zIndex={300}`) |
 | `src/lib/audit/queries.ts` | `listEventHistory`, `listMyCreatedEvents`, `latestDeleteTimes`, `latestEventEditTimes`, `listEventAuditTrail` |
-| `src/lib/events/myEventsData.ts` | My Events union builder (live + audit) + `buildMyEventsPage` (union → page → trail); past-month freshness + creator filter (§1.4.2) |
+| `src/lib/events/myEventsData.ts` | My Events union builder (live + audit) + `buildMyEventsPage` (union → search → page → trail); past-month freshness + creator filter (§1.4.2) |
 | `src/lib/events/history.ts` | Pure snapshot parsers (unit-tested) |
 | `src/lib/events/changeTrail.ts` | Pure inline change-timeline shaping + coverage note (unit-tested) |
-| `src/lib/events/myEvents.ts` / `myEventsRange.ts` / `clashRange.ts` | Pure list shaping + per-page range wrappers (unit-tested) |
+| `src/lib/events/myEvents.ts` / `myEventsRange.ts` / `clashRange.ts` | Pure list shaping (incl. `filterMyEventRowsByTitle`, §1.4) + per-page range wrappers (unit-tested) |
 | `src/lib/dateRange/monthRange.ts` | The app-wide 1/6/12-month vocabulary and window arithmetic (§1.4.3) |
 | `src/lib/perf.ts` | `PERF_LOG=1` per-stage timing helper for re-measuring the read path (§1.4.2) |
 | `src/components/WaitOverlay.tsx` + `src/lib/loading/waitCopy.ts` | Shared wait overlay (rotating copy, tips) on the list skeleton covering the always-fresh build's residual wait (§1.4.2) |

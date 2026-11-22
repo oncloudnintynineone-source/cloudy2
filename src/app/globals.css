@@ -2666,6 +2666,19 @@ html.c2-low-end::view-transition-group(*) {
   contain-intrinsic-size: auto 96px;
 }
 
+/* Contacts section jump targets (docs/ui-ux-improvements.md C2): the A–Z
+   rail's scrollIntoView must land below the sticky top chrome — the app
+   header below lg, plus the lg+ sticky search bar (~75px) at desktop. */
+.c2-contact-section {
+  scroll-margin-top: calc(var(--app-shell-header-offset) + var(--mantine-spacing-md));
+}
+
+@media (min-width: 40em) {
+  .c2-contact-section {
+    scroll-margin-top: calc(var(--app-shell-header-offset) + 88px);
+  }
+}
+
 @media (min-width: 36em) {
   .card-grid {
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));

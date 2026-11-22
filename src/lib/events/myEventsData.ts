@@ -25,6 +25,7 @@ import { formatInstantToNaive, monthsInRange } from "@/lib/events/datetime";
 import { createdEventSummary } from "@/lib/events/history";
 import {
   auditTimeSortKey,
+  filterMyEventRowsByTitle,
   formatMyEventTime,
   humanizeMyEventTime,
   mergeMyEvents,
@@ -185,6 +186,8 @@ export interface MyEventsPageData {
   rangeMonths: MyEventsRangeMonths;
   windowStart: string;
   windowEnd: string;
+  /** The trimmed title search this page was built for ("" = none). */
+  q: string;
   /** The page's rows, each stamped with its inline change trail. */
   items: MyEventRow[];
   page: number;
@@ -197,17 +200,21 @@ export interface MyEventsPageData {
 }
 
 /**
- * The whole My Events page for one window and page number: settings + the union
- * build in parallel, then one indexed read for the page's inline change trails
+ * The whole My Events page for one window, page number and (optional) title
+ * search: settings + the union build in parallel, the dashboard's event-name
+ * filter semantics applied to the combined rows (C4 — paging is server-side,
+ * so the search must run before the slice or rows on other pages would be
+ * missed), then one indexed read for the page's inline change trails
  * (docs/event-history.md §1.4.1). Shared by the route (first paint) and the
- * `getMyEventsPage` server action (in-place range/page changes), so the two can
- * never render different shapes.
+ * `getMyEventsPage` server action (in-place range/page/search changes), so the
+ * two can never render different shapes.
  */
 export async function buildMyEventsPage(params: {
   userId: string;
   rangeMonths: MyEventsRangeMonths;
   page: number;
   pageSize?: number;
+  q?: string | null;
 }): Promise<MyEventsPageData> {
   const pageSize = params.pageSize ?? MY_EVENTS_PAGE_SIZE;
   // Settings (60 s-cached) and the event build are independent — overlap them
@@ -217,11 +224,12 @@ export async function buildMyEventsPage(params: {
     buildMyEventsData({ userId: params.userId, rangeMonths: params.rangeMonths }),
   ]);
 
-  const total = data.rows.length;
+  const rows = filterMyEventRowsByTitle(data.rows, params.q);
+  const total = rows.length;
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const page = Math.min(Math.max(params.page, 1), pageCount);
   const offset = (page - 1) * pageSize;
-  const pageRows = data.rows.slice(offset, offset + pageSize);
+  const pageRows = rows.slice(offset, offset + pageSize);
 
   const now = new Date();
   const trailRows = await listEventAuditTrail(
@@ -241,6 +249,7 @@ export async function buildMyEventsPage(params: {
     rangeMonths: data.rangeMonths,
     windowStart: data.windowStart,
     windowEnd: data.windowEnd,
+    q: (params.q ?? "").trim(),
     items,
     page,
     pageCount,

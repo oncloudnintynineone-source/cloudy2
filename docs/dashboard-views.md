@@ -431,8 +431,10 @@ string maps to the first tab of that kind.
   (`c2-control-pill` / `c2-attendance-bar`, held above the page groups so a
   route transition can't paint the outgoing page over them — never name the
   Affix wrapper, which would starve the inner `backdrop-filter`):
-  **Parade** puts the day label + `<`/`>` step + filter + date-picker +
-  attendance-toggle circles in one pill (the attendance **mode bar** floats
+  **Parade** puts the day label + search + `<`/`>` step + filter + date-picker +
+  attendance-toggle circles in one pill (the roster search (C3) swaps the day
+  label for an inline field and hides the other circles while open; the
+  attendance **mode bar** floats
   above it while in attendance mode and slides out on exit —
   `c2-attendance-bar-closing`, the pill's toggle icon swaps with a scale-in via
   `c2-icon-swap`; the top chrome is `lg`-only); **Contacts** puts a
@@ -440,7 +442,7 @@ string maps to the first tab of that kind.
   size — the themed ~43px input height, same as the lg+ search bar, with a
   matching 44px filter circle; sizing/padding props must go on the input
   via `size`, since `h`/`pl`/`pr` land on the label wrapper and desync the
-  field from the pill's padding) + filter circle + a brand-blue **download
+  field from the pill's padding) + sort circle + filter circle + a brand-blue **download
   circle** (the export FAB's action moved into the pill, `c2-glass-btn
    c2-glass-fab--brand`) in it, with a **keyboard lift** (`.c2-pill-lift`, a
    `bottom` transition on the Affix root): while the OS keyboard is up the pill
@@ -449,7 +451,8 @@ string maps to the first tab of that kind.
    lands just above the keys whatever the keyboard height is, instead of a
    guessed `vh` fraction that overshoots), and drops back the moment the
    keyboard closes — even when the field keeps focus (swipe-down dismiss never
-   fires `blur`). Parade sets
+   fires `blur`). Parade rides the same keyboard lift while its roster-search field
+   is open (C3), and sets
   `--c2-bottom-chrome-height` (pill + gap) under `fab-page-pad`; the class's
   hardcoded 65px FAB reserve now clears the floating attendance mode bar above
   the pill. Contacts has no floating bar above its pill, so its var subtracts

@@ -369,7 +369,9 @@ the floating fullscreen button — never inline in the chrome, never over the ca
   ±1/±6/±12-month window (`myEventsRange.ts`, `?range=`, shared `TimeRangeSelect` — the
   app-wide 1/6/12 vocabulary in `src/lib/dateRange/monthRange.ts`). Changing the range
   refetches the page **in place** through the `getMyEventsPage` action (no route
-  navigation, no skeleton swap) and rewrites `?range=` with `history.replaceState`.
+  navigation, no skeleton swap) and rewrites `?range=` with `history.replaceState`. A title
+  search (`?q=`, the dashboard event-name filter's substring semantics) runs server-side in
+  `buildMyEventsPage` before the page slice, so paging stays honest.
   Each row carries an inline change timeline (`changeTrail.ts` + `listEventAuditTrail`,
   one indexed read per page). My Events is `requireSession()` (no ACL — reads aren't
   gated) and **always-fresh** (`useLiveRouteRefresh`). Reads live in `src/lib/audit/queries.ts`;
@@ -492,10 +494,12 @@ a compact tier via `NARROW_MEDIA_QUERY` (`src/lib/theme.ts`) + `useMediaQuery` `
 none` so taps pass through to the clipped tile, and it hides on a side once
   the rail reaches that extreme. The desktop sidebar always shows every entry. `SettingsTabs` stacks
   directly above the footer.
-- **Admin settings live under `/settings`** (admin-only): Users, Departments, Event Types,
-  Templates, Webhooks, Quick Links, KAH Groups, Banner, General, Security, Audit Log,
-  Feature Flags tabs. `SettingsShell` owns the tab strip + `PageContainer`; the three roster
-  list tabs (Users, Departments, Event Types) use the Contacts recipe — one `.card-grid` at
+- **Admin settings live under `/settings`** (admin-only): Users, Departments · Event Types,
+  Templates · Webhooks, Quick Links, Parade State Email, Banner · KAH Groups, General,
+  Security, Audit Log, Feature Flags — four labelled groups in the tab strip at `lg`+ (the
+  scroller keeps no separators below `lg`; both tiers ride the rail-style fade + chevron
+  edges). `SettingsShell` owns the tab strip + `PageContainer`; the three roster
+  list tabs (Users, Departments, Event Types) use the roster-list recipe — one `.card-grid` at
   every width plus shared `SettingsListChrome` (sticky frosted search/action bar under the
   tabs at `lg`+, floating control pill below `lg`); the other data lists keep the `lg`+ table.
   Event-type policy (shortname, display groups, allowed-locations matrix, `show_remarks`/
