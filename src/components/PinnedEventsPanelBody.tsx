@@ -185,9 +185,14 @@ export function PinnedEventsPanelBody({ seedEvents = null, onLoaded }: PinnedEve
 
   return (
     <>
+      {/* The cap is derived, not guessed: Mantine clamps a modal's content to
+          90dvh and this panel's own chrome (60px sticky header + the 16px
+          `Modal.Body` adds underneath) is 76px, so `90dvh - 76px` is the most
+          the list can be given without the dialog overflowing; the 640px
+          ceiling stops a huge monitor stretching the ticker. */}
       <ScrollArea.Autosize
         {...AUTOSIZE_VERTICAL_SCROLL_PROPS}
-        mah="min(70dvh, 560px)"
+        mah="min(calc(90dvh - 76px), 640px)"
         mx="-md"
         px="md"
       >

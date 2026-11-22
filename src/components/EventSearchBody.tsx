@@ -325,11 +325,15 @@ export default function EventSearchBody({
     : "";
 
   return (
-    <Stack gap="sm" style={{ maxHeight: "min(72dvh, 680px)" }}>
+    <Stack gap="sm" style={{ maxHeight: "min(84dvh, 760px)" }}>
       {/* One bounded column: a fixed one-row toolbar (input + Search + date
           filter), then the result list as the only scroll region. The max
           height keeps the dialog within the viewport so the Modal body never
-          scrolls and the mobile keyboard (dvh) shrinks it cleanly. */}
+          scrolls and the mobile keyboard (dvh) shrinks it cleanly; the cap is
+          repeated verbatim in `EventSearchBodySkeleton` (same reason as
+          `TOOLBAR_CONTROL_SIZE` above: the fallback stays dependency-free), so
+          the two must change together — otherwise the dialog visibly resizes
+          when the chunk swaps in. */}
       <Group gap="xs" wrap="nowrap" align="center" style={{ flexShrink: 0 }}>
         <form style={{ flex: 1, minWidth: 0 }} onSubmit={handleSubmit}>
           <Group gap="xs" wrap="nowrap" align="center">

@@ -18,8 +18,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.410 (Gesture/explainer captions removed, their space
-  reclaimed)** is shipped.
+- All work through changelog **1.411 (Modal height caps raised; vertical wizard step rail
+  at ≥ 800px)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -2911,6 +2911,37 @@ mirror them (four such entries: 1.106.1, 1.122.1, 1.316.1, 1.331.1).
     agenda list, picker row and filter footer now end where their caption used to start. Docs:
     `event-lifecycle.md` §1.4, `desktop-responsive.md` §1.7, `dashboard-views.md` §1.5/§1.9,
     `user-picker.md` §1.6/§1.7.
+  - 1.411 **Modal height caps raised; vertical wizard step rail at ≥ 800px**: the large
+    dialogs stop leaving their own screen space unused. The wizard's desktop body grows from
+    `min(68dvh, 720px, calc(100dvh - 200px))` to `min(88dvh, 900px, calc(100dvh - 108px))` —
+    near-full on a tall screen (a 1300px viewport gets the whole 900px, 940px gets 827px,
+    770px gets 662px where the ceiling binds) yet capped so it still reads as a dialog. The
+    third term is the modal's own hard ceiling at **every** width: `yOffset="16px"` leaves a
+    `100dvh - 32px` box and Mantine's chrome (60px sticky header + 16px body padding) takes
+    76px of it, so the dvh terms can only shorten the body, never overflow it. The sibling
+    list dialogs raise their caps under Mantine's own 90dvh content clamp — `FilterModal`
+    `min(88dvh, 880px)`, `UserSelectModal` `min(84dvh, 760px)` (its fixed height kept),
+    `EventSearchBody` and its skeleton `min(84dvh, 760px)` (the literal is repeated on
+    purpose: the chunk fallback stays dependency-free, and both sides say so), the agenda day
+    scroller `56dvh` → `84dvh` on desktop — while a cap on an element **inside** the body
+    still subtracts the chrome by hand (`PinnedEventsPanelBody`
+    `min(calc(90dvh - 76px), 640px)`). Deliberately short
+    still: `EditViewsModalBody`, `GuideSheet`, the `min(60vh, 380px)` dropdown lists, and
+    `EventDetail`, which sizes to its content. On the wide band the freed height is spent on
+    a **vertical step rail** — at `isDesktopWide` (≥ 800px) the guided indicator leaves the
+    bottom strip and runs down the left of the body, naming every step in full (the string
+    its `aria-label` already carried) beside a connector that fills as steps are passed.
+    `EventForm` adds `.c2-event-wizard--split`, a CSS grid whose named areas give the rail a
+    column spanning scroll / offline / actions, so the DOM order stays body-first and the
+    narrow tier renders byte-identical markup — no `order` hacks, and the rail scrolls itself
+    when a short desktop window cannot fit every row. That band also widens 620 → **720px**
+    (exactly 0.9 × 800, so Mantine's own `min(size, 90vw)` clamp never desyncs the
+    shrink-from-trigger landing), read from one `WIZARD_MODAL_WIDTH_PX` map that both the
+    `size` prop and `modalContentWidth` consume. Fixed body height, the internal scroll and
+    its reset on step change, free `goToStep` jumps, the minimize/draft bar, the keyboard
+    order and the dark contrast ramp are untouched; the `rail` / `classic` variants never see
+    the split. Docs: `event-lifecycle.md` §1.4, `desktop-responsive.md` §1.7/§1.9/§1.10,
+    `accessibility.md` §1.7/§1.9, `feature-flags.md`.
 
 ## 1.4 Open items & next steps
 

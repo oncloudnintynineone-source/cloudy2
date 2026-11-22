@@ -1262,12 +1262,15 @@ html.c2-low-end::view-transition-group(*) {
 }
 
 /* ---- Create/Edit event wizard (docs/event-lifecycle.md §1.4) ----
-   The wizard body is a fixed-height flex column: the active step's content in
-   the middle (internal scroll), the bottom step strip (caption + Stepper) and
+   The wizard body is a fixed-height column: the active step's content in the
+   middle (internal scroll), the bottom step strip (caption + Stepper) and
    then the action bar. Because the whole column has one constant height (set
    inline on the <form> via the tiered WIZARD_BODY_HEIGHT_* constants — the size
    is a pure function of the viewport, never of the active step), the modal
-   never resizes between steps, so the Back/Next/Submit buttons never jump. */
+   never resizes between steps, so the Back/Next/Submit buttons never jump.
+   At the wide tier the same children re-flow into the two-column `--split`
+   grid below (step strip becomes a left rail); the flex column is the default
+   and the only layout below 800px. */
 .c2-event-wizard {
   display: flex;
   flex-direction: column;
@@ -1277,6 +1280,57 @@ html.c2-low-end::view-transition-group(*) {
 
 .c2-wizard-steps {
   flex: 0 0 auto;
+}
+
+/* Wide tier (>= 800px): the step strip moves to a rail down the left of the
+   scroll area, which is what pays for the taller body — a horizontal strip
+   spends ~60px of the new height on a control the rail now sits beside for
+   free. Named grid areas keep the DOM order untouched (`scroll`, `steps`,
+   `offline`, `actions`), so the narrow tier's markup, the keyboard order and
+   the `rail`/`classic` variants are unaffected — only the placement changes,
+   and the rail spans every row so it stays anchored at the top of the body no
+   matter how tall the footer gets. */
+.c2-event-wizard--split {
+  display: grid;
+  --c2-wizard-rail-width: calc(8rem * var(--mantine-scale));
+  grid-template-columns: var(--c2-wizard-rail-width) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto auto;
+  grid-template-areas:
+    "rail scroll"
+    "rail offline"
+    "rail actions";
+  column-gap: var(--mantine-spacing-md);
+}
+
+.c2-event-wizard--split .c2-wizard-steps {
+  grid-area: rail;
+  /* Short desktop windows (800x600 → a 492px body) are shorter than seven 44px
+     rows plus the header line, so the rail scrolls rather than pushing the
+     footer; the 3px padding keeps a focused row's 2px outline ring from being
+     clipped by that scroll container. */
+  overflow: hidden auto;
+  padding: 2px 3px;
+  scrollbar-width: thin;
+}
+
+.c2-event-wizard--split .c2-wizard-scroll {
+  grid-area: scroll;
+}
+
+.c2-wizard-offline {
+  grid-area: offline;
+}
+
+.c2-wizard-actions {
+  grid-area: actions;
+}
+
+/* The rail is 128px wide, so its header line stacks: the current step's name
+   above the "Step N of M" meta, both left-aligned. */
+.c2-event-wizard--split .c2-wizard-steps-head {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
 }
 
 /* The strip's caption/meta line ("Step 3 of 7", the rail's "Steps" label, the
@@ -1477,6 +1531,72 @@ html.c2-low-end::view-transition-group(*) {
 
 [data-mantine-color-scheme="dark"] .c2-wizard-guided-step:focus-visible {
   outline-color: var(--mantine-color-brand-3);
+}
+
+/* Guided step rail (>= 800px): the same circles and labels, rotated into a
+   left rail — icon then name, one step per row, joined by a connector so the
+   rail reads as a progression. Colours are untouched: every state rule above
+   targets `.c2-wizard-guided-step` / `-icon` descendants, so both orientations
+   ride the same contrast ramp (docs/accessibility.md §1.7). */
+.c2-wizard-guided-steps--vertical {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.c2-wizard-guided-steps--vertical .c2-wizard-guided-step {
+  /* `flex: 1 1 0` above is the row axis; in a column it would stretch the rows
+     to share the rail's height instead of sizing them to their content. */
+  position: relative;
+  flex: 0 0 auto;
+  /* Touch-target floor (docs/accessibility.md §1.9): the rail is a nav list,
+     so every row is a full 44px, not the 24px circle. */
+  min-height: 44px;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  padding: 0 6px;
+  text-align: start;
+}
+
+.c2-wizard-guided-steps--vertical .c2-wizard-guided-label {
+  /* The rail has the width the horizontal strip lacked: 11px, the app's floor
+     for meaningful text (B3), not the strip's 10px. */
+  font-size: 11px;
+  line-height: 1.25;
+  text-align: start;
+}
+
+/* Connector from this circle's bottom edge to the next one's top: the row is
+   44px with a centred 24px circle, so 10px below the circle + the 2px row gap
+   + 10px above the next one = `100% - 24px + 2px`. A completed step paints its
+   outgoing segment in the primary colour, matching the filled circle. */
+.c2-wizard-guided-steps--vertical .c2-wizard-guided-step:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  /* 6px row padding + the circle's centre (12px) − half the 2px line. */
+  left: 17px;
+  top: calc(50% + 12px);
+  width: 2px;
+  height: calc(100% - 22px);
+  background: var(--mantine-color-default-border);
+}
+
+.c2-wizard-guided-steps--vertical .c2-wizard-guided-step[data-completed]:not(:last-child)::after {
+  background: var(--mantine-primary-color-filled);
+}
+
+/* Dark scheme: the connector joins the same ramp as the circles it links —
+   gray-6 ahead (4.67:1), brand-3 behind (6.52:1). */
+[data-mantine-color-scheme="dark"]
+  .c2-wizard-guided-steps--vertical
+  .c2-wizard-guided-step:not(:last-child)::after {
+  background: var(--mantine-color-gray-6);
+}
+
+[data-mantine-color-scheme="dark"]
+  .c2-wizard-guided-steps--vertical
+  .c2-wizard-guided-step[data-completed]:not(:last-child)::after {
+  background: var(--mantine-color-brand-3);
 }
 
 .c2-wizard-scroll {

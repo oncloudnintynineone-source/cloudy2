@@ -105,9 +105,14 @@ export function UserSelectModal({
       // stays pinned at the top and the footer at the bottom while only the
       // badge sections scroll. An auto-sized modal would shrink and re-center
       // on every keystroke (behind the mobile keyboard once it filters down).
+      // The height itself runs to 84dvh so a tall screen shows more of the
+      // roster at once, capped at 760px (a roster list that long is a scroll,
+      // not a scan). Both stay inside Mantine's own 90dvh content clamp; the
+      // header and footer flex out of the same box, so only the sections
+      // between them scroll.
       styles={{
         content: {
-          height: "min(560px, calc(100dvh - 96px))",
+          height: "min(84dvh, 760px)",
           display: "flex",
           flexDirection: "column",
         },

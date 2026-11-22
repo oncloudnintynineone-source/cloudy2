@@ -11,8 +11,15 @@ interface EventFormStepsProps {
   /** 0-based index of the active step. */
   step: number;
   variant: WizardStepIndicator;
-  /** >= 800px: the guided variant can fit labels beneath the circles. */
+  /** >= 800px: the guided variant renders its own step list instead of a Stepper. */
   isDesktopWide: boolean;
+  /**
+   * Guided variant only: `vertical` turns the circles into a left rail beside
+   * the wizard body (the wide tier's taller body makes a horizontal strip a
+   * poor use of the width it sits in), so each row reads icon-then-name and
+   * names the step in full. Ignored by the other variants.
+   */
+  orientation?: "horizontal" | "vertical";
   onJump: (index: number) => void;
 }
 
@@ -22,15 +29,19 @@ const STEP_STRIP_GAP = 4;
  * Bottom step strip for the create/edit wizard. The `wizardStepIndicator`
  * feature flag picks how the walk is named:
  * - `rail` (default): always-visible numbered name pills, wrapping as needed.
- * - `guided`: circles gain names beneath them on wide desktops; on smaller
+ * - `guided`: on wide desktops the circles gain their step names; on smaller
  *   screens the "Steps · N/M" button opens the full named list.
  * - `classic`: number-only circles with the current step named in the caption.
+ *
+ * The guided variant additionally flips to a vertical rail at the wide tier
+ * (`orientation="vertical"`, see `.c2-wizard-guided-steps--vertical`).
  */
 export function EventFormSteps({
   steps,
   step,
   variant,
   isDesktopWide,
+  orientation = "horizontal",
   onJump,
 }: EventFormStepsProps) {
   const current = steps[step];
@@ -74,9 +85,10 @@ export function EventFormSteps({
   }
 
   if (variant === "guided" && isDesktopWide) {
+    const vertical = orientation === "vertical";
     return (
       <Stack gap={STEP_STRIP_GAP} className="c2-wizard-steps">
-        <Group justify="space-between">
+        <Group className="c2-wizard-steps-head" justify="space-between">
           <Text size="sm" fw={600} style={{ lineHeight: 1.4 }}>
             {STEP_LABELS[current.id]}
           </Text>
@@ -84,7 +96,11 @@ export function EventFormSteps({
             {position}
           </Text>
         </Group>
-        <div className="c2-wizard-guided-steps" role="group" aria-label="Event form steps">
+        <div
+          className={`c2-wizard-guided-steps${vertical ? " c2-wizard-guided-steps--vertical" : ""}`}
+          role="group"
+          aria-label="Event form steps"
+        >
           {steps.map((stepDef, index) => {
             const active = index === step;
             const completed = index < step;
@@ -102,7 +118,11 @@ export function EventFormSteps({
                 <span className="c2-wizard-guided-icon" aria-hidden>
                   {completed ? <IconCheck size={12} /> : index + 1}
                 </span>
-                <span className="c2-wizard-guided-label">{STEP_SHORT_LABELS[stepDef.id]}</span>
+                {/* The rail has the width the horizontal strip never had, so it
+                    names each step in full — the same string its aria-label uses. */}
+                <span className="c2-wizard-guided-label">
+                  {vertical ? STEP_LABELS[stepDef.id] : STEP_SHORT_LABELS[stepDef.id]}
+                </span>
               </UnstyledButton>
             );
           })}

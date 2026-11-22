@@ -100,7 +100,7 @@ These flags were compared live and then retired. `LOCKED_VARIANTS` in
 | `translucencyLevel` | `subtle` | The most see-through frosted-glass level for overlapping page surfaces. |
 | `reorderDrag` | `drag` | Drag-handle-only reordering (the keyboard path is the handle's Space/Enter + arrow keys). |
 | `bottomNavVariant` | `tight` | 72px mobile scrolling-rail tiles. |
-| `wizardStepIndicator` | `guided` | Labels + step list — desktop labels, compact mobile step list. |
+| `wizardStepIndicator` | `guided` | Labels + step list — a labelled vertical rail at the wide desktop tier, a compact step list below it. |
 
 The other variant implementations remain in the components for a future
 experiment, but no setting can select them.

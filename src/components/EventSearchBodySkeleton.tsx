@@ -14,7 +14,10 @@ const LIST_BORDER = "1px solid var(--mantine-color-default-border)";
  */
 export default function EventSearchBodySkeleton() {
   return (
-    <Stack gap="sm" style={{ maxHeight: "min(72dvh, 680px)" }}>
+    // Verbatim copy of the body's own cap (see `EventSearchBody`): the fallback
+    // must not import from the lazy chunk, so the two heights are repeated and
+    // must change together — a different value would resize the dialog on swap.
+    <Stack gap="sm" style={{ maxHeight: "min(84dvh, 760px)" }}>
       <Group gap="xs" wrap="nowrap" align="center" style={{ flexShrink: 0 }}>
         {/* Mirrors the real toolbar row exactly — the query field and the two
             square controls all render at `TOOLBAR_CONTROL_SIZE` (43px ≈ the

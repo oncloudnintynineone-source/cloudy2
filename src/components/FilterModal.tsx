@@ -210,7 +210,15 @@ export function FilterModal({
       transitionProps={transitionProps}
       styles={{
         content: {
-          maxHeight: "min(680px, calc(100dvh - 96px))",
+          // Two terms, two jobs: `88dvh` fills a tall screen almost entirely
+          // (the group list scrolls, so a shorter dialog only means more
+          // scrolling) while still reading as a dialog, and `880px` stops a
+          // huge monitor turning it into an endless wall of checkboxes. Both
+          // sit inside Mantine's own 90dvh content clamp (default 5dvh
+          // offset), and the header/body split is flexed out of that box, so
+          // no chrome arithmetic belongs here — unlike the wizard, which owns
+          // its gutters (docs/event-lifecycle.md §1.4).
+          maxHeight: "min(88dvh, 880px)",
           display: "flex",
           flexDirection: "column",
         },

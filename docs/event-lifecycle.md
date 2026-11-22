@@ -146,19 +146,25 @@ the full set of them.
 
 Mechanics worth knowing:
 
-- **Bottom step strip + fixed-height body**: the wizard body is a fixed-height flex column
+- **Fixed-height body + step indicator (bottom strip, left rail at the wide band)**: the
+  wizard body is a fixed-height flex column
   in `EventForm.tsx` (`WIZARD_BODY_HEIGHT_MOBILE` / `WIZARD_BODY_HEIGHT_DESKTOP` below):
   the active step's content in the middle on an **internal scroll** (`.c2-wizard-scroll`),
   and, pinned at the bottom above the **Back / Next / Create-Save bar**, the step strip —
+  which the wide band moves to a **vertical rail** beside the body (see the step-indicator
+  bullet below) —
   rendered by `EventFormSteps` with the locked **Labels + step list**
   presentation (§1.4.1 and [`feature-flags.md`](feature-flags.md)). Because the body
   height is a pure function of the viewport — never of the active step's content — the
   modal never resizes between steps and the buttons never jump. The sizing is tiered so
   the modal actually uses the space a given screen has:
-  - **Width** (`DashboardView.tsx`): `xs` (320px) on ≤360px phones, `sm` (380px) across
-    the rest of the phone band, `md` (440px) on the narrow desktop band (640–799px), and
-    `lg` (620px) on the wide-desktop band (≥800px). The shrink-out motion feeds on the
-    matching width (`formContentWidth`), so it always lands on the originating button.
+  - **Width** (`DashboardView.tsx`, `WIZARD_MODAL_WIDTH_PX`): `xs` (320px) on ≤360px
+    phones, `sm` (380px) across the rest of the phone band, `md` (440px) on the narrow
+    desktop band (640–799px), and **720px** on the wide-desktop band (≥800px) — the extra
+    width is what the vertical step rail (below) spends. 720 is exactly 0.9 × 800, so it
+    equals the width Mantine would clamp a `xl` (780px) dialog to at the band's lower
+    edge; the shrink-out motion feeds on the same constant (`formContentWidth` →
+    `modalContentWidth`), so it always lands on the originating button.
   - **Centered at every width**: the host modal is `centered` on all screens, so the
     wizard always has **equal top/bottom gutters**. On phones (< 640px) the body
     **fills the modal's box** to take up as much vertical space as possible:
@@ -171,18 +177,35 @@ Mechanics worth knowing:
     targets and the header keeps its ~60px height with `py={8}`.
     `100dvh` shrinking with the on-screen keyboard just shortens the body.
   - **Desktop height**: the centered modal's body grows with the viewport up to
-    `min(68dvh, 720px, calc(100dvh - 200px))` so a tall screen is actually used up to a
-    comfortable cap.
-  - **Wide review step**: at `lg` width the review's definition rows (When, Location,
+    `min(88dvh, 900px, calc(100dvh - 108px))` — near-full on a tall screen (a 1300px
+    viewport gets the whole 900px, a 940px one gets 827px) but still capped so the dialog
+    reads as a dialog and the eye never travels further than one long form. The third
+    term is the honest ceiling at **every** width: `yOffset="16px"` leaves a
+    `100dvh - 32px` box and the modal's own chrome takes 76px of it, so the two dvh terms
+    can only ever shorten the body, never overflow it.
+  - **Wide review step**: at the wide band the review's definition rows (When, Location,
     Event Type, Organizer, Participants, Departments, Remarks) reflow into a two-column
     grid beneath the full-width calendar preview and clash check — the extra width reads
-    as structure, not a stretched single column.
-  - **Step strip (locked to Labels + step list)**, rendered by `EventFormSteps`;
-    the other implementations remain in code for a future experiment:
-    - **Labels + step list** (`guided`, locked): wide desktops (≥800px) show
-      numbered circles with the names beneath; below that the compact Mantine
-      **Stepper** keeps the circles and the caption's `Steps · N/M` button opens
-      a menu listing every full step name, with the current one checked.
+    as structure, not a stretched single column. The grid runs inside the body column
+    beside the step rail, so 720px of dialog still leaves ~544px of content (~264px per
+    column) — the same measure the strip layout had at 620px, with a rail for free.
+  - **Step indicator (locked to Labels + step list)**, rendered by `EventFormSteps`;
+    the other implementations remain in code for a future experiment. `EventForm` passes
+    `orientation` from `isDesktopWide`, so the locked variant runs **two layouts** of one
+    component:
+    - **Vertical rail** (`guided` at ≥800px): the indicator leaves the bottom strip and
+      runs **down the left of the scrolling body**, where the wide dialog finally has the
+      width a horizontal strip never used — a 128px column of numbered rows (circle, then
+      the step's **full** name, the same string its `aria-label` carries) joined by a
+      vertical connector that fills in as steps are passed. `EventForm` adds
+      `.c2-event-wizard--split`, a CSS **grid** whose named areas give the rail its own
+      column spanning every row (scroll / offline / actions): the DOM order stays
+      body-first, indicator-second, so the narrow tier renders byte-identical markup and
+      no `order` hack is needed. The rail scrolls on its own when a short desktop window
+      cannot fit every row.
+    - **Horizontal strip** (`guided` below 800px): the compact Mantine **Stepper** keeps
+      the circles and the caption's `Steps · N/M` button opens a menu listing every full
+      step name, with the current one checked.
     - **Labelled rail** (`rail`, not selectable): every step as a tappable
       numbered pill with its short name (Type · Time · Location · Participants ·
       Remarks · Settings · Review), wrapping to a second row on phones.
@@ -194,7 +217,8 @@ Mechanics worth knowing:
     ones, and the full step name is available in the control's accessible name. In the
     dark scheme the guided variant runs a light-to-dark brand ramp instead of the
     primary-colour mapping (current brand-2 → completed brand-3 → future gray-6, with
-    the caption on `gray-6`/`gray-5`), because Mantine's dark-scheme
+    the caption on `gray-6`/`gray-5`, and the rail's connector reusing the same
+    `gray-6` → `brand-3` pair), because Mantine's dark-scheme
     `--mantine-primary-color-filled` (brand-8) is only 1.45:1 on the dark body; see
     [`accessibility.md`](accessibility.md) §1.7 for the measured pairs. The step labels
     describe the *section*, not a position, because the walk's length shifts

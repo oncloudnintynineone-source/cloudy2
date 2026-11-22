@@ -179,6 +179,7 @@ Targets: text ≥ 4.5:1 (WCAG 1.4.3), component boundary ≥ 3:1 (WCAG 1.4.11).
 | Guided step — future (`dimmed`)                                      | 4.04:1                 | 4.67:1; ring 4.67:1                  | gray-6                                                   |
 | Step caption ("Step 3 of 7")                                         | 4.04:1                 | 7.48:1                               | `.c2-wizard-step-caption` (gray-6 light / gray-5 dark)   |
 | Guided step keyboard focus ring                                      | 1.45:1                 | 6.52:1                               | brand-3 `outline-color`                                  |
+| Guided step rail — connector (passed / ahead)                        | n/a (new rail)         | 6.52:1 / 4.67:1                      | brand-3 / gray-6 `::after`                               |
 
 Mechanics:
 
@@ -192,7 +193,11 @@ Mechanics:
   [`event-lifecycle.md`](event-lifecycle.md) §1.4) runs a brand ramp in dark
   mode — current brightest, then completed, then future — so the walk reads as
   a progression instead of a mapping where the current step's label and edge
-  all but disappeared. The light-scheme primary-colour mapping is untouched.
+  all but disappeared. The ≥ 800px **vertical rail** is the same component with
+  the same ramp, and its connector borrows the two boundary colours already in
+  the table: `brand-3` (6.52:1) once a step is passed, `gray-6` (4.67:1) while
+  it lies ahead — both clear the 3:1 non-text floor. The light-scheme
+  primary-colour mapping is untouched.
 - The step captions swapped Mantine's `c="dimmed"` (an inline style) for the
   `.c2-wizard-step-caption` class; its light branch is exactly the old `dimmed`
   gray.
@@ -202,7 +207,7 @@ flowchart LR
  B["Mantine dark scheme<br/>light = darken(c-9, 0.5)<br/>filled = c-8"] --> LB["light badge<br/>+45% currentColor ring"]
  B --> FB["filled badge<br/>+45% currentColor ring"]
  B --> OT["outline group chip<br/>brand-3 text/edge"]
- B --> ST["guided step strip<br/>brand-2 / brand-3 / gray-6 ramp"]
+ B --> ST["guided step strip / rail<br/>brand-2 / brand-3 / gray-6 ramp"]
  ST --> CAP[".c2-wizard-step-caption<br/>gray-6 light / gray-5 dark"]
  LB --> CSS["globals.css<br/>(dark-only rules)"]
  FB --> CSS
@@ -273,7 +278,8 @@ app ships its own zoom for the one dense surface that needs it. What remains:
 The app's minimum interactive target is **44×44 px** (WCAG 2.5.5 Target Size),
 measured on the control's own hit area rather than on its visible glyph. The
 fixed chrome already meets it — the mobile FAB row's 56px circles, the wizard's
-44px draft-bar/minimize controls (§1.6), the 44px time-picker cells, the 36px
+44px draft-bar/minimize controls (§1.6) and the 44px-tall rows of its ≥ 800px step
+rail, the 44px time-picker cells, the 36px
 calendar-chrome `ActionIcon`s with their tap padding. What falls short are
 compact inline controls whose whole hit area is the glyph itself. The fix is
 never a bigger glyph: it is a **row-sized wrapper**, so the target grows without

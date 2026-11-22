@@ -258,9 +258,10 @@ export function EventForm({
   const isEdit = event !== null;
   const theme = useMantineTheme();
   const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
-  // The modal's wide-desktop tier (>= 800px, where the host widens to lg and
-  // the review step reflows into two columns below). Layout gating must match
-  // DashboardView's form modal sizing exactly — this is that same query.
+  // The modal's wide-desktop tier (>= 800px, where the host widens the dialog
+  // to 720px, the review step reflows into two columns, and the step strip
+  // turns into the vertical rail below). Layout gating must match DashboardView's
+  // form modal sizing exactly — this is that same query.
   const isDesktopWide = useMediaQuery(DESKTOP_WIDE_MEDIA_QUERY);
   // The body height follows the screen size: phones fill the centered
   // modal's box entirely (`WIZARD_BODY_HEIGHT_MOBILE`), the desktop shell
@@ -268,6 +269,12 @@ export function EventForm({
   // it stays constant for the whole walk, so the step strip and
   // Back/Next/Submit bar never move.
   const bodyHeight = isDesktop ? WIZARD_BODY_HEIGHT_DESKTOP : WIZARD_BODY_HEIGHT_MOBILE;
+  // At the wide tier the taller body makes a horizontal step strip a waste of
+  // the width it sits in: the guided strip instead becomes a left rail beside
+  // the scroll area (`.c2-event-wizard--split` in globals.css). The strip is
+  // locked to `guided`, so the flag is really just the width query — kept
+  // explicit so the rail can never appear on the `rail`/`classic` variants.
+  const verticalSteps = wizardStepIndicator === "guided" && isDesktopWide;
   const { show: showActionPill } = useActionPill();
   // Offline (docs/ui-ux-improvements.md D7): the submit button goes
   // unavailable with a one-line reason next to it — the draft already
@@ -1669,7 +1676,7 @@ export function EventForm({
     <form
       onSubmit={onSubmit}
       onKeyDown={handleFormKeyDown}
-      className="c2-event-wizard"
+      className={`c2-event-wizard${verticalSteps ? " c2-event-wizard--split" : ""}`}
       style={{ height: bodyHeight }}
     >
       <div
@@ -2351,12 +2358,16 @@ export function EventForm({
           picks the presentation: the default labelled rail names every step,
           the guided variant labels the circles on wide desktops and offers a
           step menu on smaller screens, and classic keeps the bare circles.
-          Tapping any step is a free jump (see `goToStep`). */}
+          Tapping any step is a free jump (see `goToStep`). At the wide tier the
+          guided strip flips to a vertical rail down the left of the body
+          (`orientation="vertical"`), which is what frees the height a horizontal
+          strip would otherwise spend. */}
       <EventFormSteps
         steps={steps}
         step={step}
         variant={wizardStepIndicator}
         isDesktopWide={isDesktopWide}
+        orientation={verticalSteps ? "vertical" : "horizontal"}
         onJump={goToStep}
       />
 
@@ -2365,7 +2376,7 @@ export function EventForm({
           "offline", this says what it means *here*: the draft is safe, only
           the write waits. */}
       {offline && (
-        <Group gap={6} justify="center" wrap="nowrap">
+        <Group className="c2-wizard-offline" gap={6} justify="center" wrap="nowrap">
           <IconCloudOff size={15} aria-hidden />
           <Text size="xs" c="dimmed">
             You&apos;re offline — your draft is saved. Reconnect to submit.
@@ -2373,7 +2384,11 @@ export function EventForm({
         </Group>
       )}
 
-      <Group justify={step === 0 ? "flex-end" : "space-between"} gap="sm">
+      <Group
+        className="c2-wizard-actions"
+        justify={step === 0 ? "flex-end" : "space-between"}
+        gap="sm"
+      >
         {step > 0 && (
           <Button
             variant="subtle"

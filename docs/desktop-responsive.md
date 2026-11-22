@@ -420,9 +420,9 @@ drops the mobile sizes one step so the dialog never approaches the viewport edge
 
 | Modal                               | Compact ≤ 360px | Mobile       | At `lg`                             |
 | ----------------------------------- | --------------- | ------------ | ----------------------------------- |
-| Event form (`DashboardView`)        | `xs` (320px)    | `sm` (380px) | `md` (440px) → `lg` (620px) ≥ 800px |
+| Event form (`DashboardView`)        | `xs` (320px)    | `sm` (380px) | `md` (440px) → 720px ≥ 800px        |
 | Event detail (`EventDetail`)        | `xs`            | `sm`         | `md`                                |
-| Agenda day modal                    | `xs`            | `sm`         | `md` (max-height `56dvh` → `70dvh`) |
+| Agenda day modal                    | `xs`            | `sm`         | `md` (max-height `56dvh` → `84dvh`) |
 | Filter modal (`FilterModal`)        | `xs`            | `sm`         | `md`                                |
 | Date picker (`DateSelectorModal`)   | `xs`            | `sm`         | `md`                                |
 | User form                           | `md`            | `md`         | `lg`                                |
@@ -434,8 +434,26 @@ drops the mobile sizes one step so the dialog never approaches the viewport edge
 `EventDetail`'s shrink animation sizes off the same value through
 `modalContentWidth(viewport, sizePx)` in `src/lib/motion/origin.ts`
 (`smModalContentWidth` = `modalContentWidth(viewport, 380)`); every component
-that animates now passes the same `isNarrow`-aware pixel width (320/380/440/620)
-that its `size` prop resolves to, so the shrink stays in sync at every tier.
+that animates now passes the same `isNarrow`-aware pixel width (320/380/440/720)
+that its `size` prop resolves to, so the shrink stays in sync at every tier — the
+event form reads its four widths from one `WIZARD_MODAL_WIDTH_PX` map
+(`src/app/(protected)/dashboard/eventFormLayout.ts`), which both the `size` prop and
+the animation consume, so the wide tier's off-scale 720px can never drift.
+
+**Height** is the other half of the size story. Mantine clamps a dialog's content to
+`calc(100dvh - var(--modal-y-offset) * 2)` — **90dvh** at the default `5dvh` offset — and the
+long-list dialogs cap their own box below it, so a tall screen shows more rows instead of a
+short scroller marooned in padding: `FilterModal` `min(88dvh, 880px)`, `UserSelectModal`
+`min(84dvh, 760px)` (a fixed height, so filtering never resizes the dialog), `EventSearchBody`
+and its skeleton `min(84dvh, 760px)` (the literal is repeated so the chunk fallback stays
+dependency-free — both sides say they change together), and the agenda day scroller at `84dvh`
+on desktop / `56dvh` on phones. The dvh term does the work on laptops; the px term stops a 4K
+monitor from stretching one dialog across the desk. These dialogs keep Mantine's default
+offset, so their header/body split flexes out of the clamped box and needs no chrome
+arithmetic. The exception is a cap on an element **inside** the body, where the ~76px of
+chrome (60px sticky header + 16px body padding) must be subtracted by hand:
+`PinnedEventsPanelBody` runs `min(calc(90dvh - 76px), 640px)`, and the event form — whose host
+sets `yOffset="16px"` — runs `calc(100dvh - 108px)` (below).
 
 The event form's **Timestamp step** pairs Start/End side by side in a 2-column
 `Grid` at `lg` (both the range pickers and the full-day date+AM/PM pairs). The host
@@ -457,10 +475,14 @@ left of the period chevrons, flexing into the space the fixed 56px controls leav
   chrome auto-hide state. On
   the desktop shell
   the centered modal's body grows with the viewport up to
-  `min(68dvh, 720px, calc(100dvh - 200px))`. The body height never depends on the active
-  step's content, so the pinned step strip and Back/Next bar stay put. At the wide band
-  (≥ 800px, where the form reaches its `lg` width) the review step's definition rows
-  reflow into a 2-column grid under the full-width calendar preview.
+  `min(88dvh, 900px, calc(100dvh - 108px))` — near-full on a tall screen, capped so it
+  still reads as a dialog (the third term is the modal's own hard ceiling: the `16px`
+  gutter box minus its 76px of chrome). The body height never depends on the active
+  step's content, so the pinned step indicator and Back/Next bar stay put. At the wide
+  band (≥ 800px, where the form reaches its 720px width) the step indicator becomes a
+  **vertical rail** down the left of the body, and the review step's definition rows
+  reflow into a 2-column grid under the full-width calendar preview
+  (event-lifecycle.md §1.4).
 
 ## 1.8 Login & PWA
 
@@ -492,9 +514,9 @@ left of the period chevrons, flexing into the space the fixed 56px controls leav
 | `src/app/(protected)/settings/event-types/EventTypeForm.tsx`                                                              | 2-col `Grid` at `lg`                                                                                                                                                                                                                                                                        |
 | `src/app/(protected)/settings/templates/TemplatesForm.tsx`                                                                | Side-by-side cards at `lg`                                                                                                                                                                                                                                                                  |
 | `src/app/(protected)/settings/general/SettingsForm.tsx`                                                                   | Side-by-side cards at `lg`                                                                                                                                                                                                                                                                  |
-| `src/app/(protected)/dashboard/DashboardView.tsx`                                                                         | Schedule label/slot widths, header New-event button, hidden FAB, modal size tiers (`isNarrow` → `xs`; event form `md` → `lg` on the wide band); event-form host `centered` at every width with `yOffset="16px"` (equal gutters, no caption)                                      |
+| `src/app/(protected)/dashboard/DashboardView.tsx`                                                                         | Schedule label/slot widths, header New-event button, hidden FAB, modal size tiers (`isNarrow` → `xs`; event form `md` → 720px on the wide band); event-form host `centered` at every width with `yOffset="16px"` (equal gutters, no caption)                                      |
 | `src/app/(protected)/dashboard/WeekMatrixView.tsx`                                                                        | MOBILE_/DESKTOP_ label widths, responsive `contentMinWidth`/`labelLeft`                                                                                                                                                                                                                     |
-| `src/app/(protected)/dashboard/EventForm.tsx`                                                                             | Body-height tiers (phone fills the centered box vs desktop capped growth), Timestamp 2-col at `lg`, Review 2-col at wide band                                                                                                                                                               |
+| `src/app/(protected)/dashboard/EventForm.tsx`                                                                             | Body-height tiers (phone fills the box, desktop capped), Timestamp 2-col at `lg`, Review 2-col + vertical step rail at the wide band                                                                                                                                                        |
 | `src/app/(protected)/dashboard/EventDetail.tsx`, `src/components/FilterModal.tsx`, `src/components/DateSelectorModal.tsx` | `xs` → `sm` → `md` (compact/mobile/lg)                                                                                                                                                                                                                                                      |
 | `src/components/EventSearchModal.tsx`, `src/components/PinnedEventsPanel.tsx`, `src/components/UserSelectModal.tsx`       | Modal sizes via `isNarrow`/`isDesktop`                                                                                                                                                                                                                                                      |
 | `src/lib/motion/origin.ts`                                                                                                | `modalContentWidth(viewport, sizePx)`                                                                                                                                                                                                                                                       |
@@ -519,7 +541,7 @@ drives the wide layout:
 | Bottom nav                                              | icon + text label per item                                              | icon only (`NavButton` `compact`; `aria-label` preserved)         |
 | Modals (event form/detail, agenda, filter, date picker) | `sm`                                                                    | `xs`                                                              |
 | Modals (event search, pinned events)                    | `md`                                                                    | `sm`                                                              |
-| Shrink-animation widths                                 | 380/440/620px per modal                                                 | same values via the `isNarrow` branch in `modalContentWidth(...)` |
+| Shrink-animation widths                                 | 380/440/720px per modal                                                 | same values via the `isNarrow` branch in `modalContentWidth(...)` |
 
 Deliberate limits:
 

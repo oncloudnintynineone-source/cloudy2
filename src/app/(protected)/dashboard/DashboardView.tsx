@@ -202,6 +202,7 @@ import {
 import { shouldUsePeriodSlide } from "@/lib/ui/periodSlide";
 import { WIZARD_WARM_DELAY_MS, tabWarmKinds } from "@/lib/dashboard/warmup";
 import { EventFormSkeleton } from "./EventFormSkeleton";
+import { WIZARD_MODAL_WIDTH_PX } from "./eventFormLayout";
 import { ViewTypePicker } from "./ViewTypePicker";
 import { VIEW_TAB_META } from "./viewMeta";
 import { MonthWeekdayStrip } from "./MonthWeekdayStrip";
@@ -1314,11 +1315,20 @@ function DashboardViewImpl({
 
   // The event wizard modal scales with the viewport: it keeps phone widths
   // (xs/sm) below the desktop band, holds md (440px) across the narrow
-  // desktop band, and only widens to lg (620px) once the shell's "wide
-  // desktop" band (>= 800px) frees real horizontal space. The width is a
-  // pure function of the viewport — never of the active step's content — so
-  // the fixed-height body keeps the step strip and Back/Next bar from moving.
-  const formModalWidthPx = isNarrow ? 320 : isDesktopWide ? 620 : isDesktop ? 440 : 380;
+  // desktop band, and widens to 720px once the shell's "wide desktop" band
+  // (>= 800px) frees real horizontal space — that band also swaps the bottom
+  // step strip for a left vertical step rail, whose column the extra width
+  // pays for. The width is a pure function of the viewport — never of the
+  // active step's content — so the fixed-height body keeps the step strip and
+  // Back/Next bar from moving. One constant feeds the `size` prop and the
+  // shrink-from-trigger width below so the two can never drift.
+  const formModalWidthPx = isNarrow
+    ? WIZARD_MODAL_WIDTH_PX.narrow
+    : isDesktopWide
+      ? WIZARD_MODAL_WIDTH_PX.wide
+      : isDesktop
+        ? WIZARD_MODAL_WIDTH_PX.desktop
+        : WIZARD_MODAL_WIDTH_PX.mobile;
 
   // Immersive ("fullscreen") mode is owned by the AppShell — it renders the
   // header / bottom nav / sidebar being hidden. We only control it here and
@@ -6022,7 +6032,10 @@ function DashboardViewImpl({
               style={{
                 touchAction: "pan-y",
                 overflowY: "auto",
-                maxHeight: isDesktop ? "70dvh" : "56dvh",
+                // Desktop uses most of the screen (Mantine clamps a centered
+                // modal's content to 90dvh, so 84dvh never overflows); phones
+                // stay at 56dvh because the floating chrome owns the bottom.
+                maxHeight: isDesktop ? "84dvh" : "56dvh",
                 overscrollBehavior: "contain",
               }}
               onPointerDown={resetSwipeSuppression}
@@ -6169,10 +6182,19 @@ function DashboardViewImpl({
         centered
         // A fixed vertical gutter keeps the centered wizard's top/bottom gaps
         // equal (Mantine centers inside a `100dvh - 2*gutter` box). The wizard
-        // body fills the box (WIZARD_BODY_HEIGHT_MOBILE), so the gaps stay
-        // equal instead of collapsing to the bottom edge.
+        // body fills the box (WIZARD_BODY_HEIGHT_MOBILE) and caps at the same
+        // `100dvh - 108px` ceiling on desktop (WIZARD_BODY_HEIGHT_DESKTOP), so
+        // the gaps stay equal instead of collapsing to the bottom edge.
         yOffset="16px"
-        size={isNarrow ? "xs" : isDesktopWide ? "lg" : isDesktop ? "md" : "sm"}
+        size={
+          isNarrow
+            ? "xs"
+            : isDesktopWide
+              ? WIZARD_MODAL_WIDTH_PX.wide
+              : isDesktop
+                ? "md"
+                : "sm"
+        }
         // While minimized, the mounted modal root must drop out of the floating
         // control layer so the docked draft bar remains visible with the month
         // chevrons / Create / Quick-links FABs.
