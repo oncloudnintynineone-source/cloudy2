@@ -105,8 +105,8 @@ export interface ContactSectionOffset {
 }
 
 /**
- * Sub-pixel slack when comparing two section-header offsets: cards sharing a
- * grid row report the same `top`, and we want them treated as equal there.
+ * Sub-pixel slack when comparing section-header offsets: two headers that land
+ * on the same line are treated as level.
  */
 const ROW_TIE_EPSILON_PX = 1;
 
@@ -117,10 +117,9 @@ const ROW_TIE_EPSILON_PX = 1;
  * must be in document order — the caller maps each section to its rail letter
  * (`contactInitial(section.label)`).
  *
- * On wide screens the group cards sit in a grid, so several sections share a
- * row and report the same `top`. The **first** of an equal-top group wins —
- * the left-hand card, where reading starts — instead of the last one in
- * document order, which would light the right-hand card of the row.
+ * Entries level with each other (equal offsets, within the slack) resolve to
+ * the **first** of them, so the highlight never skips ahead to a later section
+ * that merely shares the same line.
  */
 export function activeSectionKey(
   entries: readonly ContactSectionOffset[],

@@ -381,10 +381,11 @@ section's letter highlighted as you scroll (capture-phase scroll listener + pure
 **viewport-centred index** now instead of a block pinned under the chrome — sticky `top` is
 `50dvh − height/2` from the height the component declares (`--c2-rail-h` from
 `contactRailHeightPx`), clamped under the sticky bar by `max()` and internally scrollable when it
-is taller than the window, so no letter is ever unreachable. And on wide screens the **group cards**
-reflow into the shared `.card-grid` auto-fill columns (contacts stay dense rows inside each card;
-`.c2-contact-groups` keeps the cards natural-height), with the scroll spy lighting the **left-hand**
-card of a shared grid row (equal-offset tie-break in `activeSectionKey`, unit-tested). §1.10.1.
+is taller than the window, so no letter is ever unreachable. And on wide screens the **rows inside**
+each group card flow into auto-filling columns (`.c2-contact-rows`, whose 1px gap *is* the hairline,
+so the rules stay continuous across columns) while the groups themselves stay **one per row** —
+gridding unevenly sized groups reintroduces exactly the empty space a phone list should not spend.
+§1.10.1.
 
 ### 1.6.3 C3 — Parade State has no name search
 

@@ -540,18 +540,15 @@ export function ContactList({
         // Sectioned dense list (C2): every group is its own rounded card — the
         // letter groups for the name sort, the department groups for the
         // department sort — so a group reads as one bounded block instead of a
-        // seam in a continuous list. On wide screens the cards reflow into the
-        // shared `.card-grid` auto-fill columns (one column on phones), and
-        // `.c2-contact-groups` keeps them natural-height. The A–Z rail rides
-        // beside the cards as a sticky surface: vertically centred in the
-        // viewport while the list scrolls (see `.c2-contact-rail`), lighting up
-        // the current section, with full tap targets per letter.
+        // seam in a continuous list. Groups stay one per row (a grid of
+        // unevenly sized groups would leave ragged gaps); the **rows inside**
+        // each card flow into `.c2-contact-rows` columns on wide screens, which
+        // is what uses the extra width. The A–Z rail rides beside the cards as
+        // a sticky surface: vertically centred in the viewport while the list
+        // scrolls (see `.c2-contact-rail`), lighting up the current section,
+        // with full tap targets per letter.
         <Box style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
-          <Box
-            component="div"
-            className="card-grid c2-contact-groups"
-            style={{ flex: 1, minWidth: 0 }}
-          >
+          <Stack gap="sm" style={{ flex: 1, minWidth: 0 }}>
             {sections.map((section) => (
               <Box
                 key={section.key}
@@ -563,22 +560,29 @@ export function ContactList({
                   overflow: "hidden",
                 }}
               >
-                <Box style={{ padding: "6px var(--mantine-spacing-sm)" }}>
+                <Box
+                  style={{
+                    padding: "6px var(--mantine-spacing-sm)",
+                    borderBottom: LIST_BORDER,
+                  }}
+                >
                   <Text size="xs" fw={700} c="dimmed" tt="uppercase" lh={1}>
                     {section.label}
                   </Text>
                 </Box>
-                {section.users.map((user, userIndex) => (
-                  <Box
-                    key={user.id}
-                    style={{ borderTop: userIndex === 0 ? undefined : LIST_BORDER }}
-                  >
-                    <ContactRow user={user} nameTemplate={nameTemplate} />
-                  </Box>
-                ))}
+                {/* Rows flow into auto-filling columns on wide screens; the 1px
+                    gap between cells is the hairline (see `.c2-contact-rows`),
+                    so the rules stay continuous across columns. */}
+                <Box component="div" className="c2-contact-rows">
+                  {section.users.map((user) => (
+                    <Box key={user.id} className="c2-contact-row">
+                      <ContactRow user={user} nameTemplate={nameTemplate} />
+                    </Box>
+                  ))}
+                </Box>
               </Box>
             ))}
-          </Box>
+          </Stack>
           {showRail && (
             <Box
               component="nav"

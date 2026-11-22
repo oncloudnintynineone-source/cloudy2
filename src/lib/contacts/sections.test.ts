@@ -138,19 +138,18 @@ describe("activeSectionKey", () => {
     expect(activeSectionKey([], 100)).toBeNull();
   });
 
-  it("lights the left-hand card when a grid row shares one offset", () => {
-    // Wide screens: A/B share a row (same `top`), as do C/D.
-    const gridRows = [
+  it("resolves headers level on one line to the first of them", () => {
+    const level = [
       { key: "A", top: -300 },
       { key: "B", top: -300 },
       { key: "C", top: 40 },
       { key: "D", top: 40 },
     ];
-    expect(activeSectionKey(gridRows, 100)).toBe("C");
-    expect(activeSectionKey(gridRows, 0)).toBe("A");
+    expect(activeSectionKey(level, 100)).toBe("C");
+    expect(activeSectionKey(level, 0)).toBe("A");
   });
 
-  it("ignores sub-pixel jitter inside the same row", () => {
+  it("treats sub-pixel jitter as level", () => {
     const jittered = [
       { key: "A", top: 100 },
       { key: "B", top: 100.4 },

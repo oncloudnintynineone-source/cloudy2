@@ -2836,15 +2836,35 @@ html.c2-low-end::view-transition-group(*) {
   display: none;
 }
 
-/* Wide screens put the group cards in the shared `.card-grid` auto-fill
-   columns; they keep their natural height, because a stretched card would
-   paint empty space *inside* its border next to a longer neighbour (the
-   accepted tradeoff of the grid — the ragged space stays outside the border). */
-.c2-contact-groups {
-  align-items: start;
+/* Wide screens put the **rows inside** a group card into auto-filling columns
+   (docs/ui-ux-improvements.md C2). The groups themselves stay one per row: a
+   grid of unevenly sized groups leaves ragged gaps, while columns of rows use
+   the width with none. The 1px gap IS the hairline — the container paints the
+   border colour and every cell paints the page surface over it — so the rules
+   stay continuous across columns (a per-cell border would break at every
+   column gutter). Cells stretch, so a taller sibling never leaves a hole. */
+.c2-contact-rows {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1px;
+  background: var(--mantine-color-default-border);
+}
+
+.c2-contact-row {
+  background: var(--mantine-color-body);
+}
+
+@media (min-width: 36em) {
+  .c2-contact-rows {
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  }
 }
 
 @media (min-width: 40em) {
+  .c2-contact-rows {
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  }
+
   .c2-contact-rail {
     --c2-rail-top-min: calc(var(--app-shell-header-offset) + 84px);
   }
