@@ -5,7 +5,18 @@ import { AUDIT_ACTIONS, actorFromSession } from "@/lib/audit/build";
 import { diffFields } from "@/lib/audit/diff";
 import { logAction } from "@/lib/audit/log";
 import { appBaseUrl } from "@/lib/appUrl";
-import { absEventRange, monthsInRange } from "@/lib/events/datetime";
+import {
+  absEventRange,
+  addDays,
+  formatInstantToNaive,
+  lastDayOfMonth,
+  monthsInRange,
+  parseNaiveToInstant,
+  shiftMonth,
+  subOneDay,
+  utcToDateString,
+} from "@/lib/events/datetime";
+import { normalizeOriginalStartTime } from "@/lib/events/occurrence";
 import {
   buildEventSnapshot,
   snapshotFromCopy,
@@ -17,11 +28,28 @@ import {
   encodeNotesBlock,
   eventDetailUrl,
   eventNotesFromInput,
+  parseEventNotes,
   parseEventPeople,
+  parseEventOwnerOnlyEdits,
+  parseEventRecurrence,
   parseEventRegistrationEnabled,
+  rewriteEventNotes,
   withEditLink,
   withInternalMarker,
+  type EventNotes,
 } from "@/lib/events/notes";
+import {
+  EXCEPTION_SCAN_HORIZON_YEARS,
+  lastOccurrence,
+  normalizeRecurrence,
+  occurrenceIndex,
+  occurrencesInRange,
+  parseRRule,
+  recurrenceSummary,
+  recurrenceToRRule,
+  remainingRecurrence,
+  type RecurrenceRule,
+} from "@/lib/events/recurrence";
 import { modifyGuard, canChangeLock, registrationEditGuard } from "@/lib/events/guards";
 import { dispatchKahBreachCheck } from "@/lib/kah/notify";
 import { dispatchParticipantNotifications } from "@/lib/events/participantNotify/notify";
@@ -57,7 +85,7 @@ import {
   type GcalEventItem,
 } from "@/lib/google";
 import { mapSettled, mapWithConcurrency } from "@/lib/async";
-import { invalidateGcalCache } from "@/lib/google/eventsCache";
+import { invalidateGcalCache, invalidateGcalCalendarCache } from "@/lib/google/eventsCache";
 import {
   getUsersByIds,
   activeMembershipsByDepartment,
@@ -93,13 +121,26 @@ export interface EventMutationCopy {
 }
 
 /**
+ * Which slice of a repeating series a mutation applies to. Non-recurring
+ * events omit it entirely.
+ */
+export type EventMutationScope = "single" | "following" | "series";
+
+/**
  * Result of an event create/update/delete. On success the mutation reports the
  * logical event's group id (`eventId`, null only for a legacy delete that had
  * none) plus the per-copy ids it wrote/retired, so the client never needs a
- * second fetch just to identify what changed.
+ * second fetch just to identify what changed. A "this and following" split
+ * additionally reports the successor series id.
  */
 export type EventActionResult =
-  | { ok: true; eventId: string | null; copies: EventMutationCopy[] }
+  | {
+      ok: true;
+      eventId: string | null;
+      copies: EventMutationCopy[];
+      scope?: EventMutationScope;
+      successorEventId?: string | null;
+    }
   | { ok: false; error: string; field?: EventResultField };
 
 /** The narrowed success arm of {@link EventActionResult}. */
@@ -147,6 +188,53 @@ function withMargin(range: AbsRange): AbsRange {
   };
 }
 
+/**
+ * The KAH check window for a saved event: the event's own window for a one-off,
+ * or the union of a repeating series' occurrences that fall in the KAH
+ * look-ahead (today through the end of next month). Null means the series has
+ * no occurrence in the look-ahead, so the causal check must be skipped.
+ */
+function recurringKahWindow(
+  rule: RecurrenceRule | null | undefined,
+  startNaive: string,
+  base: AbsRange,
+  allDay: boolean,
+): AbsRange | null {
+  if (!rule) {
+    return base;
+  }
+  const now = new Date();
+  const nowNaive = formatInstantToNaive(now);
+  const nextMonth = shiftMonth(nowNaive.slice(0, 7), 1);
+  const windowEnd = parseNaiveToInstant(`${lastDayOfMonth(nextMonth)} 23:59:59`);
+  const occurrences = occurrencesInRange(rule, startNaive, now, windowEnd, 100);
+  if (occurrences.length === 0) {
+    return null;
+  }
+  const spanMs = Math.max(0, base.end.getTime() - base.start.getTime());
+  let start = Number.POSITIVE_INFINITY;
+  let end = Number.NEGATIVE_INFINITY;
+  for (const occurrence of occurrences) {
+    const occurrenceStart = absEventRange(occurrence, occurrence, allDay).start.getTime();
+    start = Math.min(start, occurrenceStart);
+    end = Math.max(end, occurrenceStart + spanMs);
+  }
+  return { start: new Date(start), end: new Date(end) };
+}
+
+interface BuildGcalOptions {
+  /** Rule to mirror in the notes (defaults to `input.recurrence`). */
+  recurrence?: RecurrenceRule | null;
+  /** Write the rule to Google's recurrence field (false for exceptions). */
+  writeRecurrence?: boolean;
+  /** Mark the notes as a single-occurrence exception. */
+  override?: boolean;
+  /** Extra notes fields (split lineage). */
+  extraNotes?: Partial<EventNotes>;
+  /** Force the SGT timezone on a timed exception even without a local rule. */
+  timedSeries?: boolean;
+}
+
 function buildGcalEventInput(
   googleCalendarId: string,
   /** App calendar (department) id this copy lives on — the `_eventCal` deep-link hint. */
@@ -156,6 +244,7 @@ function buildGcalEventInput(
   titleContext: EventTitleContext,
   /** Request origin, resolved once per action (see `appBaseUrl`). */
   baseUrl: string,
+  options?: BuildGcalOptions,
 ): GcalEventInput {
   const title = renderEventTitle({
     description: input.title,
@@ -176,13 +265,24 @@ function buildGcalEventInput(
   // in-app reschedules. `_eventCal` names this copy's calendar so the fetch
   // includes it even when the arriving user's filters exclude it.
   const editLink = eventDetailUrl(baseUrl, input.start, eventId, calendarId);
-  const block = encodeNotesBlock(encodeEventNotes(eventNotesFromInput(eventId, input)));
+  const recurrence = options?.recurrence !== undefined ? options.recurrence : input.recurrence;
+  const block = encodeNotesBlock(
+    encodeEventNotes(
+      eventNotesFromInput(
+        eventId,
+        { ...input, recurrence: recurrence ?? null },
+        { override: options?.override, extraNotes: options?.extraNotes },
+      ),
+    ),
+  );
   // The marker line at the bottom flags the event as created in the app, so
   // externally created (Google-only) events can be told apart on read.
   const description = withInternalMarker(withEditLink(block, editLink));
 
   const allDay = input.timeOption !== "range";
   const { start, end } = absEventRange(input.start, input.end, allDay);
+  const writeRecurrence = options?.writeRecurrence !== false && recurrence != null;
+  const timedSeries = writeRecurrence || options?.timedSeries === true;
   return {
     calendarId: googleCalendarId,
     title,
@@ -191,6 +291,10 @@ function buildGcalEventInput(
     location: input.location,
     start,
     end,
+    ...(writeRecurrence
+      ? { recurrence: [recurrenceToRRule(recurrence, input.start, allDay)] }
+      : {}),
+    ...(!allDay && timedSeries ? { timeZone: "Asia/Singapore" } : {}),
   };
 }
 
@@ -205,10 +309,18 @@ async function findCopies(
   eventId: string,
   range: AbsRange,
   legacyFallback: { googleCalendarId: string; googleEventId: string } | null,
+  options?: { parents?: boolean },
 ): Promise<GcalEventItem[]> {
   const integration = await getGoogleIntegration();
-  const items = await integration.listEvents(googleCalendarId, range.start, range.end);
+  const items = await integration.listEvents(googleCalendarId, range.start, range.end, {
+    singleEvents: options?.parents !== true,
+  });
   return items.filter((item) => {
+    // A parent-mode read also returns stored exceptions; only the series
+    // parent (no `recurringEventId`) is the write target for a series edit.
+    if (options?.parents === true && item.recurringEventId) {
+      return false;
+    }
     if (parseEventPeople(item.description).eventId === eventId) {
       return true;
     }
@@ -252,6 +364,12 @@ async function findRepresentativeCopy(
   if (!ref.eventId) {
     return null;
   }
+  // A registration action fired from an occurrence must target the series
+  // parent: the roster is a series-level property.
+  if (ref.recurringEventId) {
+    const resolved = await resolveParentRef(ref);
+    return resolved ? { copy: resolved.parent, calendarId: resolved.ref.calendarId } : null;
+  }
   const eventId = ref.eventId;
   const targets = await refTargetCalendars(ref);
   const ordered = [ref.calendarId, ...targets.filter((id) => id !== ref.calendarId)];
@@ -287,13 +405,16 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
   // create events on behalf of other users. Clamp end to start before
   // validation so a stale client with an inverted range auto-corrects instead
   // of surfacing "End must be on or after start".
-  const normalized = clampEventEnd(resolveEventAuthor(input, session.user.id, null, true));
+  let normalized = clampEventEnd(resolveEventAuthor(input, session.user.id, null, true));
 
   const errors = validateEventForm(normalized);
   if (Object.keys(errors).length > 0) {
     const firstField = Object.keys(errors)[0] as EventResultField;
     return { ok: false, error: "Check the highlighted fields", field: firstField };
   }
+  // The server re-normalizes the rule (stale/tampered payloads), then every
+  // subsequent step (notes, RRULE, audit, KAH look-ahead) sees the same object.
+  normalized = { ...normalized, recurrence: normalizeRecurrence(normalized.recurrence, normalized.start) };
 
   if (!googleCalendarConfigured()) {
     return { ok: false, error: "Google Calendar is not configured" };
@@ -419,6 +540,9 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
     pinned: effectiveInput.pinned,
     registrationEnabled: effectiveInput.registrationEnabled === true,
     registrationCap: effectiveInput.registrationCap ?? null,
+    repeats: effectiveInput.recurrence
+      ? recurrenceSummary(effectiveInput.recurrence, effectiveInput.start)
+      : null,
     location: effectiveInput.location,
     departmentIds: targets,
     inviteeUserIds: effectiveInput.inviteeUserIds,
@@ -443,10 +567,12 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
         googleEventIds: created.map((copy) => copy.googleEventId),
       },
     }),
-    invalidateGcalCache(
-      created.map((copy) => copy.googleCalendarId),
-      monthsInRange(effectiveInput.start, effectiveInput.end),
-    ),
+    effectiveInput.recurrence
+      ? invalidateGcalCalendarCache(created.map((copy) => copy.googleCalendarId))
+      : invalidateGcalCache(
+          created.map((copy) => copy.googleCalendarId),
+          monthsInRange(effectiveInput.start, effectiveInput.end),
+        ),
     invalidatePinnedCache(),
   ]);
   dispatchEventWebhook({
@@ -467,15 +593,23 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
     effectiveInput.end,
     effectiveInput.timeOption !== "range",
   );
-  dispatchKahBreachCheck({
-    windowStart: createdWindow.start,
-    windowEnd: createdWindow.end,
-    allDay: effectiveInput.timeOption !== "range",
-    eventTitle: renderedTitle,
-    actor: actorFromSession(session),
-    savedEventOverseas: effectiveInput.outOfCamp && effectiveInput.overseas,
-    savedEventUserIds: effectiveInput.inviteeUserIds,
-  });
+  const createdKahWindow = recurringKahWindow(
+    effectiveInput.recurrence,
+    effectiveInput.start,
+    createdWindow,
+    effectiveInput.timeOption !== "range",
+  );
+  if (createdKahWindow) {
+    dispatchKahBreachCheck({
+      windowStart: createdKahWindow.start,
+      windowEnd: createdKahWindow.end,
+      allDay: effectiveInput.timeOption !== "range",
+      eventTitle: renderedTitle,
+      actor: actorFromSession(session),
+      savedEventOverseas: effectiveInput.outOfCamp && effectiveInput.overseas,
+      savedEventUserIds: effectiveInput.inviteeUserIds,
+    });
+  }
   // Notify everyone newly included in this event as a participant (best-effort
   // Web Push via after(); the organizer/actor is never notified).
   const notifyActor = actorFromSession(session);
@@ -515,8 +649,14 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
 export async function updateEvent(
   ref: EventRef,
   input: EventFormValues,
+  scope?: EventMutationScope,
 ): Promise<EventActionResult> {
   const session = await requireSession();
+  // A client-supplied ref must never silently apply an edit to the wrong slice
+  // of a series: an instance ref needs an explicit scope.
+  if (ref.recurringEventId && !scope) {
+    return { ok: false, error: "Choose what to edit for this repeating event" };
+  }
   // Editing is open to the organizer, tagged attendees, and active members of
   // the event's tagged departments — unless the organizer locked the event to
   // themselves (admins bypass everything). Membership resolves against the
@@ -541,7 +681,7 @@ export async function updateEvent(
   // registration flag — every other editor keeps the stored values.
   const canChangeOwnership = canChangeLock(session, ref.creatorId);
   const authorResolved = resolveEventAuthor(input, session.user.id, ref, canChangeOwnership);
-  const normalized = clampEventEnd(
+  let normalized = clampEventEnd(
     canChangeOwnership
       ? authorResolved
       : {
@@ -560,7 +700,42 @@ export async function updateEvent(
     return { ok: false, error: "Google Calendar is not configured" };
   }
 
-  const eventId = ref.eventId ?? crypto.randomUUID();
+  // "This event" and "this and following" both start from an occurrence; the
+  // series range confirms the stored rule/participants authoritatively.
+  if (scope === "single" || scope === "following") {
+    return scope === "single"
+      ? performSingleOccurrenceUpdate(session, ref, normalized)
+      : performFollowingUpdate(session, ref, normalized);
+  }
+
+  // Series scope: resolve the parent so a client that only held an instance
+  // still edits the whole series (and a forged ref never updates an instance
+  // as if it were a parent).
+  let seriesRef = ref;
+  if (ref.recurringEventId) {
+    const resolved = await resolveParentRef(ref);
+    if (!resolved) {
+      return { ok: false, error: "Could not find the repeating series" };
+    }
+    if (!resolved.ref.eventId && scope === "series") {
+      return {
+        ok: false,
+        error: "This repeating series was created outside the app; edit this occurrence only",
+      };
+    }
+    const storedGuardError = await verifyStoredGuard(session, resolved.ref);
+    if (storedGuardError) {
+      return { ok: false, error: storedGuardError };
+    }
+    seriesRef = resolved.ref;
+  }
+  // Registration events are series-edited only; a single/following scope was
+  // rejected above by their own entry points.
+  normalized = {
+    ...normalized,
+    recurrence: normalizeRecurrence(normalized.recurrence, normalized.start),
+  };
+  const eventId = seriesRef.eventId ?? crypto.randomUUID();
   const titleContext = await buildEventTitleContext(normalized);
   const effectiveInput = resolveEffectiveInput(normalized, titleContext);
   // Same nobody-guard as createEvent (see its note), except registration
@@ -574,13 +749,14 @@ export async function updateEvent(
   }
   return performEventUpdate({
     session,
-    ref,
+    ref: seriesRef,
     normalized,
     effectiveInput,
     titleContext,
     eventId,
     method: "updateEvent",
     mode: "update",
+    scope,
   });
 }
 
@@ -599,6 +775,8 @@ interface PerformEventUpdateParams {
    * authorized and limited to the acting user's own participant entry.
    */
   mode: "update" | "registration";
+  /** Which slice of a repeating series this update applies to. */
+  scope?: EventMutationScope;
   /** Extra flat audit context (e.g. the registration intent). */
   extraAudit?: Record<string, unknown>;
 }
@@ -618,6 +796,7 @@ async function performEventUpdate({
   eventId,
   method,
   mode,
+  scope,
   extraAudit,
 }: PerformEventUpdateParams): Promise<EventActionResult> {
   const integration = await getGoogleIntegration();
@@ -695,7 +874,9 @@ async function performEventUpdate({
       if (!googleCalendarId) {
         return { target, googleCalendarId: null, found: [] as GcalEventItem[] };
       }
-      const found = await findCopies(googleCalendarId, eventId, range, fallback);
+      const found = await findCopies(googleCalendarId, eventId, range, fallback, {
+        parents: true,
+      });
       return { target, googleCalendarId, found };
     });
   } catch (error) {
@@ -730,6 +911,46 @@ async function performEventUpdate({
     }
   }
 
+  // A pattern change on "All events" resets the individually edited
+  // occurrences: their original slots no longer align with the new rule. The
+  // cleanup is best-effort — the parent update itself is idempotent.
+  if (scope === "series" && firstCopy) {
+    const oldRule =
+      parseEventRecurrence(firstCopy.description) ?? parseRRule(firstCopy.recurrence).rule;
+    const patternChanged =
+      ref.start !== effectiveInput.start ||
+      ref.end !== effectiveInput.end ||
+      !sameRecurrence(oldRule, effectiveInput.recurrence ?? null);
+    if (patternChanged) {
+      const finiteEnd = effectiveInput.recurrence
+        ? lastOccurrence(effectiveInput.recurrence, effectiveInput.start)
+        : null;
+      const horizonEnd =
+        finiteEnd?.slice(0, 10) ??
+        addDays(effectiveInput.start.slice(0, 10), 365 * EXCEPTION_SCAN_HORIZON_YEARS);
+      await Promise.all(
+        reads.map(async (read) => {
+          if (!read.googleCalendarId) {
+            return;
+          }
+          for (const parent of read.found) {
+            const exceptions = await listSeriesExceptions({
+              googleCalendarId: read.googleCalendarId,
+              parentId: parent.id,
+              fromNaive: effectiveInput.start,
+              toNaive: horizonEnd,
+            }).catch(() => []);
+            await Promise.allSettled(
+              exceptions.map((exception) =>
+                integration.deleteEvent(read.googleCalendarId!, exception.id),
+              ),
+            );
+          }
+        }),
+      );
+    }
+  }
+
   // Each target reconciles independently (update, create, or retire its copy),
   // so the Google writes fan out under the same bound as the reads. A serial
   // loop paid one full Google round trip per copy, which dominates a
@@ -761,6 +982,11 @@ async function performEventUpdate({
               eventId,
               titleContext,
               baseUrl,
+              {
+                recurrence: effectiveInput.recurrence ?? null,
+                writeRecurrence: true,
+                timedSeries: Boolean(effectiveInput.recurrence),
+              },
             ),
           );
           touched.push(copy.id);
@@ -775,6 +1001,11 @@ async function performEventUpdate({
             eventId,
             titleContext,
             baseUrl,
+            {
+              recurrence: effectiveInput.recurrence ?? null,
+              writeRecurrence: true,
+              timedSeries: Boolean(effectiveInput.recurrence),
+            },
           ),
         );
         created.push({ googleCalendarId, googleEventId: event.id });
@@ -829,6 +1060,9 @@ async function performEventUpdate({
     pinned: effectiveInput.pinned,
     registrationEnabled: effectiveInput.registrationEnabled === true,
     registrationCap: effectiveInput.registrationCap ?? null,
+    repeats: effectiveInput.recurrence
+      ? recurrenceSummary(effectiveInput.recurrence, effectiveInput.start)
+      : null,
     location: effectiveInput.location,
     departmentIds: newTargets,
     inviteeUserIds: effectiveInput.inviteeUserIds,
@@ -850,18 +1084,21 @@ async function performEventUpdate({
       details: {
         ...diffFields(before, after),
         eventId,
+        ...(scope === "series" ? { seriesScope: "All events" } : {}),
         ...(extraAudit ?? {}),
       },
     }),
-    invalidateGcalCache(
-      [...affectedGoogleIds],
-      [
-        ...new Set([
-          ...monthsInRange(ref.start, ref.end),
-          ...monthsInRange(effectiveInput.start, effectiveInput.end),
-        ]),
-      ],
-    ),
+    scope === "series" || effectiveInput.recurrence
+      ? invalidateGcalCalendarCache([...affectedGoogleIds])
+      : invalidateGcalCache(
+          [...affectedGoogleIds],
+          [
+            ...new Set([
+              ...monthsInRange(ref.start, ref.end),
+              ...monthsInRange(effectiveInput.start, effectiveInput.end),
+            ]),
+          ],
+        ),
     invalidatePinnedCache(),
   ]);
   dispatchEventWebhook({
@@ -882,15 +1119,23 @@ async function performEventUpdate({
     effectiveInput.end,
     effectiveInput.timeOption !== "range",
   );
-  dispatchKahBreachCheck({
-    windowStart: updatedWindow.start,
-    windowEnd: updatedWindow.end,
-    allDay: effectiveInput.timeOption !== "range",
-    eventTitle: renderedTitle,
-    actor: actorFromSession(session),
-    savedEventOverseas: effectiveInput.outOfCamp && effectiveInput.overseas,
-    savedEventUserIds: effectiveInput.inviteeUserIds,
-  });
+  const updatedKahWindow = recurringKahWindow(
+    effectiveInput.recurrence,
+    effectiveInput.start,
+    updatedWindow,
+    effectiveInput.timeOption !== "range",
+  );
+  if (updatedKahWindow) {
+    dispatchKahBreachCheck({
+      windowStart: updatedKahWindow.start,
+      windowEnd: updatedKahWindow.end,
+      allDay: effectiveInput.timeOption !== "range",
+      eventTitle: renderedTitle,
+      actor: actorFromSession(session),
+      savedEventOverseas: effectiveInput.outOfCamp && effectiveInput.overseas,
+      savedEventUserIds: effectiveInput.inviteeUserIds,
+    });
+  }
   // Notify users newly added as participants by this edit (best-effort Web Push
   // via after(); never the acting user). A no-op participant change resolves to
   // an empty added set inside the dispatch and sends nothing.
@@ -917,7 +1162,669 @@ async function performEventUpdate({
     copies: liveCopies,
     baseUrl,
   });
-  return { ok: true, eventId, copies: liveCopies };
+  return { ok: true, eventId, copies: liveCopies, scope };
+}
+
+// --- Repeating-series scopes ------------------------------------------------
+
+/** A recurring parent plus the ref the write path operates on. */
+interface ResolvedParent {
+  ref: EventRef;
+  parent: GcalEventItem;
+  googleCalendarId: string;
+}
+
+/** The parent copy's naive start (all-day inclusive convention for its end). */
+function parentStartNaive(item: GcalEventItem): string {
+  return item.allDay
+    ? `${utcToDateString(item.start)} 00:00:00`
+    : formatInstantToNaive(item.start);
+}
+
+function parentEndNaive(item: GcalEventItem): string {
+  return item.allDay
+    ? `${subOneDay(utcToDateString(item.end))} 00:00:00`
+    : formatInstantToNaive(item.end);
+}
+
+/** Build the parent ref from the clicked instance's `recurringEventId`. */
+async function resolveParentRef(ref: EventRef): Promise<ResolvedParent | null> {
+  if (!ref.recurringEventId) {
+    return null;
+  }
+  const googleCalendarId = await resolveGoogleCalendarId(ref.calendarId);
+  if (!googleCalendarId) {
+    return null;
+  }
+  const integration = await getGoogleIntegration();
+  const parent = await integration.getEvent(googleCalendarId, ref.recurringEventId);
+  if (!parent) {
+    return null;
+  }
+  const people = parseEventPeople(parent.description);
+  return {
+    parent,
+    googleCalendarId,
+    ref: {
+      calendarId: ref.calendarId,
+      googleEventId: parent.id,
+      eventId: people.eventId ?? ref.eventId,
+      start: parentStartNaive(parent),
+      end: parentEndNaive(parent),
+      allDay: parent.allDay,
+      creatorId: people.creatorId,
+      inviteeUserIds: people.userIds,
+      inviteeDepartmentIds: people.departmentIds,
+      ownerOnlyEdits: parseEventOwnerOnlyEdits(parent.description),
+      registrationEnabled: parseEventRegistrationEnabled(parent.description),
+      recurringEventId: null,
+      originalStartTime: null,
+    },
+  };
+}
+
+/** Re-run the modification guard against the stored copy's people (not the ref). */
+async function verifyStoredGuard(
+  session: Awaited<ReturnType<typeof requireSession>>,
+  stored: EventRef,
+): Promise<string | null> {
+  const memberships = await activeMembershipsByDepartment(stored.inviteeDepartmentIds);
+  return modifyGuard(
+    session,
+    {
+      creatorId: stored.creatorId,
+      inviteeUserIds: stored.inviteeUserIds,
+      inviteeDepartmentIds: stored.inviteeDepartmentIds,
+      ownerOnlyEdits: stored.ownerOnlyEdits,
+    },
+    memberships,
+  );
+}
+
+/** Whether two normalized rules are the same (for remaining-count adjustment). */
+function sameRecurrence(a: RecurrenceRule | null, b: RecurrenceRule | null): boolean {
+  return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+}
+
+/** The series parent merge: presentation fields from the form, series fields stored. */
+function mergeSinglePresentation(
+  stored: EventFormValues,
+  input: EventFormValues,
+): EventFormValues {
+  return {
+    ...stored,
+    title: input.title,
+    timeOption: input.timeOption,
+    start: input.start,
+    end: input.end,
+    startAmPm: input.startAmPm,
+    endAmPm: input.endAmPm,
+    eventType: input.eventType,
+    outOfCamp: input.outOfCamp,
+    overseas: input.overseas,
+    location: input.location,
+  };
+}
+
+/** Instances of one occurrence of `eventId` in a calendar. */
+async function findOccurrenceInstances(params: {
+  googleCalendarId: string;
+  eventId: string | null;
+  ref: EventRef;
+  input: EventFormValues | null;
+}): Promise<GcalEventItem[]> {
+  const integration = await getGoogleIntegration();
+  const range = withMargin(
+    params.input
+      ? unionRange(
+          absEventRange(params.ref.start, params.ref.end, params.ref.allDay),
+          absEventRange(
+            params.input.start,
+            params.input.end,
+            params.input.timeOption !== "range",
+          ),
+        )
+      : absEventRange(params.ref.start, params.ref.end, params.ref.allDay),
+  );
+  const items = await integration.listEvents(params.googleCalendarId, range.start, range.end, {
+    singleEvents: true,
+  });
+  return items.filter((item) => {
+    if (params.eventId && parseEventPeople(item.description).eventId !== params.eventId) {
+      return false;
+    }
+    if (!params.eventId && item.id !== params.ref.googleEventId) {
+      return false;
+    }
+    if (!params.ref.originalStartTime) {
+      return item.id === params.ref.googleEventId;
+    }
+    const key = item.originalStartTime
+      ? normalizeOriginalStartTime(item.originalStartTime, item.allDay)
+      : null;
+    return key === params.ref.originalStartTime;
+  });
+}
+
+/** Stored exceptions of one series in a calendar, from `fromNaive` forward. */
+async function listSeriesExceptions(params: {
+  googleCalendarId: string;
+  parentId: string;
+  fromNaive: string;
+  toNaive: string;
+}): Promise<GcalEventItem[]> {
+  const integration = await getGoogleIntegration();
+  const from = parseNaiveToInstant(params.fromNaive);
+  const to = parseNaiveToInstant(`${addDays(params.toNaive.slice(0, 10), 1)} 23:59:59`);
+  // `singleEvents:false` returns parents + stored exceptions (not generated
+  // instances), which is exactly the cleanup set.
+  const items = await integration.listEvents(params.googleCalendarId, from, to, {
+    singleEvents: false,
+  });
+  return items.filter(
+    (item) =>
+      item.recurringEventId === params.parentId &&
+      item.id !== params.parentId &&
+      item.status !== "cancelled",
+  );
+}
+
+/** The truncation payload for a parent's recurrence at `splitNaive`. */
+function truncatedRecurrence(
+  parent: GcalEventItem,
+  splitNaive: string,
+): { lines: string[]; description: string; rule: RecurrenceRule } | null {
+  const parsed = parseRRule(parent.recurrence);
+  const rule =
+    parsed.rule ??
+    parseEventRecurrence(parent.description) ??
+    null;
+  if (!rule) {
+    return null;
+  }
+  const until = subOneDay(splitNaive.slice(0, 10));
+  if (until < parentStartNaive(parent).slice(0, 10)) {
+    return null;
+  }
+  const next: RecurrenceRule = { ...rule, count: null, until };
+  const lines = [recurrenceToRRule(next, parentStartNaive(parent), parent.allDay), ...parsed.extraLines];
+  const description = rewriteEventNotes(parent.description, (notes) => ({
+    ...notes,
+    recurrence: next,
+  }));
+  return { lines, description, rule: next };
+}
+
+/**
+ * Apply a "This event" edit: create/update one Google exception per target
+ * calendar. Participants, pin, lock and registration are series-level and are
+ * preserved from the stored copy (the wizard disables them in this scope).
+ */
+async function performSingleOccurrenceUpdate(
+  session: Awaited<ReturnType<typeof requireSession>>,
+  ref: EventRef,
+  input: EventFormValues,
+): Promise<EventActionResult> {
+  if (!ref.recurringEventId) {
+    return { ok: false, error: "This event is not part of a repeating series" };
+  }
+  const resolved = await resolveParentRef(ref);
+  if (!resolved) {
+    return { ok: false, error: "Could not find the repeating series" };
+  }
+  const storedGuardError = await verifyStoredGuard(session, resolved.ref);
+  if (storedGuardError) {
+    return { ok: false, error: storedGuardError };
+  }
+  if (parseEventRegistrationEnabled(resolved.parent.description)) {
+    return { ok: false, error: "Registration events are edited as a series" };
+  }
+  const integration = await getGoogleIntegration();
+  const googleCalendarId = await resolveGoogleCalendarId(ref.calendarId);
+  const instance = googleCalendarId
+    ? await integration.getEvent(googleCalendarId, ref.googleEventId)
+    : null;
+  const stored = eventFormValuesFromCopy(instance ?? resolved.parent);
+  if (!stored) {
+    return { ok: false, error: "Could not read the stored occurrence" };
+  }
+  const seriesRule = parseEventRecurrence(resolved.parent.description);
+  const merged: EventFormValues = {
+    ...mergeSinglePresentation(stored, input),
+    recurrence: seriesRule,
+  };
+  const titleContext = await buildEventTitleContext(merged);
+  const effectiveInput = resolveEffectiveInput(merged, titleContext);
+  const eventId = resolved.ref.eventId ?? ref.eventId ?? crypto.randomUUID();
+  const targets = await refTargetCalendars(resolved.ref);
+  const [googleIds, baseUrl] = await Promise.all([
+    resolveGoogleCalendarIds(targets),
+    appBaseUrl(),
+  ]);
+  const namesPromise = Promise.all([
+    calendarNames(targets),
+    getUsersByIds([
+      ...new Set([
+        ...(resolved.ref.creatorId ? [resolved.ref.creatorId] : []),
+        ...resolved.ref.inviteeUserIds,
+      ]),
+    ]),
+  ]).catch(() => null);
+
+  const live: EventMutationCopy[] = [];
+  let firstInstance: GcalEventItem | null = instance;
+  const touchedGoogleIds = new Set<string>();
+  try {
+    for (const target of targets) {
+      const targetGoogleId = googleIds[target];
+      if (!targetGoogleId) {
+        continue;
+      }
+      const found = await findOccurrenceInstances({
+        googleCalendarId: targetGoogleId,
+        eventId: resolved.ref.eventId,
+        ref,
+        input,
+      });
+      for (const copy of found) {
+        if (!firstInstance) {
+          firstInstance = copy;
+        }
+        await integration.updateEvent(
+          copy.id,
+          buildGcalEventInput(
+            targetGoogleId,
+            target,
+            effectiveInput,
+            eventId,
+            titleContext,
+            baseUrl,
+            {
+              recurrence: seriesRule,
+              writeRecurrence: false,
+              override: true,
+              timedSeries: true,
+            },
+          ),
+        );
+        live.push({ calendarId: target, googleEventId: copy.id });
+        touchedGoogleIds.add(targetGoogleId);
+      }
+    }
+  } catch (error) {
+    return { ok: false, error: describeError(error, "Could not update this occurrence") };
+  }
+  if (live.length === 0 || !firstInstance) {
+    return { ok: false, error: "This occurrence no longer exists" };
+  }
+  const names = await namesPromise;
+  const namesResolved: EventSnapshotNames = {
+    departmentNames: names?.[0] ?? {},
+    userNames: namesById(names?.[1] ?? []),
+  };
+  const instanceRef: EventRef = {
+    ...resolved.ref,
+    googleEventId: firstInstance.id,
+    start: firstInstance.allDay
+      ? `${utcToDateString(firstInstance.start)} 00:00:00`
+      : formatInstantToNaive(firstInstance.start),
+    end: parentEndNaive(firstInstance),
+    allDay: firstInstance.allDay,
+    recurringEventId: ref.recurringEventId,
+    originalStartTime: ref.originalStartTime,
+  };
+  const before = snapshotFromCopy(instanceRef, firstInstance, namesResolved, targets);
+  const after = buildEventSnapshot({
+    title: renderEventTitle({
+      description: effectiveInput.title,
+      eventType: titleContext.eventType,
+      people: titleContext.people,
+      departments: titleContext.departments,
+      location: effectiveInput.location,
+      recipe: titleContext.recipe,
+      timeOption: effectiveInput.timeOption,
+      startTime: naiveTimePart(effectiveInput.start),
+      endTime: naiveTimePart(effectiveInput.end),
+      startAmPm: effectiveInput.startAmPm,
+      endAmPm: effectiveInput.endAmPm,
+    }),
+    description: effectiveInput.title,
+    type: effectiveInput.eventType,
+    timeParts: timePartsOf(effectiveInput),
+    outOfCamp: effectiveInput.outOfCamp,
+    overseas: effectiveInput.overseas,
+    pinned: effectiveInput.pinned,
+    registrationEnabled: effectiveInput.registrationEnabled === true,
+    registrationCap: effectiveInput.registrationCap ?? null,
+    repeats: seriesRule ? recurrenceSummary(seriesRule, resolved.ref.start) : null,
+    location: effectiveInput.location,
+    departmentIds: targets,
+    inviteeUserIds: effectiveInput.inviteeUserIds,
+    creatorId: effectiveInput.creatorId || null,
+    names: namesResolved,
+  });
+  const changes = diffFields(before, after);
+  const updatedWindow = absEventRange(
+    effectiveInput.start,
+    effectiveInput.end,
+    effectiveInput.timeOption !== "range",
+  );
+  await Promise.all([
+    logAction({
+      ...actorFromSession(session),
+      action: AUDIT_ACTIONS.eventUpdate,
+      entityType: "calendar",
+      entityId: targets[0] ?? ref.calendarId,
+      entityName: after.title ?? "Untitled event",
+      method: "updateEvent",
+      details: {
+        ...changes,
+        eventId,
+        seriesScope: "This event",
+        occurrenceStart: ref.originalStartTime,
+      },
+    }),
+    invalidateGcalCache(
+      [...touchedGoogleIds],
+      [
+        ...new Set([
+          ...monthsInRange(ref.start, ref.end),
+          ...monthsInRange(effectiveInput.start, effectiveInput.end),
+        ]),
+      ],
+    ),
+    invalidatePinnedCache(),
+  ]);
+  dispatchEventWebhook({
+    action: WEBHOOK_ACTIONS.eventUpdated,
+    eventId,
+    googleEventIds: live.map((copy) => copy.googleEventId),
+    snapshot: after,
+    timeParts: timePartsOf(effectiveInput),
+    changes: changes.changes,
+    actor: webhookActorFrom(session),
+    occurredAt: new Date(),
+  });
+  dispatchKahBreachCheck({
+    windowStart: updatedWindow.start,
+    windowEnd: updatedWindow.end,
+    allDay: effectiveInput.timeOption !== "range",
+    eventTitle: after.title ?? "",
+    actor: actorFromSession(session),
+    savedEventOverseas: effectiveInput.outOfCamp && effectiveInput.overseas,
+    savedEventUserIds: effectiveInput.inviteeUserIds,
+  });
+  return { ok: true, eventId, copies: live, scope: "single" };
+}
+
+/**
+ * Apply a "This and following" edit: create the successor series first, then
+ * truncate the old series at the split. Future stored exceptions belong to the
+ * old pattern and are removed (the successor starts from the form's values).
+ */
+async function performFollowingUpdate(
+  session: Awaited<ReturnType<typeof requireSession>>,
+  ref: EventRef,
+  input: EventFormValues,
+): Promise<EventActionResult> {
+  if (!ref.recurringEventId) {
+    return { ok: false, error: "This event is not part of a repeating series" };
+  }
+  const resolved = await resolveParentRef(ref);
+  if (!resolved) {
+    return { ok: false, error: "Could not find the repeating series" };
+  }
+  const storedGuardError = await verifyStoredGuard(session, resolved.ref);
+  if (storedGuardError) {
+    return { ok: false, error: storedGuardError };
+  }
+  if (parseEventRegistrationEnabled(resolved.parent.description)) {
+    return { ok: false, error: "Registration events are edited as a series" };
+  }
+  if (!resolved.ref.eventId) {
+    return {
+      ok: false,
+      error: "This repeating series was created outside the app; edit this occurrence only",
+    };
+  }
+  const integration = await getGoogleIntegration();
+  const seriesStart = parentStartNaive(resolved.parent);
+  const parentRule =
+    parseEventRecurrence(resolved.parent.description) ?? parseRRule(resolved.parent.recurrence).rule;
+  if (!parentRule) {
+    return {
+      ok: false,
+      error: "This series uses a custom repeat rule; edit it in Google Calendar",
+    };
+  }
+  let splitAt = ref.originalStartTime ?? null;
+  if (!splitAt) {
+    const googleCalendarId = await resolveGoogleCalendarId(ref.calendarId);
+    const instance = googleCalendarId
+      ? await integration.getEvent(googleCalendarId, ref.googleEventId)
+      : null;
+    splitAt = instance?.originalStartTime
+      ? normalizeOriginalStartTime(instance.originalStartTime, instance.allDay)
+      : null;
+  }
+  if (!splitAt) {
+    return { ok: false, error: "Could not resolve the occurrence to split at" };
+  }
+  // Splitting at the first occurrence is the same as editing the whole series.
+  const index = occurrenceIndex(parentRule, seriesStart, splitAt);
+  if (index !== null && index <= 1) {
+    return updateEvent(resolved.ref, input, "series");
+  }
+
+  const inputRule = normalizeRecurrence(input.recurrence, input.start);
+  const successorRuleBase = sameRecurrence(inputRule, parentRule)
+    ? remainingRecurrence(parentRule, seriesStart, splitAt)
+    : inputRule;
+  const successorRule =
+    successorRuleBase && successorRuleBase.count === 1 ? null : successorRuleBase;
+  const normalized = {
+    ...input,
+    recurrence: successorRule,
+  };
+  const titleContext = await buildEventTitleContext(normalized);
+  const effectiveInput = resolveEffectiveInput(normalized, titleContext);
+  if (
+    !titleContext.registrationEnabled &&
+    effectiveInput.inviteeUserIds.length === 0 &&
+    effectiveInput.inviteeDepartments.length === 0
+  ) {
+    return { ok: false, error: "Add at least one participant or department" };
+  }
+  const successorId = crypto.randomUUID();
+  const oldTargets = await refTargetCalendars(resolved.ref);
+  const newTargets = await resolveTargetCalendars(effectiveInput, resolved.ref.calendarId);
+  const [allGoogleIds, baseUrl] = await Promise.all([
+    resolveGoogleCalendarIds([...new Set([...oldTargets, ...newTargets])]),
+    appBaseUrl(),
+  ]);
+  const oldRange = withMargin(absEventRange(seriesStart, parentEndNaive(resolved.parent), resolved.parent.allDay));
+  const splitDate = splitAt.slice(0, 10);
+  const horizonEnd = addDays(seriesStart.slice(0, 10), 365 * EXCEPTION_SCAN_HORIZON_YEARS);
+  const finiteEnd = lastOccurrence(parentRule, seriesStart);
+  const exceptionEnd = finiteEnd ? finiteEnd.slice(0, 10) : horizonEnd;
+
+  // Read the old parents (series mode) and their future exceptions before any
+  // write, so a failure leaves the original series untouched.
+  const oldReads: Array<{ target: string; googleCalendarId: string; parents: GcalEventItem[] }> = [];
+  const successorCreates: Array<{ target: string; googleCalendarId: string; googleEventId: string }> =
+    [];
+  try {
+    for (const target of oldTargets) {
+      const googleCalendarId = allGoogleIds[target];
+      if (!googleCalendarId) {
+        continue;
+      }
+      const parents = await findCopies(googleCalendarId, resolved.ref.eventId ?? "", oldRange, null, {
+        parents: true,
+      });
+      oldReads.push({ target, googleCalendarId, parents });
+    }
+    // Create the successor in every new target first.
+    for (const target of newTargets) {
+      const googleCalendarId = allGoogleIds[target];
+      if (!googleCalendarId) {
+        continue;
+      }
+      const existing = await findExistingSuccessor(googleCalendarId, ref.eventId, splitAt);
+      if (existing) {
+        successorCreates.push({ target, googleCalendarId, googleEventId: existing.id });
+        continue;
+      }
+      const created = await integration.createEvent(
+        buildGcalEventInput(
+          googleCalendarId,
+          target,
+          effectiveInput,
+          successorId,
+          titleContext,
+          baseUrl,
+          {
+            recurrence: successorRule,
+            writeRecurrence: true,
+            timedSeries: Boolean(successorRule),
+            extraNotes: {
+              splitFromEventId: ref.eventId ?? undefined,
+              splitAt,
+            },
+          },
+        ),
+      );
+      successorCreates.push({ target, googleCalendarId, googleEventId: created.id });
+    }
+  } catch (error) {
+    await Promise.allSettled(
+      successorCreates.map((copy) => integration.deleteEvent(copy.googleCalendarId, copy.googleEventId)),
+    );
+    return { ok: false, error: describeError(error, "Could not split the repeating event") };
+  }
+  // Truncate the old series and remove its future exceptions.
+  try {
+    for (const read of oldReads) {
+      const exceptions = await listSeriesExceptions({
+        googleCalendarId: read.googleCalendarId,
+        parentId: read.parents[0]?.id ?? "",
+        fromNaive: `${splitDate} 00:00:00`,
+        toNaive: exceptionEnd,
+      });
+      await Promise.allSettled(
+        exceptions.map((exception) =>
+          integration.deleteEvent(read.googleCalendarId, exception.id),
+        ),
+      );
+      for (const parent of read.parents) {
+        const truncated = truncatedRecurrence(parent, splitAt);
+        if (!truncated) {
+          await integration.deleteEvent(read.googleCalendarId, parent.id);
+          continue;
+        }
+        await integration.patchEvent(parent.id, {
+          calendarId: read.googleCalendarId,
+          recurrence: truncated.lines,
+          description: truncated.description,
+        });
+      }
+    }
+  } catch (error) {
+    return { ok: false, error: describeError(error, "Could not update the rest of the series") };
+  }
+
+  const affectedGoogleIds = new Set([
+    ...oldReads.map((read) => read.googleCalendarId),
+    ...successorCreates.map((copy) => copy.googleCalendarId),
+  ]);
+  await Promise.all([
+    logAction({
+      ...actorFromSession(session),
+      action: AUDIT_ACTIONS.eventUpdate,
+      entityType: "calendar",
+      entityId: newTargets[0] ?? ref.calendarId,
+      entityName: renderEventTitle({
+        description: effectiveInput.title,
+        eventType: titleContext.eventType,
+        people: titleContext.people,
+        departments: titleContext.departments,
+        location: effectiveInput.location,
+        recipe: titleContext.recipe,
+        timeOption: effectiveInput.timeOption,
+        startTime: naiveTimePart(effectiveInput.start),
+        endTime: naiveTimePart(effectiveInput.end),
+        startAmPm: effectiveInput.startAmPm,
+        endAmPm: effectiveInput.endAmPm,
+      }) || "Untitled event",
+      method: "updateEvent",
+      details: {
+        eventId: ref.eventId,
+        seriesScope: "This and following",
+        splitAt,
+        successorEventId: successorId,
+        repeats: successorRule ? recurrenceSummary(successorRule, effectiveInput.start) : null,
+      },
+    }),
+    invalidateGcalCalendarCache([...affectedGoogleIds]),
+    invalidatePinnedCache(),
+  ]);
+  const successorWindow = absEventRange(
+    effectiveInput.start,
+    effectiveInput.end,
+    effectiveInput.timeOption !== "range",
+  );
+  const kahWindow = recurringKahWindow(
+    successorRule,
+    effectiveInput.start,
+    successorWindow,
+    effectiveInput.timeOption !== "range",
+  );
+  if (kahWindow) {
+    dispatchKahBreachCheck({
+      windowStart: kahWindow.start,
+      windowEnd: kahWindow.end,
+      allDay: effectiveInput.timeOption !== "range",
+      eventTitle: "Split repeating event",
+      actor: actorFromSession(session),
+      savedEventOverseas: effectiveInput.outOfCamp && effectiveInput.overseas,
+      savedEventUserIds: effectiveInput.inviteeUserIds,
+    });
+  }
+  return {
+    ok: true,
+    eventId: ref.eventId,
+    successorEventId: successorId,
+    copies: successorCreates.map(({ target, googleEventId }) => ({
+      calendarId: target,
+      googleEventId,
+    })),
+    scope: "following",
+  };
+}
+
+/** Find an already-created successor after a failed/retried split. */
+async function findExistingSuccessor(
+  googleCalendarId: string,
+  sourceEventId: string | null,
+  splitAt: string,
+): Promise<GcalEventItem | null> {
+  if (!sourceEventId) {
+    return null;
+  }
+  const integration = await getGoogleIntegration();
+  const range = withMargin(absEventRange(splitAt, splitAt, false));
+  const items = await integration.listEvents(googleCalendarId, range.start, range.end, {
+    singleEvents: false,
+  });
+  return (
+    items.find((item) => {
+      if (item.recurringEventId) {
+        return false;
+      }
+      const notes = parseEventNotes(item.description);
+      return notes?.splitFromEventId === sourceEventId && notes?.splitAt === splitAt;
+    }) ?? null
+  );
 }
 
 /**
@@ -1007,6 +1914,8 @@ export async function setEventRegistration(
       inviteeDepartmentIds: values.inviteeDepartments,
       ownerOnlyEdits: values.ownerOnlyEdits,
       registrationEnabled: true,
+      recurringEventId: null,
+      originalStartTime: null,
     };
     return performEventUpdate({
       session,
@@ -1017,6 +1926,7 @@ export async function setEventRegistration(
       eventId: ref.eventId,
       method: "setEventRegistration",
       mode: "registration",
+      scope: "series",
       extraAudit: {
         registration: intent === "register" ? "Registered" : "Deregistered",
       },
@@ -1026,9 +1936,290 @@ export async function setEventRegistration(
   }
 }
 
-/** Delete every linked copy of a logical event. */
-export async function deleteEvent(ref: EventRef): Promise<EventActionResult> {
+/**
+ * Delete one occurrence of a repeating series: Google marks each copy's
+ * instance cancelled. The series parent and every other occurrence remain.
+ */
+async function deleteSingleOccurrence(
+  session: Awaited<ReturnType<typeof requireSession>>,
+  ref: EventRef,
+): Promise<EventActionResult> {
+  if (!ref.recurringEventId) {
+    return { ok: false, error: "This event is not part of a repeating series" };
+  }
+  const resolved = await resolveParentRef(ref);
+  if (!resolved) {
+    return { ok: false, error: "Could not find the repeating series" };
+  }
+  const storedGuardError = await verifyStoredGuard(session, resolved.ref);
+  if (storedGuardError) {
+    return { ok: false, error: storedGuardError };
+  }
+  if (parseEventRegistrationEnabled(resolved.parent.description)) {
+    return { ok: false, error: "Registration events are edited as a series" };
+  }
+  const integration = await getGoogleIntegration();
+  const targets = await refTargetCalendars(resolved.ref);
+  const googleIds = await resolveGoogleCalendarIds(targets);
+  const deleted: EventMutationCopy[] = [];
+  let first: GcalEventItem | null = null;
+  try {
+    for (const target of targets) {
+      const googleCalendarId = googleIds[target];
+      if (!googleCalendarId) {
+        continue;
+      }
+      const found = await findOccurrenceInstances({
+        googleCalendarId,
+        eventId: resolved.ref.eventId,
+        ref,
+        input: null,
+      });
+      for (const copy of found) {
+        if (!first) {
+          first = copy;
+        }
+        await integration.deleteEvent(googleCalendarId, copy.id);
+        deleted.push({ calendarId: target, googleEventId: copy.id });
+      }
+    }
+  } catch (error) {
+    return { ok: false, error: describeError(error, "Could not delete this occurrence") };
+  }
+  if (deleted.length === 0 || !first) {
+    return { ok: false, error: "This occurrence no longer exists" };
+  }
+  const names = await Promise.all([
+    calendarNames(targets),
+    getUsersByIds([
+      ...new Set([
+        ...(resolved.ref.creatorId ? [resolved.ref.creatorId] : []),
+        ...resolved.ref.inviteeUserIds,
+      ]),
+    ]),
+  ]).catch(() => null);
+  const namesResolved: EventSnapshotNames = {
+    departmentNames: names?.[0] ?? {},
+    userNames: namesById(names?.[1] ?? []),
+  };
+  const instanceRef: EventRef = {
+    ...resolved.ref,
+    googleEventId: first.id,
+    start: first.allDay
+      ? `${utcToDateString(first.start)} 00:00:00`
+      : formatInstantToNaive(first.start),
+    end: parentEndNaive(first),
+    allDay: first.allDay,
+    recurringEventId: ref.recurringEventId,
+    originalStartTime: ref.originalStartTime,
+  };
+  const snapshot = snapshotFromCopy(instanceRef, first, namesResolved, targets);
+  const affected = [
+    ...new Set(
+      targets
+        .map((target) => googleIds[target])
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  await Promise.all([
+    logAction({
+      ...actorFromSession(session),
+      action: AUDIT_ACTIONS.eventDelete,
+      entityType: "calendar",
+      entityId: targets[0] ?? ref.calendarId,
+      entityName: snapshot.title ?? "Untitled event",
+      method: "deleteEvent",
+      details: {
+        ...snapshot,
+        eventId: resolved.ref.eventId,
+        googleEventIds: deleted.map((copy) => copy.googleEventId),
+        seriesScope: "This event",
+        occurrenceStart: ref.originalStartTime,
+      },
+    }),
+    invalidateGcalCache(affected, monthsInRange(ref.start, ref.end)),
+    invalidatePinnedCache(),
+  ]);
+  dispatchEventWebhook({
+    action: WEBHOOK_ACTIONS.eventDeleted,
+    eventId: resolved.ref.eventId,
+    googleEventIds: deleted.map((copy) => copy.googleEventId),
+    snapshot,
+    timeParts: null,
+    changes: null,
+    actor: webhookActorFrom(session),
+    occurredAt: new Date(),
+  });
+  return { ok: true, eventId: resolved.ref.eventId, copies: deleted, scope: "single" };
+}
+
+/**
+ * Delete this and following occurrences: truncate each old parent before the
+ * split and remove the old pattern's future exceptions.
+ */
+async function deleteFollowingOccurrence(
+  session: Awaited<ReturnType<typeof requireSession>>,
+  ref: EventRef,
+): Promise<EventActionResult> {
+  if (!ref.recurringEventId) {
+    return { ok: false, error: "This event is not part of a repeating series" };
+  }
+  const resolved = await resolveParentRef(ref);
+  if (!resolved) {
+    return { ok: false, error: "Could not find the repeating series" };
+  }
+  const storedGuardError = await verifyStoredGuard(session, resolved.ref);
+  if (storedGuardError) {
+    return { ok: false, error: storedGuardError };
+  }
+  if (parseEventRegistrationEnabled(resolved.parent.description)) {
+    return { ok: false, error: "Registration events are edited as a series" };
+  }
+  if (!resolved.ref.eventId) {
+    return {
+      ok: false,
+      error: "This repeating series was created outside the app; edit this occurrence only",
+    };
+  }
+  const integration = await getGoogleIntegration();
+  const seriesStart = parentStartNaive(resolved.parent);
+  const parentRule =
+    parseEventRecurrence(resolved.parent.description) ?? parseRRule(resolved.parent.recurrence).rule;
+  if (!parentRule) {
+    return {
+      ok: false,
+      error: "This series uses a custom repeat rule; edit it in Google Calendar",
+    };
+  }
+  let splitAt = ref.originalStartTime ?? null;
+  if (!splitAt) {
+    const googleCalendarId = await resolveGoogleCalendarId(ref.calendarId);
+    const instance = googleCalendarId
+      ? await integration.getEvent(googleCalendarId, ref.googleEventId)
+      : null;
+    splitAt = instance?.originalStartTime
+      ? normalizeOriginalStartTime(instance.originalStartTime, instance.allDay)
+      : null;
+  }
+  if (!splitAt) {
+    return { ok: false, error: "Could not resolve the occurrence to split at" };
+  }
+  const index = occurrenceIndex(parentRule, seriesStart, splitAt);
+  if (index !== null && index <= 1) {
+    return deleteEvent(resolved.ref, "series");
+  }
+  const eventId = resolved.ref.eventId as string;
+  const targets = await refTargetCalendars(resolved.ref);
+  const googleIds = await resolveGoogleCalendarIds(targets);
+  const oldRange = withMargin(
+    absEventRange(seriesStart, parentEndNaive(resolved.parent), resolved.parent.allDay),
+  );
+  const finiteEnd = lastOccurrence(parentRule, seriesStart);
+  const exceptionEnd = finiteEnd
+    ? finiteEnd.slice(0, 10)
+    : addDays(seriesStart.slice(0, 10), 365 * EXCEPTION_SCAN_HORIZON_YEARS);
+  let firstCopy: GcalEventItem | null = null;
+  const affected: string[] = [];
+  try {
+    for (const target of targets) {
+      const googleCalendarId = googleIds[target];
+      if (!googleCalendarId) {
+        continue;
+      }
+      const parents = await findCopies(
+        googleCalendarId,
+        eventId,
+        oldRange,
+        null,
+        { parents: true },
+      );
+      if (parents.length === 0) {
+        continue;
+      }
+      firstCopy = firstCopy ?? parents[0];
+      affected.push(googleCalendarId);
+      const exceptions = await listSeriesExceptions({
+        googleCalendarId,
+        parentId: parents[0].id,
+        fromNaive: `${splitAt.slice(0, 10)} 00:00:00`,
+        toNaive: exceptionEnd,
+      });
+      await Promise.allSettled(
+        exceptions.map((exception) => integration.deleteEvent(googleCalendarId, exception.id)),
+      );
+      for (const parent of parents) {
+        const truncated = truncatedRecurrence(parent, splitAt);
+        if (!truncated) {
+          await integration.deleteEvent(googleCalendarId, parent.id);
+          continue;
+        }
+        await integration.patchEvent(parent.id, {
+          calendarId: googleCalendarId,
+          recurrence: truncated.lines,
+          description: truncated.description,
+        });
+      }
+    }
+  } catch (error) {
+    return { ok: false, error: describeError(error, "Could not delete the rest of the series") };
+  }
+  if (!firstCopy) {
+    return { ok: false, error: "Could not find the repeating series" };
+  }
+  const names = await Promise.all([
+    calendarNames(targets),
+    getUsersByIds([
+      ...new Set([
+        ...(resolved.ref.creatorId ? [resolved.ref.creatorId] : []),
+        ...resolved.ref.inviteeUserIds,
+      ]),
+    ]),
+  ]).catch(() => null);
+  const namesResolved: EventSnapshotNames = {
+    departmentNames: names?.[0] ?? {},
+    userNames: namesById(names?.[1] ?? []),
+  };
+  const snapshot = snapshotFromCopy(resolved.ref, firstCopy, namesResolved, targets);
+  await Promise.all([
+    logAction({
+      ...actorFromSession(session),
+      action: AUDIT_ACTIONS.eventUpdate,
+      entityType: "calendar",
+      entityId: targets[0] ?? ref.calendarId,
+      entityName: snapshot.title ?? "Untitled event",
+      method: "deleteEvent",
+      details: {
+        ...snapshot,
+        eventId: resolved.ref.eventId,
+        seriesScope: "This and following (delete)",
+        splitAt,
+      },
+    }),
+    invalidateGcalCalendarCache(affected),
+    invalidatePinnedCache(),
+  ]);
+  dispatchEventWebhook({
+    action: WEBHOOK_ACTIONS.eventUpdated,
+    eventId: resolved.ref.eventId,
+    googleEventIds: [],
+    snapshot,
+    timeParts: null,
+    changes: null,
+    actor: webhookActorFrom(session),
+    occurredAt: new Date(),
+  });
+  return { ok: true, eventId: resolved.ref.eventId, copies: [], scope: "following" };
+}
+
+/** Delete every linked copy of a logical event, or one scope of a repeating one. */
+export async function deleteEvent(
+  ref: EventRef,
+  scope?: EventMutationScope,
+): Promise<EventActionResult> {
   const session = await requireSession();
+  if (ref.recurringEventId && !scope) {
+    return { ok: false, error: "Choose what to delete for this repeating event" };
+  }
   // Same modification guard as updateEvent: organizer / attendees / active
   // members of tagged departments, blocked by the owner-only lock, admins
   // always pass, creator-less people-less (external) events are admin-only.
@@ -1051,12 +2242,39 @@ export async function deleteEvent(ref: EventRef): Promise<EventActionResult> {
     return { ok: false, error: "Google Calendar is not configured" };
   }
 
+  if (scope === "single") {
+    return deleteSingleOccurrence(session, ref);
+  }
+  if (scope === "following") {
+    return deleteFollowingOccurrence(session, ref);
+  }
+
+  // Series delete: resolve the parent if the client only held an occurrence.
+  let seriesRef = ref;
+  if (ref.recurringEventId) {
+    const resolved = await resolveParentRef(ref);
+    if (!resolved) {
+      return { ok: false, error: "Could not find the repeating series" };
+    }
+    if (!resolved.ref.eventId) {
+      return {
+        ok: false,
+        error: "This repeating series was created outside the app; edit this occurrence only",
+      };
+    }
+    const storedGuardError = await verifyStoredGuard(session, resolved.ref);
+    if (storedGuardError) {
+      return { ok: false, error: storedGuardError };
+    }
+    seriesRef = resolved.ref;
+  }
+
   const [targets, fallback, integration] = await Promise.all([
-    refTargetCalendars(ref),
-    legacyFallback(ref),
+    refTargetCalendars(seriesRef),
+    legacyFallback(seriesRef),
     getGoogleIntegration(),
   ]);
-  const range = withMargin(absEventRange(ref.start, ref.end, ref.allDay));
+  const range = withMargin(absEventRange(seriesRef.start, seriesRef.end, seriesRef.allDay));
   // The first existing copy found is the event's state for the audit row.
   let firstCopy: GcalEventItem | null = null;
   // Names for the audit snapshot are independent of the Google deletes: start
@@ -1081,7 +2299,9 @@ export async function deleteEvent(ref: EventRef): Promise<EventActionResult> {
       if (!googleCalendarId) {
         return { target, googleCalendarId: null, found: [] as GcalEventItem[] };
       }
-      const found = await findCopies(googleCalendarId, ref.eventId ?? "", range, fallback);
+      const found = await findCopies(googleCalendarId, seriesRef.eventId ?? "", range, fallback, {
+        parents: true,
+      });
       return { target, googleCalendarId, found };
     });
   } catch (error) {
@@ -1133,7 +2353,7 @@ export async function deleteEvent(ref: EventRef): Promise<EventActionResult> {
   // gone); degrade the audit snapshot's display names instead.
   const namesResult = await namesPromise;
   const snapshot = snapshotFromCopy(
-    ref,
+    seriesRef,
     firstCopy,
     {
       departmentNames: namesResult?.[0] ?? {},
@@ -1141,6 +2361,7 @@ export async function deleteEvent(ref: EventRef): Promise<EventActionResult> {
     },
     targets,
   );
+  const isSeries = scope === "series" || Boolean(ref.recurringEventId);
   // Independent writes on the response path: run them concurrently instead of
   // paying three serial round trips. Cache invalidation stays awaited so the
   // client's post-delete re-read cannot race a pre-delete cache row.
@@ -1149,21 +2370,27 @@ export async function deleteEvent(ref: EventRef): Promise<EventActionResult> {
       ...actorFromSession(session),
       action: AUDIT_ACTIONS.eventDelete,
       entityType: "calendar",
-      entityId: ref.calendarId,
+      entityId: seriesRef.calendarId,
       entityName: snapshot.title ?? "Untitled event",
       method: "deleteEvent",
       details: {
         ...snapshot,
-        eventId: ref.eventId,
+        eventId: seriesRef.eventId,
         googleEventIds: deletedGoogleEventIds,
+        ...(isSeries ? { seriesScope: "All events" } : {}),
       },
     }),
-    invalidateGcalCache([...affectedGoogleIds], monthsInRange(ref.start, ref.end)),
+    isSeries
+      ? invalidateGcalCalendarCache([...affectedGoogleIds])
+      : invalidateGcalCache(
+          [...affectedGoogleIds],
+          monthsInRange(seriesRef.start, seriesRef.end),
+        ),
     invalidatePinnedCache(),
   ]);
   dispatchEventWebhook({
     action: WEBHOOK_ACTIONS.eventDeleted,
-    eventId: ref.eventId,
+    eventId: seriesRef.eventId,
     googleEventIds: deletedGoogleEventIds,
     snapshot,
     timeParts: null,
@@ -1171,5 +2398,5 @@ export async function deleteEvent(ref: EventRef): Promise<EventActionResult> {
     actor: webhookActorFrom(session),
     occurredAt: new Date(),
   });
-  return { ok: true, eventId: ref.eventId, copies: deletedCopies };
+  return { ok: true, eventId: seriesRef.eventId, copies: deletedCopies };
 }

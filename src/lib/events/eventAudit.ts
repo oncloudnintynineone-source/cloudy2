@@ -15,12 +15,14 @@ import {
   parseEventPinned,
   parseEventRegistrationCap,
   parseEventRegistrationEnabled,
+  parseEventRecurrence,
   parseEventStartAmPm,
   parseEventTimeOption,
   parseEventTitle,
   parseEventType,
 } from "./notes";
 import type { AmPm, TimeOption } from "./timeOptions";
+import { recurrenceSummary } from "./recurrence";
 import type { EventRef } from "./targets";
 
 /** Human-readable snapshot of one event, for audit log details. */
@@ -42,6 +44,8 @@ export type EventAuditSnapshot = {
   registrationEnabled: boolean;
   /** Maximum explicit registrants; null when uncapped or not a registration event. */
   registrationCap: number | null;
+  /** Human repeat summary; null for one-off events. */
+  repeats: string | null;
   /** Out-of-camp destination; null for in-camp events. */
   location: string | null;
   /** Names of the department calendars the event lives in. */
@@ -133,6 +137,8 @@ export function buildEventSnapshot(input: {
   pinned: boolean;
   registrationEnabled: boolean;
   registrationCap: number | null;
+  /** Pre-formatted repeat summary; null for one-off events. */
+  repeats?: string | null;
   location: string;
   departmentIds: string[];
   inviteeUserIds: string[];
@@ -149,6 +155,7 @@ export function buildEventSnapshot(input: {
     pinned: input.pinned,
     registrationEnabled: input.registrationEnabled,
     registrationCap: input.registrationCap,
+    repeats: input.repeats ?? null,
     location: input.location.trim() || null,
     departments: input.departmentIds
       .map((id) => input.names.departmentNames[id])
@@ -176,6 +183,7 @@ export function snapshotFromCopy(
   departmentIds: string[],
 ): EventAuditSnapshot {
   const description = copy?.description ?? "";
+  const recurrence = parseEventRecurrence(description);
   return buildEventSnapshot({
     title: copy?.title ?? "",
     description: parseEventTitle(description) ?? "",
@@ -192,6 +200,7 @@ export function snapshotFromCopy(
     pinned: parseEventPinned(description),
     registrationEnabled: parseEventRegistrationEnabled(description),
     registrationCap: parseEventRegistrationCap(description),
+    repeats: recurrence ? recurrenceSummary(recurrence, ref.start) : null,
     location: copy?.location ?? "",
     departmentIds,
     inviteeUserIds: ref.inviteeUserIds,

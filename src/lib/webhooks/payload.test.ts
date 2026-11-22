@@ -67,6 +67,7 @@ describe("buildEventWebhookPayload", () => {
         pinned: true,
         registrationEnabled: false,
         registrationCap: null,
+        repeats: null,
         location: "Range North",
         departments: ["Alpha", "Bravo"],
         invitees: ["Bob", "Alice"],

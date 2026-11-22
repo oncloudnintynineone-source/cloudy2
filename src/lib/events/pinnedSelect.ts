@@ -1,4 +1,5 @@
 import type { CalendarEvent } from "./queries";
+import { collapseSeriesEvents } from "./occurrence";
 
 /**
  * Keep only the explicitly-pinned events (an event is pinned only when the
@@ -37,8 +38,9 @@ export function selectPinnedEventsForDepartments(
 
 /**
  * Keep explicitly-pinned events, drop any whose end time has already passed
- * (compare the full naive `YYYY-MM-DD HH:mm:ss` end against `nowNaive`), and
- * sort by start time ascending. Pure — unit-tested without a DB or Google.
+ * (compare the full naive `YYYY-MM-DD HH:mm:ss` end against `nowNaive`), sort
+ * by start time ascending, then collapse a repeating series to its next
+ * upcoming occurrence (one ticker/panel row per logical event). Pure.
  */
 export function selectUpcomingPinnedEvents(
   events: CalendarEvent[],
@@ -47,5 +49,5 @@ export function selectUpcomingPinnedEvents(
   const pinned = selectPinnedEvents(events);
   const upcoming = pinned.filter((e) => e.end > nowNaive);
   upcoming.sort((a, b) => a.start.localeCompare(b.start));
-  return upcoming;
+  return collapseSeriesEvents(upcoming);
 }

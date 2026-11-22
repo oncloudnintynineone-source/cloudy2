@@ -72,9 +72,12 @@ pipeline solves:
 **Non-goals**
 
 - Google Calendar remains the single source of truth; the app keeps no event table.
-- No recurring events, reminders, or attendees: `GcalEventInput.attendees` exists in the
+- No reminders or attendees: `GcalEventInput.attendees` exists in the
   contract but the app does not set it — visibility is expressed through calendar ACLs
   ([`roster-sharing.md`](roster-sharing.md)), not per-event attendees.
+- Recurring events are supported as Google recurring series; see
+  [`recurring-events.md`](recurring-events.md) for the Repeat step, scopes and
+  occurrence identity.
 - No client-side title rendering is authoritative: the form's preview is a convenience
   (§1.8.3).
 

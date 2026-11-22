@@ -155,6 +155,15 @@ doc content here.
   route → login hop → the `?event=` details deep link) — the URL carries the whole
   target, nothing is stored.
   Design: [docs/event-lifecycle.md](docs/event-lifecycle.md), [docs/event-mutations.md](docs/event-mutations.md).
+- **Recurring events:** Google recurring parents (`RRULE`) with the compact rule
+  mirrored in the notes block; occurrences are identified by
+  `recurringEventId` + `originalStartTime`, and the read path dedupes department
+  copies per **occurrence**, never per group. The wizard has a Repeat step;
+  edit/delete offer This event / This and following / All events (scope is
+  chosen before the wizard, followed by a read-only series prefill action).
+  "This and following" creates a successor group and truncates the old series;
+  registration is series-level. Design:
+  [docs/recurring-events.md](docs/recurring-events.md).
 - **Event-type rename migration:** events reference their type by **name** in the notes
   block, so a rename leaves existing Google copies stale. Settings → Event Types →
   **Migrate events** rewrites notes (and optionally Google summaries) in chunked,

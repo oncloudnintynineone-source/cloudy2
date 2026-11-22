@@ -10811,4 +10811,35 @@ tests); `pnpm build` green; `pnpm db:generate` shows no schema diff. Manual QA c
 settings tabs at 360/640/1024, every dialog's open → close → immediate reopen, nested
 z-index, reduced motion and the settings/loading/deep-link routes.
 
+## Recurring events (1.404)
+
+**Goal.** Google-native repeating events with the three native edit/delete scopes, without
+collapsing the series in the app or leaving orphan copies.
+
+**Storage.** Google's parent `recurrence` (RRULE) is authoritative; the notes block mirrors a
+compact `{freq, interval, byWeekday?, count?, until?}` rule plus `override` and
+`splitFromEventId`/`splitAt`. Occurrence identity is the notes group id + Google's
+`recurringEventId`/`originalStartTime`.
+
+**Read path.** `dedupeEventsByOccurrence` replaces group-only dedupe; Pinned Events and My
+Events collapse a series to one row; deep links pick the occurrence by `?date=`; KAH/clash
+dedupe by occurrence and suppress same-series self-clashes.
+
+**Write path.** Repeat step + validation; create writes the RRULE and SGT timeZone; This
+event creates an exception per target, This and following creates a successor first, removes
+future exceptions then truncates the old parents (idempotent via lineage notes), All events
+full-replaces each parent preserving EXDATE/RDATE and resets exceptions on a pattern change.
+Registration is series-level; single/following edits/deletes are rejected there.
+
+**Google layer.** `getEvent`, recurrence/timeZone writes, `singleEvents:false` list mode
+(also fixes the event-type migration), `_R` PUT→PATCH fallback, occurrence metadata in the
+cache codec, whole-calendar invalidation for series mutations.
+
+**Deferred.** Per-occurrence registration, Google custom repeat patterns, multi-occurrence
+clash advisories; external/custom series are occurrence-only.
+
+**Verification.** `pnpm lint`, `pnpm typecheck`, `pnpm test` green (159 files / 1992 tests).
+No schema migration.
+
+
 

@@ -194,6 +194,9 @@ export async function runMigrationChunk(input: MigrationChunkInput): Promise<Run
           window.start,
           window.end,
           cursor.pageToken ?? undefined,
+          // Series parents only: patching every expanded instance would create
+          // hundreds of exceptions instead of rewriting the series.
+          { singleEvents: false },
         );
       } catch (error) {
         const message = error instanceof Error ? error.message : "Google Calendar request failed";

@@ -67,6 +67,8 @@ export interface EventWebhookPayload {
     registrationEnabled: boolean;
     /** Explicit registrant cap; null when uncapped or not a registration event. */
     registrationCap: number | null;
+    /** Human repeat summary; null for one-off events. */
+    repeats: string | null;
     location: string | null;
     departments: string[];
     invitees: string[];
@@ -98,6 +100,7 @@ export function buildEventWebhookPayload(input: EventWebhookInput): EventWebhook
     pinned: input.snapshot.pinned,
     registrationEnabled: input.snapshot.registrationEnabled,
     registrationCap: input.snapshot.registrationCap,
+    repeats: input.snapshot.repeats,
     location: input.snapshot.location,
     departments: [...input.snapshot.departments],
     invitees: [...input.snapshot.invitees],

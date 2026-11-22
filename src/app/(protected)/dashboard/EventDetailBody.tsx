@@ -8,6 +8,7 @@ import {
   Group,
   Menu,
   Progress,
+  Radio,
   Stack,
   Text,
   Tooltip,
@@ -35,8 +36,9 @@ import { EventHistoryModal } from "@/components/EventHistoryModal";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { useActionPill } from "@/components/ActionPill";
 import { PickerBadges, type PickerBadgeItem } from "@/components/PickerField";
-import { deleteEvent, setEventRegistration, type EventActionOk } from "@/lib/events/actions";
+import { deleteEvent, setEventRegistration, type EventActionOk, type EventMutationScope } from "@/lib/events/actions";
 import { buildEventIcs, buildGoogleCalendarUrl, icsFileName } from "@/lib/events/calendarExport";
+import { loadEventSeriesPrefill } from "@/lib/events/seriesActions";
 import { subOneDay } from "@/lib/events/datetime";
 import { buildEventDeepLink } from "@/lib/events/deepLink";
 import { prefetchEventHistory } from "@/lib/events/historyCache";
@@ -61,7 +63,7 @@ const DETAIL_BADGE_CAP = 5;
 export interface EventDetailProps {
   event: CalendarEvent | null;
   onClose: () => void;
-  onEdit: (event: CalendarEvent, originRect: Rect | null) => void;
+  onEdit: (event: CalendarEvent, originRect: Rect | null, scope?: EventMutationScope | null) => void;
   onDuplicate: (event: CalendarEvent, originRect: Rect | null) => void;
   onDeleted: () => void;
   /** Optimistic deletion: the row disappears on confirm, before the action returns. */
@@ -188,6 +190,23 @@ export function EventDetailBody({
   // always deregister, and organizers/admins manage the roster via the wizard.
   const registrationFull = registrationAtCapacity && !isRegistered;
 
+  // Repeating-series editing: an app-created series offers all three scopes; a
+  // registration series is series-only; an external/custom series is
+  // occurrence-only (its rule cannot be safely rewritten here).
+  const isRecurring = Boolean(payload?.recurringEventId || payload?.recurrence);
+  const isExternalSeries = Boolean(payload?.recurringEventId && !payload?.recurrence);
+  const editScopes: EventMutationScope[] = !isRecurring
+    ? []
+    : registrationEnabled
+      ? ["series"]
+      : isExternalSeries
+        ? ["single"]
+        : ["single", "following", "series"];
+  const [editScopeOpen, setEditScopeOpen] = useState(false);
+  const [editScope, setEditScope] = useState<EventMutationScope>("single");
+  const [editScopeBusy, setEditScopeBusy] = useState(false);
+  const [deleteScope, setDeleteScope] = useState<EventMutationScope>("single");
+
   const ownerName = payload && payload.creatorId ? (peopleNames[payload.creatorId] ?? null) : null;
   // Attendees are the full invitee list — an organizer who tagged themselves
   // appears here too (the organizer's own Owner row above is about who manages
@@ -250,20 +269,33 @@ export function EventDetailBody({
       return;
     }
     setDeleting(true);
-    const optimisticId = nextOptimisticOpId();
     const ref = eventRefFromCalendarEvent(showEvent);
-    // Hide the row immediately; roll back only if the delete fails.
-    onOptimistic(
-      optimisticRemove(optimisticId, {
-        calendarId: ref.calendarId,
-        googleEventId: ref.googleEventId,
-        eventId: ref.eventId,
-      }),
-    );
+    const scope = isRecurring ? deleteScope : undefined;
+    // A single-occurrence delete removes the shown copy; a series/following
+    // delete can affect rows outside the current grid, so it waits for the
+    // authoritative refresh instead of staging a partial overlay.
+    const optimisticId = scope === undefined || scope === "single" ? nextOptimisticOpId() : null;
+    if (optimisticId) {
+      onOptimistic(
+        optimisticRemove(optimisticId, {
+          calendarId: ref.calendarId,
+          googleEventId: ref.googleEventId,
+          eventId: scope === "single" ? null : ref.eventId,
+          ...(scope === "single"
+            ? {
+                recurringEventId: ref.recurringEventId ?? null,
+                originalStartTime: ref.originalStartTime ?? null,
+              }
+            : {}),
+        }),
+      );
+    }
     try {
-      const result = await deleteEvent(ref);
+      const result = await deleteEvent(ref, scope);
       if (result.ok) {
-        onOptimisticSettled(optimisticId, result);
+        if (optimisticId) {
+          onOptimisticSettled(optimisticId, result);
+        }
         close();
         onDeleted();
         // Actionable confirmation → action pill (docs/ui-ux-improvements.md
@@ -275,19 +307,82 @@ export function EventDetailBody({
           const eventId = ref.eventId;
           const title = showEvent.title;
           showActionPill({
-            title: "Event deleted",
+            title:
+              scope === "following"
+                ? "Future events deleted"
+                : scope === "series"
+                  ? "Event series deleted"
+                  : "Event deleted",
             label: "History",
             onAction: () => onViewDeletedHistory({ eventId, title }),
           });
         } else {
-          notifications.show({ color: "green", message: "Event deleted" });
+          notifications.show({
+            color: "green",
+            message:
+              scope === "following"
+                ? "Future events deleted"
+                : scope === "series"
+                  ? "Event series deleted"
+                  : "Event deleted",
+          });
         }
       } else {
         notifications.show({ color: "red", message: result.error });
-        onOptimisticRollback(optimisticId);
+        if (optimisticId) {
+          onOptimisticRollback(optimisticId);
+        }
       }
     } finally {
       setDeleting(false);
+    }
+  }
+
+  async function chooseEditScope(scope: EventMutationScope) {
+    if (!showEvent) {
+      return;
+    }
+    if (!isRecurring || scope === "single") {
+      setEditScopeOpen(false);
+      onEdit(showEvent, null, isRecurring ? "single" : null);
+      return;
+    }
+    setEditScopeBusy(true);
+    try {
+      const result = await loadEventSeriesPrefill(eventRefFromCalendarEvent(showEvent), scope);
+      if (!result.ok) {
+        notifications.show({ color: "red", message: result.error });
+        return;
+      }
+      setEditScopeOpen(false);
+      if (scope === "series") {
+        if (!result.event) {
+          notifications.show({ color: "red", message: "Could not read the repeating series" });
+          return;
+        }
+        onEdit(result.event, null, "series");
+      } else {
+        onEdit(
+          {
+            ...showEvent,
+            payload: {
+              ...showEvent.payload,
+              recurrence:
+                result.recurrence && result.recurrence.count !== 1
+                  ? result.recurrence
+                  : result.recurrence?.count === 1
+                    ? null
+                    : (result.recurrence ?? null),
+            },
+          },
+          null,
+          "following",
+        );
+      }
+    } catch {
+      notifications.show({ color: "red", message: "Could not read the repeating series" });
+    } finally {
+      setEditScopeBusy(false);
     }
   }
 
@@ -350,6 +445,19 @@ export function EventDetailBody({
                 <Text size="sm" c="dimmed">
                   {formatDateTime(showEvent.start, false)} – {endDisplay}
                 </Text>
+              )}
+
+              {(payload.recurrenceSummary || isRecurring) && (
+                <Group gap={6} wrap="wrap">
+                  <Badge variant="light" color="brand">
+                    {payload.recurrenceSummary ?? "Repeats (custom)"}
+                  </Badge>
+                  {payload.occurrenceOverride && (
+                    <Badge variant="light" color="yellow">
+                      Modified occurrence
+                    </Badge>
+                  )}
+                </Group>
               )}
 
               <Text size="xs" c="dimmed" fw={600}>
@@ -548,7 +656,14 @@ export function EventDetailBody({
                         color="gray"
                         size="xl"
                         aria-label="Edit event"
-                        onClick={(e) => onEdit(showEvent, e.currentTarget.getBoundingClientRect())}
+                        onClick={(e) => {
+                          if (isRecurring) {
+                            setEditScope(editScopes[0] ?? "single");
+                            setEditScopeOpen(true);
+                            return;
+                          }
+                          onEdit(showEvent, e.currentTarget.getBoundingClientRect());
+                        }}
                       >
                         <IconPencil size={22} />
                       </ActionIcon>
@@ -559,27 +674,41 @@ export function EventDetailBody({
                         color="red"
                         size="xl"
                         aria-label="Delete event"
-                        onClick={open}
+                        onClick={() => {
+                          if (isRecurring) {
+                            setDeleteScope((current) =>
+                              editScopes.includes(current) ? current : (editScopes[0] ?? "single"),
+                            );
+                          }
+                          open();
+                        }}
                       >
                         <IconTrash size={22} />
                       </ActionIcon>
                     </Tooltip>
                   </Group>
                   {registrationAvailable && (
-                    <Button
-                      size="md"
-                      color={isRegistered ? "gray" : "brand"}
-                      variant={isRegistered ? "light" : "filled"}
-                      loading={registrationBusy}
-                      disabled={registrationFull}
-                      loaderProps={BUTTON_LOADER_PROPS}
-                      leftSection={
-                        isRegistered ? <IconUserMinus size={18} /> : <IconUserPlus size={18} />
-                      }
-                      onClick={handleRegistration}
-                    >
-                      {isRegistered ? "Deregister" : "Register"}
-                    </Button>
+                    <Stack gap={4}>
+                      <Button
+                        size="md"
+                        color={isRegistered ? "gray" : "brand"}
+                        variant={isRegistered ? "light" : "filled"}
+                        loading={registrationBusy}
+                        disabled={registrationFull}
+                        loaderProps={BUTTON_LOADER_PROPS}
+                        leftSection={
+                          isRegistered ? <IconUserMinus size={18} /> : <IconUserPlus size={18} />
+                        }
+                        onClick={handleRegistration}
+                      >
+                        {isRegistered ? "Deregister" : "Register"}
+                      </Button>
+                      {isRecurring && (
+                        <Text size="xs" c="dimmed">
+                          Registration applies to every occurrence in the series.
+                        </Text>
+                      )}
+                    </Stack>
                   )}
                 </Stack>
               ) : registrationAvailable ? (
@@ -634,12 +763,63 @@ export function EventDetailBody({
         <ConfirmModal
           opened={confirmOpen}
           onClose={close}
-          title="Delete event"
+          title={isRecurring ? "Delete repeating event" : "Delete event"}
           message={<>Delete &quot;{showEvent.title}&quot;?</>}
           loading={deleting}
           onConfirm={handleDelete}
-        />
+        >
+          {isRecurring && (
+            <Radio.Group
+              value={deleteScope}
+              onChange={(value) => setDeleteScope(value as EventMutationScope)}
+              aria-label="Delete scope"
+            >
+              <Stack gap={6} mt="xs">
+                {editScopes.includes("single") && <Radio value="single" label="This event" />}
+                {editScopes.includes("following") && (
+                  <Radio value="following" label="This and following events" />
+                )}
+                {editScopes.includes("series") && (
+                  <Radio value="series" label="All events in the series" />
+                )}
+              </Stack>
+            </Radio.Group>
+          )}
+        </ConfirmModal>
       )}
+
+      <ConfirmModal
+        opened={editScopeOpen}
+        onClose={() => setEditScopeOpen(false)}
+        title="Edit repeating event"
+        confirmLabel="Continue"
+        confirmColor="brand"
+        loading={editScopeBusy}
+        onConfirm={() => void chooseEditScope(editScope)}
+      >
+        <Radio.Group
+          value={editScope}
+          onChange={(value) => setEditScope(value as EventMutationScope)}
+          aria-label="Edit scope"
+        >
+          <Stack gap={6}>
+            <Radio value="single" label="This event" />
+            {editScopes.includes("following") && (
+              <Radio value="following" label="This and following events" />
+            )}
+            {editScopes.includes("series") && (
+              <Radio value="series" label="All events in the series" />
+            )}
+          </Stack>
+        </Radio.Group>
+        <Text size="xs" c="dimmed" mt="xs">
+          {isExternalSeries
+            ? "This series was created outside the app. Only this occurrence can be edited here."
+            : registrationEnabled
+              ? "Registration events are edited as a whole series."
+              : "This event is part of a repeating series."}
+        </Text>
+      </ConfirmModal>
 
       <EventHistoryModal
         eventId={historyEventId}

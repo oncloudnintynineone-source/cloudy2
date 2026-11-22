@@ -124,6 +124,7 @@ export async function resolveDeepLinkTarget(
       }),
     ),
     eventId,
+    input.date,
   );
 }
 

@@ -351,6 +351,13 @@ flowchart LR
 - The three response-path writes (audit, month-cache purge, pinned drop) are independent
   and run under one `Promise.all`; cache invalidation is still awaited before the action
   resolves so the dashboard's immediate re-read cannot serve a pre-mutation row.
+- Recurring events add occurrence metadata to each cached item (`recurringEventId`,
+  `originalStartTime`, and, for unexpanded parent reads, `recurrence`). A **series** or
+  **this and following** mutation can affect months arbitrarily far ahead (a Forever
+  series), so those paths call `invalidateGcalCalendarCache(googleCalendarIds)` — the
+  whole calendar's rows, in one statement, with the same epoch bump — instead of a month
+  list. Single-occurrence edits keep the month-scoped invalidation. See
+  [`recurring-events.md`](recurring-events.md) §1.12.
 - `invalidateGcalCache` bumps the epoch and deletes the database rows in **one**
   data-modifying CTE (`eventsCache.ts`), then drops the local L1/in-flight entries
   synchronously. The bump still commits atomically with the delete, so a background

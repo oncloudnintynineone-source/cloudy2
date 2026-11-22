@@ -12,6 +12,7 @@
 
 import { formatInstantToNaive, shiftMonth } from "@/lib/events/datetime";
 import type { CalendarEvent } from "@/lib/events/queries";
+import { findEventByOccurrence } from "@/lib/events/occurrence";
 import { isUuid } from "@/lib/uuid";
 
 export interface EventDeepLinkInput {
@@ -42,15 +43,17 @@ export function buildEventDeepLink(input: EventDeepLinkInput): string {
   return `/dashboard?${params.toString()}`;
 }
 
-/** The copy of a logical event (by group id) in a fetched set, or null. */
+/**
+ * The copy/occurrence of a logical event (by group id) in a fetched set, or
+ * null. When `date` is given (the deep link's `?date=`), the occurrence whose
+ * start day matches wins; otherwise the earliest occurrence is returned.
+ */
 export function findEventByGroupId(
   events: readonly CalendarEvent[],
   eventId: string | null | undefined,
+  date?: string | null,
 ): CalendarEvent | null {
-  if (!eventId) {
-    return null;
-  }
-  return events.find((event) => event.payload.eventId === eventId) ?? null;
+  return findEventByOccurrence(events, eventId, date);
 }
 
 const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;

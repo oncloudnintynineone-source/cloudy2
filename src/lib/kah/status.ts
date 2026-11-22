@@ -18,6 +18,7 @@ import { effectiveEventWindow } from "@/lib/events/clashes";
 import { conflictWindowNaive } from "@/lib/events/clashDisplay";
 import { addOneDay, formatInstantToNaive, monthsInRange, parseNaiveToInstant } from "@/lib/events/datetime";
 import { effectiveCalendarColor, effectiveEventTypeColor } from "@/lib/events/eventColors";
+import { normalizeOriginalStartTime } from "@/lib/events/occurrence";
 import {
   isExternalEvent,
   parseEventEndAmPm,
@@ -199,6 +200,10 @@ export interface KahBreachEvent extends KahOverseasEvent {
   googleEventId: string;
   /** Logical group id shared by all department copies, or null (legacy/external). */
   eventId: string | null;
+  /** Google parent id when this copy is an instance of a recurring series. */
+  recurringEventId?: string | null;
+  /** Normalised original slot of that instance (date for all-day, naive SGT otherwise). */
+  originalStartTime?: string | null;
   /** The stored Google Calendar summary. */
   title: string;
   /** Event type name from the notes block, or null (untyped/external). */
@@ -316,6 +321,10 @@ export async function overseasEventEntriesInRange(
           calendarName: calendar.name,
           googleEventId: item.id,
           eventId: people.eventId,
+          recurringEventId: item.recurringEventId ?? null,
+          originalStartTime: item.originalStartTime
+            ? normalizeOriginalStartTime(item.originalStartTime, item.allDay)
+            : null,
           title: item.title || "(no title)",
           typeName,
           typeShortname: typeInfo?.shortname ?? null,
@@ -515,32 +524,32 @@ export function kahBreachEpisodes(perDay: KahDayStatus[], today: string): KahBre
 }
 
 /**
- * Collapse cross-calendar copies of one logical event (same notes `eventId`)
- * into a single representative. A cross-department event is copied onto every
- * target calendar, so the KAH all-calendars read sees the same logical event
- * repeatedly; the away-set union ignores duplicates but the breach cards must
- * render it once. Events without a group id (external/legacy) are deduped by
- * (calendar, Google id). Pure.
+ * Collapse cross-calendar copies of one occurrence into a single representative.
+ * A repeating series' different occurrences stay distinct (they share the group
+ * id but not `originalStartTime`); events without a group id (external/legacy)
+ * are deduped by (calendar, Google id). Pure.
  */
 export function dedupeOverseasEventsByGroupId<
-  T extends { eventId: string | null; calendarId: string; googleEventId: string },
+  T extends {
+    eventId: string | null;
+    calendarId: string;
+    googleEventId: string;
+    recurringEventId?: string | null;
+    originalStartTime?: string | null;
+  },
 >(events: readonly T[]): T[] {
-  const seenGroups = new Set<string>();
-  const seenCopies = new Set<string>();
+  const seen = new Set<string>();
   const result: T[] = [];
   for (const event of events) {
-    if (event.eventId) {
-      if (seenGroups.has(event.eventId)) {
-        continue;
-      }
-      seenGroups.add(event.eventId);
-    } else {
-      const key = `${event.calendarId}:${event.googleEventId}`;
-      if (seenCopies.has(key)) {
-        continue;
-      }
-      seenCopies.add(key);
+    const base = event.eventId ?? `${event.calendarId}:${event.googleEventId}`;
+    const key =
+      event.eventId && (event.recurringEventId || event.originalStartTime)
+        ? `${base}:${event.originalStartTime ?? event.googleEventId}`
+        : base;
+    if (seen.has(key)) {
+      continue;
     }
+    seen.add(key);
     result.push(event);
   }
   return result;

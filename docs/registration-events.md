@@ -39,6 +39,11 @@ event store would duplicate identity, notes, copies, audit and cache logic.
 (like `pinned` and `ownerOnlyEdits`). There is no event-type setting: the event
 type is only a template for other form fields.
 
+On a repeating event the flag is **series-level**: the roster and cap apply to every
+occurrence, and single-occurrence edits/deletes are rejected. `setEventRegistration`
+resolves the Google parent and runs the shared update with the series scope. See
+[`recurring-events.md`](recurring-events.md) §1.11 for the per-occurrence alternative.
+
 The organizer configures it in the wizard's **Other settings** step as **Open
 for registration**. The switch is only available once **“Only I can edit this
 event”** (the organizer-only lock) is on, and enabling registration forces that

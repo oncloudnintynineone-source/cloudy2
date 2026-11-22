@@ -178,6 +178,8 @@ describe("eventRefFromCalendarEvent", () => {
       inviteeDepartmentIds: ["cal-9"],
       ownerOnlyEdits: true,
       registrationEnabled: false,
+      recurringEventId: null,
+      originalStartTime: null,
     });
   });
 

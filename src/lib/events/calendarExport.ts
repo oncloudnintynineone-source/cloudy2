@@ -15,6 +15,7 @@
 
 import { exclusiveAbsEventRange } from "@/lib/events/datetime";
 import type { CalendarEvent } from "@/lib/events/queries";
+import { recurrenceToRRule } from "@/lib/events/recurrence";
 
 const pad = (value: number): string => String(value).padStart(2, "0");
 
@@ -59,7 +60,25 @@ export function buildGoogleCalendarUrl(event: CalendarEvent): string {
   if (details) {
     params.set("details", details);
   }
+  const rrule = seriesRRule(event);
+  if (rrule) {
+    // Google's template URL takes the rule body without the `RRULE:` prefix.
+    params.set("recur", rrule.replace(/^RRULE:/i, ""));
+  }
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
+/**
+ * The RRULE a personal copy should inherit: the series rule for a generated
+ * occurrence, or null for a one-off / individually edited occurrence (whose
+ * custom time would not match the pattern).
+ */
+function seriesRRule(event: CalendarEvent): string | null {
+  const rule = event.payload.recurrence;
+  if (!rule || event.payload.occurrenceOverride) {
+    return null;
+  }
+  return recurrenceToRRule(rule, event.start, event.payload.allDay);
 }
 
 /** Escape an ICS text value (RFC 5545 §3.3.11): backslash, semicolon, comma, newline. */
@@ -124,6 +143,10 @@ export function buildEventIcs(event: CalendarEvent, now: Date = new Date()): str
   }
   if (description) {
     lines.push(`DESCRIPTION:${escapeIcsText(description)}`);
+  }
+  const rrule = seriesRRule(event);
+  if (rrule) {
+    lines.push(rrule);
   }
   lines.push("END:VEVENT", "END:VCALENDAR");
   return `${lines.map(foldIcsLine).join("\r\n")}\r\n`;

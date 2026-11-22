@@ -88,10 +88,12 @@ through `getGoogleIntegration()` / `googleCalendarConfigured()`
 
 | Method | Purpose | Notes |
 | ------ | ------- | ----- |
-| `createEvent(input)` | create an event in a calendar | returns `{ id, calendarId, htmlLink? }` |
-| `updateEvent(eventId, input)` | full-replace an event | same return shape |
+| `createEvent(input)` | create an event in a calendar | returns `{ id, calendarId, htmlLink? }`; `recurrence`/`timeZone` build a series |
+| `updateEvent(eventId, input)` | full-replace an event | `_R` sub-series fall back to PATCH |
+| `getEvent(calendarId, eventId)` | one event, including a parent's recurrence | 404 → null |
+| `patchEvent(eventId, input)` | patch title/description/recurrence | used for series truncation |
 | `deleteEvent(calendarId, eventId)` | delete an event | 404 = no-op |
-| `listEvents(calendarId, timeMin, timeMax)` | events overlapping the range | ordered by start time |
+| `listEvents(calendarId, timeMin, timeMax, { singleEvents })` | events overlapping the range | default expands instances; `false` returns parents + exceptions |
 | `searchEvents(calendarId, q, timeMin, timeMax)` | free-text search (`q`) over the range | ordered by start time |
 | `createCalendar(name)` | new calendar owned by the service account | returns `{ id, calendarId }` |
 | `renameCalendar(calendarId, name)` | rename | — |

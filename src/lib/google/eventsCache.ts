@@ -535,6 +535,41 @@ export async function invalidateGcalCache(
 }
 
 /**
+ * Purge every cached month for the given Google calendars. A recurring-series
+ * mutation can affect months arbitrarily far in the future (and the past), so
+ * enumerating month keys is impossible for a Forever series; deleting the
+ * calendar's rows is the correct, bounded invalidation. The epoch still advances
+ * so an in-flight pre-mutation refresh cannot persist.
+ */
+export async function invalidateGcalCalendarCache(googleCalendarIds: string[]): Promise<void> {
+  await ensureCacheEpoch();
+  const ids = [...new Set(googleCalendarIds)];
+  for (const key of [...memory.keys()]) {
+    if (ids.some((id) => key.startsWith(`${id}:`))) {
+      memory.delete(key);
+    }
+  }
+  for (const key of [...inflight.keys()]) {
+    if (ids.some((id) => key.startsWith(`${id}:`))) {
+      inflight.delete(key);
+    }
+  }
+  if (ids.length === 0) {
+    await bumpCacheEpoch();
+    return;
+  }
+  await db.execute(sql`
+    WITH bumped AS (
+      UPDATE cache_invalidation
+      SET epoch = epoch + 1, updated_at = now()
+      WHERE id = 'singleton'
+    )
+    DELETE FROM google_event_cache
+    WHERE ${inArray(googleEventCache.calendarGoogleId, ids)}
+  `);
+}
+
+/**
  * Fetch a calendar's month from Google and store it in DB + L1 memory.
  *
  * The Google call runs outside any transaction so it never holds a Postgres

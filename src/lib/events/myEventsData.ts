@@ -33,6 +33,7 @@ import {
 } from "@/lib/events/myEvents";
 import { myEventsWindow, type MyEventsRangeMonths } from "@/lib/events/myEventsRange";
 import { fetchRangeEvents, listCalendars } from "@/lib/events/queries";
+import { collapseSeriesEvents } from "@/lib/events/occurrence";
 import { DEFAULT_MONTH_FRESHNESS, type MonthCacheFreshness } from "@/lib/google/eventsCache";
 import { perf } from "@/lib/perf";
 import { getSettings } from "@/lib/settings/queries";
@@ -115,7 +116,9 @@ export async function buildMyEventsData(params: {
   doneAudit(`live=${myLive.length} creates=${auditCreates.length}`);
 
   const active: MyEventRow[] = [];
-  for (const event of myLive) {
+  // A repeating series appears once in My Events (its audit trail is
+  // series-level); use the earliest occurrence inside the selected window.
+  for (const event of collapseSeriesEvents(myLive)) {
     const payload = event.payload;
     const departmentNames = [
       ...new Set(
@@ -139,6 +142,7 @@ export async function buildMyEventsData(params: {
       deleted: false,
       color: event.color,
       trail: [],
+      repeats: payload.recurrenceSummary ?? null,
     });
   }
 

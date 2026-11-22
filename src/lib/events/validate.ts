@@ -9,6 +9,7 @@
  */
 
 import { naiveTimePart, type AmPm, type TimeOption } from "./timeOptions";
+import { validateRecurrence, type RecurrenceRule } from "./recurrence";
 
 export interface EventFormValues {
   title: string;
@@ -64,6 +65,11 @@ export interface EventFormValues {
   pinnedDepartments: string[];
   /** Location of the event; an optional specific place even for in-camp events. */
   location: string;
+  /**
+   * Optional repeat rule (see `src/lib/events/recurrence.ts`). Absent/null
+   * means a one-off event. The server normalizes/validates it before writing.
+   */
+  recurrence?: RecurrenceRule | null;
 }
 
 export interface EventFormErrors {
@@ -72,6 +78,7 @@ export interface EventFormErrors {
   start?: string;
   end?: string;
   registrationCap?: string;
+  recurrence?: string;
   [key: string]: string | undefined;
 }
 
@@ -243,6 +250,12 @@ export function validateEventForm(values: EventFormValues): EventFormErrors {
     normalizeRegistrationCap(values.registrationCap) === null
   ) {
     errors.registrationCap = "Enter a whole number of at least 1";
+  }
+  if (values.recurrence) {
+    const recurrenceError = validateRecurrence(values.recurrence, values.start);
+    if (recurrenceError) {
+      errors.recurrence = recurrenceError;
+    }
   }
 
   return errors;

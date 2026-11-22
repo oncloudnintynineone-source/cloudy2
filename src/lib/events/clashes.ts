@@ -38,6 +38,12 @@ export interface ClashEventInput {
   googleEventId: string;
   /** Logical group id shared by all department copies, or null (legacy/external). */
   eventId: string | null;
+  /** Google parent id when this copy is an instance of a recurring series. */
+  recurringEventId?: string | null;
+  /** Normalised original slot of that instance (date for all-day, naive SGT otherwise). */
+  originalStartTime?: string | null;
+  /** Read-path occurrence key; distinguishes a series' occurrences from its copies. */
+  occurrenceKey?: string;
   /** Department name of `calendarId`, for display. */
   calendarName: string;
   /** The stored Google Calendar summary. */
@@ -360,7 +366,8 @@ export function computeClashes(params: {
     if (shared.size === 0) {
       continue;
     }
-    const dedupeKey = event.eventId ?? `${event.calendarId}:${event.googleEventId}`;
+    const dedupeKey =
+      event.occurrenceKey ?? event.eventId ?? `${event.calendarId}:${event.googleEventId}`;
     const slot = byKey.get(dedupeKey);
     if (slot) {
       for (const userId of shared) {
@@ -463,7 +470,8 @@ export function findUserClashGroups(params: {
     if (!busy.has(targetUserId)) {
       continue;
     }
-    const dedupeKey = event.eventId ?? `${event.calendarId}:${event.googleEventId}`;
+    const dedupeKey =
+      event.occurrenceKey ?? event.eventId ?? `${event.calendarId}:${event.googleEventId}`;
     const slot = byKey.get(dedupeKey);
     if (slot) {
       for (const userId of busy) {
@@ -500,6 +508,11 @@ export function findUserClashGroups(params: {
     for (let j = i + 1; j < occupying.length; j++) {
       const a = effectiveEventWindow(occupying[i].event);
       const b = effectiveEventWindow(occupying[j].event);
+      // Overlapping occurrences of the same logical event (a multi-day series
+      // repeating daily) are one event, not a double-booking with itself.
+      if (occupying[i].event.eventId && occupying[i].event.eventId === occupying[j].event.eventId) {
+        continue;
+      }
       if (instantWindowsOverlap(a.start, a.end, b.start, b.end)) {
         union(i, j);
       }

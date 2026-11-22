@@ -123,8 +123,9 @@ import { eventsOnDay } from "@/lib/events/agenda";
 import { firstDayOfWeek, weekDays } from "@/lib/events/datetime";
 import { sortMineFirst } from "@/lib/events/mineFirst";
 import { buildEventDeepLink } from "@/lib/events/deepLink";
+import { findEventByOccurrence } from "@/lib/events/occurrence";
 import type { CalendarEvent } from "@/lib/events/queries";
-import type { EventActionOk } from "@/lib/events/actions";
+import type { EventActionOk, EventMutationScope } from "@/lib/events/actions";
 import {
   applyOptimisticOps,
   isOptimisticStandIn,
@@ -496,6 +497,8 @@ interface FormState {
       in create mode — the "duplicate" flow. */
   templateEvent: CalendarEvent | null;
   defaultDate: string;
+  /** Which slice of a repeating series an edit applies to. */
+  scope?: EventMutationScope | null;
 }
 
 interface PendingFormStart {
@@ -1445,7 +1448,7 @@ function DashboardViewImpl({
       return null;
     }
     return (
-      events.find((event) => event.payload.eventId === id) ??
+      findEventByOccurrence(events, id, date) ??
       (deepLinkEvent?.payload.eventId === id ? deepLinkEvent : null)
     );
   };
@@ -2512,9 +2515,14 @@ function DashboardViewImpl({
   // should update in place rather than waiting for a close/reopen. This is the
   // same render-phase derived-state pattern used for `detailEvent` above.
   if (detailEvent !== null && detailEvent.payload.eventId !== null) {
-    const freshDetail = viewEvents.find(
-      (event) => event.payload.eventId === detailEvent.payload.eventId,
-    );
+    const freshDetail =
+      viewEvents.find((event) => event.id === detailEvent.id) ??
+      viewEvents.find(
+        (event) =>
+          event.payload.eventId === detailEvent.payload.eventId &&
+          (event.payload.originalStartTime ?? null) ===
+            (detailEvent.payload.originalStartTime ?? null),
+      );
     if (freshDetail && freshDetail !== detailEvent) {
       setDetailEvent(freshDetail);
     }
@@ -3726,6 +3734,13 @@ function DashboardViewImpl({
       // The link cannot open the wizard for this actor: show the event details
       // instead (where the registration action lives). Leave any open draft
       // alone — a blocked edit link must never discard it.
+      setDetailLinkPending(false);
+      setDetailEvent(found);
+      return;
+    }
+    // A repeating event's `?edit=` link opens the detail scope chooser instead
+    // of silently picking one slice of the series.
+    if (found.payload.recurringEventId) {
       setDetailLinkPending(false);
       setDetailEvent(found);
       return;
@@ -6089,10 +6104,15 @@ function DashboardViewImpl({
               router.replace(buildHref({ event: null, _eventCal: null }), { scroll: false });
             }
           }}
-          onEdit={(event, originRect) => {
+          onEdit={(event, originRect, editScope) => {
             setDetailEvent(null);
             requestFormStart({
-              state: { event, templateEvent: null, defaultDate: today },
+              state: {
+                event,
+                templateEvent: null,
+                defaultDate: event.start.slice(0, 10),
+                scope: editScope ?? null,
+              },
               originRect,
             });
           }}
@@ -6213,7 +6233,7 @@ function DashboardViewImpl({
                 <EventForm
                   key={
                     formState.event
-                      ? formState.event.id
+                      ? `${formState.event.id}-${formState.scope ?? "none"}`
                       : formState.templateEvent
                         ? `dup-${formState.templateEvent.id}`
                         : `new-${formState.defaultDate}`
@@ -6221,6 +6241,7 @@ function DashboardViewImpl({
                   event={formState.event}
                   templateEvent={formState.templateEvent}
                   defaultDate={formState.defaultDate}
+                  scope={formState.scope ?? null}
                   eventTypes={eventTypes}
                   eventTypeGroups={eventTypeGroups}
                   eventTitleRecipe={eventTitleRecipe}

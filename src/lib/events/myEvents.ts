@@ -34,6 +34,8 @@ export interface MyEventRow {
   color: MantineColor;
   /** Inline change timeline (newest first); empty when no audit rows remain. */
   trail: ChangeTrailItem[];
+  /** Human repeat summary when this row represents a repeating series. */
+  repeats?: string | null;
 }
 
 /**

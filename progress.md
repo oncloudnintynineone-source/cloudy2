@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.403 (Mobile control pill: static period label + panning control strip)**
+- All work through changelog **1.404 (Recurring events: Google-series create, three edit/delete scopes, occurrence-aware reads, series registration)**
   is shipped — the first items (A1/A2/A4) off the UI/UX backlog.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
@@ -30,7 +30,9 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
   env root); departments as Google
   Calendars with service-account ACL sharing; audit logging; event CRUD across department
   calendars with cross-department copies, invitees, templates, time options and location
-  policy, with outbound webhooks to any number of admin-registered external endpoints on
+  policy, recurring events (daily/weekly/monthly/yearly with forever/count/until and
+  This event / This and following / All events scopes, series-level registration),
+  with outbound webhooks to any number of admin-registered external endpoints on
   create/update/delete and pre-submit event clash warnings on the wizard's review step;
   a Double Booking page where any user can scan their own or a colleague's existing
   schedule for double-bookings over a 1 / 6 / 12-month look-ahead (default 1 month),
@@ -2798,6 +2800,27 @@ mirror them (four such entries: 1.106.1, 1.122.1, 1.316.1, 1.331.1).
     itself. The Guide **"?"** is gone from the dashboard chrome at **both** tiers — the profile menu
     is the only entry to the sheet. Docs: `ui-ux-improvements.md` (A7 + D2 statuses, tier table,
     Shipped), `dashboard-views.md` §1.1/§1.2, `user-guide.md` §1.3.1, `AGENTS.md`.
+  - 1.404 **Recurring events**: real Google recurring series (RRULE) per department copy,
+    with a compact rule mirror in the notes block; daily/weekly (multi-weekday)/monthly/
+    yearly frequencies, interval 1–99, forever / N occurrences / until-date durations.
+    Occurrence identity is `recurringEventId` + `originalStartTime`, so the read path now
+    dedupes department copies **per occurrence** (grids/search/parade/KAH/double-booking
+    keep every occurrence; Pinned Events and My Events collapse a series to its next/earliest
+    row; deep links pick the matching occurrence by `?date=`). The wizard gained a Repeat
+    step; edit/delete offer This event / This and following / All events, with the scope
+    chosen before the wizard (a read-only `loadEventSeriesPrefill` action feeds the series
+    anchor or the remaining rule). "This and following" creates a successor series first,
+    removes the old future exceptions, then truncates the old parents; retries reuse the
+    successor by its `splitFromEventId`/`splitAt` notes. Single-occurrence edits create
+    Google exceptions and keep participants/pin/lock/registration series-level. Registration
+    is series-level (one roster/cap; single/following edits and deletes are rejected).
+    Google integration gained `getEvent`, recurrence/timeZone writes, a `singleEvents:false`
+    read mode (also used by the event-type migration so it patches parents, not instances),
+    and an `_R` sub-series PUT→PATCH fallback; series mutations clear the affected
+    calendars' cache. External/custom series are occurrence-only. Docs:
+    [`recurring-events.md`](docs/recurring-events.md), `event-lifecycle.md`,
+    `event-mutations.md`, `registration-events.md`, `google-integration.md`,
+    `events-cache.md`, `AGENTS.md`.
 
 ## 1.4 Open items & next steps
 

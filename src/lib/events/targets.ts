@@ -27,6 +27,10 @@ export interface EventRef {
   ownerOnlyEdits: boolean;
   /** Per-event self-registration flag; preserved when a non-owner editor saves. */
   registrationEnabled: boolean;
+  /** Google parent id when this ref points at an instance of a recurring series. */
+  recurringEventId?: string | null;
+  /** Normalised original slot of that instance (date for all-day, naive SGT otherwise). */
+  originalStartTime?: string | null;
 }
 
 /** Order-preserving dedupe of non-null department ids. */
@@ -142,5 +146,7 @@ export function eventRefFromCalendarEvent(event: CalendarEvent): EventRef {
     inviteeDepartmentIds: event.payload.inviteeDepartmentIds,
     ownerOnlyEdits: event.payload.ownerOnlyEdits,
     registrationEnabled: event.payload.registrationEnabled,
+    recurringEventId: event.payload.recurringEventId ?? null,
+    originalStartTime: event.payload.originalStartTime ?? null,
   };
 }

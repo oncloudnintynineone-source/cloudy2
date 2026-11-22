@@ -23,6 +23,7 @@
 import type { CalendarEvent, CalendarEventPayload } from "./queries";
 import { addOneDay } from "./datetime";
 import { effectiveCalendarColor, effectiveEventTypeColor } from "./eventColors";
+import { occurrenceKey } from "./occurrence";
 import { clampEventEnd, type EventFormValues } from "./validate";
 
 /**
@@ -69,6 +70,10 @@ export interface OptimisticRemoveOp extends OptimisticOpBase {
   googleEventId: string;
   /** Group id of the deleted event, or null for a legacy (ungrouped) event. */
   eventId: string | null;
+  /** Occurrence-specific delete: the instance's parent id. */
+  recurringEventId?: string | null;
+  /** Occurrence-specific delete: the instance's original slot. */
+  originalStartTime?: string | null;
 }
 
 export type OptimisticOp = OptimisticUpsertOp | OptimisticRemoveOp;
@@ -81,20 +86,30 @@ export function optimisticUpsert(id: string, event: CalendarEvent): OptimisticUp
 /** Construct a delete overlay entry (children apply it before the action). */
 export function optimisticRemove(
   id: string,
-  params: Pick<OptimisticRemoveOp, "calendarId" | "googleEventId" | "eventId">,
+  params: Pick<
+    OptimisticRemoveOp,
+    "calendarId" | "googleEventId" | "eventId" | "recurringEventId" | "originalStartTime"
+  >,
 ): OptimisticRemoveOp {
   return { id, kind: "remove", settled: false, ...params };
 }
 
-/** The identity key a base event is deduped/replaced by. */
+/** The identity key a base event is deduped/replaced by (occurrence-aware). */
 export function optimisticEventKey(event: CalendarEvent): string {
-  return event.payload.eventId ?? `${event.payload.calendarId}:${event.payload.googleEventId}`;
+  return occurrenceKey(event.payload);
 }
 
 /** Whether a calendar event matches an overlay entry's identity. */
 function eventMatchesOp(event: CalendarEvent, op: OptimisticOp): boolean {
   if (op.kind === "remove") {
     if (op.eventId) {
+      if (op.recurringEventId || op.originalStartTime) {
+        return (
+          event.payload.eventId === op.eventId &&
+          (event.payload.recurringEventId ?? null) === (op.recurringEventId ?? null) &&
+          (event.payload.originalStartTime ?? null) === (op.originalStartTime ?? null)
+        );
+      }
       return event.payload.eventId === op.eventId;
     }
     return (
@@ -106,6 +121,9 @@ function eventMatchesOp(event: CalendarEvent, op: OptimisticOp): boolean {
   if (standIn.payload.eventId) {
     // Edits carry the real group id: replace whatever base copy has it. Creates
     // carry a client placeholder that nothing in base shares, so they add.
+    if (standIn.payload.recurringEventId || standIn.payload.originalStartTime) {
+      return optimisticEventKey(event) === key;
+    }
     return event.payload.eventId === key;
   }
   // A legacy edit (no group id yet) replaces the exact copy being edited.
@@ -259,6 +277,10 @@ export function buildOptimisticEvent(params: OptimisticBuildParams): CalendarEve
       timeOption: normalized.timeOption,
       startAmPm: normalized.timeOption === "half" ? amPmOf(normalized.startAmPm) : null,
       endAmPm: normalized.timeOption === "half" ? amPmOf(normalized.endAmPm) : null,
+      recurrence: normalized.recurrence ?? null,
+      recurringEventId: null,
+      originalStartTime: null,
+      occurrenceOverride: false,
       outOfCamp: normalized.outOfCamp,
       overseas: normalized.overseas,
       pinned: normalized.pinned,

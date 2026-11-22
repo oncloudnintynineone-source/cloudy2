@@ -19,6 +19,7 @@ import {
   parseEventPinnedDepartments,
   parseEventRegistrationCap,
   parseEventRegistrationEnabled,
+  parseEventRecurrence,
   parseEventStartAmPm,
   parseEventTimeOption,
   parseEventTitle,
@@ -114,5 +115,6 @@ export function eventFormValuesFromCopy(copy: GcalEventItem): EventFormValues | 
     pinned: parseEventPinned(copy.description),
     pinnedDepartments: parseEventPinnedDepartments(copy.description),
     location: copy.location ?? "",
+    recurrence: parseEventRecurrence(copy.description),
   };
 }

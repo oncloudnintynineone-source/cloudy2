@@ -220,11 +220,7 @@ export function createRealGoogleIntegration(): GoogleIntegration {
           calendarId: input.calendarId,
           requestBody: buildEventBody(input),
         });
-        const id = res.data.id;
-        if (!id) {
-          throw new Error("Google returned no event id");
-        }
-        return { id, calendarId: input.calendarId, htmlLink: res.data.htmlLink ?? undefined };
+        return mapEventResult(res.data, input.calendarId);
       } catch (error) {
         fail(error);
       }
@@ -236,12 +232,39 @@ export function createRealGoogleIntegration(): GoogleIntegration {
           eventId,
           requestBody: buildEventBody(input),
         });
-        const id = res.data.id;
-        if (!id) {
-          throw new Error("Google returned no event id");
-        }
-        return { id, calendarId: input.calendarId, htmlLink: res.data.htmlLink ?? undefined };
+        return mapEventResult(res.data, input.calendarId);
       } catch (error) {
+        // A "this and following" split performed in Google Calendar produces an
+        // `_R` sub-series whose id rejects PUT ("Invalid resource id"). The same
+        // body is accepted by PATCH, which also updates start/end/recurrence.
+        const status = googleStatus(error);
+        const message = error instanceof Error ? error.message : "";
+        if (status === 400 && /invalid resource id|_R/i.test(message)) {
+          try {
+            const res = await getClient().events.patch({
+              calendarId: input.calendarId,
+              eventId,
+              requestBody: buildEventBody(input),
+            });
+            return mapEventResult(res.data, input.calendarId);
+          } catch (patchError) {
+            fail(patchError);
+          }
+        }
+        fail(error);
+      }
+    },
+    async getEvent(calendarId: string, eventId: string): Promise<GcalEventItem | null> {
+      try {
+        const res = await getClient().events.get({ calendarId, eventId });
+        if (!res.data.id) {
+          return null;
+        }
+        return mapGoogleEvent(calendarId)(res.data);
+      } catch (error) {
+        if (googleStatus(error) === 404) {
+          return null;
+        }
         fail(error);
       }
     },
@@ -254,16 +277,15 @@ export function createRealGoogleIntegration(): GoogleIntegration {
         if (input.description !== undefined) {
           requestBody.description = input.description;
         }
+        if (input.recurrence !== undefined) {
+          requestBody.recurrence = input.recurrence;
+        }
         const res = await getClient().events.patch({
           calendarId: input.calendarId,
           eventId,
           requestBody,
         });
-        const id = res.data.id;
-        if (!id) {
-          throw new Error("Google returned no event id");
-        }
-        return { id, calendarId: input.calendarId, htmlLink: res.data.htmlLink ?? undefined };
+        return mapEventResult(res.data, input.calendarId);
       } catch (error) {
         fail(error);
       }
@@ -278,14 +300,20 @@ export function createRealGoogleIntegration(): GoogleIntegration {
         fail(error);
       }
     },
-    async listEvents(calendarId: string, timeMin: Date, timeMax: Date): Promise<GcalEventItem[]> {
+    async listEvents(
+      calendarId: string,
+      timeMin: Date,
+      timeMax: Date,
+      options?: { singleEvents?: boolean },
+    ): Promise<GcalEventItem[]> {
       try {
+        const singleEvents = options?.singleEvents !== false;
         const res = await getClient().events.list({
           calendarId,
           timeMin: timeMin.toISOString(),
           timeMax: timeMax.toISOString(),
-          singleEvents: true,
-          orderBy: "startTime",
+          singleEvents,
+          ...(singleEvents ? { orderBy: "startTime" as const } : {}),
           maxResults: 2500,
         });
         return (res.data.items ?? []).map(mapGoogleEvent(calendarId));
@@ -298,14 +326,16 @@ export function createRealGoogleIntegration(): GoogleIntegration {
       timeMin: Date,
       timeMax: Date,
       pageToken?: string,
+      options?: { singleEvents?: boolean },
     ): Promise<GcalEventPage> {
       try {
+        const singleEvents = options?.singleEvents !== false;
         const res = await getClient().events.list({
           calendarId,
           timeMin: timeMin.toISOString(),
           timeMax: timeMax.toISOString(),
-          singleEvents: true,
-          orderBy: "startTime",
+          singleEvents,
+          ...(singleEvents ? { orderBy: "startTime" as const } : {}),
           maxResults: 2500,
           pageToken,
         });
@@ -359,6 +389,7 @@ export function createRealGoogleIntegration(): GoogleIntegration {
 
 /** Build the request body for an event insert/update. */
 function buildEventBody(input: GcalEventInput): calendar_v3.Schema$Event {
+  const timeZone = input.allDay ? undefined : input.timeZone;
   return {
     summary: input.title,
     description: input.description ?? "",
@@ -367,9 +398,26 @@ function buildEventBody(input: GcalEventInput): calendar_v3.Schema$Event {
     location: input.location ?? "",
     start: input.allDay
       ? { date: toDateString(input.start) }
-      : { dateTime: input.start.toISOString() },
-    end: input.allDay ? { date: toDateString(input.end) } : { dateTime: input.end.toISOString() },
+      : { dateTime: input.start.toISOString(), ...(timeZone ? { timeZone } : {}) },
+    end: input.allDay
+      ? { date: toDateString(input.end) }
+      : { dateTime: input.end.toISOString(), ...(timeZone ? { timeZone } : {}) },
+    ...(input.recurrence && input.recurrence.length > 0
+      ? { recurrence: input.recurrence }
+      : {}),
   };
+}
+
+/** Map an inserted/updated Google event's response to the shared result shape. */
+function mapEventResult(
+  event: calendar_v3.Schema$Event,
+  calendarId: string,
+): GcalEvent {
+  const id = event.id;
+  if (!id) {
+    throw new Error("Google returned no event id");
+  }
+  return { id, calendarId, htmlLink: event.htmlLink ?? undefined };
 }
 
 /** Format a `Date` as a `YYYY-MM-DD` date string (assumes UTC-midnight for all-day dates). */
@@ -381,6 +429,12 @@ function toDateString(value: Date): string {
 function mapGoogleEvent(calendarId: string): (event: calendar_v3.Schema$Event) => GcalEventItem {
   return (event) => {
     const allDay = Boolean(event.start?.date);
+    const original = event.originalStartTime;
+    const originalStartTime = original
+      ? original.date
+        ? new Date(`${original.date}T00:00:00Z`)
+        : new Date(original.dateTime ?? 0)
+      : null;
     return {
       id: event.id ?? "",
       calendarId,
@@ -394,6 +448,10 @@ function mapGoogleEvent(calendarId: string): (event: calendar_v3.Schema$Event) =
       end: allDay
         ? new Date(`${event.end?.date ?? "1970-01-01"}T00:00:00Z`)
         : new Date(event.end?.dateTime ?? 0),
+      recurringEventId: event.recurringEventId ?? null,
+      originalStartTime,
+      recurrence: event.recurrence ?? null,
+      status: event.status ?? null,
     };
   };
 }

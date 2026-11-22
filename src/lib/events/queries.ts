@@ -21,8 +21,9 @@ import type { GcalEventItem } from "@/lib/google/types";
 import { uniqueUuidIds } from "@/lib/uuid";
 import { parseEventDescription } from "@/lib/events/notes";
 import type { TimeOption } from "@/lib/events/timeOptions";
-import { dedupeEventsByGroupId } from "@/lib/events/targets";
 import { eventMatchesUserFilter } from "@/lib/events/userFilter";
+import { dedupeEventsByOccurrence, normalizeOriginalStartTime } from "@/lib/events/occurrence";
+import { recurrenceSummary, type RecurrenceRule } from "@/lib/events/recurrence";
 
 export interface CalendarEventPayload {
   calendarId: string;
@@ -67,6 +68,16 @@ export interface CalendarEventPayload {
   location: string;
   /** True when the event was created directly in Google Calendar, not in the app. */
   external: boolean;
+  /** App recurrence mirror (notes); null for one-off/external custom series. */
+  recurrence?: RecurrenceRule | null;
+  /** Precomputed human summary of `recurrence` (review/detail/audit). */
+  recurrenceSummary?: string | null;
+  /** Google parent id when this copy is an instance of a recurring series. */
+  recurringEventId?: string | null;
+  /** The instance's original slot: date for all-day, naive SGT for timed. */
+  originalStartTime?: string | null;
+  /** True when this instance was individually edited ("Modified occurrence"). */
+  occurrenceOverride?: boolean;
 }
 
 export interface CalendarEvent {
@@ -195,6 +206,16 @@ export function mapCalendarItem(
       timeOption: fields.timeOption ?? (item.allDay ? "full" : "range"),
       startAmPm: fields.startAmPm,
       endAmPm: fields.endAmPm,
+      recurrence: fields.recurrence,
+      recurrenceSummary: fields.recurrence
+        ? recurrenceSummary(fields.recurrence, scheduleTime(item.start, item.allDay))
+        : null,
+      recurringEventId: item.recurringEventId ?? null,
+      originalStartTime:
+        item.originalStartTime !== null && item.originalStartTime !== undefined
+          ? normalizeOriginalStartTime(item.originalStartTime, item.allDay)
+          : null,
+      occurrenceOverride: fields.recurrenceOverride,
       outOfCamp: fields.outOfCamp,
       overseas: fields.overseas,
       pinned: fields.pinned,
@@ -335,7 +356,8 @@ export function projectRangeEvents(
   // A logical event has at most one copy per filtered department calendar;
   // collapse the copies so views show it once (stable sort keeps calendar
   // display order among equal start times, so the representative is deterministic).
-  return dedupeEventsByGroupId(events);
+  // Recurring instances keep one copy **per occurrence**.
+  return dedupeEventsByOccurrence(events);
 }
 
 /**

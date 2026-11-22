@@ -9,6 +9,7 @@ import {
   Group,
   NumberInput,
   Paper,
+  Radio,
   SegmentedControl,
   Stack,
   Switch,
@@ -31,7 +32,7 @@ import {
   IconUserPlus,
 } from "@tabler/icons-react";
 
-import { PickerField, type PickerBadgeItem } from "@/components/PickerField";
+import { PickerBadges, PickerField, type PickerBadgeItem } from "@/components/PickerField";
 import { EventTypeGroupGrid } from "@/components/EventTypeGroupGrid";
 import { useActionPill } from "@/components/ActionPill";
 import { TimeSelectField } from "@/components/TimeSelectField";
@@ -41,6 +42,7 @@ import {
   updateEvent,
   type EventActionOk,
   type EventActionResult,
+  type EventMutationScope,
   type EventResultField,
 } from "@/lib/events/actions";
 import type { EventClashCheckRequest } from "@/lib/events/clashActions";
@@ -68,6 +70,16 @@ import {
   type LocationCategory,
 } from "@/lib/events/locationPolicy";
 import { eventRefFromCalendarEvent } from "@/lib/events/targets";
+import {
+  MAX_RECURRENCE_COUNT,
+  MAX_RECURRENCE_INTERVAL,
+  recurrenceSummary,
+  WEEKDAY_LABELS,
+  WEEKDAY_PICKER_ORDER,
+  weekdayOf,
+  type RecurrenceFrequency,
+  type RecurrenceRule,
+} from "@/lib/events/recurrence";
 import { buildEventTypePickerSections } from "@/lib/eventTypes/groups";
 import {
   joinDateTimeParts,
@@ -175,6 +187,12 @@ interface EventFormProps {
    * (cosmetic only: the chip's rows come from its tagged people/departments).
    */
   optimisticHome: { id: string; name: string } | null;
+  /**
+   * Which slice of a repeating series this edit applies to. Null/undefined for
+   * a create or a one-off edit; "single" hides the Repeat step and locks the
+   * series-level controls.
+   */
+  scope?: EventMutationScope | null;
 }
 
 interface EventFormState extends EventFormValues {
@@ -189,13 +207,14 @@ const AMPM_OPTIONS = [
 ];
 
 /** Maps a server-reported error field to the wizard step that owns it. */
-const STEP_BY_FIELD: Partial<Record<EventResultField | "registrationCap", StepId>> = {
+const STEP_BY_FIELD: Partial<Record<EventResultField | "registrationCap" | "recurrence", StepId>> = {
   title: "remarks",
   start: "time",
   end: "time",
   startAmPm: "time",
   endAmPm: "time",
   registrationCap: "settings",
+  recurrence: "repeat",
 };
 
 /** Section label of the flat department list inside the invitee badge picker. */
@@ -223,6 +242,7 @@ export function EventForm({
   onOptimisticSettled,
   onOptimisticRollback,
   optimisticHome,
+  scope = null,
 }: EventFormProps) {
   const isEdit = event !== null;
   const theme = useMantineTheme();
@@ -317,6 +337,7 @@ export function EventForm({
         pinnedDepartments: event.payload.pinnedDepartments ?? [],
         ownerOnlyEdits: event.payload.registrationEnabled ? true : event.payload.ownerOnlyEdits,
         location: clamped.location,
+        recurrence: event.payload.recurrence ?? null,
       };
     }
     // Duplicate: pre-fill from a source event but stay in create mode.
@@ -375,6 +396,7 @@ export function EventForm({
         pinnedDepartments: src.payload.pinnedDepartments ?? [],
         ownerOnlyEdits: src.payload.registrationEnabled ? true : false,
         location: clamped.location,
+        recurrence: src.payload.recurrence ?? null,
       };
     }
     return {
@@ -402,6 +424,7 @@ export function EventForm({
       pinnedDepartments: [],
       ownerOnlyEdits: false,
       location: "",
+      recurrence: null,
     };
   }
 
@@ -413,6 +436,72 @@ export function EventForm({
   const selectedType = sortedEventTypes.find((type) => type.name === form.values.eventType) ?? null;
   /** Whether this event is open for self-registration (per-event, wizard choice). */
   const registrationType = form.values.registrationEnabled === true;
+
+  /** The current repeat rule (null = one-off). */
+  const recurrence = form.values.recurrence ?? null;
+  const recurrenceDuration: "forever" | "count" | "until" = recurrence?.until
+    ? "until"
+    : recurrence?.count
+      ? "count"
+      : "forever";
+  const setRecurrence = (next: RecurrenceRule | null) => {
+    form.setFieldValue("recurrence", next);
+  };
+  const updateRecurrence = (patch: Partial<RecurrenceRule>) => {
+    if (!recurrence) {
+      return;
+    }
+    setRecurrence({ ...recurrence, ...patch });
+  };
+  const changeFrequency = (value: string) => {
+    if (value === "none") {
+      setRecurrence(null);
+      return;
+    }
+    const freq = value as RecurrenceFrequency;
+    const startDate = form.values.start.slice(0, 10);
+    const weekday = /^\d{4}-\d{2}-\d{2}$/.test(startDate) ? weekdayOf(startDate) : 1;
+    setRecurrence({
+      freq,
+      interval: 1,
+      ...(freq === "weekly" ? { byWeekday: [weekday] } : {}),
+    });
+    announce(`Repeats ${recurrenceSummary({ freq, interval: 1 }, form.values.start)}`);
+  };
+  const toggleWeekday = (day: number) => {
+    if (!recurrence) {
+      return;
+    }
+    const selected = new Set(recurrence.byWeekday ?? []);
+    if (selected.has(day)) {
+      selected.delete(day);
+    } else {
+      selected.add(day);
+    }
+    updateRecurrence({ byWeekday: [...selected].sort((a, b) => a - b) });
+  };
+  const changeDuration = (value: string) => {
+    if (!recurrence) {
+      return;
+    }
+    if (value === "forever") {
+      updateRecurrence({ count: null, until: null });
+    } else if (value === "count") {
+      updateRecurrence({ until: null, count: recurrence.count ?? 10 });
+    } else {
+      updateRecurrence({
+        count: null,
+        until:
+          recurrence.until ??
+          (/^\d{4}-\d{2}-\d{2}$/.test(form.values.start.slice(0, 10))
+            ? form.values.start.slice(0, 10)
+            : null),
+      });
+    }
+  };
+  const recurrenceText = recurrence
+    ? recurrenceSummary(recurrence, form.values.start)
+    : "Does not repeat";
 
   /** Apply a −10/−1/+1/+10 step to the registration cap (never below 1). */
   const bumpRegistrationCap = (delta: number) => {
@@ -605,7 +694,12 @@ export function EventForm({
   // render (a handful of tiny objects) because its deps derive from reactive
   // form values; the type is only ever changed on step 1, so the step index
   // stays valid when the list re-derives.
-  const steps = buildSteps(showLocationStep, showRemarksStep, showInviteesStep);
+  const steps = buildSteps(
+    showLocationStep,
+    showRemarksStep,
+    showInviteesStep,
+    scope !== "single",
+  );
   const [step, setStep] = useState(0);
   // Direction of the last step change ("forward"/"backward"), used to slide the
   // entering step in from the corresponding side (see `.wizard-step-enter` in
@@ -1115,43 +1209,52 @@ export function EventForm({
         }
         return;
       }
-      const optimisticId = nextOptimisticOpId();
-      // The stand-in chip mirrors the edit's real copy identity (so the old
-      // grid entry is replaced in place) or, on create, carries a client
-      // placeholder group id on the acting user's home department.
-      const identity: OptimisticEventIdentity =
-        isEdit && event
-          ? {
-              calendarId: event.payload.calendarId,
-              calendarName: event.payload.calendarName,
-              googleEventId: event.payload.googleEventId,
-              eventId: event.payload.eventId,
-            }
-          : {
-              calendarId: optimisticHome?.id ?? "",
-              calendarName: optimisticHome?.name ?? "",
-              googleEventId: "",
-              eventId: optimisticId,
-            };
-      const optimisticEvent = buildOptimisticEvent({
-        identity,
-        values: payload,
-        actingUserId: currentUser,
-        // The grid renders this view's display template; previewTitles.view is
-        // that exact string, so the stand-in matches the authoritative chip.
-        title: previewTitles.view,
-        eventTypeColor: selectedType?.color ?? null,
-      });
-      onOptimistic(optimisticUpsert(optimisticId, optimisticEvent));
+      // Recurring mutations have no single stand-in chip (Google expands the
+      // series, and a single-occurrence edit is an exception); the refresh
+      // after the action paints the authoritative occurrences.
+      const skipOptimistic =
+        Boolean(payload.recurrence) || scope !== null || Boolean(event?.payload.recurringEventId);
+      const optimisticId = skipOptimistic ? null : nextOptimisticOpId();
+      if (optimisticId) {
+        // The stand-in chip mirrors the edit's real copy identity (so the old
+        // grid entry is replaced in place) or, on create, carries a client
+        // placeholder group id on the acting user's home department.
+        const identity: OptimisticEventIdentity =
+          isEdit && event
+            ? {
+                calendarId: event.payload.calendarId,
+                calendarName: event.payload.calendarName,
+                googleEventId: event.payload.googleEventId,
+                eventId: event.payload.eventId,
+              }
+            : {
+                calendarId: optimisticHome?.id ?? "",
+                calendarName: optimisticHome?.name ?? "",
+                googleEventId: "",
+                eventId: optimisticId,
+              };
+        const optimisticEvent = buildOptimisticEvent({
+          identity,
+          values: payload,
+          actingUserId: currentUser,
+          // The grid renders this view's display template; previewTitles.view is
+          // that exact string, so the stand-in matches the authoritative chip.
+          title: previewTitles.view,
+          eventTypeColor: selectedType?.color ?? null,
+        });
+        onOptimistic(optimisticUpsert(optimisticId, optimisticEvent));
+      }
 
       const result: EventActionResult = isEdit
-        ? await updateEvent(eventRefFromCalendarEvent(event), payload)
+        ? await updateEvent(eventRefFromCalendarEvent(event), payload, scope ?? undefined)
         : await createEvent(payload);
 
       if (result.ok) {
         // Pin the stand-in to the server's group/copy ids, then let the
         // authoritative refresh swap it out (see DashboardView).
-        onOptimisticSettled(optimisticId, result);
+        if (optimisticId) {
+          onOptimisticSettled(optimisticId, result);
+        }
         onDone();
         // Post-save confirmation, styled per the `savedEventToastVariant`
         // feature flag (Settings → Feature Flags): the classic two-tone pill,
@@ -1166,7 +1269,9 @@ export function EventForm({
 
       // The action rejected (field or server error) — drop the stand-in so the
       // grid shows the pre-submit state while the form surfaces the error.
-      onOptimisticRollback(optimisticId);
+      if (optimisticId) {
+        onOptimisticRollback(optimisticId);
+      }
 
       if (result.field) {
         const failedField = result.field;
@@ -1369,6 +1474,15 @@ export function EventForm({
       span: 6,
       node: reviewDef("When", <Text size="sm">{whenText || "—"}</Text>),
     },
+    ...(scope !== "single"
+      ? [
+          {
+            key: "repeat",
+            span: 6,
+            node: reviewDef("Repeats", <Text size="sm">{recurrenceText}</Text>),
+          },
+        ]
+      : []),
     ...(showLocationStep
       ? [
           {
@@ -1618,6 +1732,177 @@ export function EventForm({
             </div>
           ))}
 
+        {currentStep.id === "repeat" && (
+          <div
+            key={currentStep.id}
+            className="wizard-step-enter"
+            style={{ "--slide-dir": direction === "forward" ? 1 : -1 } as React.CSSProperties}
+          >
+            <Stack gap="sm">
+              <SegmentedControl
+                aria-label="Repeat frequency"
+                fullWidth
+                value={recurrence?.freq ?? "none"}
+                data={[
+                  { value: "none", label: "Does not repeat" },
+                  { value: "daily", label: "Daily" },
+                  { value: "weekly", label: "Weekly" },
+                  { value: "monthly", label: "Monthly" },
+                  { value: "yearly", label: "Yearly" },
+                ]}
+                onChange={changeFrequency}
+              />
+              {recurrence && (
+                <>
+                  <Group gap="xs" align="flex-end" wrap="nowrap">
+                    <Text size="sm" fw={500}>
+                      Every
+                    </Text>
+                    <NumberInput
+                      aria-label="Repeat interval"
+                      w={80}
+                      min={1}
+                      max={MAX_RECURRENCE_INTERVAL}
+                      allowDecimal={false}
+                      clampBehavior="blur"
+                      hideControls
+                      value={recurrence.interval}
+                      onChange={(value) =>
+                        updateRecurrence({
+                          interval:
+                            typeof value === "number"
+                              ? Math.min(
+                                  MAX_RECURRENCE_INTERVAL,
+                                  Math.max(1, Math.trunc(value)),
+                                )
+                              : 1,
+                        })
+                      }
+                    />
+                    <Text size="sm">
+                      {recurrence.freq === "daily"
+                        ? recurrence.interval === 1
+                          ? "day"
+                          : "days"
+                        : recurrence.freq === "weekly"
+                          ? recurrence.interval === 1
+                            ? "week"
+                            : "weeks"
+                          : recurrence.freq === "monthly"
+                            ? recurrence.interval === 1
+                              ? "month"
+                              : "months"
+                            : recurrence.interval === 1
+                              ? "year"
+                              : "years"}
+                    </Text>
+                  </Group>
+                  {recurrence.freq === "weekly" && (
+                    <Stack gap={6}>
+                      <Text size="sm" fw={500}>
+                        Repeat on
+                      </Text>
+                      <Group gap={6} wrap="wrap">
+                        {WEEKDAY_PICKER_ORDER.map((day) => {
+                          const selected = (recurrence.byWeekday ?? []).includes(day);
+                          return (
+                            <UnstyledButton
+                              key={day}
+                              type="button"
+                              aria-pressed={selected}
+                              aria-label={`${WEEKDAY_LABELS[day]}${selected ? ", selected" : ""}`}
+                              onClick={() => toggleWeekday(day)}
+                              style={{ cursor: "pointer" }}
+                            >
+                              <Badge
+                                size="lg"
+                                variant={selected ? "filled" : "light"}
+                                styles={{ root: { minHeight: 36, minWidth: 48 } }}
+                              >
+                                {WEEKDAY_LABELS[day]}
+                              </Badge>
+                            </UnstyledButton>
+                          );
+                        })}
+                      </Group>
+                      <Text size="xs" c="dimmed">
+                        Keep the start day selected. Months without the start day are skipped for
+                        monthly repeats.
+                      </Text>
+                    </Stack>
+                  )}
+                  <Radio.Group
+                    aria-label="Repeat duration"
+                    value={recurrenceDuration}
+                    onChange={changeDuration}
+                  >
+                    <Stack gap="xs">
+                      <Radio value="forever" label="Forever" />
+                      <Group gap="xs" align="center" wrap="nowrap">
+                        <Radio value="count" label="After" />
+                        <NumberInput
+                          aria-label="Number of occurrences"
+                          w={90}
+                          min={2}
+                          max={MAX_RECURRENCE_COUNT}
+                          allowDecimal={false}
+                          clampBehavior="blur"
+                          hideControls
+                          disabled={recurrenceDuration !== "count"}
+                          value={recurrence.count ?? 10}
+                          onChange={(value) =>
+                            updateRecurrence({
+                              count:
+                                typeof value === "number"
+                                  ? Math.min(MAX_RECURRENCE_COUNT, Math.max(2, Math.trunc(value)))
+                                  : 10,
+                            })
+                          }
+                        />
+                        <Text size="sm">occurrences</Text>
+                      </Group>
+                      <Group gap="xs" align="center" wrap="nowrap">
+                        <Radio value="until" label="Until" />
+                        <DatePickerInput
+                          aria-label="Repeat until"
+                          valueFormat="YYYY-MM-DD"
+                          placeholder="End date"
+                          disabled={recurrenceDuration !== "until"}
+                          value={recurrence.until ?? null}
+                          minDate={
+                            /^\d{4}-\d{2}-\d{2}$/.test(form.values.start.slice(0, 10))
+                              ? new Date(`${form.values.start.slice(0, 10)}T00:00:00`)
+                              : undefined
+                          }
+                          onChange={(value) =>
+                            updateRecurrence({
+                              until: value ? String(value).slice(0, 10) : null,
+                            })
+                          }
+                          style={{ flex: 1 }}
+                        />
+                      </Group>
+                    </Stack>
+                  </Radio.Group>
+                  <Paper withBorder p="xs" bg="var(--mantine-color-gray-0)">
+                    <Text size="sm" fw={500} style={{ overflowWrap: "anywhere" }}>
+                      {recurrenceText}
+                    </Text>
+                    <Text size="xs" c="dimmed">
+                      Changing the repeat pattern later resets individually edited occurrences.
+                    </Text>
+                  </Paper>
+                </>
+              )}
+              {form.errors.recurrence && (
+                <Text size="xs" c="red">
+                  {form.errors.recurrence}
+                </Text>
+              )}
+            </Stack>
+          </div>
+        )}
+
         {currentStep.id === "location" && (
           <div
             key={currentStep.id}
@@ -1703,6 +1988,16 @@ export function EventForm({
             style={{ "--slide-dir": direction === "forward" ? 1 : -1 } as React.CSSProperties}
           >
             <Stack gap="sm">
+              {scope === "single" ? (
+                <Stack gap={6}>
+                  <Text size="sm" c="dimmed">
+                    Participants are series-level: they apply to every occurrence. Choose “All
+                    events” on Edit to change them.
+                  </Text>
+                  <PickerBadges items={inviteeSummaryItems} />
+                </Stack>
+              ) : (
+                <>
               {inviteePickerGroups.length > 0 ? (
                 <PickerField
                   label={registrationType ? "Registered attendees" : "Participants"}
@@ -1748,6 +2043,8 @@ export function EventForm({
                   {selfIncluded ? "Remove myself" : "Add myself"}
                 </Button>
               )}
+                </>
+              )}
               <UserSelectModal
                 opened={inviteePickerOpen}
                 onClose={() => setInviteePickerOpen(false)}
@@ -1791,6 +2088,13 @@ export function EventForm({
             style={{ "--slide-dir": direction === "forward" ? 1 : -1 } as React.CSSProperties}
           >
             <Stack gap="sm">
+              {scope === "single" ? (
+                <Text size="sm" c="dimmed">
+                  Pin, organizer-only editing and registration apply to the whole series. Choose
+                  “All events” on Edit to change them.
+                </Text>
+              ) : (
+                <>
               <Switch
                 label="Pin this event"
                 description="Show this event in the Pinned Events panel and header ticker for the departments you choose."
@@ -1957,6 +2261,8 @@ export function EventForm({
                       )}
                     </Stack>
                   )}
+                </>
+              )}
                 </>
               )}
             </Stack>

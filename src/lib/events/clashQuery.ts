@@ -16,6 +16,7 @@
 import { formatInstantToNaive, monthsInRange } from "@/lib/events/datetime";
 import { effectiveCalendarColor, effectiveEventTypeColor } from "@/lib/events/eventColors";
 import { listCalendars } from "@/lib/events/queries";
+import { normalizeOriginalStartTime, occurrenceKey } from "@/lib/events/occurrence";
 import {
   isExternalEvent,
   parseEventEndAmPm,
@@ -101,10 +102,23 @@ export async function clashingEventsFor(
         const typeName = parseEventType(item.description);
         const typeInfo = typeName ? typeByName.get(typeName) : undefined;
         const timeOption = parseEventTimeOption(item.description) ?? (item.allDay ? "full" : "range");
+        const originalStartTime = item.originalStartTime
+          ? normalizeOriginalStartTime(item.originalStartTime, item.allDay)
+          : null;
         events.push({
           calendarId: row.id,
           googleEventId: item.id,
           eventId: people.eventId,
+          recurringEventId: item.recurringEventId ?? null,
+          originalStartTime,
+          occurrenceKey: occurrenceKey({
+            eventId: people.eventId,
+            calendarId: row.id,
+            googleEventId: item.id,
+            recurringEventId: item.recurringEventId ?? null,
+            originalStartTime,
+            start: formatInstantToNaive(item.start),
+          }),
           calendarName: row.name,
           title: item.title || "(no title)",
           start: item.start,

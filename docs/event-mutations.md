@@ -209,6 +209,13 @@ Key mechanics:
 
 ### 1.5.1 What each copy operation writes
 
+Recurring series follow the same reconcile shape with three scopes: **This event** updates
+one Google exception per target, **This and following** creates a successor series and
+truncates the old parents, and **All events** full-replaces each parent (preserving its
+EXDATE/RDATE lines). The scope is chosen before the wizard; see
+[`recurring-events.md`](recurring-events.md) §1.8 for the exact algorithms, exception
+cleanup and retry/idempotency rules.
+
 Every write goes through `buildGcalEventInput` with the _new_ effective input, so after
 a successful update all remaining copies are byte-identical in title, description,
 location, and times. Update is a **full replace** in Google

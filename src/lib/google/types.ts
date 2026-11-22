@@ -16,6 +16,10 @@ export interface GcalEventInput {
   attendees?: string[];
   /** The event's location; empty/absent leaves it unset. */
   location?: string;
+  /** Google recurrence lines (`RRULE:`/`EXDATE:`/`RDATE:`); absent = one-off. */
+  recurrence?: string[];
+  /** IANA timezone for a timed recurring series (the app uses Asia/Singapore). */
+  timeZone?: string;
 }
 
 export interface GcalEvent {
@@ -36,6 +40,10 @@ export interface GcalEventPatch {
   /** Google event summary. */
   title?: string;
   description?: string;
+  /** Replacement Google recurrence lines (used to truncate a series). */
+  recurrence?: string[];
+  /** IANA timezone for a timed series edit. */
+  timeZone?: string;
 }
 
 /** A single event read back from Google Calendar for the calendar view. */
@@ -49,6 +57,14 @@ export interface GcalEventItem {
   allDay: boolean;
   /** The event's location, or "" when unset. */
   location: string;
+  /** Parent recurring event id for an expanded instance/exception, else null. */
+  recurringEventId?: string | null;
+  /** The slot this instance would have occupied, as an instant/date, else null. */
+  originalStartTime?: Date | null;
+  /** Google recurrence lines (parents only, when listed unexpanded), else null. */
+  recurrence?: string[] | null;
+  /** Google event status (`confirmed`, `tentative`, `cancelled`). */
+  status?: string | null;
 }
 
 export interface GoogleCalendarInfo {
@@ -61,22 +77,35 @@ export interface GoogleIntegration {
   createEvent(input: GcalEventInput): Promise<GcalEvent>;
   /** Update an existing event (full replace). */
   updateEvent(eventId: string, input: GcalEventInput): Promise<GcalEvent>;
-  /** Patch only the supplied event fields (summary/description), leaving the rest intact. */
+  /** Fetch one event (including a recurring parent's recurrence lines), or null on 404. */
+  getEvent(calendarId: string, eventId: string): Promise<GcalEventItem | null>;
+  /** Patch only the supplied event fields (summary/description/recurrence), leaving the rest intact. */
   patchEvent(eventId: string, input: GcalEventPatch): Promise<GcalEvent>;
   /** Delete an event. */
   deleteEvent(calendarId: string, eventId: string): Promise<void>;
-  /** List events in a calendar overlapping the given [timeMin, timeMax] range. */
-  listEvents(calendarId: string, timeMin: Date, timeMax: Date): Promise<GcalEventItem[]>;
+  /**
+   * List events in a calendar overlapping the given [timeMin, timeMax] range.
+   * `singleEvents:false` returns series parents + stored exceptions instead of
+   * expanding every occurrence (the mutation path uses it).
+   */
+  listEvents(
+    calendarId: string,
+    timeMin: Date,
+    timeMax: Date,
+    options?: { singleEvents?: boolean },
+  ): Promise<GcalEventItem[]>;
   /**
    * One page of events in a calendar overlapping [timeMin, timeMax]. Pass the
    * previous page's `nextPageToken` to continue; used by the bulk migration so
    * a wide all-history scan is paginated rather than capped at 2500 events.
+   * `singleEvents:false` lets the migration patch series parents only.
    */
   listEventPages(
     calendarId: string,
     timeMin: Date,
     timeMax: Date,
     pageToken?: string,
+    options?: { singleEvents?: boolean },
   ): Promise<GcalEventPage>;
   /** Free-text search (`q`) for events in a calendar within [timeMin, timeMax]. */
   searchEvents(

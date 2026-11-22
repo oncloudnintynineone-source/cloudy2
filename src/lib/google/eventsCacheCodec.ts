@@ -40,6 +40,10 @@ interface CachedEvent {
   location: string;
   start: string;
   end: string;
+  recurringEventId?: string | null;
+  originalStartTime?: string | null;
+  recurrence?: string[] | null;
+  status?: string | null;
 }
 
 /** Encode `GcalEventItem`s for JSON storage (dates as ISO strings). */
@@ -53,6 +57,10 @@ export function encodeCachedEvents(items: GcalEventItem[]): CachedEvent[] {
     location: item.location,
     start: item.start.toISOString(),
     end: item.end.toISOString(),
+    recurringEventId: item.recurringEventId ?? null,
+    originalStartTime: item.originalStartTime?.toISOString() ?? null,
+    recurrence: item.recurrence ?? null,
+    status: item.status ?? null,
   }));
 }
 
@@ -83,6 +91,8 @@ export function decodeCachedEvents(raw: unknown): GcalEventItem[] {
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
       continue;
     }
+    const originalStartTime =
+      typeof entry.originalStartTime === "string" ? new Date(entry.originalStartTime) : null;
     items.push({
       id: entry.id,
       calendarId: entry.calendarId,
@@ -93,6 +103,16 @@ export function decodeCachedEvents(raw: unknown): GcalEventItem[] {
       location: typeof entry.location === "string" ? entry.location : "",
       start,
       end,
+      recurringEventId:
+        typeof entry.recurringEventId === "string" ? entry.recurringEventId : null,
+      originalStartTime:
+        originalStartTime && !Number.isNaN(originalStartTime.getTime())
+          ? originalStartTime
+          : null,
+      recurrence: Array.isArray(entry.recurrence)
+        ? entry.recurrence.filter((line): line is string => typeof line === "string")
+        : null,
+      status: typeof entry.status === "string" ? entry.status : null,
     });
   }
   return items;

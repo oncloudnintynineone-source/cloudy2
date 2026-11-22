@@ -15,6 +15,7 @@
 import { brotliCompressSync, brotliDecompressSync, gunzipSync } from "node:zlib";
 
 import { isTimeOption, type TimeOption } from "./timeOptions";
+import { isRecurrenceRule, type RecurrenceRule } from "./recurrence";
 import type { EventFormValues } from "./validate";
 
 export interface EventNotes {
@@ -60,6 +61,23 @@ export interface EventNotes {
   pinnedDepartments?: string[];
   /** Datetime option used to create the event ("range" | "full"). */
   timeOption?: string;
+  /**
+   * The app's compact recurrence rule mirror. Google's `recurrence` field
+   * remains authoritative for expansion; this copy lets a read prefill and
+   * summarise without fetching the recurring parent. Written on the series
+   * parent and on every app-written instance/exception so a read is
+   * self-describing.
+   */
+  recurrence?: RecurrenceRule;
+  /**
+   * Set only on a single-occurrence exception created by "This event" editing.
+   * Absence means the occurrence is a generated instance of its parent.
+   */
+  override?: boolean;
+  /** Group id of the series a "this and following" successor was split from. */
+  splitFromEventId?: string;
+  /** Normalised original slot the split occurred at (successor lineage/idempotency). */
+  splitAt?: string;
   /** Start half-of-day indicator for "full" events. */
   startAmPm?: string;
   /** End half-of-day indicator for "full" events. */
@@ -121,7 +139,11 @@ export function encodeEventNotes(notes: EventNotes): string {
  * the per-event `registrationEnabled` / `registrationCap` flags — is mapped in
  * one place and can be unit-tested without Google or the DB.
  */
-export function eventNotesFromInput(eventId: string, input: EventFormValues): EventNotes {
+export function eventNotesFromInput(
+  eventId: string,
+  input: EventFormValues,
+  options?: { override?: boolean; extraNotes?: Partial<EventNotes> },
+): EventNotes {
   return {
     eventId,
     eventType: input.eventType || undefined,
@@ -133,6 +155,9 @@ export function eventNotesFromInput(eventId: string, input: EventFormValues): Ev
     timeOption: input.timeOption,
     startAmPm: input.timeOption === "half" ? input.startAmPm : undefined,
     endAmPm: input.timeOption === "half" ? input.endAmPm : undefined,
+    recurrence: input.recurrence ?? undefined,
+    override: options?.override ? true : undefined,
+    ...options?.extraNotes,
     outOfCamp: input.outOfCamp || undefined,
     overseas: input.outOfCamp && input.overseas ? true : undefined,
     // A pin with no specific departments is global (legacy `pinned: true`);
@@ -373,6 +398,15 @@ function readRegistrationCap(notes: EventNotes | null): number | null {
   return typeof cap === "number" && Number.isInteger(cap) && cap >= 1 ? cap : null;
 }
 
+function readRecurrence(notes: EventNotes | null): RecurrenceRule | null {
+  const recurrence = notes?.recurrence;
+  return isRecurrenceRule(recurrence) ? recurrence : null;
+}
+
+function readOverride(notes: EventNotes | null): boolean {
+  return notes?.override === true;
+}
+
 function readPinnedDepartments(notes: EventNotes | null): string[] {
   return uniqueStrings(notes?.pinnedDepartments);
 }
@@ -402,6 +436,8 @@ export interface EventDescriptionFields {
   timeOption: TimeOption | null;
   startAmPm: "AM" | "PM" | null;
   endAmPm: "AM" | "PM" | null;
+  recurrence: RecurrenceRule | null;
+  recurrenceOverride: boolean;
   outOfCamp: boolean;
   overseas: boolean;
   pinned: boolean;
@@ -422,6 +458,8 @@ export function parseEventDescription(description: string): EventDescriptionFiel
     timeOption: readTimeOption(notes),
     startAmPm: readAmPm(notes?.startAmPm),
     endAmPm: readAmPm(notes?.endAmPm),
+    recurrence: readRecurrence(notes),
+    recurrenceOverride: readOverride(notes),
     outOfCamp: notes?.outOfCamp === true,
     overseas: notes?.overseas === true,
     pinned: readPinned(notes),
@@ -499,4 +537,43 @@ export function parseEventRegistrationEnabled(description: string): boolean {
  */
 export function parseEventRegistrationCap(description: string): number | null {
   return readRegistrationCap(parseEventNotes(description));
+}
+
+/** The app recurrence mirror from the notes block, or null (one-off/legacy). */
+export function parseEventRecurrence(description: string): RecurrenceRule | null {
+  return readRecurrence(parseEventNotes(description));
+}
+
+/** True when the copy is a single-occurrence exception created by the app. */
+export function parseEventOverride(description: string): boolean {
+  return readOverride(parseEventNotes(description));
+}
+
+/**
+ * Replace only the serialized notes block in an event description, preserving
+ * the human-readable `Edit:` line, the internal marker and any surrounding
+ * text. Mirrors the in-place line replacement used by the event-type
+ * migration; callers pass an updater so every other notes field survives.
+ */
+export function rewriteEventNotes(
+  description: string,
+  updater: (notes: EventNotes) => EventNotes,
+): string {
+  const notes = parseEventNotes(description);
+  if (!notes) {
+    return description;
+  }
+  const nextBlock = encodeNotesBlock(encodeEventNotes(updater(notes)));
+  const lines = description.split("\n");
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const line = lines[index].trim();
+    if (!line) {
+      continue;
+    }
+    if (parseEventNotes(line) !== null) {
+      lines[index] = nextBlock;
+      return lines.join("\n");
+    }
+  }
+  return nextBlock;
 }

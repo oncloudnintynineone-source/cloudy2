@@ -42,6 +42,10 @@ describe("encodeCachedEvents / decodeCachedEvents", () => {
         location: "Hall A",
         start: new Date("2026-08-01T01:00:00.000Z"),
         end: new Date("2026-08-01T02:00:00.000Z"),
+        recurringEventId: null,
+        originalStartTime: null,
+        recurrence: null,
+        status: null,
       },
     ];
     const decoded = decodeCachedEvents(encodeCachedEvents(items));
