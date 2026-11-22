@@ -110,9 +110,10 @@ them with the tabs above the grid:
 - Date-nav arrows (‹ ›) step the period: a day in Day and Agenda, a week in
   the Week views, a month in Month and Month & Agenda. The calendar icon opens
   the **date picker** (which has its own **Today** button).
-- **Back to Today** appears **only while you are looking at another period**:
-  on desktop a pill sits at the center of the toolbar row (on a narrow desktop
-  window it's a circle under the fullscreen button); on phones a circle joins
+- **Back to Today** appears **only while you are looking at another period**,
+  and always sits **immediately left of the ‹ › arrows**: on desktop a pill in
+  the toolbar row (a plain circle when that row gets tight), on a narrow desktop
+  window a circle under the fullscreen button; on phones a circle joins
   the step buttons, left of ‹ ›. One tap slides straight back to today.
 - The **filter button** (funnel icon, with a badge when filters are active) opens
   the filter dialog: Calendars/departments and Users (searchable badge list grouped

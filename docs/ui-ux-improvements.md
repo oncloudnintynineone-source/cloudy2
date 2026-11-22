@@ -123,11 +123,14 @@ flowchart LR
 added *outside* it must carry the class or be excluded deliberately. Do not add a second surface
 that duplicates the date picker.
 
-**Status.** Shipped **1.399** (2026-11-22; placement revised twice the same day — the first floating version sat top-center over the canvas and covered weekday labels/chips): visible only while
+**Status.** Shipped **1.399** (2026-11-22; placement revised three times the same day — the first floating version sat top-center over the canvas and covered weekday labels/chips, the second centred the pill in the date-nav row, where a narrow desktop window could still land it on the chevrons): visible only while
 today is outside the shown period — pure `isOffToday` (`src/lib/ui/todayAffordance.ts`,
-unit-tested) reads the same optimistic `shown*` state as the period label — and **never inline in
-the chrome, never over the canvas**, so nothing shifts and nothing is covered: at `lg`+ a
-**"Back to Today"** pill floats in the date-nav row's permanently empty center (compact desktop
+unit-tested) reads the same optimistic `shown*` state as the period label — and **always anchored
+immediately left of the period chevrons, never over the canvas**, so it can never cover them and
+the controls right of it never move: at `lg`+ a **"Back to Today"** pill is an in-flow child of the
+date-nav row just before `‹ ›` (the period label is that row's only flexible child, so it is what
+truncates; below 720px of row the `.c2-nav-row` container query drops the pill to a 36px icon
+circle — compact desktop
 tier: an icon circle stacked under the floating fullscreen button); below `lg` a 56px circle joins
 the FAB row left of the `[< | >]` step pill (right-anchored
 row). The label tap/long-press variant from the fix sketch was **not** built: a hidden gesture,
@@ -683,7 +686,7 @@ land here.
 
 | ID | Shipped | Landed as |
 | --- | --- | --- |
-| A1 | 1.399 (2026-11-22) | Off-today-only Today jump, never inline and never over the canvas: at `lg`+ a **"Back to Today"** pill floats in the date-nav row's permanently empty center (compact desktop tier: an icon circle stacked under the floating fullscreen button); below `lg` a 56px frosted circle joins the FAB row left of the `[< \| >]` step pill (right-anchored, so existing controls never shift). Pure `isOffToday` (`src/lib/ui/todayAffordance.ts` + tests). Tap runs the existing `goToday` cross-slide + replace; intent prefetch like the chevrons; sr announcement rides the existing chrome watcher. Documented in [`dashboard-views.md`](dashboard-views.md) §1.1 (Today-jump bullet) and [`user-guide.md`](user-guide.md) §1.3.2. |
+| A1 | 1.399 (2026-11-22); placement revised 1.408 | Off-today-only Today jump, anchored **immediately left of the period chevrons** and never over the canvas: at `lg`+ a **"Back to Today"** pill is an in-flow child of the date-nav row just before `‹ \| ›` (the period label is that row's only flexible child, so it truncates instead of the controls moving; below 720px of row the `.c2-nav-row` container query drops the pill to a 36px icon circle — the centred float it replaced could reach the chevrons on a narrow desktop window; compact desktop tier: an icon circle stacked under the floating fullscreen button); below `lg` a 56px frosted circle joins the FAB row left of the `[< \| >]` step pill (right-anchored, so existing controls never shift). Pure `isOffToday` (`src/lib/ui/todayAffordance.ts` + tests). Tap runs the existing `goToday` cross-slide + replace; intent prefetch like the chevrons; sr announcement rides the existing chrome watcher. Documented in [`dashboard-views.md`](dashboard-views.md) §1.1 (Today-jump bullet) and [`user-guide.md`](user-guide.md) §1.3.2. |
 | A2 | 1.399 (2026-11-22) | `user-guide.md` §1.3.1/§1.3.2 and `dashboard-views.md` §1.1/§1.2 describe the real chrome — no ⋮ menu, shared `FullscreenButton`, the A1 control — and no held item is described as existing. |
 | A4 | 1.399 (2026-11-22) | `navigate`/`navigateLocal`, the in-month agenda-day anchor and the one-shot `edit`/`event` strips `router.replace(…, { scroll: false })`; deep links, post-save nav and `openClashEventInCalendar` keep `push`. Back leaves the calendar in one press; the cookie path is history-method-agnostic (verified). |
 | D2 | 1.400 (2026-11-22) | In-app **Guide** sheet (`src/components/GuideSheet.tsx`) rendered from the typed `src/lib/help/guideContent.ts` (route matcher unit-tested): one short block per route, current page first. Opened from the profile menu at every width; the "?" triggers in the dashboard chrome (wide toolbar tail + mobile control pill) were **removed at 1.403** (A7), so the profile menu is the only entry. Shortcut section deferred to B5 by design; the user guide's prose is not forked. |

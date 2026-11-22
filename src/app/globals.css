@@ -2221,6 +2221,44 @@ html.c2-low-end::view-transition-group(*) {
 }
 
 /*
+  A1 — the wide desktop tier's "Back to Today" pill (docs/dashboard-views.md §1.1).
+  It is an in-flow child of the date-nav row, immediately left of the period
+  chevrons: the period label is that row's only flexible child, so the pill
+  appearing truncates the label and every control to its right keeps its exact
+  place — and being in flow is what makes an overlap with the chevrons
+  impossible (the previous centred float could reach them once the row fell
+  below ~700px). The row is a size container so the pill can drop to a 36px icon
+  circle when the row cannot hold a labelled pill *and* a readable period label;
+  measuring the row (not the viewport) means the sidebar-rail state and a
+  missing Quick-links button are accounted for automatically. Threshold
+  arithmetic (sm buttons, 10px gaps): right cluster ≈ 450px (36 + 36 + "New
+  event" 124 + "Quick links" 132 + 36 + 36 + 5 gaps) + pill ≈ 152 + gap 10 +
+  label floor ≈ 110.
+*/
+.c2-nav-row {
+  container-type: inline-size;
+  container-name: c2-nav-row;
+}
+
+@container c2-nav-row (max-width: 720px) {
+  /* Doubled class beats Mantine's `.m_*:where([data-with-left-section])`
+     padding rule regardless of stylesheet order; the section margin goes too so
+     the icon stays optically centred once the label is hidden. */
+  .c2-today-pill.c2-glass-btn {
+    width: calc(2.25rem * var(--mantine-scale));
+    padding-inline: 0;
+  }
+
+  .c2-today-pill .c2-today-pill-label {
+    display: none;
+  }
+
+  .c2-today-pill .c2-today-pill-section {
+    margin-inline-end: 0;
+  }
+}
+
+/*
   Compact desktop chrome (the single-row tier): one navigator "slab" groups the
   view trigger, period stepper and filter/date controls, with hairline dividers
   between the logical sections. Its controls are ghost (transparent, no shadow)

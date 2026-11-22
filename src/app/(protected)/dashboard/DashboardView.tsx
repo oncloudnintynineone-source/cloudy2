@@ -4303,14 +4303,16 @@ function DashboardViewImpl({
   // 64px icon rail leaves; a wide-but-short viewport has room for their labels
   // (docs/dashboard-views.md §1.1).
   // A1: the Today jump (docs/ui-ux-improvements.md A1) exists only while today
-  // is outside the shown period (`offToday`) and never inline in the chrome —
-  // an inline control would shift its neighbours the moment it appears. Below
+  // is outside the shown period (`offToday`), and it is anchored **left of the
+  // period chevrons** at every tier, so it can never land on top of them. Below
   // `lg` it is a 56px circle in the FAB row left of the `[< | >]` step pill
-  // (the row is right-anchored, so nothing moves); at `lg`+ it floats over the
-  // pinned chrome, never the canvas: the wide tier centers the "Back to Today"
-  // pill in the date-nav row's permanently empty middle (absolutely positioned,
-  // so out of flow), the compact tier docks an icon circle under the floating
-  // fullscreen button. All run the existing `goToday`
+  // (the row is right-anchored, so nothing moves); at `lg`+ the wide tier's
+  // "Back to Today" pill joins the date-nav row **in flow**, immediately before
+  // the chevrons — the period label is that row's only flexible child, so the
+  // pill appearing truncates the label and every control to its right keeps its
+  // exact place — and the compact tier, whose squircle row has no room for it,
+  // docks an icon circle under the floating fullscreen button. All run the
+  // existing `goToday`
   // path (real period slide + the view-state URL replace — no new loading
   // surface) and announce through the chrome watcher above; the intent
   // handlers warm today's context exactly like the chevrons warm the adjacent
@@ -4503,34 +4505,38 @@ function DashboardViewImpl({
         {shownTabName}
       </Text>
     );
-  // A1: the "Back to Today" pill for the wide desktop tier — floated in the
-  // permanently empty center of the pinned date-nav row (the period label is
-  // left-aligned, every control is right-anchored), absolutely positioned so it
-  // is out of flow and the row is identical whether it shows or not. Rendered
-  // inside the sticky chrome box, so it stays pinned, follows immersive mode,
-  // and never overlaps the calendar canvas. The compact desktop tier has no
-  // empty row center (the squircle fills it) and docks an icon circle under the
-  // floating fullscreen button instead (see `FullscreenToggle below`); below
-  // `lg` the jump rides the FAB row left of the step pill.
+  // A1: the "Back to Today" pill for the wide desktop tier — a normal in-flow
+  // child of the pinned date-nav row, placed immediately before the chevrons
+  // (see `navRow`). The row's period label is its only flexible child, so the
+  // pill appearing shrinks the label and every control to its right keeps its
+  // exact position; being in flow is also what makes an overlap with the
+  // chevrons impossible at any width (the previous centred float could reach
+  // them once the row got narrower than ~700px). It lives inside the sticky
+  // chrome box, so it stays pinned, follows immersive mode, and never covers the
+  // calendar canvas. When the row is too narrow for a labelled pill *and* a
+  // readable period label, `.c2-nav-row` in globals.css drops it to a 36px icon
+  // circle — the accessible name and hover title stay, since the label span is
+  // what the query hides. The compact desktop tier has no room in its squircle
+  // row and docks an icon circle under the floating fullscreen button instead
+  // (see `FullscreenToggle below`); below `lg` the jump rides the FAB row left
+  // of the step pill.
   const todayPillWide = offToday ? (
     <Button
       radius={50}
       fw={600}
-      className="c2-glass-btn c2-glass-btn--bordered"
+      className="c2-glass-btn c2-glass-btn--bordered c2-today-pill"
+      classNames={{ section: "c2-today-pill-section" }}
+      __vars={{ "--button-height": "36px" }}
+      aria-label="Back to Today"
+      title="Back to Today"
       leftSection={<IconCalendarClock size={16} />}
-      style={{
-        position: "absolute",
-        left: "50%",
-        top: "50%",
-        transform: "translate(-50%, -50%)",
-      }}
       onClick={() => goToday()}
       onPointerEnter={() => prefetchTodayContext(false)}
       onFocus={() => prefetchTodayContext(true)}
       onPointerDown={() => prefetchTodayContext(true)}
       onTouchStart={() => prefetchTodayContext(true)}
     >
-      Back to Today
+      <span className="c2-today-pill-label">Back to Today</span>
     </Button>
   ) : null;
   const navRow = isCompactDesktop ? (
@@ -4566,10 +4572,10 @@ function DashboardViewImpl({
       gap="xs"
       wrap="nowrap"
       mt="xs"
-      // Positioning context for the absolutely-centered "Back to Today" pill —
-      // it floats over this row's permanently empty middle (label left, all
-      // controls right), out of flow, so nothing shifts when it appears.
-      style={{ position: "relative" }}
+      // Size container for the "Back to Today" pill: when this row is too
+      // narrow to hold a labelled pill and still read the period, the pill
+      // becomes a 36px icon circle (`.c2-nav-row` in globals.css).
+      className="c2-nav-row"
     >
       <Text fw={600} size="md" lineClamp={1} style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
         {/* Label flavor follows the optimistic chrome (same contract as the
@@ -4579,6 +4585,8 @@ function DashboardViewImpl({
             falls back to the optimistic date (today). */}
         {periodLabel}
       </Text>
+      {/* A1: the Today jump, anchored immediately left of the chevrons (the
+          label above is the row's only flexible child, so it is what gives). */}
       {todayPillWide}
       {/* Period chevrons: in the nav row at lg; below `lg` they ride the FAB
           cluster as the `[< | >]` pill (see the mobile FloatingToolbar). */}
@@ -5971,8 +5979,8 @@ function DashboardViewImpl({
           so it is not gated on grid content like GridNavControls. In the
           compact desktop tier it also carries the A1 "Back to Today" circle
           stacked below it (that tier's nav row is full — the squircle fills it
-          — so the jump docks into this top-right cluster; the wide tier floats
-          the pill in the nav row's empty center instead). */}
+          — so the jump docks into this top-right cluster; the wide tier anchors
+          its pill immediately left of the date-nav chevrons instead). */}
       <FullscreenToggle
         anchorRef={weekBoxRef}
         chromeRef={tabsListRef}

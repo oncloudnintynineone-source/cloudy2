@@ -2870,6 +2870,19 @@ mirror them (four such entries: 1.106.1, 1.122.1, 1.316.1, 1.331.1).
     (`EventForm.hidden` → `EventClashCheck.paused`). Docs: `event-lifecycle.md` §1.4.4,
     `component-framework.md` §1.6.5, `recurring-events.md` §1.8, `event-history.md`,
     `AGENTS.md`.
+  - 1.408 **Back to Today anchored left of the period chevrons (bugfix)**: the wide desktop
+    tier's pill was absolutely centred in the date-nav row, so on a narrow desktop window (the
+    row below ~700px — roughly an 800–960px viewport with the sidebar expanded) its right half
+    reached the `‹ ›` chevrons and sat on top of them. It is now an **in-flow** child of that
+    row, immediately before the chevrons: the period label is the row's only flexible child, so
+    the pill appearing truncates the label while every control to its right keeps its exact
+    place, and an overlap is impossible at any width. Below 720px of row the `.c2-nav-row`
+    container query in `globals.css` drops the pill to a 36px icon circle (the label span is
+    what hides, so `aria-label`/`title` carry the name) — measuring the row rather than the
+    viewport covers the collapsed-sidebar and no-Quick-links cases for free. The compact desktop
+    tier (circle stacked under the fullscreen button) and the mobile FAB row (already left of
+    the `[<|>]` step pill) are unchanged, as is pure `isOffToday`. Docs: `dashboard-views.md`
+    §1.1, `user-guide.md` §1.3.2, `ui-ux-improvements.md` A1, `AGENTS.md`.
 
 ## 1.4 Open items & next steps
 

@@ -264,10 +264,13 @@ doc content here.
     **fully saturated** (`c2-glass-fab--brand-solid` / `--accent-solid`, no frosted
     tint) at every width. They go icon-only only in the narrow band (a wide-but-short
     viewport keeps the labels). Saves a full row of chrome. While today is off-screen the
-**Back to Today** jump appears **without shifting anything**: a 56px circle in the mobile
-FAB row left of the `[<|>]` step pill (right-anchored row), and at `lg`+ a pill floated in
-the date-nav row's permanently empty center — compact tier: an icon circle stacked under
-the floating fullscreen button — never inline in the chrome, never over the canvas
+**Back to Today** jump appears, **always anchored immediately left of the period chevrons** so
+it can never cover them: a 56px circle in the mobile
+FAB row left of the `[<|>]` step pill (right-anchored row), and at `lg`+ an **in-flow** pill in
+the date-nav row just before `‹ ›` — the period label is that row's only flexible child, so it
+truncates while every control to the right keeps its place, and below 720px of row the
+`.c2-nav-row` container query drops the pill to a 36px icon circle — compact tier: an icon circle stacked under
+the floating fullscreen button — never over the canvas
 (`src/lib/ui/todayAffordance.ts`, `dashboard-views.md` §1.1). The mobile floating rows
     **auto-hide while the user touches the calendar pane** (touch alone, or any
     scroll, either axis) and slide back only when the last finger/pointer is

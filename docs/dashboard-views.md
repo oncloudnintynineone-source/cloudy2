@@ -247,21 +247,28 @@ string maps to the first tab of that kind.
   the same commit — no skeleton flash. Only genuinely cold targets slide the
   skeleton in (the skeleton now matches the grid's header/row geometry).
 - **Today jump (A1).** Rendered **only while today is outside the shown
-  period**, and never inline in the chrome — an inline control would shift its
-  neighbours the moment it appears. Below `lg` it is a 56px frosted circle in
+  period**, and always anchored **immediately left of the period chevrons**, so
+  it can never land on top of them. Below `lg` it is a 56px frosted circle in
   the **FAB row, immediately left of the `[< | >]` step pill** (the row is
   right-anchored, so the step pill, Quick links and New-event circle never
-  move); at `lg`+ it floats over the pinned chrome — **never over the canvas**,
-  where it would cover the weekday labels and first-row chips: the wide tier
-  centers a **"Back to Today"** pill in the **date-nav row's permanently empty
-  middle** (the period label is left-aligned and every control is
-  right-anchored; the pill is absolutely positioned — out of flow, so the row
-  is identical whether it shows or not — and rides the sticky chrome, staying
-  pinned and following immersive mode for free), while the compact tier, whose
-  row is full (the squircle fills it), docks a 40px icon circle **stacked under
-  the floating fullscreen button** in that top-right cluster
-  (`FullscreenToggle`'s `below` slot). The period rule: Month compares the
-  shown month, the week kinds the whole
+  move). At `lg`+ it lives in the pinned chrome — **never over the canvas**,
+  where it would cover the weekday labels and first-row chips: the wide tier's
+  **"Back to Today"** pill is an **in-flow child of the date-nav row, placed
+  immediately before the chevrons** — the period label is that row's only
+  flexible child, so the pill appearing truncates the label while every control
+  to its right keeps its exact position, and being in flow is what makes an
+  overlap impossible (the pill used to be absolutely centred in the row's empty
+  middle, which reached the chevrons as soon as the row fell below ~700px); it
+  rides the sticky chrome, staying pinned and following immersive mode for
+  free. Below `720px` of row — too tight for a labelled pill *and* a readable
+  period label — the `.c2-nav-row` container query in `globals.css` drops the
+  pill to a 36px icon circle (the label span is what hides, so the
+  `aria-label`/`title` carry the name); measuring the row rather than the
+  viewport covers the collapsed-sidebar and no-Quick-links cases for free. The
+  compact tier, whose row is full (the squircle fills it), docks a 40px icon
+  circle **stacked under the floating fullscreen button** in that top-right
+  cluster (`FullscreenToggle`'s `below` slot). The period rule: Month compares
+  the shown month, the week kinds the whole
   shown week (Monday/Sunday per `weekStartsOn` — a week merely *containing*
   today is on today), and Day / Agenda / Dual Pane the anchored day (Agenda its
   viewed day). Pure `isOffToday` (`src/lib/ui/todayAffordance.ts`, unit-tested)
