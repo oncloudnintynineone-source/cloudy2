@@ -26,8 +26,10 @@ export default function ContactsLoading() {
 
         {/* The sectioned dense row list (C2): one rounded card per group, each
             with a hairline-separated set of rows — name line + phone/chips line
-            + the two action circles. */}
-        <Stack gap="sm">
+            + the two action circles. The cards ride the same `.card-grid`
+            columns as the loaded page, so the skeleton→content swap does not
+            reflow. */}
+        <Box component="div" className="card-grid c2-contact-groups">
           {[2, 3].map((rows, groupIndex) => (
             <Box
               key={groupIndex}
@@ -66,7 +68,7 @@ export default function ContactsLoading() {
               ))}
             </Box>
           ))}
-        </Stack>
+        </Box>
       </Stack>
     </PageContainer>
   );

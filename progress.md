@@ -18,8 +18,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.407 (Hidden keepMounted surfaces & nested dialogs)** is
-  shipped — the first items (A1/A2/A4) off the UI/UX backlog.
+- All work through changelog **1.409 (Contacts: centred A–Z rail + wide-screen group grid)** is
+  shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -2883,6 +2883,18 @@ mirror them (four such entries: 1.106.1, 1.122.1, 1.316.1, 1.331.1).
     tier (circle stacked under the fullscreen button) and the mobile FAB row (already left of
     the `[<|>]` step pill) are unchanged, as is pure `isOffToday`. Docs: `dashboard-views.md`
     §1.1, `user-guide.md` §1.3.2, `ui-ux-improvements.md` A1, `AGENTS.md`.
+  - 1.409 **Contacts: centred A–Z rail + wide-screen group grid (C2 follow-up)**: the jump rail no
+    longer hugs the top of the list — it is a **viewport-centred** sticky index. Its `top` is
+    `50dvh − height/2` from the height the component declares (`--c2-rail-h`, from pure
+    `contactRailHeightPx`), so no `translateY` is needed and the un-stuck position at page top stays
+    clean; `max()` clamps it under the sticky chrome and `max-height` (that space doubled) keeps it
+    symmetric, scrolling its own tail instead of losing letters below the viewport. On wide screens
+    the **group cards** reflow into the shared `.card-grid` auto-fill columns — contacts stay dense
+    hairline rows inside each card, and `.c2-contact-groups` keeps the cards natural-height so a
+    longer neighbour leaves its gap *outside* the border. `activeSectionKey` gained an equal-offset
+    tie-break, so a shared grid row lights the left-hand card, and the route skeleton rides the same
+    grid (no reflow on the skeleton→content swap). Docs: `desktop-responsive.md` §1.6,
+    `ui-ux-improvements.md` C2.
 
 ## 1.4 Open items & next steps
 

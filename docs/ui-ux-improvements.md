@@ -377,7 +377,14 @@ it detached, unclickable and unlit. Now **every group is its own rounded card** 
 for the name sort, department groups for the department sort), the rail is a **sticky pill beside
 the cards** — pinned under the chrome through the list, 26×20 letter targets, the current
 section's letter highlighted as you scroll (capture-phase scroll listener + pure
-`activeSectionKey`), and the jump announced. §1.10.1.
+`activeSectionKey`), and the jump announced. **Follow-up 1.409:** the rail is a
+**viewport-centred index** now instead of a block pinned under the chrome — sticky `top` is
+`50dvh − height/2` from the height the component declares (`--c2-rail-h` from
+`contactRailHeightPx`), clamped under the sticky bar by `max()` and internally scrollable when it
+is taller than the window, so no letter is ever unreachable. And on wide screens the **group cards**
+reflow into the shared `.card-grid` auto-fill columns (contacts stay dense rows inside each card;
+`.c2-contact-groups` keeps the cards natural-height), with the scroll spy lighting the **left-hand**
+card of a shared grid row (equal-offset tie-break in `activeSectionKey`, unit-tested). §1.10.1.
 
 ### 1.6.3 C3 — Parade State has no name search
 

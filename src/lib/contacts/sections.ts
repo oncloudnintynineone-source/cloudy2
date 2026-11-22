@@ -105,25 +105,62 @@ export interface ContactSectionOffset {
 }
 
 /**
+ * Sub-pixel slack when comparing two section-header offsets: cards sharing a
+ * grid row report the same `top`, and we want them treated as equal there.
+ */
+const ROW_TIE_EPSILON_PX = 1;
+
+/**
  * The rail letter to highlight for the current scroll position: the last
  * section header already above `activationLine` (a viewport-relative y),
  * falling back to the first section when the list starts below it. Entries
  * must be in document order — the caller maps each section to its rail letter
  * (`contactInitial(section.label)`).
+ *
+ * On wide screens the group cards sit in a grid, so several sections share a
+ * row and report the same `top`. The **first** of an equal-top group wins —
+ * the left-hand card, where reading starts — instead of the last one in
+ * document order, which would light the right-hand card of the row.
  */
 export function activeSectionKey(
   entries: readonly ContactSectionOffset[],
   activationLine: number,
 ): string | null {
   let active: string | null = null;
+  let activeTop = Number.NEGATIVE_INFINITY;
   for (const entry of entries) {
-    if (entry.top <= activationLine) {
-      active = entry.key;
-    } else {
+    if (entry.top > activationLine) {
       break;
+    }
+    if (entry.top > activeTop + ROW_TIE_EPSILON_PX) {
+      active = entry.key;
+      activeTop = entry.top;
     }
   }
   return active ?? entries[0]?.key ?? null;
+}
+
+/** One rail letter's height — the rail button's `minHeight`. */
+export const CONTACT_RAIL_ENTRY_HEIGHT_PX = 20;
+
+/** The rail pill's vertical padding (top and bottom each). */
+export const CONTACT_RAIL_PADDING_Y_PX = 6;
+
+/** The rail pill's hairline border (top and bottom each). */
+export const CONTACT_RAIL_BORDER_PX = 1;
+
+/**
+ * The rendered height of the A–Z rail for `entryCount` letters (border-box:
+ * letters + padding + border). The component publishes it as `--c2-rail-h` so
+ * CSS can centre the sticky rail (`50dvh - height/2`) without measuring it —
+ * see `.c2-contact-rail`.
+ */
+export function contactRailHeightPx(entryCount: number): number {
+  return (
+    entryCount * CONTACT_RAIL_ENTRY_HEIGHT_PX +
+    CONTACT_RAIL_PADDING_Y_PX * 2 +
+    CONTACT_RAIL_BORDER_PX * 2
+  );
 }
 
 /**

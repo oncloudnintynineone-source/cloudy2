@@ -6,6 +6,7 @@ import {
   buildContactRail,
   buildContactSections,
   contactInitial,
+  contactRailHeightPx,
   NO_DEPARTMENT_SECTION_KEY,
   NO_DEPARTMENT_SECTION_LABEL,
 } from "@/lib/contacts/sections";
@@ -135,5 +136,33 @@ describe("activeSectionKey", () => {
 
   it("returns null for an empty list", () => {
     expect(activeSectionKey([], 100)).toBeNull();
+  });
+
+  it("lights the left-hand card when a grid row shares one offset", () => {
+    // Wide screens: A/B share a row (same `top`), as do C/D.
+    const gridRows = [
+      { key: "A", top: -300 },
+      { key: "B", top: -300 },
+      { key: "C", top: 40 },
+      { key: "D", top: 40 },
+    ];
+    expect(activeSectionKey(gridRows, 100)).toBe("C");
+    expect(activeSectionKey(gridRows, 0)).toBe("A");
+  });
+
+  it("ignores sub-pixel jitter inside the same row", () => {
+    const jittered = [
+      { key: "A", top: 100 },
+      { key: "B", top: 100.4 },
+    ];
+    expect(activeSectionKey(jittered, 200)).toBe("A");
+  });
+});
+
+describe("contactRailHeightPx", () => {
+  it("is the letter stack plus the pill's padding and border", () => {
+    expect(contactRailHeightPx(0)).toBe(14);
+    expect(contactRailHeightPx(4)).toBe(94);
+    expect(contactRailHeightPx(26)).toBe(534);
   });
 });

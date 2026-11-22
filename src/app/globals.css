@@ -2811,16 +2811,42 @@ html.c2-low-end::view-transition-group(*) {
   }
 }
 
-/* The rail column itself sticks under the same chrome while the list is in
-   view (C2 follow-up): below `lg` only the app header sits above it; at `lg`
-   the sticky search bar does too. */
+/* The rail column is a viewport-centred index (the phone-Contacts convention)
+   rather than a block pinned under the chrome (C2 follow-up): its sticky `top`
+   is the viewport centre minus half its own declared height (`--c2-rail-h`,
+   published by the component from `contactRailHeightPx`). Two clamps keep it
+   usable:
+   - `max()` against the chrome offset, so a rail taller than the space below
+     the sticky bar never slides under it (below `lg` only the app header sits
+     above it; at `lg`+ the sticky search bar does too);
+   - `max-height` = that space doubled, so when it binds the rail stays
+     symmetric and scrolls its own tail instead of losing letters below the
+     viewport (the scrollbar is hidden — it is a tap surface).
+   No `translateY(-50%)`: at the un-stuck static position (page top) a transform
+   would pull the rail up over the chrome. */
 .c2-contact-rail {
-  top: calc(var(--app-shell-header-offset) + 8px);
+  --c2-rail-top-min: calc(var(--app-shell-header-offset) + 8px);
+  top: max(var(--c2-rail-top-min), calc(50dvh - var(--c2-rail-h, 0px) / 2));
+  max-height: calc(100dvh - 2 * var(--c2-rail-top-min));
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.c2-contact-rail::-webkit-scrollbar {
+  display: none;
+}
+
+/* Wide screens put the group cards in the shared `.card-grid` auto-fill
+   columns; they keep their natural height, because a stretched card would
+   paint empty space *inside* its border next to a longer neighbour (the
+   accepted tradeoff of the grid — the ragged space stays outside the border). */
+.c2-contact-groups {
+  align-items: start;
 }
 
 @media (min-width: 40em) {
   .c2-contact-rail {
-    top: calc(var(--app-shell-header-offset) + 84px);
+    --c2-rail-top-min: calc(var(--app-shell-header-offset) + 84px);
   }
 }
 

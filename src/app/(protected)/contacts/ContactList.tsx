@@ -39,6 +39,9 @@ import {
   buildContactRail,
   buildContactSections,
   contactInitial,
+  CONTACT_RAIL_ENTRY_HEIGHT_PX,
+  CONTACT_RAIL_PADDING_Y_PX,
+  contactRailHeightPx,
   type ContactSort,
 } from "@/lib/contacts/sections";
 import { useChromeHide } from "@/lib/ui/chromeHide";
@@ -537,11 +540,18 @@ export function ContactList({
         // Sectioned dense list (C2): every group is its own rounded card — the
         // letter groups for the name sort, the department groups for the
         // department sort — so a group reads as one bounded block instead of a
-        // seam in a continuous list. The A–Z rail rides beside the cards as a
-        // sticky surface: it stays pinned under the chrome through the list,
-        // lights up the current section, and its letters are full tap targets.
+        // seam in a continuous list. On wide screens the cards reflow into the
+        // shared `.card-grid` auto-fill columns (one column on phones), and
+        // `.c2-contact-groups` keeps them natural-height. The A–Z rail rides
+        // beside the cards as a sticky surface: vertically centred in the
+        // viewport while the list scrolls (see `.c2-contact-rail`), lighting up
+        // the current section, with full tap targets per letter.
         <Box style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
-          <Stack gap="sm" style={{ flex: 1, minWidth: 0 }}>
+          <Box
+            component="div"
+            className="card-grid c2-contact-groups"
+            style={{ flex: 1, minWidth: 0 }}
+          >
             {sections.map((section) => (
               <Box
                 key={section.key}
@@ -568,24 +578,32 @@ export function ContactList({
                 ))}
               </Box>
             ))}
-          </Stack>
+          </Box>
           {showRail && (
             <Box
               component="nav"
               aria-label="Jump to contacts section"
               className="c2-contact-rail"
-              style={{
-                position: "sticky",
-                alignSelf: "flex-start",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                padding: "6px 3px",
-                zIndex: 2,
-                background: "var(--mantine-color-default)",
-                border: LIST_BORDER,
-                borderRadius: 999,
-              }}
+              style={
+                {
+                  position: "sticky",
+                  // A stretched flex item cannot stick, so the rail keeps its
+                  // own height and `.c2-contact-rail` centres it in the
+                  // viewport from the height declared below.
+                  alignSelf: "flex-start",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  padding: `${CONTACT_RAIL_PADDING_Y_PX}px 3px`,
+                  zIndex: 2,
+                  background: "var(--mantine-color-default)",
+                  border: LIST_BORDER,
+                  borderRadius: 999,
+                  // CSS centres the sticky rail (`50dvh - height / 2`) from this
+                  // declared height instead of measuring it.
+                  "--c2-rail-h": `${contactRailHeightPx(rail.length)}px`,
+                } as CSSProperties
+              }
             >
               {rail.map((entry) => {
                 const isActive = entry.key === activeRailKey;
@@ -599,7 +617,11 @@ export function ContactList({
                     onClick={() => jumpToSection(entry.sectionKey, entry.key)}
                     style={{
                       width: 26,
-                      minHeight: 20,
+                      minHeight: CONTACT_RAIL_ENTRY_HEIGHT_PX,
+                      // The rail scrolls when it is taller than the window
+                      // (`.c2-contact-rail`), so letters must keep their height
+                      // instead of flex-shrinking to fit it.
+                      flexShrink: 0,
                       display: "grid",
                       placeItems: "center",
                       borderRadius: 6,
