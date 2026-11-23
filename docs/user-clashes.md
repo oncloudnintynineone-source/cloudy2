@@ -220,10 +220,12 @@ half-day-aware occupancy window the timeline positions bars by (the stored
 
 - **`page.tsx`** — server component: `requireSession()`; loads and shapes the active
   roster (`id`, `name`, `shortname`, department) for the picker.
-- **`DoubleBookingView.tsx`** — client component. The header is a responsive flex row
-  (`.c2-db-head` in `globals.css`): title + a short target-aware subtitle on the left,
-  and a **control group** (`.c2-db-controls`) on the right holding the target picker
-  (`.c2-db-picker`) and the look-ahead menu (`.c2-db-range`) — **stacked full column
+- **`DoubleBookingView.tsx`** — client component. The header is the shared
+  report-page head row (`.c2-report-head` in `globals.css`, shared with KAH
+  Status — [`kah.md`](kah.md) §1.7): title + a short target-aware subtitle on
+  the left, and a **control group** (`.c2-report-controls`) on the right
+  holding the target picker (`.c2-report-picker`) and the look-ahead menu
+  (`.c2-report-range`) — **stacked full column
   width on mobile**, each control content-sized and right-aligned from the 40em desktop
   band on (a pure-CSS switch, so there is no
   `useMediaQuery` first-frame shift). On that row the title is **top-aligned** with

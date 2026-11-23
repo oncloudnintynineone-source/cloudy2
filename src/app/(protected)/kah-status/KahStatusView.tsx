@@ -3,9 +3,9 @@
 import { useRef, useState, useTransition } from "react";
 import dayjs from "dayjs";
 import { useRouter } from "next/navigation";
-import { Badge, Group, Paper, Stack, Text } from "@mantine/core";
+import { Badge, Box, Button, Group, Paper, Stack, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { IconCircleCheck, IconUsersGroup } from "@tabler/icons-react";
+import { IconCircleCheck, IconRefresh, IconUsersGroup } from "@tabler/icons-react";
 
 import { CrossfadeSwap } from "@/components/CrossfadeSwap";
 import { EmptyState } from "@/components/EmptyState";
@@ -13,6 +13,8 @@ import { PageHeader } from "@/components/PageHeader";
 import { TimeRangeSelect } from "@/components/TimeRangeSelect";
 import { useColdStartContent } from "@/components/ColdStartReady";
 import { ClashCard, ClashEventRow } from "@/components/clashCards";
+import { BUTTON_LOADER_PROPS } from "@/lib/theme";
+import { capBadgeItems } from "@/lib/ui/badgeCap";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { MIN_SKELETON_HOLD_MS, useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
 import type { Rect } from "@/lib/motion/origin";
@@ -77,14 +79,17 @@ function dayCount(days: number): string {
 
 /**
  * The group roster as badges: away members in red, in-country members muted, and
- * the signed-in user emphasised (accent). Capped with a `+N more` overflow so a
- * large group stays readable.
+ * the signed-in user emphasised (accent). Capped through the shared
+ * `capBadgeItems` recipe (C6) so a large group stays readable and the "(You)"
+ * chip is pinned first — it can never disappear behind the cap.
  */
 function MemberChips({ members, currentUserId }: { members: KahMember[]; currentUserId: string }) {
-  const max = 14;
   const ordered = [...members.filter((member) => member.away), ...members.filter((m) => !m.away)];
-  const visible = ordered.slice(0, max);
-  const rest = ordered.length - visible.length;
+  const { visible, overflow } = capBadgeItems(
+    ordered,
+    14,
+    (member) => member.userId === currentUserId,
+  );
   return (
     <Group gap={4} wrap="wrap">
       {visible.map((member) => {
@@ -100,9 +105,9 @@ function MemberChips({ members, currentUserId }: { members: KahMember[]; current
           </Badge>
         );
       })}
-      {rest > 0 && (
+      {overflow > 0 && (
         <Text size="xs" c="dimmed">
-          +{rest} more
+          +{overflow} more
         </Text>
       )}
     </Group>
@@ -116,6 +121,10 @@ export function KahStatusView({ initial, currentUserId }: KahStatusViewProps) {
   // refresh remounts this view and resets to the default.
   const [data, setData] = useState<KahStatusViewData>(initial);
   const [rangeMonths, setRangeMonths] = useState<KahRangeMonths>(initial.rangeMonths);
+  // A failed look-ahead change keeps the last good window on screen and shows
+  // the inline error + Retry strip (the Double Booking recipe) instead of a
+  // toast that vanishes with no way back.
+  const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const { windowStart, windowEnd, allGroups, episodes, allClearGroups } = data;
 
@@ -126,6 +135,18 @@ export function KahStatusView({ initial, currentUserId }: KahStatusViewProps) {
   // whole window, so reporting on mount is exactly "content painted".
   useColdStartContent();
 
+  function loadRange(months: KahRangeMonths) {
+    startTransition(async () => {
+      const result = await getKahStatusView({ rangeMonths: months });
+      if (result.ok) {
+        setData(result.data);
+        setError(null);
+      } else {
+        setError(result.error);
+      }
+    });
+  }
+
   // The shared control only ever reports a selectable window, so no coercion is
   // needed here (the server action still re-parses its input defensively).
   function handleRangeChange(next: KahRangeMonths) {
@@ -133,15 +154,7 @@ export function KahStatusView({ initial, currentUserId }: KahStatusViewProps) {
       return;
     }
     setRangeMonths(next);
-    startTransition(async () => {
-      const result = await getKahStatusView({ rangeMonths: next });
-      if (result.ok) {
-        setData(result.data);
-      } else {
-        setRangeMonths(data.rangeMonths);
-        notifications.show({ color: "red", message: result.error });
-      }
-    });
+    loadRange(next);
   }
 
   // In-place detail modal: opens immediately (shaped skeleton) and lazily fetches
@@ -207,36 +220,80 @@ export function KahStatusView({ initial, currentUserId }: KahStatusViewProps) {
     setDetailLoading(false);
   }
 
-  const counts = (["active", "upcoming", "resolved"] as const)
+  const statusSummary = (["active", "upcoming", "resolved"] as const)
     .map((status) => {
       const count = episodes.filter((episode) => episode.status === status).length;
       return count > 0 ? `${count} ${status}` : null;
     })
     .filter((part): part is string => part !== null)
-    .join(" · ");
+    .join(", ");
+
+  const hasContent = episodes.length > 0 || allClearGroups.length > 0;
 
   return (
     <Stack gap="md" pb="xl" className={CONTENT_ENTER_CLASS}>
-      <PageHeader
-        title="KAH Status"
-        subtitle={`${windowLabel} · KAH breaches over the next ${kahRangeLabel(rangeMonths)}${
-          counts ? ` · ${counts}` : ""
-        }`}
-      />
+      {/* The pinned chrome: the head block (title + look-ahead control) stuck
+          under the app header while the breach cards scroll beneath it — the
+          shared sticky-chrome recipe (docs/dashboard-views.md, SettingsTabs),
+          same as Double Booking and My Events. The admin-view hint rides the
+          subtitle so the chrome stays two lines. */}
+      <Box
+        className="c2-glass-surface"
+        style={{
+          position: "sticky",
+          top: "var(--app-shell-header-offset)",
+          zIndex: 9,
+          borderBottom: "1px solid var(--mantine-color-default-border)",
+          marginInline: "calc(-1 * var(--app-shell-padding))",
+          marginTop: "calc(-1 * var(--app-shell-padding))",
+          paddingInline: "var(--app-shell-padding)",
+          paddingTop: "var(--mantine-spacing-md)",
+          paddingBottom: "var(--mantine-spacing-md)",
+        }}
+      >
+        <div className="c2-report-head">
+          <div className="c2-report-title">
+            <PageHeader
+              title="KAH Status"
+              subtitle={
+                allGroups ? `${windowLabel} · Admin view — showing all KAH groups` : windowLabel
+              }
+            />
+          </div>
+          <div className="c2-report-controls">
+            <div className="c2-report-range">
+              <TimeRangeSelect
+                label="Look ahead"
+                values={KAH_RANGE_MONTHS}
+                labelFor={kahRangeLabel}
+                months={rangeMonths}
+                onSelect={handleRangeChange}
+                disabled={pending}
+              />
+            </div>
+          </div>
+        </div>
+      </Box>
 
-      <TimeRangeSelect
-        label="Look ahead"
-        values={KAH_RANGE_MONTHS}
-        labelFor={kahRangeLabel}
-        months={rangeMonths}
-        onSelect={handleRangeChange}
-        disabled={pending}
-      />
-
-      {allGroups ? (
-        <Text fz="sm" c="dimmed">
-          Admin view — showing all KAH groups
-        </Text>
+      {error ? (
+        <Paper withBorder p="sm">
+          <Group justify="space-between" align="center" gap="xs" wrap="wrap">
+            <Text size="xs" c="dimmed">
+              Could not load the KAH forecast for this look-ahead.
+            </Text>
+            <Button
+              size="compact-xs"
+              variant="subtle"
+              color="gray"
+              leftSection={<IconRefresh size={12} />}
+              loading={pending}
+              loaderProps={BUTTON_LOADER_PROPS}
+              onClick={() => loadRange(rangeMonths)}
+            >
+              Retry
+            </Button>
+          </Group>
+        </Paper>
       ) : null}
 
       <CrossfadeSwap
@@ -245,7 +302,7 @@ export function KahStatusView({ initial, currentUserId }: KahStatusViewProps) {
         mode="overlay"
         skeleton={<KahStatusSkeleton />}
       >
-        {episodes.length === 0 && allClearGroups.length === 0 ? (
+        {!hasContent ? (
           allGroups ? (
             <EmptyState
               icon={<IconUsersGroup size={18} />}
@@ -260,16 +317,24 @@ export function KahStatusView({ initial, currentUserId }: KahStatusViewProps) {
             />
           )
         ) : (
-          <>
+          <Stack gap="sm">
             {episodes.length > 0 ? (
-              <Stack gap="sm">
+              <>
+                {/* The result summary line (the Double Booking recipe) — also
+                    the announcement a range change was missing: the cards keep
+                    `live={false}`, so only this line speaks. */}
+                <Text fz="sm" c="dimmed" role="status" aria-live="polite">
+                  {episodes.length} breach {episodes.length === 1 ? "period" : "s"} in the next{" "}
+                  {kahRangeLabel(rangeMonths)}
+                  {statusSummary ? ` — ${statusSummary}` : ""}.
+                </Text>
                 {episodes.map((episode) => {
                   const awayCount = episode.members.filter((member) => member.away).length;
                   const inCountryCount = episode.members.length - awayCount;
                   return (
                     <ClashCard
                       key={`${episode.groupId}:${episode.startDate}`}
-                      heading={`${episode.groupName} — ${episode.worstPct}% of ${episode.requiredPct}%`}
+                      heading={`${episode.groupName} — ${episode.worstPct}% in country (needs ${episode.requiredPct}%)`}
                       headingSecondary={`${periodLabel(episode)} · ${dayCount(episode.days)}`}
                       live={false}
                       summaryBelow={
@@ -301,18 +366,27 @@ export function KahStatusView({ initial, currentUserId }: KahStatusViewProps) {
                     </ClashCard>
                   );
                 })}
-              </Stack>
+              </>
             ) : (
-              <Text c="dimmed" ta="center" py="sm">
-                No KAH breaches in the window.
-              </Text>
+              <Box role="status" aria-live="polite">
+                <EmptyState
+                  icon={<IconCircleCheck size={18} />}
+                  description={
+                    allGroups
+                      ? `No KAH breaches in the next ${kahRangeLabel(rangeMonths)} — every group stays in country.`
+                      : `No KAH breaches in the next ${kahRangeLabel(rangeMonths)} — your groups stay in country.`
+                  }
+                  actionLabel="Open calendar"
+                  actionHref="/dashboard"
+                />
+              </Box>
             )}
 
             {/* Groups with no breached day: the "is my group OK?" answer. */}
             {allClearGroups.length > 0 ? (
               <Paper withBorder p="sm">
                 <Stack gap={6}>
-                  <Text fz="sm" fw={600} c="dimmed">
+                  <Text component="h3" fz="sm" fw={600} c="dimmed">
                     All clear
                   </Text>
                   {allClearGroups.map((name) => (
@@ -334,9 +408,16 @@ export function KahStatusView({ initial, currentUserId }: KahStatusViewProps) {
                 </Stack>
               </Paper>
             ) : null}
-          </>
+          </Stack>
         )}
       </CrossfadeSwap>
+
+      {hasContent ? (
+        <Text fz="xs" c="dimmed">
+          KAH breaches are advisory — they never block event creation. Tap an event to see its
+          details.
+        </Text>
+      ) : null}
 
       {/* Always mounted so Mantine can play the open/close zoom; `event` toggles
           while `loading` shows the shaped skeleton. */}

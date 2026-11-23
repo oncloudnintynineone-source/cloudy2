@@ -18,8 +18,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.413 (Contacts A–Z rail scrubs — press, hold, slide)** is
-  shipped.
+- All work through changelog **1.414 (KAH Status page aligned with its sibling
+  report pages)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -2975,6 +2975,23 @@ mirror them (four such entries: 1.106.1, 1.122.1, 1.316.1, 1.331.1).
     pointer click (`detail > 0`) is swallowed while keyboard clicks keep jumping, because the
     plumbing rides window pointer events, deliberately **not** pointer capture, which would
     retarget `pointerup` and kill the buttons' native click. Docs: `ui-ux-improvements.md` C2.
+  - 1.414 **KAH Status page aligned with its sibling report pages**: the page chrome catches
+    up with Double Booking / My Events. The head block (title + Look ahead control) is the
+    shared sticky-chrome recipe now — a `c2-glass-surface` block pinned under the app header
+    while the cards scroll beneath, title-left / control-right from 40em and stacked below —
+    with Double Booking's head CSS generalized to `.c2-report-head` (both pages ride it) and
+    `loading.tsx` mirroring it. The overloaded subtitle (window + range + counts) becomes the
+    window label with the admin-view hint folded in, and the result summary moves to a
+    `role="status"` line above the cards ("2 breach periods in the next 1 month — 1 active,
+    1 upcoming") — which also fixes the range change being silent for screen readers (the
+    cards keep `live={false}`, so it announces exactly once). A failed look-ahead change keeps
+    the last good window and shows the inline error + **Retry** strip (the Double Booking
+    recipe) instead of a vanishing toast; the no-breach case is an actionable `EmptyState`
+    (green check + Open calendar) instead of a bare dimmed line; card headings read
+    "Alpha — 40% in country (needs 60%)"; roster chips cap through `capBadgeItems` so the
+    "(You)" chip can never hide behind the cap; and a quiet advisory footnote ("never block
+    event creation") matches the sibling pages. No data-layer change. Docs: `kah.md` §1.7,
+    `ui-ux-improvements.md` D8.
 
 ## 1.4 Open items & next steps
 

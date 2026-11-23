@@ -210,9 +210,9 @@ sidebar. The entry appears for **any member of at least one KAH group** (the
 server passes `hasKahGroup` into `AppShellShell` so it can't flicker) and
 **always for admins**, whose view lists **every KAH group**
 (`listKahGroupChecks()`), not just their memberships — marked with a dimmed
-"Admin view — showing all KAH groups" hint. It answers "did my group breach
-recently, or will it soon?" — the same data the notify-only breach check
-reasons about, but shown proactively as history plus forecast.
+"Admin view — showing all KAH groups" hint riding the page subtitle. It answers
+"did my group breach recently, or will it soon?" — the same data the notify-only
+breach check reasons about, but shown proactively as history plus forecast.
 
 ```mermaid
 flowchart LR
@@ -240,17 +240,30 @@ flowchart LR
   saved** (it lives in client state, not the URL or prefs), so a refresh resets
   it to the default. There is no past half: a breach that began before today is
   shown clipped at today.
+- The head block (title + Look ahead control) is the **shared sticky-chrome
+  recipe** — a `c2-glass-surface` block pinned under the app header while the
+  cards scroll beneath it, title-left / control-right from the 40em band and
+  stacked below (`.c2-report-head` in `globals.css`, generalized from Double
+  Booking's head and shared by both pages; `loading.tsx` mirrors it).
+- Above the cards sits a `role="status"` **summary line** — "2 breach periods
+  in the next 1 month — 1 active, 1 upcoming" — the live-region recipe of the
+  Double Booking summary; the cards keep `live={false}`, so a range change is
+  announced exactly once. A failed range change keeps the last good window on
+  screen and shows the inline error + **Retry** strip (the Double Booking
+  recipe) instead of a toast that vanishes with no way back.
   Each group's **breach periods** — maximal runs of consecutive days below the
   requirement — are listed once each, with the date span, day count, the lowest
   in-country % during the run, and the away members' union across the run.
 - **Each period is a collapsible clash-style card** (the shared `ClashCard` /
   `ClashEventRow`, mirroring the Double Booking page's interaction):
-  - the heading names the group and its worst-vs-required in-country %; the
-    sub-line carries the period and run length; a status badge (Active /
-    Upcoming / Resolved) sits with an `X away · Y in country` count;
+  - the heading names the group and its worst in-country % against the
+    requirement — "Alpha — 40% in country (needs 60%)"; the sub-line carries the
+    period and run length; a status badge (Active / Upcoming / Resolved) sits
+    with an `X away · Y in country` count;
   - the always-visible summary lists the **group's full active roster** as
     chips — away members in red, in-country members muted, the signed-in user
-    emphasised;
+    emphasised, capped through the shared `capBadgeItems` recipe (C6) so the
+    "(You)" chip is pinned first and can never disappear behind the cap;
   - expanding shows the **overseas events that took those members away** during
     the run (one row per logical event — cross-calendar copies collapse via
     `dedupeOverseasEventsByGroupId`), each opening the **in-place read-only
@@ -260,8 +273,11 @@ flowchart LR
   **Upcoming** (amber — starts after today). `Resolved` cannot occur with a
   forward-only window. Runs touching the scanned window's edge are shown clipped
   ("…") — they may extend beyond the window.
-- Groups with **no breached day** in the window are listed under "All clear", so
-  the page still answers "is my group OK?".
+- With **no breach at all** in the window the page shows the shared actionable
+  `EmptyState` (green check + **Open calendar**), and groups with **no breached
+  day** are additionally listed under "All clear", so the page still answers
+  "is my group OK?". A quiet footnote closes the list — breaches are advisory
+  and never block event creation — mirroring the Double Booking footnote.
 - Every calendar read goes through the existing month cache (60s fresh / 30min
   SWR), NEVER raw `listEvents` — same freshness/consistency as the dashboard, no
   forced blocking refresh.
@@ -325,7 +341,7 @@ flowchart LR
 | `src/lib/kah/statusActions.ts` | Read-only server actions: `checkKahBreaches` (nav badge) + `getKahStatusView` (page look-ahead change) + `getKahBreachEventDetail` (breach-card in-place detail) |
 | `src/lib/kah/notify.ts` | `dispatchKahBreachCheck` — check, audit, email (imports reads from `status.ts`) |
 | `src/lib/events/clashDetail.ts` | Shared `shapeClashDetail` — the in-place detail payload for Double Booking, the wizard advisory, and KAH |
-| `src/app/(protected)/kah-status/{page,loading,KahStatusView,KahStatusSkeleton}.tsx` | Read-only status page: forward-only breach forecast over a selectable look-ahead (default 1 month; 6 months / 1 year), per-view only (members: own groups; admins: all groups); collapsible breach cards with the group roster + causing events |
+| `src/app/(protected)/kah-status/{page,loading,KahStatusView,KahStatusSkeleton}.tsx` | Read-only status page: forward-only breach forecast over a selectable look-ahead (default 1 month; 6 months / 1 year), per-view only (members: own groups; admins: all groups); shared sticky report head + live summary line, collapsible breach cards with the group roster + causing events, inline error + Retry, actionable clear-state |
 | `src/components/TimeRangeSelect.tsx` | The **Look ahead** control (shared with My Events "Range") — the app-wide range pill, [`desktop-responsive.md`](desktop-responsive.md) §1.11 |
 | `src/components/AppShellShell.tsx` | Conditional KAH Status nav entry (members: `hasKahGroup`; admins: always) |
 | `src/lib/email/send.ts` | Transport selection: Workspace delegation → SMTP → warn |

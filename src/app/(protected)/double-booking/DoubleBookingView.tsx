@@ -283,13 +283,13 @@ export function DoubleBookingView({
           paddingBottom: "var(--mantine-spacing-md)",
         }}
       >
-        <div className="c2-db-head">
-          <div className="c2-db-title">
+        <div className="c2-report-head">
+          <div className="c2-report-title">
             <PageHeader title="Double Booking" subtitle={subtitleFor(view)} />
           </div>
-          <div className="c2-db-controls">
+          <div className="c2-report-controls">
             {users.length > 0 && (
-              <div className="c2-db-picker">
+              <div className="c2-report-picker">
                 <PickerField
                   label="Check another person"
                   items={selfScan ? [] : [targetSummaryItem]}
@@ -308,7 +308,7 @@ export function DoubleBookingView({
                 />
               </div>
             )}
-            <div className="c2-db-range">
+            <div className="c2-report-range">
               <TimeRangeSelect
                 label="Look ahead"
                 values={RANGE_MONTHS}

@@ -1,4 +1,4 @@
-import { Skeleton, Stack } from "@mantine/core";
+import { Box, Skeleton, Stack } from "@mantine/core";
 
 import { PageContainer } from "@/components/PageContainer";
 import { PageHeaderSkeleton } from "@/components/PageHeader";
@@ -9,11 +9,21 @@ export default function KahStatusLoading() {
   return (
     <PageContainer>
       <Stack gap="md" pb="xl">
-        <PageHeaderSkeleton titleWidth="32%" subtitleWidth="70%" />
-        <Stack gap={4}>
-          <Skeleton height={12} width={64} radius="sm" />
-          <Skeleton height={36} width={150} radius="sm" />
-        </Stack>
+        {/* Mirrors the page's sticky header block (title + look-ahead pill in
+            the shared report-head row), which carries the header inside the
+            same vertical gutter. */}
+        <Box py="md">
+          <div className="c2-report-head">
+            <div className="c2-report-title">
+              <PageHeaderSkeleton titleWidth="24%" subtitleWidth="45%" />
+            </div>
+            <div className="c2-report-controls">
+              <div className="c2-report-range">
+                <Skeleton height={44} radius="sm" />
+              </div>
+            </div>
+          </div>
+        </Box>
         <KahStatusSkeleton />
       </Stack>
     </PageContainer>

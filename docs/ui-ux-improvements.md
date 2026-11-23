@@ -660,6 +660,41 @@ draft itself is untouched by all of it (it already survived minimize and reload)
 a genuinely interface-less device reports offline, a flaky connection never trips the gate.
 §1.10.1.
 
+### 1.7.5 D8 — the KAH Status page never followed its sibling report pages
+
+**Evidence.** Verified at 1.413: `KahStatusView.tsx` scrolled its header + Look-ahead control
+away with the list (`:220-234`) while Double Booking and My Events pin the same block under the
+app header; the result counts were crammed into the page subtitle (`:222-224`) and a range change
+announced nothing (the cards render `live={false}`); a failed range change was a toast + silent
+revert (`:136-144`) where Double Booking offers an inline error + Retry; the no-breach case was a
+bare dimmed `Text` (`:306-308`) against the actionable-`EmptyState` house rule; the card heading
+`40% of 60%` (`:272`) needed the docs to decode; and the roster chip cap (`:84-87`) could hide the
+"(You)" chip — exactly what C6's `capBadgeItems` exists to prevent.
+
+**Impact.** The page answers the same question as Double Booking ("am I clear for the next N
+months?") with a worse copy of every affordance the sibling pages already ship: the range control
+scrolls off a long 6/12-month list, a failed scan dead-ends, screen-reader users get no feedback
+from the range change, and the heading forces the user to re-learn the worst-vs-required reading.
+
+**Fix.** Adopt the sibling recipes wholesale: the shared sticky head (generalize Double Booking's
+`.c2-db-head` CSS to a shared `.c2-report-head` used by both pages), a `role="status"` summary
+line above the cards, the admin hint folded into the subtitle, an actionable `EmptyState` for the
+clear case, the inline error + Retry strip, human-readable heading copy, `capBadgeItems` for the
+chip cap, and the "advisory, never blocks" footnote.
+
+**Effort.** S.
+
+**Respect.** No data-layer change — `viewData.ts` / `statusActions.ts` untouched; the per-view-only
+range rule and the `WaitOverlay` skeleton stay; the generalized head CSS must keep Double Booking's
+layout identical; `loading.tsx` must mirror the new head.
+
+**Status.** Shipped **1.414** (2026-11-24): all of the above landed as specified — sticky
+`c2-glass-surface` head with the range pill right at 40em+, live summary line ("2 breach periods in
+the next 1 month — 1 active, 1 upcoming"), admin hint in the subtitle, green-check `EmptyState` +
+**Open calendar** for the clear case, inline error + Retry (the selected look-ahead is kept for the
+retry, like Double Booking), "Alpha — 40% in country (needs 60%)" headings, `capBadgeItems`-capped
+roster chips, and the advisory footnote. [`kah.md`](kah.md) §1.7. §1.10.1.
+
 ## 1.8 Workflow level
 
 These are feature-shaped gaps that surface as UX pain. Most need their own spec before any UI is
@@ -759,7 +794,7 @@ flowchart TD
 
 | Tier | Items | Why here |
 | --- | --- | --- |
-| **1 — days, low risk** | B1, B4 | Missing-affordance and correctness fixes. Each is local, reversible, needs no schema or data change, and closes a gap the codebase already knows about (B1). A1/A2/A4, C1/C6 and D5/D6 left this tier shipped (§1.10.1), as did A7 — added and shipped at 1.403 — and A8/A9, added and shipped at 1.412. |
+| **1 — days, low risk** | B1, B4 | Missing-affordance and correctness fixes. Each is local, reversible, needs no schema or data change, and closes a gap the codebase already knows about (B1). A1/A2/A4, C1/C6 and D5/D6 left this tier shipped (§1.10.1), as did A7 — added and shipped at 1.403 — and A8/A9, added and shipped at 1.412. D8, added and shipped at 1.414, never entered the tier table. |
 | **2 — a sprint** | B3, B5 | Keyboard parity and the legibility floor. D2 shipped ahead of the tier (§1.10.1) **without** its shortcut section — fold that section in when B5 lands, per the original "B5 before D2" note. C2/C3/C4/C5 left this tier shipped (§1.10.1). |
 | **3 — design-gated** | E3, E6-hint | Advisory and messaging that must be designed against the clashes engine and attendance docs rather than bolted on. |
 | **4 — feature work** | E1, E4, E6-sync | Each needs its own spec, schema, and subsystem doc. |
@@ -789,6 +824,7 @@ land here.
 | A7 | 1.403 (2026-11-22) | Mobile control pill: the period label is a **static read-out** (`.c2-pill-label`) and the circles pan in a scrollable strip (`.c2-pill-actions` / `.c2-pill-scroll`) that wraps to a second row only when the label + `--c2-pill-actions-min` cannot share the line (flex-basis line-breaking, no JS); auto-margin right-anchoring, `RailEdgeControl`-style edge fades from `useScrollEdges` (now `ResizeObserver`-aware, starts unclipped). Guide "?" removed from the dashboard chrome at both tiers — profile menu only. |
 | A8 | 1.412 (2026-11-23) | The pill layout is now the shared **`ControlPill`** (`src/components/ControlPill.tsx`) rendered by the calendar, Parade State, Contacts and `SettingsListChrome`: leading read-out (`.c2-pill-label` / centred `--fill`) or search field (`.c2-pill-field`, `--c2-pill-field-min` floor) + the panning circle strip, `--c2-pill-actions-min` from pure `pillActionsMin` (`src/lib/ui/controlPill.ts`, tested). Each page measures the pill (`useElementHeight`, `src/lib/ui/elementSize.ts`) and feeds its own pad — `--c2-bottom-chrome-height`, `--c2-settings-pill-height` (`.settings-pill-page-pad` default 58px) and Parade's attendance-bar offset — replacing the hardcoded 58/50/58px heights. |
 | A9 | 1.412 (2026-11-23) | Floating-chrome auto-hide is the **calendar page alone**: `useChromeHide` stays on the dashboard's pill + FAB row (and the docked draft chip), and is gone from Contacts, Parade State (pill + attendance bar) and `SettingsListChrome`, whose pills stay put while their lists scroll. `chromeHide.ts` API and state machine unchanged; docs + `AGENTS.md` re-scoped. |
+| D8 | 1.414 (2026-11-24) | KAH Status chrome aligned with the sibling report pages: shared sticky head (`.c2-report-head`, generalized from Double Booking's `.c2-db-head`, both pages on it), `role="status"` summary line, admin hint in the subtitle, actionable clear-state `EmptyState`, inline error + Retry on a failed look-ahead, "X% in country (needs Y%)" headings, `capBadgeItems`-capped roster chips, advisory footnote. [`kah.md`](kah.md) §1.7. |
 
 ## 1.11 Implementation guardrails
 
@@ -847,6 +883,7 @@ Every item above inherits these; they are the reason some obvious-looking fixes 
 | `src/app/(protected)/parade-state/ParadeStateView.tsx` | C3, E6, the legend precedent |
 | `src/app/(protected)/my-events/MyEventsView.tsx` | C4 |
 | `src/app/(protected)/settings/audit-log/AuditLogView.tsx` | C5 |
+| `src/app/(protected)/kah-status/KahStatusView.tsx` | D8 |
 | `src/components/PreferencesModal.tsx` | D5, and the future home of any held preference |
 | `src/components/UserMenu.tsx` | D2 host |
 | `src/app/globals.css` | B1, B3, and the page-zoom / pull-to-refresh rules behind B2 and D4 |
