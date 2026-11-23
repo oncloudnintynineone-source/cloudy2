@@ -421,6 +421,8 @@ export interface KahBreachEpisode {
   days: number;
   /** Lowest floored in-country % during the run. */
   worstPct: number;
+  /** First day that hit `worstPct` (ties keep the earliest day). */
+  worstDate: string;
   /** The run touches the scanned window's start (it may extend further back). */
   clippedStart: boolean;
   /** The run touches the scanned window's end (it may extend further ahead). */
@@ -464,6 +466,7 @@ export function kahBreachEpisodes(perDay: KahDayStatus[], today: string): KahBre
     const identity = entries[0].status;
     let runStart: number | null = null;
     let worstPct = 0;
+    let worstDate = "";
     let away = new Set<string>();
     const closeRun = (endIndex: number) => {
       const start = entries[runStart as number];
@@ -476,6 +479,7 @@ export function kahBreachEpisodes(perDay: KahDayStatus[], today: string): KahBre
         endDate: end.date,
         days: endIndex - (runStart as number) + 1,
         worstPct,
+        worstDate,
         clippedStart: start.date === windowStart,
         clippedEnd: end.date === windowEnd,
         status: end.date < today ? "resolved" : start.date > today ? "upcoming" : "active",
@@ -487,9 +491,14 @@ export function kahBreachEpisodes(perDay: KahDayStatus[], today: string): KahBre
         if (runStart === null) {
           runStart = i;
           worstPct = entry.status.actualPct;
+          worstDate = entry.date;
           away = new Set(entry.status.awayIds);
         } else {
-          worstPct = Math.min(worstPct, entry.status.actualPct);
+          if (entry.status.actualPct < worstPct) {
+            // Strict improvement only — ties keep the earliest worst day.
+            worstPct = entry.status.actualPct;
+            worstDate = entry.date;
+          }
           for (const id of entry.status.awayIds) {
             away.add(id);
           }

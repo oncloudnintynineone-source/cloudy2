@@ -69,6 +69,32 @@ describe("buildClashTimeline", () => {
     expect(timeline.bars[0].widthPct).toBe(100);
   });
 
+  it("renders no bar for an entry that does not touch the day", () => {
+    const timeline = buildClashTimeline(
+      [
+        {
+          startNaive: "2026-09-16 09:00:00",
+          endNaive: "2026-09-16 10:00:00",
+          occupiesFullDay: false,
+        },
+      ],
+      DAY,
+    );
+    expect(timeline.bars).toEqual([]);
+    expect(timeline.laneCount).toBe(0);
+  });
+
+  it("renders no phantom stub for a window ending exactly at midnight", () => {
+    // A half-open 20:00–24:00 window on Sep 14 touches Sep 15 only at the
+    // excluded instant — the day strip must not paint a stub bar there.
+    const timeline = buildClashTimeline(
+      [{ startNaive: "2026-09-14 20:00:00", endNaive: `${DAY} 00:00:00`, occupiesFullDay: false }],
+      DAY,
+    );
+    expect(timeline.bars).toEqual([]);
+    expect(timeline.laneCount).toBe(0);
+  });
+
   it("gives a zero-length instant a visible minimum width", () => {
     const timeline = buildClashTimeline([timed("09:30:00", "09:30:00")], DAY);
     expect(timeline.bars[0].widthPct).toBeGreaterThan(0);

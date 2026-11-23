@@ -319,6 +319,7 @@ describe("kahBreachEpisodes", () => {
         endDate: "2026-08-11",
         days: 1,
         worstPct: 33,
+        worstDate: "2026-08-11",
         clippedStart: false,
         clippedEnd: false,
         status: "resolved",
@@ -401,8 +402,33 @@ describe("kahBreachEpisodes", () => {
     );
     expect(episodes).toHaveLength(1);
     expect(episodes[0].worstPct).toBe(0);
+    expect(episodes[0].worstDate).toBe("2026-08-11");
     expect(episodes[0].days).toBe(2);
     expect([...episodes[0].awayIds].sort()).toEqual(["a", "b", "c"]);
+  });
+
+  it("points worstDate at the day that hit the worst % mid-run", () => {
+    const episodes = kahBreachEpisodes(
+      scan(["2026-08-10", "2026-08-11", "2026-08-12"], {
+        "2026-08-10": ["a", "b"], // 33%
+        "2026-08-11": ["a", "b", "c"], // 0% — the worst day
+        "2026-08-12": ["a", "b"], // 33%
+      }),
+      "2026-08-30",
+    );
+    expect(episodes[0].worstDate).toBe("2026-08-11");
+  });
+
+  it("keeps the earliest day when the worst % repeats", () => {
+    const episodes = kahBreachEpisodes(
+      scan(["2026-08-10", "2026-08-11", "2026-08-12"], {
+        "2026-08-10": ["a", "b", "c"], // 0% — first time at the floor
+        "2026-08-11": ["a", "b"], // 33%
+        "2026-08-12": ["a", "b", "c"], // 0% again — ties keep the earliest
+      }),
+      "2026-08-30",
+    );
+    expect(episodes[0].worstDate).toBe("2026-08-10");
   });
 
   it("flags runs clipped at the scanned window's edges", () => {

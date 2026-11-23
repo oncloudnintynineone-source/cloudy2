@@ -18,8 +18,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.414 (KAH Status page aligned with its sibling
-  report pages)** is shipped.
+- All work through changelog **1.415 (Midnight-aligned clash windows, episode-first
+  headings on both clash pages)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -2992,6 +2992,25 @@ mirror them (four such entries: 1.106.1, 1.122.1, 1.316.1, 1.331.1).
     "(You)" chip can never hide behind the cap; and a quiet advisory footnote ("never block
     event creation") matches the sibling pages. No data-layer change. Docs: `kah.md` §1.7,
     `ui-ux-improvements.md` D8.
+  - 1.415 **No more midnight leak — episode-first clash display**: the shared clash
+    display core stops letting a midnight-aligned exclusive end (`00:00:00` — a PM
+    half-day via `halfDayRange`, a whole-day event, or a 24:00 close) leak into the
+    next civil day. `clashCoveredDayKeys` steps such an end back one day (so
+    `clashDayBuckets` can no longer fabricate a phantom next-day bucket),
+    `buildClashTimeline` renders no bar for a half-open window that does not touch the
+    day (no 15-minute midnight stub), and labels read **Midnight** on the day the
+    window ends — "8:00 PM – Midnight", "Sep 14, 8:00 PM – Sep 15, Midnight" — with
+    legacy "12:00 AM – 11:59 PM" windows collapsing to "All day". Double Booking cards
+    now head with the *episode*, not its first event: `clashEpisodeTimeLabel` reads
+    "PM" / "AM – PM" for half-day groups and spans clock bounds otherwise, and
+    `clashEpisodeDayKey` files a chain under the first day that genuinely holds two
+    entries (a run colliding only from day 2 files under day 2). KAH breach cards say
+    "down to X% in country (needs Y%)", name the worst day in the summary
+    ("4 away · 7 in country · worst Mon 14 Sep" — new `worstDate` on the episode),
+    read "Ongoing" / "…+" for runs clipped by the scan window, and the away chips
+    carry an explanatory title. Display-only — the clash math was already half-open
+    and correct; no schema or server-read change. Docs: `user-clashes.md` §1.8/§1.9,
+    `event-clashes.md` §1.6/§1.7, `kah.md` §1.7, `ui-ux-improvements.md` D9/D10.
 
 ## 1.4 Open items & next steps
 

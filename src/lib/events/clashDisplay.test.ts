@@ -8,6 +8,7 @@ import {
   clashDayKey,
   clashDayLabel,
   clashEntryTimeLabel,
+  clashEpisodeDayKey,
   clashEpisodeTimeLabel,
   clashStripGranularity,
   clashTimeLabel,
@@ -69,6 +70,28 @@ describe("clashCoveredDayKeys", () => {
         occupiesFullDay: true,
       }),
     ).toEqual(["2026-09-15", "2026-09-16"]);
+  });
+
+  it("steps a midnight-aligned exclusive end back to the day it ends", () => {
+    // A PM half-day (halfDayRange) ends at next-day 00:00 — that midnight is
+    // the end of Sep 14, not a moment of Sep 15, so it must not cover Sep 15.
+    expect(
+      clashCoveredDayKeys({
+        effectiveStartNaive: "2026-09-14 20:00:00",
+        effectiveEndNaive: "2026-09-15 00:00:00",
+        occupiesFullDay: false,
+      }),
+    ).toEqual(["2026-09-14"]);
+  });
+
+  it("ends a multi-day window at the day before a midnight-aligned end", () => {
+    expect(
+      clashCoveredDayKeys({
+        effectiveStartNaive: "2026-09-14 12:00:00",
+        effectiveEndNaive: "2026-09-16 00:00:00",
+        occupiesFullDay: false,
+      }),
+    ).toEqual(["2026-09-14", "2026-09-15"]);
   });
 });
 
@@ -201,6 +224,62 @@ describe("clashDayBuckets", () => {
       { dayKey: "2026-09-22", indices: [0] },
     ]);
   });
+
+  it("keeps two PM half-days in one bucket with no phantom next-day row", () => {
+    // Both windows end at next-day 00:00; without the midnight step-back they
+    // would also bucket a Sep 15 pair and render a stub row on the next day.
+    const entries = [
+      timed("2026-09-14 12:00:00", "2026-09-15 00:00:00"),
+      timed("2026-09-14 13:00:00", "2026-09-15 00:00:00"),
+    ];
+    expect(clashDayBuckets(entries, 2)).toEqual([{ dayKey: "2026-09-14", indices: [0, 1] }]);
+  });
+});
+
+describe("clashEpisodeDayKey", () => {
+  const allDay = (start: string, end: string) => ({
+    startNaive: start,
+    endNaive: end,
+    occupiesFullDay: true,
+  });
+  const timed = (start: string, end: string) => ({
+    startNaive: start,
+    endNaive: end,
+    occupiesFullDay: false,
+  });
+
+  it("files a multi-day episode under the day the clash happens", () => {
+    // The all-day event covers Sep 14–16 but only clashes with the timed event
+    // on Sep 15, so the episode belongs under Sep 15 — not its start day.
+    expect(
+      clashEpisodeDayKey([
+        allDay("2026-09-14 00:00:00", "2026-09-17 00:00:00"),
+        timed("2026-09-15 09:00:00", "2026-09-15 10:00:00"),
+      ]),
+    ).toBe("2026-09-15");
+  });
+
+  it("files two PM half-days under the day they end, not the next day", () => {
+    expect(
+      clashEpisodeDayKey([
+        timed("2026-09-14 20:00:00", "2026-09-15 00:00:00"),
+        timed("2026-09-14 21:00:00", "2026-09-15 00:00:00"),
+      ]),
+    ).toBe("2026-09-14");
+  });
+
+  it("falls back to the first entry's day when no day holds two entries", () => {
+    expect(
+      clashEpisodeDayKey([
+        timed("2026-09-14 09:00:00", "2026-09-14 10:00:00"),
+        timed("2026-09-15 09:00:00", "2026-09-15 10:00:00"),
+      ]),
+    ).toBe("2026-09-14");
+  });
+
+  it("returns empty for no entries", () => {
+    expect(clashEpisodeDayKey([])).toBe("");
+  });
 });
 
 describe("clashDayLabel", () => {
@@ -240,6 +319,22 @@ describe("clashTimeLabel", () => {
   it("qualifies the dates when the episode crosses days", () => {
     expect(clashTimeLabel(window("2026-09-14 09:00:00", "2026-09-15 10:00:00"))).toBe(
       "Sep 14, 9:00 AM – Sep 15, 10:00 AM",
+    );
+  });
+
+  it("reads a window ending at 24:00 as ending at Midnight that day", () => {
+    expect(clashTimeLabel(window("2026-09-14 20:00:00", "2026-09-15 00:00:00"))).toBe(
+      "8:00 PM – Midnight",
+    );
+  });
+
+  it("collapses a legacy 12:00 AM – 11:59 PM window to All day", () => {
+    expect(clashTimeLabel(window("2026-09-14 00:00:00", "2026-09-14 23:59:00"))).toBe("All day");
+  });
+
+  it("names the day a cross-day window ends at Midnight", () => {
+    expect(clashTimeLabel(window("2026-09-14 20:00:00", "2026-09-16 00:00:00"))).toBe(
+      "Sep 14, 8:00 PM – Sep 15, Midnight",
     );
   });
 
@@ -388,6 +483,39 @@ describe("clashEntryTimeLabel", () => {
       ),
     ).toBe("Sep 15, 10:00 PM – Sep 16, 2:00 AM");
   });
+
+  it("reads a window ending at 24:00 as ending at Midnight that day", () => {
+    expect(
+      clashEntryTimeLabel(
+        entry({
+          effectiveStartNaive: "2026-09-15 20:00:00",
+          effectiveEndNaive: "2026-09-16 00:00:00",
+        }),
+      ),
+    ).toBe("8:00 PM – Midnight");
+  });
+
+  it("collapses a legacy 12:00 AM – 11:59 PM window to All day", () => {
+    expect(
+      clashEntryTimeLabel(
+        entry({
+          effectiveStartNaive: "2026-09-15 00:00:00",
+          effectiveEndNaive: "2026-09-15 23:59:00",
+        }),
+      ),
+    ).toBe("All day");
+  });
+
+  it("names the day a cross-day window ends at Midnight", () => {
+    expect(
+      clashEntryTimeLabel(
+        entry({
+          effectiveStartNaive: "2026-09-15 20:00:00",
+          effectiveEndNaive: "2026-09-17 00:00:00",
+        }),
+      ),
+    ).toBe("Sep 15, 8:00 PM – Sep 16, Midnight");
+  });
 });
 
 describe("clashEpisodeTimeLabel", () => {
@@ -450,6 +578,65 @@ describe("clashEpisodeTimeLabel", () => {
       ]),
     ).toBe("9:00 AM – 10:00 AM · All day");
   });
+
+  it("heads a group of half-day events with the shared half", () => {
+    // Clock bounds here would read "12:00 PM – 12:00 AM" — the half vocabulary
+    // the rows already use is the honest heading.
+    expect(
+      clashEpisodeTimeLabel([
+        entry({
+          timeOption: "half",
+          startAmPm: "PM",
+          endAmPm: "PM",
+          effectiveStartNaive: "2026-09-15 12:00:00",
+          effectiveEndNaive: "2026-09-16 00:00:00",
+        }),
+        entry({
+          timeOption: "half",
+          startAmPm: "PM",
+          endAmPm: "PM",
+          effectiveStartNaive: "2026-09-15 13:00:00",
+          effectiveEndNaive: "2026-09-16 00:00:00",
+        }),
+      ]),
+    ).toBe("PM");
+  });
+
+  it("heads a mixed AM/PM half-day group with both halves", () => {
+    expect(
+      clashEpisodeTimeLabel([
+        entry({
+          timeOption: "half",
+          startAmPm: "AM",
+          endAmPm: "AM",
+          effectiveStartNaive: "2026-09-15 00:00:00",
+          effectiveEndNaive: "2026-09-15 12:00:00",
+        }),
+        entry({
+          timeOption: "half",
+          startAmPm: "PM",
+          endAmPm: "PM",
+          effectiveStartNaive: "2026-09-15 12:00:00",
+          effectiveEndNaive: "2026-09-16 00:00:00",
+        }),
+      ]),
+    ).toBe("AM – PM");
+  });
+
+  it("spans clock bounds when a half-day event mixes with a timed one", () => {
+    expect(
+      clashEpisodeTimeLabel([
+        entry({
+          timeOption: "half",
+          startAmPm: "PM",
+          endAmPm: "PM",
+          effectiveStartNaive: "2026-09-15 13:00:00",
+          effectiveEndNaive: "2026-09-15 17:00:00",
+        }),
+        entry(),
+      ]),
+    ).toBe("9:00 AM – 5:00 PM");
+  });
 });
 
 describe("clashWhenLabel", () => {
@@ -475,6 +662,22 @@ describe("clashWhenLabel", () => {
     expect(clashWhenLabel(window("2026-09-14 00:00:00", "2026-09-16 00:00:00", true))).toBe(
       "Sep 14 – Sep 16, 2026",
     );
+  });
+
+  it("reads a window ending at 24:00 as ending at Midnight that day", () => {
+    expect(clashWhenLabel(window("2026-09-14 20:00:00", "2026-09-15 00:00:00"))).toBe(
+      "Sep 14, 2026 8:00 PM – Midnight",
+    );
+  });
+
+  it("names the day a cross-day window ends at Midnight", () => {
+    expect(clashWhenLabel(window("2026-09-14 20:00:00", "2026-09-16 00:00:00"))).toBe(
+      "Sep 14, 2026 8:00 PM – Sep 15, 2026, Midnight",
+    );
+  });
+
+  it("renders a start-only window with the date and time", () => {
+    expect(clashWhenLabel(window("2026-09-14 20:00:00", ""))).toBe("Sep 14, 2026 8:00 PM");
   });
 
   it("returns empty for a missing start", () => {

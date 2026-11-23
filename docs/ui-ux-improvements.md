@@ -695,6 +695,75 @@ the next 1 month — 1 active, 1 upcoming"), admin hint in the subtitle, green-c
 retry, like Double Booking), "Alpha — 40% in country (needs 60%)" headings, `capBadgeItems`-capped
 roster chips, and the advisory footnote. [`kah.md`](kah.md) §1.7. §1.10.1.
 
+### 1.7.6 D9 — full-day and half-day events leaked into the next day
+
+**Evidence.** Verified at 1.414: `halfDayRange` (`src/lib/datetime.ts:282-294`) stores a PM-only
+window with an exclusive end at next-day `00:00:00`, and the clash display layer expanded that
+exclusive end naively — `clashCoveredDayKeys` (`src/lib/events/clashDisplay.ts`) counted the end
+day as covered, `clashDayBuckets` therefore bucketed a pair of PM half-days a second time on the
+next day, `buildClashTimeline` (`src/lib/events/clashTimeline.ts`) clamped the zero-width window to
+a `MIN_BAR_MINUTES` stub at 00:00, and the time labels rendered the end as "12:00 AM".
+
+**Impact.** A PM half-day on Sep 14 displayed as an event on Sep 15: a phantom second
+double-booking row on the next day (two PM halves bucketed again there), a stub bar at midnight,
+and "9:00 AM – 12:00 AM" reading as a 15-hour event. The day grouping the whole page is organized
+by lied, so users learned to distrust the report.
+
+**Fix.** One rule in the shared display core — a midnight-aligned exclusive end (`00:00:00`:
+whole-day, PM half-day, or a 24:00 close) is the end of the day it ends, not a moment of the next:
+step it back one civil day in the covered-day set, label it **Midnight**, and render no bar at all
+for a half-open window that does not touch the day.
+
+**Effort.** S.
+
+**Respect.** The stored windows and the clash *math* were already correct (half-open, SGT-aligned
+via `effectiveEventWindow`) — this is display-only; the Google all-day `occupiesFullDay` path and
+the KAH scan stay untouched.
+
+**Status.** Shipped **1.415** (2026-11-24): `isMidnightEnd` + `timedEnd` (`clashDisplay.ts`) step
+the label back — "8:00 PM – Midnight", "Sep 14, 8:00 PM – Sep 15, Midnight" — and a legacy
+"12:00 AM – 11:59 PM" window collapses to "All day"; `clashCoveredDayKeys` ends the covered set the
+day before a midnight end, so `clashDayBuckets` can no longer fabricate a phantom next-day bucket;
+`buildClashTimeline` renders no bar for a window that does not touch the day.
+[`user-clashes.md`](user-clashes.md) §1.8/§1.9, [`event-clashes.md`](event-clashes.md) §1.6/§1.7.
+§1.10.1.
+
+### 1.7.7 D10 — the clash reports made the user decode the display
+
+**Evidence.** Verified at 1.414: the Double Booking card heading ran `clashTimeLabel` over the
+*first event* of the group — a pair of half-days read "12:00 PM – 12:00 AM" and a mixed group read
+as one event's window; day grouping keyed on the first event's start day, so a chain that only
+collided on day 2 of a multi-day all-day event was filed under day 1; the KAH card heading
+"Alpha — 40% in country (needs 60%)" stated the run's worst % as if it were the group's standing
+state and never named the day it happened; a KAH run clipped by the scan window showed the raw
+boundary dates as if they were the run's own span; and the red "away" roster chips said nothing
+about what away meant across a multi-day run.
+
+**Impact.** Every heading described an event instead of the episode, the wrong day's section held
+the report, and the KAH card made the user open the day list to find which day was worst — three
+re-reads per card for information the data already had.
+
+**Fix.** Headings that describe the *episode*: a shared `clashEpisodeTimeLabel` (all whole-day →
+"All day" / a date range; all half-day → the shared half "PM" or "AM – PM"; otherwise the min–max
+span with a `· All day` suffix when mixed); file each episode under the first day that genuinely
+holds two or more entries (`clashEpisodeDayKey` over `clashDayBuckets(entries, 2)`); carry the
+worst day through the KAH episode (`worstDate`) and say "down to X% in country (needs Y%)" plus
+"worst Mon 14 Sep" in the summary; mark clipped runs "Ongoing" / "…+"; title the away chips.
+
+**Effort.** S–M.
+
+**Respect.** Filing must agree with the timeline's own day bucketing (same `clashDayBuckets`
+rule); `worstDate` is display metadata on the existing episode scan — no schema, no server-read
+change; the nav badge counts stay as they are.
+
+**Status.** Shipped **1.415** (2026-11-24): all of the above landed — `clashEpisodeDayKey` files a
+chain under the day it first clashes (a run colliding only from day 2 files under day 2),
+`clashEpisodeTimeLabel` heads half-day groups with "PM" / "AM – PM" and mixed groups with the span
++ `· All day`; KAH headings read "Alpha — down to 40% in country (needs 60%)", the summary names
+the worst day ("4 away · 7 in country · worst Mon 14 Sep"), clipped runs read "Ongoing – …" /
+"… – Oct 31+", and away chips carry an "Away at some point during this period" title.
+[`user-clashes.md`](user-clashes.md) §1.8, [`kah.md`](kah.md) §1.7. §1.10.1.
+
 ## 1.8 Workflow level
 
 These are feature-shaped gaps that surface as UX pain. Most need their own spec before any UI is
@@ -794,7 +863,8 @@ flowchart TD
 
 | Tier | Items | Why here |
 | --- | --- | --- |
-| **1 — days, low risk** | B1, B4 | Missing-affordance and correctness fixes. Each is local, reversible, needs no schema or data change, and closes a gap the codebase already knows about (B1). A1/A2/A4, C1/C6 and D5/D6 left this tier shipped (§1.10.1), as did A7 — added and shipped at 1.403 — and A8/A9, added and shipped at 1.412. D8, added and shipped at 1.414, never entered the tier table. |
+| **1 — days, low risk** | B1, B4 | Missing-affordance and correctness fixes. Each is local, reversible, needs no schema or data change, and closes a gap the codebase already knows about (B1). A1/A2/A4, C1/C6 and D5/D6 left this tier shipped (§1.10.1), as did A7 — added and shipped at 1.403 — and A8/A9, added and shipped at 1.412. D8, added and shipped at 1.414, and D9/D10, added and shipped at 1.415, never entered the tier
+table. |
 | **2 — a sprint** | B3, B5 | Keyboard parity and the legibility floor. D2 shipped ahead of the tier (§1.10.1) **without** its shortcut section — fold that section in when B5 lands, per the original "B5 before D2" note. C2/C3/C4/C5 left this tier shipped (§1.10.1). |
 | **3 — design-gated** | E3, E6-hint | Advisory and messaging that must be designed against the clashes engine and attendance docs rather than bolted on. |
 | **4 — feature work** | E1, E4, E6-sync | Each needs its own spec, schema, and subsystem doc. |
@@ -825,6 +895,8 @@ land here.
 | A8 | 1.412 (2026-11-23) | The pill layout is now the shared **`ControlPill`** (`src/components/ControlPill.tsx`) rendered by the calendar, Parade State, Contacts and `SettingsListChrome`: leading read-out (`.c2-pill-label` / centred `--fill`) or search field (`.c2-pill-field`, `--c2-pill-field-min` floor) + the panning circle strip, `--c2-pill-actions-min` from pure `pillActionsMin` (`src/lib/ui/controlPill.ts`, tested). Each page measures the pill (`useElementHeight`, `src/lib/ui/elementSize.ts`) and feeds its own pad — `--c2-bottom-chrome-height`, `--c2-settings-pill-height` (`.settings-pill-page-pad` default 58px) and Parade's attendance-bar offset — replacing the hardcoded 58/50/58px heights. |
 | A9 | 1.412 (2026-11-23) | Floating-chrome auto-hide is the **calendar page alone**: `useChromeHide` stays on the dashboard's pill + FAB row (and the docked draft chip), and is gone from Contacts, Parade State (pill + attendance bar) and `SettingsListChrome`, whose pills stay put while their lists scroll. `chromeHide.ts` API and state machine unchanged; docs + `AGENTS.md` re-scoped. |
 | D8 | 1.414 (2026-11-24) | KAH Status chrome aligned with the sibling report pages: shared sticky head (`.c2-report-head`, generalized from Double Booking's `.c2-db-head`, both pages on it), `role="status"` summary line, admin hint in the subtitle, actionable clear-state `EmptyState`, inline error + Retry on a failed look-ahead, "X% in country (needs Y%)" headings, `capBadgeItems`-capped roster chips, advisory footnote. [`kah.md`](kah.md) §1.7. |
+| D9 | 1.415 (2026-11-24) | Midnight-aligned exclusive ends (`00:00:00` — whole-day, PM half-day, 24:00 close) step back one civil day in `clashCoveredDayKeys` (`isMidnightEnd`) and label **Midnight** on the day they end (`timedEnd` — "8:00 PM – Midnight", "Sep 14, 8:00 PM – Sep 15, Midnight"; legacy "12:00 AM – 11:59 PM" collapses to "All day"); `buildClashTimeline` renders no bar for a half-open window that does not touch the day — no phantom next-day buckets, no midnight stubs, no "… – 12:00 AM". [`user-clashes.md`](user-clashes.md) §1.8/§1.9, [`event-clashes.md`](event-clashes.md) §1.6/§1.7. |
+| D10 | 1.415 (2026-11-24) | Episode-first display on both clash pages: `clashEpisodeTimeLabel` heads Double Booking cards with the shared half ("PM" / "AM – PM"), "All day" / a date range, or the min–max span with a `· All day` suffix when whole-day events mix in; `clashEpisodeDayKey` files each episode under the first day holding two entries; KAH headings read "down to X% in country (needs Y%)" with the worst day named in the summary (`worstDate`), clipped runs read "Ongoing" / "…+", and away chips carry an explanatory title. [`kah.md`](kah.md) §1.7. |
 
 ## 1.11 Implementation guardrails
 
@@ -883,7 +955,10 @@ Every item above inherits these; they are the reason some obvious-looking fixes 
 | `src/app/(protected)/parade-state/ParadeStateView.tsx` | C3, E6, the legend precedent |
 | `src/app/(protected)/my-events/MyEventsView.tsx` | C4 |
 | `src/app/(protected)/settings/audit-log/AuditLogView.tsx` | C5 |
-| `src/app/(protected)/kah-status/KahStatusView.tsx` | D8 |
+| `src/app/(protected)/kah-status/KahStatusView.tsx` | D8, D10 |
+| `src/lib/events/clashDisplay.ts` + `src/lib/events/clashTimeline.ts` | D9, D10 — the shared clash display core |
+| `src/app/(protected)/double-booking/DoubleBookingView.tsx` | D10 — episode filing + heading |
+| `src/lib/kah/status.ts` + `src/lib/kah/range.ts` | D10 — `worstDate` on the breach episode |
 | `src/components/PreferencesModal.tsx` | D5, and the future home of any held preference |
 | `src/components/UserMenu.tsx` | D2 host |
 | `src/app/globals.css` | B1, B3, and the page-zoom / pull-to-refresh rules behind B2 and D4 |

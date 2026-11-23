@@ -257,13 +257,18 @@ flowchart LR
 - **Each period is a collapsible clash-style card** (the shared `ClashCard` /
   `ClashEventRow`, mirroring the Double Booking page's interaction):
   - the heading names the group and its worst in-country % against the
-    requirement — "Alpha — 40% in country (needs 60%)"; the sub-line carries the
+    requirement — "Alpha — down to 40% in country (needs 60%)" ("down to" marks it
+    as the run's worst dip, not the group's standing state); the sub-line carries the
     period and run length; a status badge (Active / Upcoming / Resolved) sits
-    with an `X away · Y in country` count;
+    with an `X away · Y in country · worst Mon 14 Sep` count — the worst day is
+    `worstDate`, the **first** day of the run that hit the lowest % (ties keep the
+    earliest), rendered through `clashDayLabel` (`Today` / `Tomorrow` / `Mon 14 Sep`);
   - the always-visible summary lists the **group's full active roster** as
     chips — away members in red, in-country members muted, the signed-in user
     emphasised, capped through the shared `capBadgeItems` recipe (C6) so the
-    "(You)" chip is pinned first and can never disappear behind the cap;
+    "(You)" chip is pinned first and can never disappear behind the cap; an away
+    chip carries the title "Away at some point during this period" — the run's away
+    set is a union, so a member may be in country on some of its days;
   - expanding shows the **overseas events that took those members away** during
     the run (one row per logical event — cross-calendar copies collapse via
     `dedupeOverseasEventsByGroupId`), each opening the **in-place read-only
@@ -271,8 +276,10 @@ flowchart LR
     `getKahBreachEventDetail` action, exactly like the Double Booking rows.
 - Each period carries a status: **Active** (red — includes today) or
   **Upcoming** (amber — starts after today). `Resolved` cannot occur with a
-  forward-only window. Runs touching the scanned window's edge are shown clipped
-  ("…") — they may extend beyond the window.
+  forward-only window. Runs touching the scanned window's edge are shown clipped —
+  a run already broken at the window's start reads **"Ongoing"** as its start date,
+  and a run still broken at the window's end shows its end date with a **"+"**
+  ("… – Oct 31+") — they may extend beyond the window.
 - With **no breach at all** in the window the page shows the shared actionable
   `EmptyState` (green check + **Open calendar**), and groups with **no breached
   day** are additionally listed under "All clear", so the page still answers

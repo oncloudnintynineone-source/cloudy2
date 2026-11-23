@@ -136,6 +136,12 @@ export function buildClashTimeline(
     }
     const rawStart = axisMinutes(entry.startNaive, dayKey);
     const rawEnd = axisMinutes(entry.endNaive, dayKey);
+    // A half-open window that does not touch this day at all (e.g. an event
+    // ending exactly at the day's midnight) renders no bar — without this the
+    // MIN_BAR_MINUTES floor would paint a phantom stub at the day's edge.
+    if (rawStart >= MINUTES_PER_DAY || rawEnd <= 0) {
+      return;
+    }
     let start = Math.max(0, Math.min(MINUTES_PER_DAY, rawStart));
     let end = Math.max(0, Math.min(MINUTES_PER_DAY, rawEnd));
     if (end - start < MIN_BAR_MINUTES) {

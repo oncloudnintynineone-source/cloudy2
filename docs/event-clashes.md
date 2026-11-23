@@ -187,7 +187,11 @@ shows one of:
   window comes back from `checkEventClashes` (`candidate`); days are bucketed by
   `clashDayBuckets` and capped at five, and a day carrying only the candidate (no
   conflict) is dropped (`minEntriesPerDay={2}`), so a multi-day candidate reports only
-  the days it actually clashes on. Each conflicting window is also **clipped to the
+  the days it actually clashes on. A **midnight-aligned exclusive end** (`00:00:00` —
+  PM half-day, whole-day, 24:00 close) counts as the end of the day it ends
+  (`isMidnightEnd` steps it back one civil day), so a PM half-day never buckets or
+  renders on the following day, and a half-open window that does not touch a day
+  draws no bar there. Each conflicting window is also **clipped to the
   candidate's effective window** (`clipClashEffectiveWindow`) before display, so a
   conflict that runs past the event being created/edited never stretches a day's axis
   or prints its own wider range — the timeline and rows show only the overlapping
@@ -237,6 +241,13 @@ advisory; submitting while it is in flight simply proceeds).
 - **Full-day vs next-day half-day**: because day-based events compare on the SGT
   civil day (§1.2), a full-day on one day is back-to-back with an AM half-day on
   the following day and does **not** warn — only same-day overlaps do.
+- **Windows ending at midnight**: a PM half-day's exclusive end is next-day
+  `00:00:00` (`halfDayRange`), and whole-day events and 24:00 closes align the same
+  way. The display layer treats such an end as the end of the day it ends —
+  bucketing steps it back one civil day and labels read **Midnight**
+  (`8:00 PM – Midnight`), never a phantom next-day entry and never `… – 12:00 AM`.
+  The overlap math was always half-open and correct; this is a display rule
+  (`clashDisplay.ts`, unit-tested).
 - **External events**: no parseable people → treated as occupying every active member
   of their calendar (the schedule view pins them to the department row, and
   department-row events are events for everyone within).

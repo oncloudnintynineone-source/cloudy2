@@ -68,6 +68,8 @@ export interface KahEpisodeRow {
   endDate: string;
   days: number;
   worstPct: number;
+  /** First day that hit `worstPct` (`YYYY-MM-DD`). */
+  worstDate: string;
   clippedStart: boolean;
   clippedEnd: boolean;
   status: "active" | "upcoming" | "resolved";

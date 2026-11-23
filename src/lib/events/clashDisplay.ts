@@ -66,6 +66,28 @@ export function clashDayKey(naive: string): string {
   return naive.slice(0, 10);
 }
 
+/**
+ * Whether a naive window end lands exactly on midnight (`00:00:00`). Half-open
+ * windows use such an end for "through the end of the previous day" — whole-day
+ * windows, PM half-days (`halfDayRange`), and timed events ending at 24:00 —
+ * so day attribution and labels must step it back a civil day.
+ */
+function isMidnightEnd(naive: string): boolean {
+  return naive.slice(11) === "00:00:00";
+}
+
+/**
+ * A timed window's exclusive end as display parts: the civil day it belongs to
+ * and its label. A midnight-aligned end reads `Midnight` on the *previous*
+ * day, so a window ending at 24:00 never appears to leak into the next day.
+ */
+function timedEnd(endNaive: string): { dayKey: string; label: string } {
+  if (isMidnightEnd(endNaive)) {
+    return { dayKey: subOneDay(clashDayKey(endNaive)), label: "Midnight" };
+  }
+  return { dayKey: clashDayKey(endNaive), label: dayjs(endNaive).format("h:mm A") };
+}
+
 /** An hour tick label for the timeline axis, e.g. `9 AM`, `1 PM`. */
 export function formatAxisMinute(minute: number): string {
   const hours = Math.floor(minute / 60) % 24;
@@ -217,6 +239,16 @@ export function clashEpisodeTimeLabel(entries: readonly ClashEntryDisplay[]): st
       ? "All day"
       : `${dayjs(firstDay).format("MMM D")} – ${dayjs(lastDay).format("MMM D")}`;
   }
+  // A group of half-day events heads with the same half vocabulary its rows
+  // show (`PM`, `AM – PM`) — clock bounds would read as a spurious span.
+  if (timed.length === entries.length && timed.every((entry) => entry.timeOption === "half")) {
+    const halves = new Set<string>();
+    for (const entry of timed) {
+      halves.add(entry.startAmPm ?? "AM");
+      halves.add(entry.endAmPm ?? "PM");
+    }
+    return halves.size === 1 ? [...halves][0] : "AM – PM";
+  }
   let start = timed[0].effectiveStartNaive;
   let end = timed[0].effectiveEndNaive;
   for (const entry of timed) {
@@ -239,7 +271,8 @@ export function clashEpisodeTimeLabel(entries: readonly ClashEntryDisplay[]): st
 /**
  * A date-free time label for one entry, using its effective occupancy window
  * (the day header supplies the date): `9:00 AM – 5:00 PM`, `All day`, `AM`/`PM`
- * for a half-day, or a date-qualified range when it crosses days.
+ * for a half-day, `… – Midnight` for a window ending at 24:00, or a
+ * date-qualified range when it crosses days.
  */
 export function clashEntryTimeLabel(entry: ClashEntryDisplay): string {
   if (entry.occupiesFullDay) {
@@ -251,15 +284,19 @@ export function clashEntryTimeLabel(entry: ClashEntryDisplay): string {
     return start === end ? start : `${start} – ${end}`;
   }
   const startDay = clashDayKey(entry.effectiveStartNaive);
-  const endDay = clashDayKey(entry.effectiveEndNaive);
+  const end = timedEnd(entry.effectiveEndNaive);
   const startTime = dayjs(entry.effectiveStartNaive).format("h:mm A");
-  const endTime = dayjs(entry.effectiveEndNaive).format("h:mm A");
-  if (startDay === endDay) {
-    return `${startTime} – ${endTime}`;
+  if (startDay === end.dayKey) {
+    if (startTime === "12:00 AM" && (end.label === "11:59 PM" || end.label === "Midnight")) {
+      return "All day";
+    }
+    return `${startTime} – ${end.label}`;
   }
-  return `${dayjs(entry.effectiveStartNaive).format("MMM D, h:mm A")} – ${dayjs(
-    entry.effectiveEndNaive,
-  ).format("MMM D, h:mm A")}`;
+  const endLabel =
+    end.label === "Midnight"
+      ? `${dayjs(end.dayKey).format("MMM D")}, Midnight`
+      : dayjs(entry.effectiveEndNaive).format("MMM D, h:mm A");
+  return `${dayjs(entry.effectiveStartNaive).format("MMM D, h:mm A")} – ${endLabel}`;
 }
 
 /** The effective-window fields needed to bucket an entry into days. */
@@ -303,14 +340,16 @@ export function clipClashEffectiveWindow<T extends ClashEffectiveWindow>(
 }
 
 /**
- * The `YYYY-MM-DD` days an entry occupies. A whole-day entry's effective end is
- * exclusive (the next day's midnight), so its last covered day is one earlier.
+ * The `YYYY-MM-DD` days an entry occupies. The effective window is half-open,
+ * and any midnight-aligned exclusive end (`00:00:00` — whole-day windows, PM
+ * half-days, timed events ending at 24:00) is the *end of the previous civil
+ * day*, not a moment of the day it names, so those ends step back one day.
  * Pure; drives the wizard's per-day timelines.
  */
 export function clashCoveredDayKeys(entry: ClashEffectiveWindow): string[] {
   const first = clashDayKey(entry.effectiveStartNaive);
   const lastRaw = clashDayKey(entry.effectiveEndNaive);
-  const last = entry.occupiesFullDay ? subOneDay(lastRaw) : lastRaw;
+  const last = isMidnightEnd(entry.effectiveEndNaive) ? subOneDay(lastRaw) : lastRaw;
   return daysBetween(first, last);
 }
 
@@ -362,6 +401,22 @@ export function clashDayBuckets(
     .map(([dayKey, indices]) => ({ dayKey, indices }));
 }
 
+/**
+ * The civil day an episode is filed under: the first day at least two entries
+ * cover — the day the clash actually happens — falling back to the first
+ * entry's start day when no single day holds two entries (a chain whose
+ * pairwise overlaps sit on different days still needs a home). Pure; drives
+ * the Double Booking page's day sections and strip counts, so the day header,
+ * the strip, and the card's own per-day timelines always agree.
+ */
+export function clashEpisodeDayKey(entries: readonly ClashDayBucketInput[]): string {
+  const [firstBucket] = clashDayBuckets(entries, 2);
+  if (firstBucket) {
+    return firstBucket.dayKey;
+  }
+  return entries.length > 0 ? clashDayKey(entries[0].startNaive) : "";
+}
+
 /** A short day heading: `Today` / `Tomorrow` / `Mon 14 Sep`. */
 export function clashDayLabel(dayKey: string, todayKey: string): string {
   if (dayKey === todayKey) {
@@ -375,57 +430,66 @@ export function clashDayLabel(dayKey: string, todayKey: string): string {
 
 /**
  * A compact time-first label for a card heading (the day is already shown by
- * the surrounding day header): `9:00 AM – 11:30 AM`, `All day`, or a
- * date-qualified range when the episode crosses days.
+ * the surrounding day header): `9:00 AM – 11:30 AM`, `All day`, `… – Midnight`
+ * for a window ending at 24:00, or a date-qualified range when the episode
+ * crosses days.
  */
 export function clashTimeLabel(window: ClashWindowLike): string {
   if (!window.startNaive || !window.endNaive) {
     return "";
   }
   const startDay = clashDayKey(window.startNaive);
-  const endDay = clashDayKey(window.endNaive);
   if (window.allDay) {
+    const endDay = clashDayKey(window.endNaive);
     return startDay === endDay
       ? "All day"
       : `${dayjs(startDay).format("MMM D")} – ${dayjs(endDay).format("MMM D")}`;
   }
-  if (startDay === endDay) {
-    const startTime = dayjs(window.startNaive).format("h:mm A");
-    const endTime = dayjs(window.endNaive).format("h:mm A");
-    if (startTime === "12:00 AM" && endTime === "11:59 PM") {
+  const end = timedEnd(window.endNaive);
+  const startTime = dayjs(window.startNaive).format("h:mm A");
+  if (startDay === end.dayKey) {
+    if (startTime === "12:00 AM" && (end.label === "11:59 PM" || end.label === "Midnight")) {
       return "All day";
     }
-    return `${startTime} – ${endTime}`;
+    return `${startTime} – ${end.label}`;
   }
-  return `${dayjs(window.startNaive).format("MMM D, h:mm A")} – ${dayjs(window.endNaive).format(
-    "MMM D, h:mm A",
-  )}`;
+  const endLabel =
+    end.label === "Midnight"
+      ? `${dayjs(end.dayKey).format("MMM D")}, Midnight`
+      : dayjs(window.endNaive).format("MMM D, h:mm A");
+  return `${dayjs(window.startNaive).format("MMM D, h:mm A")} – ${endLabel}`;
 }
 
 /**
  * Human window label for one entry (all-day ends arrive as inclusive naive
  * dates). Collapses a same-day timed range to a single date:
- * `Sep 14, 2026 9:00 AM – 11:30 AM`, or `Sep 14 – 16, 2026` for all-day spans.
- * Shared by the wizard's review-step advisory and the Double Booking page.
+ * `Sep 14, 2026 9:00 AM – 11:30 AM`, `… – Midnight` for a window ending at
+ * 24:00, or `Sep 14 – 16, 2026` for all-day spans. Shared by the wizard's
+ * review-step advisory and the Double Booking page.
  */
 export function clashWhenLabel(entry: ClashWindowLike): string {
   if (!entry.startNaive) {
     return "";
   }
   const startDay = clashDayKey(entry.startNaive);
-  const endDay = clashDayKey(entry.endNaive);
   if (entry.allDay) {
+    const endDay = clashDayKey(entry.endNaive);
     if (!entry.endNaive || startDay === endDay) {
       return dayjs(startDay).format("MMM D, YYYY");
     }
     return `${dayjs(startDay).format("MMM D")} – ${dayjs(endDay).format("MMM D, YYYY")}`;
   }
-  const startTime = dayjs(entry.startNaive).format("h:mm A");
-  const endTime = dayjs(entry.endNaive).format("h:mm A");
-  if (!entry.endNaive || startDay === endDay) {
-    return `${dayjs(startDay).format("MMM D, YYYY")} ${startTime} – ${endTime}`;
+  if (!entry.endNaive) {
+    return `${dayjs(startDay).format("MMM D, YYYY")} ${dayjs(entry.startNaive).format("h:mm A")}`;
   }
-  return `${dayjs(entry.startNaive).format("MMM D, YYYY h:mm A")} – ${dayjs(entry.endNaive).format(
-    "MMM D, YYYY h:mm A",
-  )}`;
+  const startTime = dayjs(entry.startNaive).format("h:mm A");
+  const end = timedEnd(entry.endNaive);
+  if (startDay === end.dayKey) {
+    return `${dayjs(startDay).format("MMM D, YYYY")} ${startTime} – ${end.label}`;
+  }
+  const endLabel =
+    end.label === "Midnight"
+      ? `${dayjs(end.dayKey).format("MMM D, YYYY")}, Midnight`
+      : dayjs(entry.endNaive).format("MMM D, YYYY h:mm A");
+  return `${dayjs(entry.startNaive).format("MMM D, YYYY h:mm A")} – ${endLabel}`;
 }

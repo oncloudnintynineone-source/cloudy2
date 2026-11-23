@@ -42,8 +42,8 @@ import type { CalendarEvent } from "@/lib/events/queries";
 import {
   buildClashDayStrip,
   buildClashMonthStrip,
-  clashDayKey,
   clashDayLabel,
+  clashEpisodeDayKey,
   clashEpisodeTimeLabel,
   clashStripGranularity,
   clashTypeLabel,
@@ -467,13 +467,25 @@ export function DoubleBookingView({
       );
     }
 
-    // Groups arrive chronological by earliest event, so a single forward pass
-    // buckets them into consecutive days (an episode is filed under its first
-    // day, even when it runs past midnight).
+    // An episode is filed under the first day where two entries actually
+    // overlap (`clashEpisodeDayKey`), not under its first event's start day —
+    // a run that only collides from day two belongs under day two. That key
+    // can reorder episodes, so sort before the single forward pass.
     const todayKey = formatInstantToNaive(new Date()).slice(0, 10);
+    const episodes = result.groups
+      .map((group) => ({
+        group,
+        dayKey: clashEpisodeDayKey(
+          group.events.map((entry) => ({
+            startNaive: entry.effectiveStartNaive,
+            endNaive: entry.effectiveEndNaive,
+            occupiesFullDay: entry.occupiesFullDay,
+          })),
+        ),
+      }))
+      .sort((a, b) => (a.dayKey < b.dayKey ? -1 : a.dayKey > b.dayKey ? 1 : 0));
     const dayGroups: { dayKey: string; groups: typeof result.groups }[] = [];
-    for (const group of result.groups) {
-      const dayKey = clashDayKey(group.events[0].effectiveStartNaive);
+    for (const { group, dayKey } of episodes) {
       const last = dayGroups[dayGroups.length - 1];
       if (last && last.dayKey === dayKey) {
         last.groups.push(group);
@@ -498,6 +510,7 @@ export function DoubleBookingView({
     return (
       <Stack gap="lg">
         <Text fz="sm" c="dimmed" role="status" aria-live="polite">
+          {isSelf ? "You have" : `${result.targetName} has`}{" "}
           {plural(result.groups.length, "double booking", "double bookings")} in the next{" "}
           {aheadLabel}.
         </Text>

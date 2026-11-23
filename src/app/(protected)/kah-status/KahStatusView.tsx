@@ -19,6 +19,8 @@ import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { MIN_SKELETON_HOLD_MS, useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
 import type { Rect } from "@/lib/motion/origin";
 import type { EventClashEntry } from "@/lib/events/clashActions";
+import { clashDayLabel } from "@/lib/events/clashDisplay";
+import { formatInstantToNaive } from "@/lib/events/datetime";
 import { buildEventDeepLink } from "@/lib/events/deepLink";
 import type { CalendarEvent } from "@/lib/events/queries";
 import {
@@ -64,12 +66,16 @@ function statusBadge(status: EpisodeStatus) {
   );
 }
 
-/** "Aug 12 – Aug 16" (year shown when the run crosses one); clipped edges show "…". */
+/**
+ * "Aug 12 – Aug 16" (year shown when the run crosses one). A run clipped at
+ * the window start reads "Ongoing" (it began before today); one clipped at
+ * the window end gets a "+" (it may extend past the look-ahead).
+ */
 function periodLabel(episode: KahEpisodeRow): string {
   const crossesYear = dayjs(episode.startDate).year() !== dayjs(episode.endDate).year();
   const fmt = (date: string) => dayjs(date).format(crossesYear ? "MMM D, YYYY" : "MMM D");
-  const start = episode.clippedStart ? "…" : fmt(episode.startDate);
-  const end = episode.clippedEnd ? "…" : fmt(episode.endDate);
+  const start = episode.clippedStart ? "Ongoing" : fmt(episode.startDate);
+  const end = episode.clippedEnd ? `${fmt(episode.endDate)}+` : fmt(episode.endDate);
   return `${start} – ${end}`;
 }
 
@@ -100,6 +106,7 @@ function MemberChips({ members, currentUserId }: { members: KahMember[]; current
             size="xs"
             variant={isYou ? "filled" : "light"}
             color={isYou ? "accent" : member.away ? "red" : "gray"}
+            title={member.away ? "Away at some point during this period" : undefined}
           >
             {isYou ? `${member.name} (You)` : member.name}
           </Badge>
@@ -131,6 +138,8 @@ export function KahStatusView({ initial, currentUserId }: KahStatusViewProps) {
   const windowLabel = `${dayjs(windowStart).format("MMM D, YYYY")} – ${dayjs(windowEnd).format(
     "MMM D, YYYY",
   )}`;
+  // Civil "today" for the worst-day labels (Today / Tomorrow / Mon 14 Sep).
+  const todayKey = formatInstantToNaive(new Date()).slice(0, 10);
   // Cold-start readiness: this view only mounts after the server computed the
   // whole window, so reporting on mount is exactly "content painted".
   useColdStartContent();
@@ -334,7 +343,7 @@ export function KahStatusView({ initial, currentUserId }: KahStatusViewProps) {
                   return (
                     <ClashCard
                       key={`${episode.groupId}:${episode.startDate}`}
-                      heading={`${episode.groupName} — ${episode.worstPct}% in country (needs ${episode.requiredPct}%)`}
+                      heading={`${episode.groupName} — down to ${episode.worstPct}% in country (needs ${episode.requiredPct}%)`}
                       headingSecondary={`${periodLabel(episode)} · ${dayCount(episode.days)}`}
                       live={false}
                       summaryBelow={
@@ -342,7 +351,8 @@ export function KahStatusView({ initial, currentUserId }: KahStatusViewProps) {
                           <Group gap="xs" align="center">
                             {statusBadge(episode.status)}
                             <Text size="xs" c="dimmed">
-                              {awayCount} away · {inCountryCount} in country
+                              {awayCount} away · {inCountryCount} in country · worst{" "}
+                              {clashDayLabel(episode.worstDate, todayKey)}
                             </Text>
                           </Group>
                           <MemberChips members={episode.members} currentUserId={currentUserId} />

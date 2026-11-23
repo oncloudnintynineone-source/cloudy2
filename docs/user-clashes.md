@@ -243,9 +243,12 @@ half-day-aware occupancy window the timeline positions bars by (the stored
   6 months`), then an **overview strip**: one cell per day from the scan range
   with its conflict count (`ClashDayStrip`); busy cells are tappable and scroll to that
   day's section
-  (`jumpToDay`). Reports are then bucketed into consecutive days (an episode is filed
-  under its first day) behind a short day heading (`Today` / `Tomorrow` / `Mon 14 Sep`,
-  via `clashDayLabel`).
+  (`jumpToDay`). Reports are then bucketed into consecutive days behind a short day
+  heading (`Today` / `Tomorrow` / `Mon 14 Sep`, via `clashDayLabel`). An episode is
+  filed under the **first day that genuinely holds two or more entries**
+  (`clashEpisodeDayKey`, which reuses the timeline's `clashDayBuckets(entries, 2)`
+  rule) — so a chain that only collides from day 2 of a multi-day all-day event is
+  filed and counted under day 2, not under the all-day event's start day.
 - **The conflict timeline.** Each day renders one amber **`ClashCard`** per overlap
   report, collapsed by default. Its always-visible visual is the shared
   **`ClashTimelineDays`** (`src/components/clashTimeline.tsx`): one **`ClashTimeline`**
@@ -255,7 +258,13 @@ half-day-aware occupancy window the timeline positions bars by (the stored
   by fewer than two entries is dropped (`minEntriesPerDay={2}`) — so a multi-day
   all-day event that merely *passes through* a day without overlapping anything is not
   reported, and each day's timed bars get a readable, full-width label instead of
-  collapsing to an unlabeled edge sliver. A multi-day event appears in every clash day
+  collapsing to an unlabeled edge sliver. A **midnight-aligned exclusive end**
+  (`00:00:00` — a PM half-day via `halfDayRange`, a whole-day event, or a 24:00
+  close) is the end of the day it *ends*, not a moment of the next: `isMidnightEnd`
+  steps it back one civil day in `clashCoveredDayKeys`, so two PM half-days render
+  one card on their own day with no phantom next-day bucket, and
+  `buildClashTimeline` draws **no bar at all** for a half-open window that does not
+  touch the day (no midnight stub). A multi-day event appears in every clash day
   it covers, so its all-day band repeats per day. Each `ClashTimeline` is a time axis
   with a colored bar per event — positioned and sized by the entry's effective window
   and lane-packed by greedy interval partitioning (`buildClashTimeline`,
@@ -264,8 +273,10 @@ half-day-aware occupancy window the timeline positions bars by (the stored
   type (department fallback) with a **`light-dark()`** palette (pastel fill + dark text
   in light mode, deep fill + light text in dark mode), and each bar opens the in-place
   detail modal. The card heading leads with the episode's **time** (`9:00 AM – 5:00 PM`,
-  `All day`, or a date range — `clashEpisodeTimeLabel`; a group mixing a whole-day and a
-  timed event names both, e.g. `9:00 AM – 10:00 AM · All day`) and a muted `N events`
+  `All day` or a date range, or — when every event in the group is a half-day — the
+  shared half: `PM`, or `AM – PM` when both halves collide; `clashEpisodeTimeLabel`;
+  a group mixing a whole-day and a timed event names both, e.g.
+  `9:00 AM – 10:00 AM · All day`) and a muted `N events`
   count (prefixed `{name} ·` for a colleague scan). The 30-day strip cells are theme-aware
   too (`light-dark()`). The same `ClashTimelineDays` powers the wizard's review-step
   advisory ([event-clashes.md](event-clashes.md) §1.6), with the candidate as a distinct
@@ -310,9 +321,13 @@ half-day-aware occupancy window the timeline positions bars by (the stored
   not N.
 - **Display helpers** are pure and unit-tested in
   `src/lib/events/clashDisplay.ts` (`clashDisplay.test.ts`): day keys/labels, per-day
-  bucketing (`clashDayBuckets`), the episode/strip builders, the strip granularity switch
+  bucketing (`clashDayBuckets`), episode filing (`clashEpisodeDayKey`), the
+  episode/strip builders, the strip granularity switch
   (`clashStripGranularity` + `buildClashMonthStrip`, §1.8.1), type-first labels, date-free
   time labels, and axis ticks (a same-day timed range collapses the repeated date). The
+  midnight rule lives here too: a midnight-aligned exclusive end labels **Midnight** on
+  the day it ends (`8:00 PM – Midnight`, `Sep 14, 8:00 PM – Sep 15, Midnight`), and a
+  legacy `12:00 AM – 11:59 PM` window collapses to `All day`. The
   shared `clashWhenLabel` replaces the old `eventWhenLabel`, so the wizard's rows get the
   same tighter labels. Timeline geometry lives in `src/lib/events/clashTimeline.ts`
   (`clashTimeline.test.ts`). The window itself is not this page's business: it comes from
@@ -355,6 +370,10 @@ rather than a hard-coded 30 days.
   during part of the scan.
 - **Two clash episodes on the same day** (morning pair, afternoon pair) are two
   reports; a **chain** `A↔B↔C` is one.
+- **Windows ending at midnight** (PM half-days, whole-day events, a 24:00 close)
+  belong to the day they end: the exclusive `00:00:00` end steps back one civil day
+  for day bucketing and renders as `Midnight` in labels — never a phantom next-day
+  report, never a midnight stub bar, never `… – 12:00 AM`.
 - **Whole-department events** occupy every active member, so they clash with a member's
   personal event on the shared calendar — exactly the schedule-view rule.
 - **External events** on the user's calendar occupy the user and count like any other
