@@ -3,6 +3,8 @@
 import { Button, Group, Menu, Stack, Stepper, Text, UnstyledButton } from "@mantine/core";
 import { IconCheck, IconChevronUp } from "@tabler/icons-react";
 
+import { useMotion } from "@/components/MotionProvider";
+import { popoverTransitionProps } from "@/lib/motion/transitions";
 import { STEP_LABELS, STEP_SHORT_LABELS, type StepDef } from "./eventFormStepLogic";
 import type { WizardStepIndicator } from "@/lib/settings/featureFlags";
 
@@ -46,6 +48,7 @@ export function EventFormSteps({
 }: EventFormStepsProps) {
   const current = steps[step];
   const position = `Step ${step + 1} of ${steps.length}`;
+  const motion = useMotion();
 
   if (variant === "rail") {
     return (
@@ -138,7 +141,17 @@ export function EventFormSteps({
           {STEP_LABELS[current.id]}
         </Text>
         {variant === "guided" && !isDesktopWide ? (
-          <Menu position="top-end" width={230} shadow="md" withinPortal>
+          /* The step-details popup rides the shared popover transition (scale +
+             rise on the profile's `pop` curve in, non-bouncy `out` curve back),
+             so it opens and closes on the same clock as every other menu
+             (docs/motion.md §1.4) instead of Mantine's bare default fade. */
+          <Menu
+            position="top-end"
+            width={230}
+            shadow="md"
+            withinPortal
+            transitionProps={popoverTransitionProps(motion)}
+          >
             <Menu.Target>
               <Button
                 variant="subtle"

@@ -205,7 +205,8 @@ Mechanics worth knowing:
       cannot fit every row.
     - **Horizontal strip** (`guided` below 800px): the compact Mantine **Stepper** keeps
       the circles and the caption's `Steps · N/M` button opens a menu listing every full
-      step name, with the current one checked.
+      step name, with the current one checked; the popup opens and closes through the
+      shared `popoverTransitionProps` (motion-profile-driven, [`motion.md`](motion.md) §1.4).
     - **Labelled rail** (`rail`, not selectable): every step as a tappable
       numbered pill with its short name (Type · Time · Location · Participants ·
       Remarks · Settings · Review), wrapping to a second row on phones.
