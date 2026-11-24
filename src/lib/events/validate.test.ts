@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   clampEventEnd,
+  clampEventStart,
   END_ORDER_ERROR,
   needsClamp,
   normalizeRegistrationCap,
@@ -280,6 +281,50 @@ describe("clampEventEnd", () => {
     expect(clampEventEnd(base)).toBe(base);
     const incomplete = { ...base, end: "2026-08-15" };
     expect(clampEventEnd(incomplete)).toBe(incomplete);
+  });
+});
+
+describe("clampEventStart", () => {
+  it("snaps only the start to the end for an inverted range", () => {
+    const inverted = {
+      ...base,
+      start: "2026-08-16 10:00:00",
+      end: "2026-08-15 09:00:00",
+    };
+    const clamped = clampEventStart(inverted);
+    expect(clamped.end).toBe(inverted.end);
+    expect(clamped.start).toBe(inverted.end);
+    expect(clamped.startAmPm).toBe(inverted.startAmPm);
+  });
+
+  it("snaps the start date and indicator for an inverted half-day", () => {
+    const sameDate = clampEventStart({
+      ...base,
+      timeOption: "half",
+      start: "2026-08-15 00:00:00",
+      end: "2026-08-15 00:00:00",
+      startAmPm: "PM",
+      endAmPm: "AM",
+    });
+    expect(sameDate.start).toBe("2026-08-15 00:00:00");
+    expect(sameDate.startAmPm).toBe("AM");
+
+    const crossDate = clampEventStart({
+      ...base,
+      timeOption: "half",
+      start: "2026-08-16 00:00:00",
+      end: "2026-08-15 00:00:00",
+      startAmPm: "PM",
+      endAmPm: "AM",
+    });
+    expect(crossDate.start).toBe("2026-08-15 00:00:00");
+    expect(crossDate.startAmPm).toBe("AM");
+  });
+
+  it("returns the values unchanged when valid or incomplete", () => {
+    expect(clampEventStart(base)).toBe(base);
+    const incomplete = { ...base, start: "2026-08-15" };
+    expect(clampEventStart(incomplete)).toBe(incomplete);
   });
 });
 

@@ -5,6 +5,7 @@ import {
   eventNotesFromInput,
   parseEventRegistrationCap,
   parseEventRegistrationEnabled,
+  parseEventRemarks,
 } from "./notes";
 import type { EventFormValues } from "./validate";
 
@@ -63,5 +64,20 @@ describe("eventNotesFromInput", () => {
     );
 
     expect(parseEventRegistrationCap(description)).toBeNull();
+  });
+
+  it("trims and mirrors the remarks note", () => {
+    const description = encodeEventNotes(
+      eventNotesFromInput("e-1", values({ remarks: "  Wear whites.  " })),
+    );
+
+    expect(parseEventRemarks(description)).toBe("Wear whites.");
+  });
+
+  it("omits the remarks mirror when blank or absent", () => {
+    expect(encodeEventNotes(eventNotesFromInput("e-1", values({ remarks: "   " })))).not.toContain(
+      "remarks",
+    );
+    expect(encodeEventNotes(eventNotesFromInput("e-1", values()))).not.toContain("remarks");
   });
 });

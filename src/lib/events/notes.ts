@@ -5,9 +5,11 @@
  * it brotli-compressed and base64url-encoded on a single line (short, and
  * opaque to calendar viewers), with a human-readable `Edit: <url>` line above
  * it so the edit link is visible — and linkified — in Google Calendar's notes.
- * A human-readable marker line at the very bottom identifies the event as
- * created in the app (see `INTERNAL_EVENT_MARKER`); events without it (and
- * without a notes block) are treated as externally created.
+ * Above that link sits the organizer's plain-text remarks when the event has
+ * them (see `withRemarks`), and a human-readable marker line at the very
+ * bottom identifies the event as created in the app (see
+ * `INTERNAL_EVENT_MARKER`); events without it (and without a notes block) are
+ * treated as externally created.
  * v1 (raw JSON) and v2 (JSON line under the `Edit:` line) descriptions still
  * parse.
  */
@@ -27,6 +29,14 @@ export interface EventNotes {
    * (unlike other blank values) to record a deliberately empty description.
    */
   title?: string;
+  /**
+   * The organizer's internal note, mirrored here so editing prefills the
+   * Remarks field with the original text. Its human-facing copy is the plain
+   * text `withRemarks` writes above the `Edit:` line — this mirror is the
+   * machine-readable source of truth, exactly like `title` against the
+   * rendered summary. Written only when non-blank.
+   */
+  remarks?: string;
   /** Logical event group id; all linked copies (one per department calendar) share it. */
   eventId?: string;
   /**
@@ -152,6 +162,7 @@ export function eventNotesFromInput(
     inviteeDepartments: input.inviteeDepartments,
     ownerOnlyEdits: input.ownerOnlyEdits || undefined,
     title: input.title.trim(),
+    remarks: input.remarks?.trim() || undefined,
     timeOption: input.timeOption,
     startAmPm: input.timeOption === "half" ? input.startAmPm : undefined,
     endAmPm: input.timeOption === "half" ? input.endAmPm : undefined,
@@ -308,6 +319,24 @@ export function withEditLink(block: string, url: string): string {
 }
 
 /**
+ * Put the organizer's plain-text remarks at the **top** of an assembled
+ * description (above the `Edit:` line), one blank line clear of it, so they
+ * are the first thing a calendar viewer reads. Blank remarks leave the
+ * description untouched — an event with no note never grows an empty block.
+ *
+ * The text is never parsed back: the notes block below carries the machine
+ * copy (`EventNotes.remarks`), and `parseEventNotes` scans lines bottom-up, so
+ * the block line is always found before anything written here is considered.
+ */
+export function withRemarks(description: string, remarks: string): string {
+  const text = remarks.trim();
+  if (!text) {
+    return description;
+  }
+  return description ? `${text}\n\n${description}` : text;
+}
+
+/**
  * Human-readable marker line the app writes at the bottom of every event
  * description it creates or edits. Its presence is the signal that an event
  * was created in the app (as opposed to directly in Google Calendar).
@@ -384,6 +413,16 @@ function readRawTitle(notes: EventNotes | null): string | null {
   return typeof title === "string" ? title : null;
 }
 
+/**
+ * The organizer's remarks, or `""` when absent (legacy events, external
+ * events, or simply no note typed) — unlike `rawTitle`, an absent remarks field
+ * is never meaningful, so it never reads as null.
+ */
+function readRemarks(notes: EventNotes | null): string {
+  const remarks = notes?.remarks;
+  return typeof remarks === "string" ? remarks : "";
+}
+
 function readTimeOption(notes: EventNotes | null): TimeOption | null {
   const timeOption = notes?.timeOption;
   return isTimeOption(timeOption) ? timeOption : null;
@@ -433,6 +472,8 @@ export interface EventDescriptionFields {
   registrationEnabled: boolean;
   registrationCap: number | null;
   rawTitle: string | null;
+  /** The organizer's plain-text remarks; `""` when the event has none. */
+  remarks: string;
   timeOption: TimeOption | null;
   startAmPm: "AM" | "PM" | null;
   endAmPm: "AM" | "PM" | null;
@@ -455,6 +496,7 @@ export function parseEventDescription(description: string): EventDescriptionFiel
     registrationEnabled: notes?.registrationEnabled === true,
     registrationCap: readRegistrationCap(notes),
     rawTitle: readRawTitle(notes),
+    remarks: readRemarks(notes),
     timeOption: readTimeOption(notes),
     startAmPm: readAmPm(notes?.startAmPm),
     endAmPm: readAmPm(notes?.endAmPm),
@@ -480,6 +522,15 @@ export function parseEventType(description: string): string | null {
  */
 export function parseEventTitle(description: string): string | null {
   return readRawTitle(parseEventNotes(description));
+}
+
+/**
+ * Extract the organizer's remarks from the notes block; `""` when absent
+ * (legacy events and events with no note are indistinguishable, and neither
+ * has anything to show).
+ */
+export function parseEventRemarks(description: string): string {
+  return readRemarks(parseEventNotes(description));
 }
 
 /** Extract the datetime option from the notes block, or null (legacy). */

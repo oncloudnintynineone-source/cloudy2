@@ -108,7 +108,9 @@ field?: EventResultField }` (`actions.ts`) — actions never throw for expected
 
 ## 1.4 createEvent
 
-`createEvent(input)` (`actions.ts`):
+`createEvent(input, options?)` (`actions.ts`) — `options` is the optional
+`EventSaveOptions` (`{ notify?: boolean }`, default on) that gates the participant
+push batch (§1.6 of [`event-notifications.md`](event-notifications.md)):
 
 ```mermaid
 sequenceDiagram
@@ -143,9 +145,10 @@ sequenceDiagram
   yourself to a department or tag an invitee" (there is no fallback calendar for a
   brand-new event).
 - **Per-target input**: `buildGcalEventInput` (`actions.ts`) renders the title
-  (`renderEventTitle`), assembles the description (`Edit:` link — a `?event=` details
-  deep link carrying the copy's own calendar id — + brotli notes block + internal
-  marker, [`event-lifecycle.md` §1.7.3](event-lifecycle.md#173-description-assembly--markers)),
+  (`renderEventTitle`), assembles the description (optional plain-text remarks line +
+  `Edit:` link — a `?event=` details deep link carrying the copy's own calendar id —
+  + brotli notes block + internal marker,
+  [`event-lifecycle.md` §1.7.3](event-lifecycle.md#173-description-assembly--markers)),
   converts the range via `absEventRange`, and puts the location in Google's first-class
   field. The request origin is resolved once per action and passed in.
 - **Rollback**: if any copy fails, the action waits for every concurrent worker to
@@ -162,7 +165,9 @@ sequenceDiagram
 
 ## 1.5 updateEvent — reconciling copies
 
-`updateEvent(ref, input)` (`actions.ts`) is the heart of the subsystem. It
+`updateEvent(ref, input, scope?, options?)` (`actions.ts`) is the heart of the
+subsystem — `options` carries the same `notify` gate as create (only the whole-series
+path dispatches; the single/following scopes never do). It
 **reconciles** the copy set: the target set is derived from the _old_ people fields
 (`refTargetCalendars`, `writeContext.ts` — the legacy superset, organizer's department
 always included, so copies written under the previous rule are still found) and the
@@ -290,6 +295,10 @@ The update diff is computed with `diffFields` (`src/lib/audit/diff.ts`): union o
 keys, JSON-equality per field, changed fields as `[before, after]` pairs — the display
 layer renders them as before→after lines plus a "Resulting state" section from the
 stored `after` record.
+
+A save submitted with the wizard's notify switch off adds
+`notifications: "skipped"` to the create/update `details`, so the audit shows the
+push batch was deliberately bypassed rather than silently empty.
 
 ## 1.9 Cache invalidation & revalidation
 

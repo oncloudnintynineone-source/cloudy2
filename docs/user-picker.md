@@ -151,16 +151,20 @@ standalone as `PickerBadges` and one chip as `PickerChip`:
   tappable (a recent search re-runs) while the ✕ stays a **sibling** control: the Badge
   root is a `div`, so the two buttons sit side by side instead of one nested in another.
 - **`PickerBadges`** renders the picked options as `PickerChip`s from
-  `items: PickerBadgeItem[]` (`{ key, label, color?, self? }`). A `cap` shows a `+N`
-  overflow badge instead of the tail; an `empty` node replaces the row when nothing is
+  `items: PickerBadgeItem[]` (`{ key, label, color?, self?, srSuffix? }`). A `cap` shows a
+  `+N` overflow badge instead of the tail; an `empty` node replaces the row when nothing is
   picked, and `self` uses the amber "mine" treatment with "(You)". With `onRemove`
   every visible chip carries the ✕ that removes that pick in place (the `+N` badge
   stays inert — §1.7). Every chip — removable or not, `+N` included — rides the
   app-wide interactive-chip height `--c2-chip-height` (36px, `globals.css`), the
   same height `SelectableBadge`, the folder container chips, the wizard's Type
   banner and the recent-location chips use, so every row of selectable/clickable
-  user & department chips lines up. Pure presentation — callers resolve their own
-  id domains into items.
+  user & department chips lines up. `size="compact"` drops the row to plain
+  read-only Badges (≈20px, no `--c2-chip-height`): the chip rule is **36px =
+  tappable/removable, plain Badge = read-only**, so a details surface that only
+  displays names never paints fake tap targets. `srSuffix` appends an sr-only word
+  to the chip's accessible name (e.g. "department") without touching the visual
+  label. Pure presentation — callers resolve their own id domains into items.
 - **`PickerTrigger`** is the shared trigger button: **Add** + `IconPlus` while nothing
   is picked, **Edit** + `IconPencil` afterwards; `triggerLabel` wins over the pair and
   `addLabel`/`editLabel` customize it.
@@ -186,6 +190,7 @@ separate role + Add commit:
 | `FilterModal` search groups | `PickerBadges` + `PickerTrigger` | `cap={5}` + inert `+N`, chip ✕, "All {label}" empty — the group's heading row is FilterModal's (see [`dashboard-views.md`](dashboard-views.md) §1.2) |
 | Event search recent searches | `PickerChip` × N | not a picker — the row is the modal's own `.c2-chip-scroll`; tapping the label re-runs that query (`onSelect`), the ✕ forgets it; `tt="none"` (a query is free text) |
 | Audit log applied filters | `PickerBadges` | not a picker — one chip per applied value (actors / actions / entity types / search / From / To); the ✕ drops just that value from the URL; `tt="none"` |
+| Event detail modal (Participants) | `PickerBadges` | not a picker — `size="compact"` read-only badges; people first (self pinned with "(You)"), then tagged departments (`accent`, `srSuffix="department"`) in one merged row; `cap` + `+N` toggle |
 
 ## 1.7 Selection state & one-tap removal
 

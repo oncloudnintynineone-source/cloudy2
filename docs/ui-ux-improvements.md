@@ -37,12 +37,12 @@ proposes a library swap or a rewrite.
 
 **Method.**
 
-| Input | What was read |
-| --- | --- |
-| Conventions | `AGENTS.md`, [`progress.md`](../progress.md) (changelog through 1.397 + §1.4 open items) |
-| Design docs | all 38 files in `docs/`; read in full: [`accessibility.md`](accessibility.md), [`user-guide.md`](user-guide.md), [`loading-transitions.md`](loading-transitions.md) §1.2 (goals **and non-goals**); targeted: `dashboard-views.md`, `desktop-responsive.md`, `event-lifecycle.md`, `user-picker.md`, `motion.md`, `action-pill.md`, `pwa-offline.md`, `event-clashes.md`, `event-notifications.md` |
-| UI code | `DashboardView.tsx` (6,415 lines — chrome, nav row, mobile pill, compact cluster, swipe refs, navigation helpers), `EventForm.tsx`, `EventFormSteps.tsx`, `EventDetailBody.tsx`, `DashboardScreen.tsx`, `AppShellShell.tsx`, `SettingsTabs.tsx`, `ContactList.tsx`, `ParadeStateView.tsx`, `MyEventsView.tsx`, `AuditLogView.tsx`, `EventSearchBody.tsx`, `LoginForm.tsx`, `LoginShell.tsx`, `UserMenu.tsx`, `PreferencesModal.tsx`, `theme.ts`, `globals.css` (3,994 lines), `bottomNav.ts`, `datetime.ts`, `validate.ts` |
-| Gap probes | grep sweeps over `src/` for keyboard handlers, `prefers-reduced-motion`, focus-visible, list virtualisation, undo, print CSS, `navigator.share`, pull-to-refresh, recurrence, timezone handling, `--mantine-scale`, legend/help affordances, `router.push` vs `router.replace` |
+| Input       | What was read                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Conventions | `AGENTS.md`, [`progress.md`](../progress.md) (changelog through 1.397 + §1.4 open items)                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Design docs | all 38 files in `docs/`; read in full: [`accessibility.md`](accessibility.md), [`user-guide.md`](user-guide.md), [`loading-transitions.md`](loading-transitions.md) §1.2 (goals **and non-goals**); targeted: `dashboard-views.md`, `desktop-responsive.md`, `event-lifecycle.md`, `user-picker.md`, `motion.md`, `action-pill.md`, `pwa-offline.md`, `event-clashes.md`, `event-notifications.md`                                                                                                                         |
+| UI code     | `DashboardView.tsx` (6,415 lines — chrome, nav row, mobile pill, compact cluster, swipe refs, navigation helpers), `EventForm.tsx`, `EventFormSteps.tsx`, `EventDetailBody.tsx`, `DashboardScreen.tsx`, `AppShellShell.tsx`, `SettingsTabs.tsx`, `ContactList.tsx`, `ParadeStateView.tsx`, `MyEventsView.tsx`, `AuditLogView.tsx`, `EventSearchBody.tsx`, `LoginForm.tsx`, `LoginShell.tsx`, `UserMenu.tsx`, `PreferencesModal.tsx`, `theme.ts`, `globals.css` (3,994 lines), `bottomNav.ts`, `datetime.ts`, `validate.ts` |
+| Gap probes  | grep sweeps over `src/` for keyboard handlers, `prefers-reduced-motion`, focus-visible, list virtualisation, undo, print CSS, `navigator.share`, pull-to-refresh, recurrence, timezone handling, `--mantine-scale`, legend/help affordances, `router.push` vs `router.replace`                                                                                                                                                                                                                                             |
 
 **Ranking basis.** There is no usage telemetry in this app, so the ranking is expert review, not
 data. Where a finding's value depends on behaviour we cannot see (how often users leave the
@@ -52,18 +52,18 @@ calendar scrolled forward, how large the roster gets), that dependency is stated
 
 The app has ~1,400 phases of UI work behind it. These are settled; re-suggesting them is waste.
 
-| Area | Already handled |
-| --- | --- |
-| Loading | Skeleton-only appearance (dimming is banned), `CrossfadeSwap` on every in-place swap, `LoadingStatus` sr-only announcements, the global activity bar + comet head, cold-start readiness bar, `WaitOverlay` on slow routes, preview-first paint for detail surfaces — [`loading-transitions.md`](loading-transitions.md) |
-| Perceived speed | Optimistic event mutations with stand-in chips, tab/period intent prefetch, warm-cache preload, PWA instant open, offline fallback, update pill |
-| Motion | `prefers-reduced-motion` honoured in every animation path; the `motionProfile` flag scales cadence app-wide — [`motion.md`](motion.md) |
-| Accessibility | Skip link as first focusable element, one polite live region fed by `announce()`, count badges riding accessible names, dark-scheme contrast pass, keyboard reorder sensor — [`accessibility.md`](accessibility.md) |
-| Empty & error states | Shared actionable `EmptyState` everywhere; branded error / 404 / offline fallbacks |
-| Forms | `validateInputOnBlur` + `showValidationFailure` (toast + scroll to first invalid field) on every form; buttons carry their own loader |
-| Pickers | Badge dialogs (`UserSelectModal` + `PickerField`/`PickerBadges`) instead of searchable selects; no-keyboard dropdowns |
-| Chrome | Coherent mobile/desktop split at `lg` (640px), compact tier at ≤ 360px, auto-hiding mobile chrome, 44px targets, trigger-origin modal zooms |
-| Lists | One shared reorder recipe (`useReorderRows` + FLIP + dnd-kit) |
-| Filters | Per-view filter sets stored server-side, one header recipe in `FilterModal`, removable summary chips, Reset |
+| Area                 | Already handled                                                                                                                                                                                                                                                                                                         |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Loading              | Skeleton-only appearance (dimming is banned), `CrossfadeSwap` on every in-place swap, `LoadingStatus` sr-only announcements, the global activity bar + comet head, cold-start readiness bar, `WaitOverlay` on slow routes, preview-first paint for detail surfaces — [`loading-transitions.md`](loading-transitions.md) |
+| Perceived speed      | Optimistic event mutations with stand-in chips, tab/period intent prefetch, warm-cache preload, PWA instant open, offline fallback, update pill                                                                                                                                                                         |
+| Motion               | `prefers-reduced-motion` honoured in every animation path; the `motionProfile` flag scales cadence app-wide — [`motion.md`](motion.md)                                                                                                                                                                                  |
+| Accessibility        | Skip link as first focusable element, one polite live region fed by `announce()`, count badges riding accessible names, dark-scheme contrast pass, keyboard reorder sensor — [`accessibility.md`](accessibility.md)                                                                                                     |
+| Empty & error states | Shared actionable `EmptyState` everywhere; branded error / 404 / offline fallbacks                                                                                                                                                                                                                                      |
+| Forms                | `validateInputOnBlur` + `showValidationFailure` (toast + scroll to first invalid field) on every form; buttons carry their own loader                                                                                                                                                                                   |
+| Pickers              | Badge dialogs (`UserSelectModal` + `PickerField`/`PickerBadges`) instead of searchable selects; no-keyboard dropdowns                                                                                                                                                                                                   |
+| Chrome               | Coherent mobile/desktop split at `lg` (640px), compact tier at ≤ 360px, auto-hiding mobile chrome, 44px targets, trigger-origin modal zooms                                                                                                                                                                             |
+| Lists                | One shared reorder recipe (`useReorderRows` + FLIP + dnd-kit)                                                                                                                                                                                                                                                           |
+| Filters              | Per-view filter sets stored server-side, one header recipe in `FilterModal`, removable summary chips, Reset                                                                                                                                                                                                             |
 
 **Consequence:** the remaining gaps are almost entirely **affordance reachability, feedback and
 guidance** — things that exist but are hard to reach, or absent muscle-memory paths — not visual
@@ -120,7 +120,7 @@ flowchart LR
 
 **Respect.** `useChromeHide` hit-tests every `.c2-chrome-hide-able` rect before starting a hide
 (`src/lib/ui/chromeHide.ts`) — a control added to the pill is automatically covered, but a control
-added *outside* it must carry the class or be excluded deliberately. Do not add a second surface
+added _outside_ it must carry the class or be excluded deliberately. Do not add a second surface
 that duplicates the date picker.
 
 **Status.** Shipped **1.399** (2026-11-22; placement revised three times the same day — the first floating version sat top-center over the canvas and covered weekday labels/chips, the second centred the pill in the date-nav row, where a narrow desktop window could still land it on the chevrons): visible only while
@@ -225,8 +225,8 @@ menu already carries the sheet at every width — which frees 76px on every phon
 must not change. The pill's height is auto-measured (`bottomBarRef` → `--c2-bottom-chrome-height`),
 so a two-line pill reflows the FAB offset and the page pads by itself; do not hard-code a height.
 `scroll` does not bubble, so a strip pan must never start a chrome hide — keep it that way.
-*(Superseded in part by **A8** at 1.412: the pill became the shared `ControlPill` and the other
-pages' pills deliberately took the same layout, each measuring its own height.)*
+_(Superseded in part by **A8** at 1.412: the pill became the shared `ControlPill` and the other
+pages' pills deliberately took the same layout, each measuring its own height.)_
 
 **Status.** Shipped **1.403** (2026-11-22): `.c2-pill-row` / `.c2-pill-label` / `.c2-pill-actions`
 / `.c2-pill-scroll` / `.c2-pill-edge` in `globals.css`; `useScrollEdges` gained a `ResizeObserver`
@@ -285,7 +285,7 @@ them again costs a second gesture.
 
 **Impact.** Searching Contacts or Parade State means scrolling, waiting for the settle, then
 tapping a control that vanished mid-scroll; on the settings lists the create/manage actions hide
-the same way. The calendar can afford the behaviour because its pane *is* the content worth the
+the same way. The calendar can afford the behaviour because its pane _is_ the content worth the
 room and the same controls also live in its pinned top strip.
 
 **Fix.** Scope the auto-hide to the calendar page: drop `useChromeHide` and the
@@ -361,8 +361,8 @@ the `monthFitChipCount` legibility floor tests after the change.
 **Impact.** A new user cannot tell why one chip is ringed amber and another purple; the meaning is
 only in the source and the admin-facing docs.
 
-**Fix.** A compact legend in the view menu (and the "?" popover from D2): *mine*, *external
-(created in Google)*, plus the event-colour note. Keep the existing non-colour cues (ring, bold,
+**Fix.** A compact legend in the view menu (and the "?" popover from D2): _mine_, _external
+(created in Google)_, plus the event-colour note. Keep the existing non-colour cues (ring, bold,
 side bar) so the legend explains rather than becomes load-bearing.
 
 **Effort.** S. **Respect.** Colour must never be the only channel (WCAG 1.4.1).
@@ -446,7 +446,7 @@ appears from four sections up. Deliberate deviation from the Respect note, by de
 denser row recipe replaces `.card-grid` on this page (`c2-defer-render` stays, per row). The VCF
 export still follows the active search + filters. **Follow-up 1.402:** the first cut drew one
 continuous container with plain section seams, and floated the rail as a viewport-fixed column
-*outside* the border on the scrollbar zone with no active state and ~16px rows — users reported
+_outside_ the border on the scrollbar zone with no active state and ~16px rows — users reported
 it detached, unclickable and unlit. Now **every group is its own rounded card** (letter groups
 for the name sort, department groups for the department sort), the rail is a **sticky pill beside
 the cards** — pinned under the chrome through the list, 26×20 letter targets, the current
@@ -552,7 +552,41 @@ when they fall outside the visible cap — pin that chip first.
 "Show less"; state resets when a different event opens). The signed-in user's chip is pinned
 first by pure `capBadgeItems` (`src/lib/ui/badgeCap.ts`, unit-tested), so the `(You)` marker and
 `c2-my-badge` ring survive any cap; `PickerChip self` carries the same amber treatment as before.
-§1.10.1.
+§1.10.1. **Follow-up 1.416** (C7): the two capped lists merged into one Participants section and
+the read-only chips dropped to compact Badge size.
+
+### 1.6.7 C7 — the detail modal split one audience across two lists and mixed two pill grammars
+
+**Evidence.** Verified at 1.415: `EventDetailBody.tsx` rendered the people under **Participants**
+and the departments under a separate **Departments** section — each with its own `PickerBadges` cap
+and "+N" — so a department-tagged event showed one audience as two lists, and users read the
+department list as _other_ people rather than as groups already covering the people above; both
+sections rendered their chips at the tappable 36px `--c2-chip-height` size — the size
+`PickerField` reserves for removable chips — while the event-type pill beside them rendered as a
+plain compact Badge, so one row carried two pill grammars with no meaning attached to the
+difference; and the ⋮ menu named two actions by mechanism, not effect: **Copy event** (which
+creates a new event) and **Add to Google Calendar** (which copies the event to another
+department's calendar).
+
+**Impact.** Reported by users directly — "combine the entries under Departments under the
+Participants section… the users are confused otherwise." Meanwhile the oversized read-only chips
+inflated the modal's busiest row and borrowed the size that means removable elsewhere, teaching a
+tap that does nothing.
+
+**Fix.** One **Participants** list — people first (self pinned, per C6), then departments as
+accent chips with an sr-only "department" suffix — under one cap and one "+N"; read-only chips
+render as compact Badges, keeping 36px for tappable/removable; rename the actions to
+**Duplicate Event** and **Copy to Other Google Calendar**.
+
+**Effort.** S. **Respect.** C6's pin rule survives the merge (`capBadgeItems` keeps self first);
+the standalone share tooltip "Add to other Calendars" is a different surface and stays.
+
+**Status.** Shipped **1.416** (2026-11-24): all of the above landed — one `participantItems` list
+(people `user:<id>`, then departments `dept:<name>` with `srSuffix="department"`), one
+`capBadgeItems` cap + one "+N" button (`aria-expanded`; "Show all N Participants/Registrants" ↔
+"Show fewer …"), `PickerBadges size="compact"` through the new `PickerChipSize`
+(`src/components/PickerField.tsx`), and the two menu renames. The chip-size rule is written down
+in [`user-picker.md`](user-picker.md) §1.6. §1.10.1.
 
 ## 1.7 Feedback, guidance and trust
 
@@ -614,7 +648,7 @@ server-read week start refreshes on its next mount). §1.10.1.
 (`docs/action-pill.md`, `src/components/ActionPill.tsx`), yet `EditViewsModalBody.tsx:199` and
 `:234`, `EventDetailBody.tsx:229`, and `EventForm.tsx:1042` call `notifications.show` directly.
 
-**Impact.** Two visual languages for the same moment; outcomes that *could* offer a follow-up action
+**Impact.** Two visual languages for the same moment; outcomes that _could_ offer a follow-up action
 (open the saved event, retry) don't, because they were rendered as inert toasts.
 
 **Fix.** State the boundary in this doc and in `action-pill.md` — **actionable → pill, inert
@@ -654,8 +688,8 @@ already used, now refactored onto it, so strip and affordances can't disagree). 
 `navigator.onLine === false`: every wizard start is refused at the single `requestFormStart` choke
 point (nav button, FAB, day modal, agenda button alike) with a one-line toast reason, the New-event
 affordances render disabled beside the standing amber banner, and the wizard's
-"Create event"/"Save changes" submit is disabled with a quiet one-liner — *"You're offline — your
-draft is saved. Reconnect to submit."* — plus an `announce()` guard for implicit Enter-submits. The
+"Create event"/"Save changes" submit is disabled with a quiet one-liner — _"You're offline — your
+draft is saved. Reconnect to submit."_ — plus an `announce()` guard for implicit Enter-submits. The
 draft itself is untouched by all of it (it already survived minimize and reload), and because only
 a genuinely interface-less device reports offline, a flaky connection never trips the gate.
 §1.10.1.
@@ -716,7 +750,7 @@ for a half-open window that does not touch the day.
 
 **Effort.** S.
 
-**Respect.** The stored windows and the clash *math* were already correct (half-open, SGT-aligned
+**Respect.** The stored windows and the clash _math_ were already correct (half-open, SGT-aligned
 via `effectiveEventWindow`) — this is display-only; the Google all-day `occupiesFullDay` path and
 the KAH scan stay untouched.
 
@@ -731,7 +765,7 @@ day before a midnight end, so `clashDayBuckets` can no longer fabricate a phanto
 ### 1.7.7 D10 — the clash reports made the user decode the display
 
 **Evidence.** Verified at 1.414: the Double Booking card heading ran `clashTimeLabel` over the
-*first event* of the group — a pair of half-days read "12:00 PM – 12:00 AM" and a mixed group read
+_first event_ of the group — a pair of half-days read "12:00 PM – 12:00 AM" and a mixed group read
 as one event's window; day grouping keyed on the first event's start day, so a chain that only
 collided on day 2 of a multi-day all-day event was filed under day 1; the KAH card heading
 "Alpha — 40% in country (needs 60%)" stated the run's worst % as if it were the group's standing
@@ -743,7 +777,7 @@ about what away meant across a multi-day run.
 the report, and the KAH card made the user open the day list to find which day was worst — three
 re-reads per card for information the data already had.
 
-**Fix.** Headings that describe the *episode*: a shared `clashEpisodeTimeLabel` (all whole-day →
+**Fix.** Headings that describe the _episode_: a shared `clashEpisodeTimeLabel` (all whole-day →
 "All day" / a date range; all half-day → the shared half "PM" or "AM – PM"; otherwise the min–max
 span with a `· All day` suffix when mixed); file each episode under the first day that genuinely
 holds two or more entries (`clashEpisodeDayKey` over `clashDayBuckets(entries, 2)`); carry the
@@ -759,10 +793,94 @@ change; the nav badge counts stay as they are.
 **Status.** Shipped **1.415** (2026-11-24): all of the above landed — `clashEpisodeDayKey` files a
 chain under the day it first clashes (a run colliding only from day 2 files under day 2),
 `clashEpisodeTimeLabel` heads half-day groups with "PM" / "AM – PM" and mixed groups with the span
-+ `· All day`; KAH headings read "Alpha — down to 40% in country (needs 60%)", the summary names
-the worst day ("4 away · 7 in country · worst Mon 14 Sep"), clipped runs read "Ongoing – …" /
-"… – Oct 31+", and away chips carry an "Away at some point during this period" title.
-[`user-clashes.md`](user-clashes.md) §1.8, [`kah.md`](kah.md) §1.7. §1.10.1.
+
+- `· All day`; KAH headings read "Alpha — down to 40% in country (needs 60%)", the summary names
+  the worst day ("4 away · 7 in country · worst Mon 14 Sep"), clipped runs read "Ongoing – …" /
+  "… – Oct 31+", and away chips carry an "Away at some point during this period" title.
+  [`user-clashes.md`](user-clashes.md) §1.8, [`kah.md`](kah.md) §1.7. §1.10.1.
+
+### 1.7.8 D11 — saving an event always notified, with no way to opt out
+
+**Evidence.** Verified at 1.415: `createEvent` and the series-scoped `updateEvent`
+(`src/lib/events/actions.ts`) dispatched `dispatchParticipantNotifications` unconditionally after
+a successful write, so saving a half-built event, or adding a colleague to the invitees before
+the event is real, pushed a browser notification to everyone newly included — and there was no
+way to save without it short of not saving.
+
+**Impact.** Organizers learned that the wizard's Save is a broadcast: they either finished
+everything in one sitting or notified people about events still in draft. The one place the app
+sends unsolicited pings had no consent step.
+
+**Fix.** A **Notify participants** switch on the review step, default on, rendered only when the
+save actually adds participants (a tag-level diff against the event's stored invitees, excluding
+self); `notify: false` threads through as an options parameter on both actions, skips the
+dispatch, and records `notifications: "skipped"` on the audit row.
+
+**Effort.** S. **Respect.** Dispatch sites and semantics unchanged (create + series update only —
+single/following scopes never notified); the KAH breach check still runs on every save; the audit
+row still records the save itself.
+
+**Status.** Shipped **1.416** (2026-11-24): as specified — the `addedParticipantCount` tag diff in
+`EventForm.tsx` gates a **Notifications** `WizardSection` on the review step ("Sends a browser
+notification to people newly added to this event." / "No notifications will be sent for this
+save."), and `EventSaveOptions { notify }` on `createEvent`/`updateEvent` skips the dispatch and
+writes the audit marker. [`event-notifications.md`](event-notifications.md) §1.1/§1.6/§1.9,
+[`event-mutations.md`](event-mutations.md) §1.4/§1.5/§1.8. §1.10.1.
+
+### 1.7.9 D12 — an invalid time pair dead-ended in an error
+
+**Evidence.** Verified at 1.415: the Timestamp step validated `endAfterStart` and reported "End
+time must be after the start time" — after the user had already typed the start they intended,
+the error told them to go find and re-edit the other field; picking a half-day option that
+implied an earlier end produced the same dead-end error rather than the obvious adjustment.
+
+**Impact.** Every out-of-order edit cost a second pass through a field the user had not touched,
+and the error named the problem without offering the fix the app itself could compute.
+
+**Fix.** Snap the opposite side to the field just edited — `clampEventEnd` already existed,
+mirror it as `clampEventStart` — and say so in a one-line dimmed hint (Collapse + `announce()`);
+keep the hard error only where no snap is implied (time-option toggles, submit-time validation).
+
+**Effort.** S. **Respect.** The stored windows and validation are unchanged — this is an
+edit-time convenience; half-day semantics (start follows the end's half, end follows the start's)
+must round-trip.
+
+**Status.** Shipped **1.416** (2026-11-24): `syncTimeOrder` in `EventForm.tsx` snaps the opposite
+side via `clampEventEnd` / the new `clampEventStart` (`src/lib/events/validate.ts`, unit-tested) —
+including half-day options, which now snap instead of erroring — with the hint "End set to match
+the start." / "Start set to match the end." in a motion-token `Collapse` + `announce()`; the
+ordering error remains reachable only via `switchTimeOption` and submit validation.
+[`event-lifecycle.md`](event-lifecycle.md) §1.4.1/§1.5.2. §1.10.1.
+
+### 1.7.10 D13 — "Remarks" meant the title, and Other settings was one undifferentiated form
+
+**Evidence.** Verified at 1.415: the wizard's single **Remarks** textarea was bound to the `title`
+field — the words the admin's title recipe puts into the calendar _title_ — so the label promised
+calendar remarks and delivered title fragments, and there was no way to write an internal note
+into the event's Google notes at all; the Other settings step stacked Repeat, pinning and the
+owner-lock/registration controls in one flat `Stack` with no headings, so three unrelated
+decisions read as one wall.
+
+**Impact.** Users typed real remarks into a field that renamed their event, and the settings
+step's most consequential switch (the organizer-only lock) sat visually mid-list with no framing.
+
+**Fix.** Split the step into **Description** (the existing `title` field, honestly labelled) and
+a new **Remarks** field that writes plain text into the Google event's notes above the Edit link
+(notes-block v3 layout — `withRemarks` on write, `parseEventRemarks` on read), each with a
+one-sentence helper; wrap each Other-settings group in its own bordered section card.
+
+**Effort.** S–M. **Respect.** The step id/label stay `remarks`/"Remarks" — they are tied to the
+admin "Show remarks in the event form" toggle (`showRemarks`), which now governs both fields; the
+notes-block reader stays bottom-up, so the remarks line above the block is never parsed as state;
+no schema change.
+
+**Status.** Shipped **1.416** (2026-11-24): **Description** → `title` ("Optional — the words your
+admin's title template puts into the calendar title.") and **Remarks** → the new `remarks` field
+("Optional — an internal note shown only in the event's Google Calendar notes."), assembled by
+`withRemarks` above the Edit link and round-trip-tested (`src/lib/events/notes.ts`,
+`migration.test.ts`); the review step gained Description/Remarks rows, and the Other settings
+step renders **Repeat** / **Pinned events** / **Editing & registration** `WizardSection` cards.
+[`event-lifecycle.md`](event-lifecycle.md) §1.4/§1.4.1/§1.7.2–§1.7.4. §1.10.1.
 
 ## 1.8 Workflow level
 
@@ -829,17 +947,17 @@ Reviewed on **2026-11-22** and **put aside by decision — not to be implemented
 decision.** The evidence stays here so the research isn't lost; the fixes are deliberately not
 specified.
 
-| ID | Item | Evidence anchor | Status |
-| --- | --- | --- | --- |
-| A3 | Swipe to change period on Month / Week / Day (swipe exists only on the Agenda tab and the day modal: `DashboardView.tsx:5192`, `:5830`, `DAY_SWIPE_THRESHOLD` `:501`; the Month grid at `:5077` has none) | as cited | Held 2026-11-22 |
-| A5 | Drag-to-create / drag-to-reschedule on the grids (dnd-kit is used only for reorderable lists, `docs/reorder.md`) | grids + `useGridPan` | Held 2026-11-22 |
-| A6 | Delete undo, and naming the department-copy count in the delete confirm (`EventDetailBody.tsx:562-569`, success toast `:229`) | as cited | Held 2026-11-22 |
-| B2 | In-app text-size control driving `--mantine-scale` (only preference today is week start, `PreferencesModal.tsx`; pinch/double-tap zoom disabled at `globals.css:63-66`) | as cited | Held 2026-11-22 — the WCAG 1.4.4 trade-off in `accessibility.md` §1.8 **stands as accepted** |
-| D1 | Login affordances: format hint, `inputMode`/`autoComplete`/`enterKeyHint`, help line, version row (`LoginForm.tsx:124-134`, `LoginShell.tsx`) | as cited | Held 2026-11-22 — the masked single field with no hint is the intended design |
-| D3 | First-run orientation for new staff | no onboarding surface exists | Held 2026-11-22 |
-| D4 | In-app pull-to-refresh (the native gesture is disabled at `globals.css:39-46`; the header Force refresh is the only path) | as cited | Held 2026-11-22 |
-| E2 | Registrant CSV export for capped registration events (only audit CSV and contacts VCF exist) | grep-verified | Held 2026-11-22 |
-| E5 | `@media print` stylesheet (no print CSS anywhere in `src/`) | grep-verified | Held 2026-11-22 |
+| ID  | Item                                                                                                                                                                                                      | Evidence anchor              | Status                                                                                       |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- | -------------------------------------------------------------------------------------------- |
+| A3  | Swipe to change period on Month / Week / Day (swipe exists only on the Agenda tab and the day modal: `DashboardView.tsx:5192`, `:5830`, `DAY_SWIPE_THRESHOLD` `:501`; the Month grid at `:5077` has none) | as cited                     | Held 2026-11-22                                                                              |
+| A5  | Drag-to-create / drag-to-reschedule on the grids (dnd-kit is used only for reorderable lists, `docs/reorder.md`)                                                                                          | grids + `useGridPan`         | Held 2026-11-22                                                                              |
+| A6  | Delete undo, and naming the department-copy count in the delete confirm (`EventDetailBody.tsx:562-569`, success toast `:229`)                                                                             | as cited                     | Held 2026-11-22                                                                              |
+| B2  | In-app text-size control driving `--mantine-scale` (only preference today is week start, `PreferencesModal.tsx`; pinch/double-tap zoom disabled at `globals.css:63-66`)                                   | as cited                     | Held 2026-11-22 — the WCAG 1.4.4 trade-off in `accessibility.md` §1.8 **stands as accepted** |
+| D1  | Login affordances: format hint, `inputMode`/`autoComplete`/`enterKeyHint`, help line, version row (`LoginForm.tsx:124-134`, `LoginShell.tsx`)                                                             | as cited                     | Held 2026-11-22 — the masked single field with no hint is the intended design                |
+| D3  | First-run orientation for new staff                                                                                                                                                                       | no onboarding surface exists | Held 2026-11-22                                                                              |
+| D4  | In-app pull-to-refresh (the native gesture is disabled at `globals.css:39-46`; the header Force refresh is the only path)                                                                                 | as cited                     | Held 2026-11-22                                                                              |
+| E2  | Registrant CSV export for capped registration events (only audit CSV and contacts VCF exist)                                                                                                              | grep-verified                | Held 2026-11-22                                                                              |
+| E5  | `@media print` stylesheet (no print CSS anywhere in `src/`)                                                                                                                                               | grep-verified                | Held 2026-11-22                                                                              |
 
 Two held items have consequences worth restating so nobody "fixes" them by accident:
 
@@ -861,13 +979,13 @@ flowchart TD
   H["Held — not scheduled<br/>A3 · A5 · A6 · B2 · D1 · D3 · D4 · E2 · E5"]
 ```
 
-| Tier | Items | Why here |
-| --- | --- | --- |
-| **1 — days, low risk** | B1, B4 | Missing-affordance and correctness fixes. Each is local, reversible, needs no schema or data change, and closes a gap the codebase already knows about (B1). A1/A2/A4, C1/C6 and D5/D6 left this tier shipped (§1.10.1), as did A7 — added and shipped at 1.403 — and A8/A9, added and shipped at 1.412. D8, added and shipped at 1.414, and D9/D10, added and shipped at 1.415, never entered the tier
-table. |
-| **2 — a sprint** | B3, B5 | Keyboard parity and the legibility floor. D2 shipped ahead of the tier (§1.10.1) **without** its shortcut section — fold that section in when B5 lands, per the original "B5 before D2" note. C2/C3/C4/C5 left this tier shipped (§1.10.1). |
-| **3 — design-gated** | E3, E6-hint | Advisory and messaging that must be designed against the clashes engine and attendance docs rather than bolted on. |
-| **4 — feature work** | E1, E4, E6-sync | Each needs its own spec, schema, and subsystem doc. |
+| Tier                   | Items           | Why here                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ---------------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **1 — days, low risk** | B1, B4          | Missing-affordance and correctness fixes. Each is local, reversible, needs no schema or data change, and closes a gap the codebase already knows about (B1). A1/A2/A4, C1/C6 and D5/D6 left this tier shipped (§1.10.1), as did A7 — added and shipped at 1.403 — and A8/A9, added and shipped at 1.412. D8, added and shipped at 1.414, D9/D10, added and shipped at 1.415, and C7/D11/D12/D13, added and shipped at 1.416, never entered the tier |
+| table.                 |
+| **2 — a sprint**       | B3, B5          | Keyboard parity and the legibility floor. D2 shipped ahead of the tier (§1.10.1) **without** its shortcut section — fold that section in when B5 lands, per the original "B5 before D2" note. C2/C3/C4/C5 left this tier shipped (§1.10.1).                                                                                                                                                                                                         |
+| **3 — design-gated**   | E3, E6-hint     | Advisory and messaging that must be designed against the clashes engine and attendance docs rather than bolted on.                                                                                                                                                                                                                                                                                                                                  |
+| **4 — feature work**   | E1, E4, E6-sync | Each needs its own spec, schema, and subsystem doc.                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 **Intra-tier notes.** C1 and C6 are independent of everything else.
 
@@ -876,27 +994,31 @@ table. |
 Findings stay in place (evidence and rationale included); their blocks carry a **Status** line and
 land here.
 
-| ID | Shipped | Landed as |
-| --- | --- | --- |
-| A1 | 1.399 (2026-11-22); placement revised 1.408 | Off-today-only Today jump, anchored **immediately left of the period chevrons** and never over the canvas: at `lg`+ a **"Back to Today"** pill is an in-flow child of the date-nav row just before `‹ \| ›` (the period label is that row's only flexible child, so it truncates instead of the controls moving; below 720px of row the `.c2-nav-row` container query drops the pill to a 36px icon circle — the centred float it replaced could reach the chevrons on a narrow desktop window; compact desktop tier: an icon circle stacked under the floating fullscreen button); below `lg` a 56px frosted circle joins the FAB row left of the `[< \| >]` step pill (right-anchored, so existing controls never shift). Pure `isOffToday` (`src/lib/ui/todayAffordance.ts` + tests). Tap runs the existing `goToday` cross-slide + replace; intent prefetch like the chevrons; sr announcement rides the existing chrome watcher. Documented in [`dashboard-views.md`](dashboard-views.md) §1.1 (Today-jump bullet) and [`user-guide.md`](user-guide.md) §1.3.2. |
-| A2 | 1.399 (2026-11-22) | `user-guide.md` §1.3.1/§1.3.2 and `dashboard-views.md` §1.1/§1.2 describe the real chrome — no ⋮ menu, shared `FullscreenButton`, the A1 control — and no held item is described as existing. |
-| A4 | 1.399 (2026-11-22) | `navigate`/`navigateLocal`, the in-month agenda-day anchor and the one-shot `edit`/`event` strips `router.replace(…, { scroll: false })`; deep links, post-save nav and `openClashEventInCalendar` keep `push`. Back leaves the calendar in one press; the cookie path is history-method-agnostic (verified). |
-| D2 | 1.400 (2026-11-22) | In-app **Guide** sheet (`src/components/GuideSheet.tsx`) rendered from the typed `src/lib/help/guideContent.ts` (route matcher unit-tested): one short block per route, current page first. Opened from the profile menu at every width; the "?" triggers in the dashboard chrome (wide toolbar tail + mobile control pill) were **removed at 1.403** (A7), so the profile menu is the only entry. Shortcut section deferred to B5 by design; the user guide's prose is not forked. |
-| D5 | 1.400 (2026-11-22) | Preferences save = snapshot clear + `cloudy2:prefs-changed` (`src/lib/ui/prefsChanged.ts`) + toast + close — no `window.location.reload()`. `DashboardScreen` listens and `revalidate()`s in place; grids rebuild from the fresh record with the new week start. |
-| D6 | 1.400 (2026-11-22) | Boundary stated in [`action-pill.md`](action-pill.md) §1.2 (actionable → pill, inert → toast). Delete success is now a pill offering **History** (trail modal hosted by `DashboardView`); inert toasts and the flag-owned post-save path audited and left as-is. |
-| D7 | 1.400 (2026-11-22) | Shared `useIsOffline` (`src/lib/ui/onlineStatus.ts`, `OfflineBanner` refactored onto it). Offline: wizard starts refused at `requestFormStart` with a reason toast, New-event affordances disabled, wizard submit disabled with a "draft is saved" one-liner + `announce()` guard. Drafts untouched; conservative signal only. |
-| C1 | 1.401 (2026-11-22) | Settings tabs grouped Roster/Events/Delivery/System with labelled separators at `lg+` (scroller kept below `lg`); shared `RailEdgeControl` fade + chevron edges on both tiers (`useScrollEdges` + pure `measureScrollEdges`, unit-tested); active tab centred on entry. |
-| C2 | 1.401 (2026-11-22) | Contacts: dense sectioned row list (name/department sort, duplicated name line gone) + right-edge A–Z jump rail (`src/lib/contacts/sections.ts`, unit-tested); VCF export still follows search + filters. |
-| C3 | 1.401 (2026-11-22) | Parade State roster search: nav-row field at `lg+`, search circle in the mobile pill (label ↔ inline field). Client-side fuzzy filter over loaded users; attendance `X/Y`, summary and Copy report stay org-wide aggregates. |
-| C4 | 1.401 (2026-11-22) | My Events title search mirrored in `?q=` (decision: mirror, like range/page), debounced, server-side `filterMyEventRowsByTitle` before the page slice; adoption gate compares range + page + q. |
-| C5 | 1.401 (2026-11-22) | Audit-log rows lead with the relative age (`relativeChangeLabel`) + absolute UTC+8 secondary; computed once per render; detail modal + CSV stay absolute. |
-| C6 | 1.401 (2026-11-22) | Event detail participants/departments capped at 5 via `PickerBadges` with "+N" as the expand trigger; self chip pinned first by pure `capBadgeItems` (`src/lib/ui/badgeCap.ts`, unit-tested). |
-| A7 | 1.403 (2026-11-22) | Mobile control pill: the period label is a **static read-out** (`.c2-pill-label`) and the circles pan in a scrollable strip (`.c2-pill-actions` / `.c2-pill-scroll`) that wraps to a second row only when the label + `--c2-pill-actions-min` cannot share the line (flex-basis line-breaking, no JS); auto-margin right-anchoring, `RailEdgeControl`-style edge fades from `useScrollEdges` (now `ResizeObserver`-aware, starts unclipped). Guide "?" removed from the dashboard chrome at both tiers — profile menu only. |
-| A8 | 1.412 (2026-11-23) | The pill layout is now the shared **`ControlPill`** (`src/components/ControlPill.tsx`) rendered by the calendar, Parade State, Contacts and `SettingsListChrome`: leading read-out (`.c2-pill-label` / centred `--fill`) or search field (`.c2-pill-field`, `--c2-pill-field-min` floor) + the panning circle strip, `--c2-pill-actions-min` from pure `pillActionsMin` (`src/lib/ui/controlPill.ts`, tested). Each page measures the pill (`useElementHeight`, `src/lib/ui/elementSize.ts`) and feeds its own pad — `--c2-bottom-chrome-height`, `--c2-settings-pill-height` (`.settings-pill-page-pad` default 58px) and Parade's attendance-bar offset — replacing the hardcoded 58/50/58px heights. |
-| A9 | 1.412 (2026-11-23) | Floating-chrome auto-hide is the **calendar page alone**: `useChromeHide` stays on the dashboard's pill + FAB row (and the docked draft chip), and is gone from Contacts, Parade State (pill + attendance bar) and `SettingsListChrome`, whose pills stay put while their lists scroll. `chromeHide.ts` API and state machine unchanged; docs + `AGENTS.md` re-scoped. |
-| D8 | 1.414 (2026-11-24) | KAH Status chrome aligned with the sibling report pages: shared sticky head (`.c2-report-head`, generalized from Double Booking's `.c2-db-head`, both pages on it), `role="status"` summary line, admin hint in the subtitle, actionable clear-state `EmptyState`, inline error + Retry on a failed look-ahead, "X% in country (needs Y%)" headings, `capBadgeItems`-capped roster chips, advisory footnote. [`kah.md`](kah.md) §1.7. |
-| D9 | 1.415 (2026-11-24) | Midnight-aligned exclusive ends (`00:00:00` — whole-day, PM half-day, 24:00 close) step back one civil day in `clashCoveredDayKeys` (`isMidnightEnd`) and label **Midnight** on the day they end (`timedEnd` — "8:00 PM – Midnight", "Sep 14, 8:00 PM – Sep 15, Midnight"; legacy "12:00 AM – 11:59 PM" collapses to "All day"); `buildClashTimeline` renders no bar for a half-open window that does not touch the day — no phantom next-day buckets, no midnight stubs, no "… – 12:00 AM". [`user-clashes.md`](user-clashes.md) §1.8/§1.9, [`event-clashes.md`](event-clashes.md) §1.6/§1.7. |
-| D10 | 1.415 (2026-11-24) | Episode-first display on both clash pages: `clashEpisodeTimeLabel` heads Double Booking cards with the shared half ("PM" / "AM – PM"), "All day" / a date range, or the min–max span with a `· All day` suffix when whole-day events mix in; `clashEpisodeDayKey` files each episode under the first day holding two entries; KAH headings read "down to X% in country (needs Y%)" with the worst day named in the summary (`worstDate`), clipped runs read "Ongoing" / "…+", and away chips carry an explanatory title. [`kah.md`](kah.md) §1.7. |
+| ID  | Shipped                                                | Landed as                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| --- | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A1  | 1.399 (2026-11-22); placement revised 1.408            | Off-today-only Today jump, anchored **immediately left of the period chevrons** and never over the canvas: at `lg`+ a **"Back to Today"** pill is an in-flow child of the date-nav row just before `‹ \| ›` (the period label is that row's only flexible child, so it truncates instead of the controls moving; below 720px of row the `.c2-nav-row` container query drops the pill to a 36px icon circle — the centred float it replaced could reach the chevrons on a narrow desktop window; compact desktop tier: an icon circle stacked under the floating fullscreen button); below `lg` a 56px frosted circle joins the FAB row left of the `[< \| >]` step pill (right-anchored, so existing controls never shift). Pure `isOffToday` (`src/lib/ui/todayAffordance.ts` + tests). Tap runs the existing `goToday` cross-slide + replace; intent prefetch like the chevrons; sr announcement rides the existing chrome watcher. Documented in [`dashboard-views.md`](dashboard-views.md) §1.1 (Today-jump bullet) and [`user-guide.md`](user-guide.md) §1.3.2. |
+| A2  | 1.399 (2026-11-22)                                     | `user-guide.md` §1.3.1/§1.3.2 and `dashboard-views.md` §1.1/§1.2 describe the real chrome — no ⋮ menu, shared `FullscreenButton`, the A1 control — and no held item is described as existing.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| A4  | 1.399 (2026-11-22)                                     | `navigate`/`navigateLocal`, the in-month agenda-day anchor and the one-shot `edit`/`event` strips `router.replace(…, { scroll: false })`; deep links, post-save nav and `openClashEventInCalendar` keep `push`. Back leaves the calendar in one press; the cookie path is history-method-agnostic (verified).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| D2  | 1.400 (2026-11-22)                                     | In-app **Guide** sheet (`src/components/GuideSheet.tsx`) rendered from the typed `src/lib/help/guideContent.ts` (route matcher unit-tested): one short block per route, current page first. Opened from the profile menu at every width; the "?" triggers in the dashboard chrome (wide toolbar tail + mobile control pill) were **removed at 1.403** (A7), so the profile menu is the only entry. Shortcut section deferred to B5 by design; the user guide's prose is not forked.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| D5  | 1.400 (2026-11-22)                                     | Preferences save = snapshot clear + `cloudy2:prefs-changed` (`src/lib/ui/prefsChanged.ts`) + toast + close — no `window.location.reload()`. `DashboardScreen` listens and `revalidate()`s in place; grids rebuild from the fresh record with the new week start.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| D6  | 1.400 (2026-11-22)                                     | Boundary stated in [`action-pill.md`](action-pill.md) §1.2 (actionable → pill, inert → toast). Delete success is now a pill offering **History** (trail modal hosted by `DashboardView`); inert toasts and the flag-owned post-save path audited and left as-is.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| D7  | 1.400 (2026-11-22)                                     | Shared `useIsOffline` (`src/lib/ui/onlineStatus.ts`, `OfflineBanner` refactored onto it). Offline: wizard starts refused at `requestFormStart` with a reason toast, New-event affordances disabled, wizard submit disabled with a "draft is saved" one-liner + `announce()` guard. Drafts untouched; conservative signal only.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| C1  | 1.401 (2026-11-22)                                     | Settings tabs grouped Roster/Events/Delivery/System with labelled separators at `lg+` (scroller kept below `lg`); shared `RailEdgeControl` fade + chevron edges on both tiers (`useScrollEdges` + pure `measureScrollEdges`, unit-tested); active tab centred on entry.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| C2  | 1.401 (2026-11-22)                                     | Contacts: dense sectioned row list (name/department sort, duplicated name line gone) + right-edge A–Z jump rail (`src/lib/contacts/sections.ts`, unit-tested); VCF export still follows search + filters.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| C3  | 1.401 (2026-11-22)                                     | Parade State roster search: nav-row field at `lg+`, search circle in the mobile pill (label ↔ inline field). Client-side fuzzy filter over loaded users; attendance `X/Y`, summary and Copy report stay org-wide aggregates.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| C4  | 1.401 (2026-11-22)                                     | My Events title search mirrored in `?q=` (decision: mirror, like range/page), debounced, server-side `filterMyEventRowsByTitle` before the page slice; adoption gate compares range + page + q.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| C5  | 1.401 (2026-11-22)                                     | Audit-log rows lead with the relative age (`relativeChangeLabel`) + absolute UTC+8 secondary; computed once per render; detail modal + CSV stay absolute.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| C6  | 1.401 (2026-11-22); merged + resized under C7 at 1.416 | Event detail participants/departments capped at 5 via `PickerBadges` with "+N" as the expand trigger; self chip pinned first by pure `capBadgeItems` (`src/lib/ui/badgeCap.ts`, unit-tested).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| A7  | 1.403 (2026-11-22)                                     | Mobile control pill: the period label is a **static read-out** (`.c2-pill-label`) and the circles pan in a scrollable strip (`.c2-pill-actions` / `.c2-pill-scroll`) that wraps to a second row only when the label + `--c2-pill-actions-min` cannot share the line (flex-basis line-breaking, no JS); auto-margin right-anchoring, `RailEdgeControl`-style edge fades from `useScrollEdges` (now `ResizeObserver`-aware, starts unclipped). Guide "?" removed from the dashboard chrome at both tiers — profile menu only.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| A8  | 1.412 (2026-11-23)                                     | The pill layout is now the shared **`ControlPill`** (`src/components/ControlPill.tsx`) rendered by the calendar, Parade State, Contacts and `SettingsListChrome`: leading read-out (`.c2-pill-label` / centred `--fill`) or search field (`.c2-pill-field`, `--c2-pill-field-min` floor) + the panning circle strip, `--c2-pill-actions-min` from pure `pillActionsMin` (`src/lib/ui/controlPill.ts`, tested). Each page measures the pill (`useElementHeight`, `src/lib/ui/elementSize.ts`) and feeds its own pad — `--c2-bottom-chrome-height`, `--c2-settings-pill-height` (`.settings-pill-page-pad` default 58px) and Parade's attendance-bar offset — replacing the hardcoded 58/50/58px heights.                                                                                                                                                                                                                                                                                                                                                              |
+| A9  | 1.412 (2026-11-23)                                     | Floating-chrome auto-hide is the **calendar page alone**: `useChromeHide` stays on the dashboard's pill + FAB row (and the docked draft chip), and is gone from Contacts, Parade State (pill + attendance bar) and `SettingsListChrome`, whose pills stay put while their lists scroll. `chromeHide.ts` API and state machine unchanged; docs + `AGENTS.md` re-scoped.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| D8  | 1.414 (2026-11-24)                                     | KAH Status chrome aligned with the sibling report pages: shared sticky head (`.c2-report-head`, generalized from Double Booking's `.c2-db-head`, both pages on it), `role="status"` summary line, admin hint in the subtitle, actionable clear-state `EmptyState`, inline error + Retry on a failed look-ahead, "X% in country (needs Y%)" headings, `capBadgeItems`-capped roster chips, advisory footnote. [`kah.md`](kah.md) §1.7.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| D9  | 1.415 (2026-11-24)                                     | Midnight-aligned exclusive ends (`00:00:00` — whole-day, PM half-day, 24:00 close) step back one civil day in `clashCoveredDayKeys` (`isMidnightEnd`) and label **Midnight** on the day they end (`timedEnd` — "8:00 PM – Midnight", "Sep 14, 8:00 PM – Sep 15, Midnight"; legacy "12:00 AM – 11:59 PM" collapses to "All day"); `buildClashTimeline` renders no bar for a half-open window that does not touch the day — no phantom next-day buckets, no midnight stubs, no "… – 12:00 AM". [`user-clashes.md`](user-clashes.md) §1.8/§1.9, [`event-clashes.md`](event-clashes.md) §1.6/§1.7.                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| D10 | 1.415 (2026-11-24)                                     | Episode-first display on both clash pages: `clashEpisodeTimeLabel` heads Double Booking cards with the shared half ("PM" / "AM – PM"), "All day" / a date range, or the min–max span with a `· All day` suffix when whole-day events mix in; `clashEpisodeDayKey` files each episode under the first day holding two entries; KAH headings read "down to X% in country (needs Y%)" with the worst day named in the summary (`worstDate`), clipped runs read "Ongoing" / "…+", and away chips carry an explanatory title. [`kah.md`](kah.md) §1.7.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| C7  | 1.416 (2026-11-24)                                     | Event detail modal: Departments merged into one **Participants** list (people first, self pinned, then accent department chips with an sr-only "department" suffix) under one `capBadgeItems` cap + one "+N" (`aria-expanded`); read-only chips render as compact Badges (`PickerBadges size="compact"` — 36px `--c2-chip-height` now means tappable/removable, [`user-picker.md`](user-picker.md) §1.6); menu actions renamed **Duplicate Event** / **Copy to Other Google Calendar**. [`event-lifecycle.md`](event-lifecycle.md) §1.12.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| D11 | 1.416 (2026-11-24)                                     | Review-step **Notifications** card: **Notify participants** switch (default on) rendered only when the save adds participants — tag-level `addedParticipantCount` diff (invitee tags not on the event, excluding self); `EventSaveOptions { notify }` on `createEvent`/`updateEvent` skips the dispatch and records `notifications: "skipped"` in the audit row. [`event-notifications.md`](event-notifications.md) §1.1/§1.6/§1.9, [`event-mutations.md`](event-mutations.md) §1.4/§1.5/§1.8.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| D12 | 1.416 (2026-11-24)                                     | `syncTimeOrder` snaps the opposite side on edit — `clampEventStart` (new) mirrors `clampEventEnd` (`src/lib/events/validate.ts`, unit-tested), half-day options snap instead of erroring — with a dimmed one-liner in a motion-token `Collapse` + `announce()`; the ordering error remains only on time-option toggles and submit validation. [`event-lifecycle.md`](event-lifecycle.md) §1.4.1/§1.5.2.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| D13 | 1.416 (2026-11-24)                                     | Remarks step split: **Description** (the existing `title` field — what the title recipe puts into the calendar title) + new **Remarks** (plain text in the Google notes above the Edit link — notes v3 `withRemarks`/`parseEventRemarks`, round-trip-tested), each with a one-sentence helper; review step shows both rows; Other settings step grouped into `WizardSection` cards (Repeat / Pinned events / Editing & registration). [`event-lifecycle.md`](event-lifecycle.md) §1.4/§1.4.1/§1.7.2–§1.7.4.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 
 ## 1.11 Implementation guardrails
 
@@ -916,7 +1038,7 @@ Every item above inherits these; they are the reason some obvious-looking fixes 
 - **Pure logic** in `src/lib/**` with Vitest coverage in `src/**/*.test.ts` (node env, no DB
   fixtures) — the keymap (B5), text filters (C4) and any chip-cap math (C6) belong there.
 - **Breakpoints:** `useMediaQuery` takes the em breakpoint interpolated into the query —
-  ``(min-width: ${theme.breakpoints.lg})`` — never append `px` to the em value (it is an `em`
+  `(min-width: ${theme.breakpoints.lg})` — never append `px` to the em value (it is an `em`
   string, and appending makes an invalid query that always returns false); CSS switches live under
   `@media (min-width: 40em)`.
 - **Page zoom:** the `touch-action: pan-x pan-y` rule on `html` stays; never add
@@ -937,7 +1059,7 @@ Every item above inherits these; they are the reason some obvious-looking fixes 
 - **Cut tickets from this doc, not from memory:** when a tier is approved, publish one file per
   ticket under `.scratch/ui-ux/issues/NN-<slug>.md` with a `Status:` line
   (`docs/agents/issue-tracker.md`, `docs/agents/triage-labels.md`), citing the finding ID.
-- **Keep this doc honest:** when a finding ships, move its line to a *Shipped* table with the
+- **Keep this doc honest:** when a finding ships, move its line to a _Shipped_ table with the
   changelog number; when one is rejected, move it to §1.9 with the date and reason. Never delete a
   row — the point of the register is that the reasoning survives.
 - **Re-baseline:** the line numbers here are from changelog 1.397. Re-verify the anchors of any
@@ -945,26 +1067,28 @@ Every item above inherits these; they are the reason some obvious-looking fixes 
 
 ## 1.13 File index
 
-| Path | Role for this research |
-| --- | --- |
-| `src/app/(protected)/dashboard/DashboardView.tsx` | A1, A4, B5, C6 context: chrome, navigation helpers, swipe refs |
-| `src/app/(protected)/dashboard/EventDetailBody.tsx` | C6, D6, E3 |
-| `src/app/(protected)/settings/SettingsTabs.tsx` | C1 |
-| `src/components/AppShellShell.tsx` | `RailEdgeControl` recipe (C1), header controls |
-| `src/app/(protected)/contacts/ContactList.tsx` | C2 |
-| `src/app/(protected)/parade-state/ParadeStateView.tsx` | C3, E6, the legend precedent |
-| `src/app/(protected)/my-events/MyEventsView.tsx` | C4 |
-| `src/app/(protected)/settings/audit-log/AuditLogView.tsx` | C5 |
-| `src/app/(protected)/kah-status/KahStatusView.tsx` | D8, D10 |
-| `src/lib/events/clashDisplay.ts` + `src/lib/events/clashTimeline.ts` | D9, D10 — the shared clash display core |
-| `src/app/(protected)/double-booking/DoubleBookingView.tsx` | D10 — episode filing + heading |
-| `src/lib/kah/status.ts` + `src/lib/kah/range.ts` | D10 — `worstDate` on the breach episode |
-| `src/components/PreferencesModal.tsx` | D5, and the future home of any held preference |
-| `src/components/UserMenu.tsx` | D2 host |
-| `src/app/globals.css` | B1, B3, and the page-zoom / pull-to-refresh rules behind B2 and D4 |
-| `src/lib/theme.ts` | Schedule/Month hook classes for B1; breakpoints for every responsive change |
-| [`accessibility.md`](accessibility.md) | §1.7 chip contrast (B1), §1.8 page-zoom policy (B2/B3) |
-| [`loading-transitions.md`](loading-transitions.md) | §1.2 non-goals that constrain every item |
-| [`action-pill.md`](action-pill.md) | D6 boundary |
-| [`user-picker.md`](user-picker.md) | §1.6 `PickerBadges` cap (C6) |
-| [`event-clashes.md`](event-clashes.md) | E3 engine reuse |
+| Path                                                                 | Role for this research                                                                                |
+| -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `src/app/(protected)/dashboard/DashboardView.tsx`                    | A1, A4, B5, C6 context: chrome, navigation helpers, swipe refs                                        |
+| `src/app/(protected)/dashboard/EventDetailBody.tsx`                  | C6, C7, D6, E3                                                                                        |
+| `src/app/(protected)/dashboard/EventForm.tsx`                        | D11, D12, D13 — review-step notify switch, timestamp snap, Description/Remarks split + settings cards |
+| `src/lib/events/notes.ts`                                            | D13 — remarks in the notes-block v3 layout                                                            |
+| `src/app/(protected)/settings/SettingsTabs.tsx`                      | C1                                                                                                    |
+| `src/components/AppShellShell.tsx`                                   | `RailEdgeControl` recipe (C1), header controls                                                        |
+| `src/app/(protected)/contacts/ContactList.tsx`                       | C2                                                                                                    |
+| `src/app/(protected)/parade-state/ParadeStateView.tsx`               | C3, E6, the legend precedent                                                                          |
+| `src/app/(protected)/my-events/MyEventsView.tsx`                     | C4                                                                                                    |
+| `src/app/(protected)/settings/audit-log/AuditLogView.tsx`            | C5                                                                                                    |
+| `src/app/(protected)/kah-status/KahStatusView.tsx`                   | D8, D10                                                                                               |
+| `src/lib/events/clashDisplay.ts` + `src/lib/events/clashTimeline.ts` | D9, D10 — the shared clash display core                                                               |
+| `src/app/(protected)/double-booking/DoubleBookingView.tsx`           | D10 — episode filing + heading                                                                        |
+| `src/lib/kah/status.ts` + `src/lib/kah/range.ts`                     | D10 — `worstDate` on the breach episode                                                               |
+| `src/components/PreferencesModal.tsx`                                | D5, and the future home of any held preference                                                        |
+| `src/components/UserMenu.tsx`                                        | D2 host                                                                                               |
+| `src/app/globals.css`                                                | B1, B3, and the page-zoom / pull-to-refresh rules behind B2 and D4                                    |
+| `src/lib/theme.ts`                                                   | Schedule/Month hook classes for B1; breakpoints for every responsive change                           |
+| [`accessibility.md`](accessibility.md)                               | §1.7 chip contrast (B1), §1.8 page-zoom policy (B2/B3)                                                |
+| [`loading-transitions.md`](loading-transitions.md)                   | §1.2 non-goals that constrain every item                                                              |
+| [`action-pill.md`](action-pill.md)                                   | D6 boundary                                                                                           |
+| [`user-picker.md`](user-picker.md)                                   | §1.6 `PickerBadges` cap + chip-size rule (C6, C7)                                                     |
+| [`event-clashes.md`](event-clashes.md)                               | E3 engine reuse                                                                                       |

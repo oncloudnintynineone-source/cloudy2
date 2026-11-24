@@ -18,8 +18,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.415 (Midnight-aligned clash windows, episode-first
-  headings on both clash pages)** is shipped.
+- All work through changelog **1.416 (Wizard trust pass — notify switch, time snap,
+  Description/Remarks split — and a merged, size-normalized detail modal)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -2382,7 +2382,7 @@ mirror them (four such entries: 1.106.1, 1.122.1, 1.316.1, 1.331.1).
   portaled chrome's mount entrances (`c2-glass-enter`, the FAB stagger) are
   removed — a transition captures the first frame, where a running entrance is
   still transparent; `c2-glass-enter` survives only for the feature-flag motion
-  preview.   Docs: `docs/loading-transitions.md` §1.14/§1.17,
+  preview. Docs: `docs/loading-transitions.md` §1.14/§1.17,
   `docs/dashboard-views.md` §1.1, `docs/desktop-responsive.md` §1.3.
 - 1.369 **Calendar period-step performance**: the real View Transition
   cross-slide no longer runs for heavy grid kinds on coarse-pointer devices,
@@ -2541,7 +2541,7 @@ mirror them (four such entries: 1.106.1, 1.122.1, 1.316.1, 1.331.1).
   every cell that could not complete in bounds is now a disabled button (dimmed,
   inert, out of the tab order, skipped by arrow/Home/End, its badge stripped to a
   transparent gray label — no fill at all, dimmed) and a dimmed caption states
-  the window instead. An hour stays pickable while *some* offered minute still fits
+  the window instead. An hour stays pickable while _some_ offered minute still fits
   (`max: 09:30` keeps `09` for `:00`/`:15`/`:30`); tapping it while a now-invalid
   minute is highlighted only stages the hour and narrows the minute row, so nothing
   invalid is ever applied. Same rule across the step: the Start date input gains
@@ -2595,7 +2595,7 @@ mirror them (four such entries: 1.106.1, 1.122.1, 1.316.1, 1.331.1).
   `launchShell.test.ts`). Docs: `loading-transitions.md` §1.4.1 (new),
   `pwa-offline.md`, AGENTS.md loading checklist.
 - 1.392 **Dropdown lists match their field (time-range menus first)**: Mantine derives
-  dropdown-option text from the component `size` while the theme pins *field* text to 16px
+  dropdown-option text from the component `size` while the theme pins _field_ text to 16px
   for iOS zoom safety, so every menu opened **smaller than the control that spawned it** —
   14px at the default `sm`, and 12px in ~27px rows for the three `size="xs"` selects (My
   Events **Range**, KAH Status **Look ahead**, the roster `AccessLevelSelect`).
@@ -2623,7 +2623,7 @@ mirror them (four such entries: 1.106.1, 1.122.1, 1.316.1, 1.331.1).
   `event-search.md` §1.10, `audit-log.md`.
 - 1.394 **Page pinch-to-zoom off app-wide**: a two-finger spread no longer magnifies the
   document like a magnifying glass on any route. One declaration does it — `touch-action:
-  pan-x pan-y` on `html` (`globals.css`): pinch-zoom needs the `pinch-zoom` token, and
+pan-x pan-y` on `html` (`globals.css`): pinch-zoom needs the `pinch-zoom` token, and
   `touch-action` restricts every descendant by **intersection**, so a single rule on the
   root scroller covers every page, modal and portal; `manipulation` was not used because it
   still admits pinch in some engines. The viewport meta's `user-scalable=no` /
@@ -2682,7 +2682,7 @@ mirror them (four such entries: 1.106.1, 1.122.1, 1.316.1, 1.331.1).
   dialog's Search submit now shares one 43px control height with the query input and the
   date-filter trigger (it was Mantine's 36px `sm` default, visibly short in that row —
   `TOOLBAR_CONTROL_SIZE` + a `--button-height` override). The From/To popover **stacks the
-  two fields full width**: `DatePickerInput` renders its value as *button text*
+  two fields full width**: `DatePickerInput` renders its value as _button text_
   (`component="button"` + `multiline`), so two half-width fields in the 300px popover left
   ~60px for `2026-11-21` (the clearable ✕ reserves 50px) and the date wrapped onto a second
   line; `whiteSpace: nowrap` guards it. Results are now **two labelled sections** instead of
@@ -2692,325 +2692,344 @@ mirror them (four such entries: 1.106.1, 1.122.1, 1.316.1, 1.331.1).
   split index) while paging stays one flat cursor. Docs: `event-search.md`
   §1.5/§1.8.1/§1.9/§1.11/§1.12, `AGENTS.md`.
 - 1.398 **UI/UX research backlog (docs-only)**: a full audit of the interface against the code —
-   every finding cites a file:line verified at 1.397 — recorded as `docs/ui-ux-improvements.md`:
-   what is already right (so it is not re-proposed), 21 findings in five themes (calendar core and
-   the touch model, legibility and accessibility, finding things and density, feedback/guidance,
-   workflow), and a fixed four-tier order. Headline findings: **"Today" is not one tap away
-   anywhere** (`goToday` is wired only to the date-picker modal), **every period step and tab
-   switch pushes a history entry** (Back needs N presses on Android/PWA), the **dark-scheme
-   event-chip boundary contrast** fix specified in `accessibility.md` §1.7 was never applied,
-   **two docs describe the removed dashboard ⋮ menu**, Settings' 13-tab strip has no scroll
-   affordance while the bottom nav already owns that recipe, and there is **no in-app help and no
-   keyboard layer**. Nine reviewed items (grid swipe, drag-create, delete undo, in-app text size,
-   login affordances, first-run coach, pull-to-refresh, registrant export, print CSS) are recorded
-   in a **held register** with the date — not to be implemented without a new decision. No code,
-   schema or `APP_VERSION` change. Docs: `ui-ux-improvements.md` (new), `AGENTS.md` project state.
+  every finding cites a file:line verified at 1.397 — recorded as `docs/ui-ux-improvements.md`:
+  what is already right (so it is not re-proposed), 21 findings in five themes (calendar core and
+  the touch model, legibility and accessibility, finding things and density, feedback/guidance,
+  workflow), and a fixed four-tier order. Headline findings: **"Today" is not one tap away
+  anywhere** (`goToday` is wired only to the date-picker modal), **every period step and tab
+  switch pushes a history entry** (Back needs N presses on Android/PWA), the **dark-scheme
+  event-chip boundary contrast** fix specified in `accessibility.md` §1.7 was never applied,
+  **two docs describe the removed dashboard ⋮ menu**, Settings' 13-tab strip has no scroll
+  affordance while the bottom nav already owns that recipe, and there is **no in-app help and no
+  keyboard layer**. Nine reviewed items (grid swipe, drag-create, delete undo, in-app text size,
+  login affordances, first-run coach, pull-to-refresh, registrant export, print CSS) are recorded
+  in a **held register** with the date — not to be implemented without a new decision. No code,
+  schema or `APP_VERSION` change. Docs: `ui-ux-improvements.md` (new), `AGENTS.md` project state.
 - 1.399 **Dashboard Today jump + replace-based view navigation (UI/UX backlog A1/A2/A4)**:
-   the off-today **Back to Today** jump now appears without shifting any existing control and
-   without covering the calendar: at `lg`+ a pill floats in the date-nav row's permanently empty
-   center (compact desktop tier: an icon circle stacked under the floating fullscreen button);
-   below `lg` a 56px circle joins the
-   FAB row left of the `[<|>]` step pill (right-anchored row). It renders only while today is
-   outside the shown period — pure `isOffToday` (`src/lib/ui/todayAffordance.ts`, unit-tested)
-   reads the same optimistic `shown*` state as the period label, so control and label never
-   disagree. The tap runs the existing `goToday` cross-slide (no new loading surface), the
-   hover/focus/press handlers prefetch today's context like the chevrons', and the sr announcement
-   rides the existing chrome watcher. **A4**: `navigate`/`navigateLocal`, the in-month agenda-day
-   anchor and the one-shot `edit`/`event` URL strips now `router.replace(…, { scroll: false })` —
-   view state no longer stacks history entries, so system Back leaves the calendar in one press
-   (deep links, post-save nav and `openClashEventInCalendar` keep `push`); the `edit`/`event`
-   strips finally honour their own "Back doesn't re-open" comments. **A2**: `user-guide.md` and
-   `dashboard-views.md` describe the real chrome (the phantom ⋮ menu is gone; fullscreen is the
-   shared `FullscreenButton`) plus the new control. Docs: `dashboard-views.md`
-   §1.1 (Today-jump bullet)/§1.2, `user-guide.md` §1.3, `ui-ux-improvements.md` §1.10.1 (Shipped),
-   `AGENTS.md`.
- - 1.400 **In-app Guide, in-place preferences, delete→History pill, offline-aware wizard (UI/UX
-   backlog D2/D5/D6/D7)**: four shipped findings. **D2**: a **Guide** sheet
-   (`src/components/GuideSheet.tsx`) rendered from a typed content module
-   (`src/lib/help/guideContent.ts`, route matcher unit-tested) — one short "what this page is
-   for" block per route, the current page first with a "This page" badge; opened from the
-   profile menu at every width and a **?** circle in the dashboard chrome (wide toolbar tail +
-   mobile control pill; compact tier → profile menu). The shortcut section is deliberately
-   absent until B5 ships; the user guide's prose is not forked. **D5**: saving **Preferences**
-   no longer reloads the document — the dialog clears the snapshots, fires
-   `cloudy2:prefs-changed` (`src/lib/ui/prefsChanged.ts`), confirms and closes; a mounted
-   `DashboardScreen` listens and `revalidate()`s, so the grids rebuild with the new week start
-   while scroll, drafts and warm state survive. **D6**: the pill-vs-toast boundary is now
-   written down (`action-pill.md` §1.2 — actionable → pill, inert confirmation → toast) and
-   the delete success is an action pill offering **History**, opening the shared
-   `EventHistoryModal` hosted by `DashboardView` (payload-less events and hosts without a
-   trail modal keep the green toast). **D7**: one shared `useIsOffline` hook
-   (`src/lib/ui/onlineStatus.ts`, `OfflineBanner` refactored onto it) — while offline every
-   wizard start is refused at the `requestFormStart` choke point with a reason toast, the
-   New-event affordances render disabled beside the amber banner, and the wizard's submit is
-   disabled with a "your draft is saved" one-liner (+ `announce()` guard); drafts stay
-   resumable and the conservative signal never gates a flaky connection. Docs:
-   `ui-ux-improvements.md` (statuses + Shipped), `action-pill.md` §1.2, `user-guide.md`
-   §1.2/§1.3/§1.10, `dashboard-views.md` §1.1/§1.2, `AGENTS.md`.
-  - 1.401 **Find-things batch (UI/UX backlog C1/C6 + C2/C3/C4/C5)**: six shipped findings.
-    **C1**: the Settings tab strip groups into **Roster · Events · Delivery · System** with
-    labelled separators at `lg`+ (only KAH Groups moved; the scroller stays below `lg`), and
-    both tiers gained the bottom-nav rail's fade + chevron edges — `RailEdgeControl` extracted
-    to a shared component, with pure `measureScrollEdges` + `useScrollEdges`
-    (`src/lib/ui/scrollEdges.ts`, unit-tested) — plus a scroll-into-view of the active tab on
-    entry. **C6**: the event detail modal caps participants and departments at 5 chips via the
-    shared `PickerBadges` recipe with the **"+N" as the expand trigger**; the signed-in user's
-    chip is pinned first by pure `capBadgeItems` (`src/lib/ui/badgeCap.ts`, unit-tested).
-    **C2**: Contacts is no longer a card wall — one bordered container of dense hairline rows
-    (template name primary, duplicated name line gone), sectioned by **name or department**
-    (sort menu in both chrome tiers) with a right-edge **A–Z jump rail** from four sections up
-    (pure `src/lib/contacts/sections.ts`, unit-tested); the VCF export still follows the active
-    search + filters. **C3**: Parade State gained a **roster search** — a field in the sticky
-    day-nav row at `lg`+, a search circle in the mobile pill that swaps the day label for an
-    inline field (keyboard lift included); client-side fuzzy filter over the loaded users, and
-    the attendance `X/Y`, roll-call summary and Copy report stay org-wide aggregates. **C4**:
-    My Events gained a **title search mirrored in `?q=`** (decision: mirror, like range/page),
-    debounced 300 ms, applied server-side in `buildMyEventsPage` before the page slice via pure
-    `filterMyEventRowsByTitle` (unit-tested) so paging stays honest. **C5**: audit-log rows lead
-    with the **relative age** (shared `relativeChangeLabel`) and the absolute UTC+8 stamp rides
-    under it — computed once per render on this fresh-on-entry route; detail modal and CSV stay
-    absolute. Docs: `ui-ux-improvements.md` (statuses + tier table + Shipped), `user-guide.md`
-    §1.4.2/§1.7/§1.8, `audit-log.md` §1.10, `event-history.md` §1.4, `desktop-responsive.md`
-    §1.6, `dashboard-views.md` §1.1, `loading-transitions.md`, `AGENTS.md`.
-  - 1.402 **Contacts A–Z rail rebuild + per-group cards (C2 follow-up, on-device report)**: the
-    rail shipped viewport-fixed *outside* the list border on the scrollbar zone, with no active
-    state and ~16px rows — users reported it unclickable, unlit and detached — and the list read
-    as one continuous wall. Now **every group is its own rounded card** (letter groups under the
-    name sort, department groups under the department sort), and the rail is a **sticky pill
-    beside the cards** (pinned under the app header / lg search bar through the list), with 26×20
-    letter targets, the **current section's letter highlighted** while scrolling (capture-phase
-    `document` scroll listener + pure `activeSectionKey`, unit-tested — catches window *or*
-    inner-container scrolling), a working `scrollIntoView` jump honouring the existing
-    `scroll-margin-top`, and a live-region announcement. Route skeleton reshaped to per-group
-    cards. Docs: `ui-ux-improvements.md` C2 status, `user-guide.md` §1.8,
-    `desktop-responsive.md` §1.6.
-  - 1.403 **Mobile control pill: static period label + panning control strip (A7)**: the pill's six
-    circles left the date label ≈30–100px on a 360–430px phone, so it truncated on every device in
-    the range. The label is now a **static read-out** (`.c2-pill-label`) and the circles live in a
-    **horizontally scrollable strip** (`.c2-pill-actions` / `.c2-pill-scroll`, scrollbar hidden,
-    `overscroll-behavior-x: contain`) right-anchored with an **auto margin** — never
-    `justify-content: flex-end`, which clips the scroll start — behind `RailEdgeControl`-style edge
-    fades driven by `useScrollEdges`. The row wraps to a second line only when the label +
-    `--c2-pill-actions-min` (128px) genuinely cannot share it: flex line-breaking reads the
-    **hypothetical** main size, so no JS measurement is involved. `useScrollEdges` gained a
-    `ResizeObserver` (a sibling reflow changes the clip) and starts unclipped on both edges, so no
-    false fade flashes before the first measurement. The strip keeps `pointer-events: none` (only
-    its buttons catch taps), so a pan never starts a chrome hide and never swallows a grid tap, and
-    the pill's height stays auto-measured, so a stacked pill reflows the FAB offset + page pads by
-    itself. The Guide **"?"** is gone from the dashboard chrome at **both** tiers — the profile menu
-    is the only entry to the sheet. Docs: `ui-ux-improvements.md` (A7 + D2 statuses, tier table,
-    Shipped), `dashboard-views.md` §1.1/§1.2, `user-guide.md` §1.3.1, `AGENTS.md`.
-  - 1.404 **Recurring events**: real Google recurring series (RRULE) per department copy,
-    with a compact rule mirror in the notes block; daily/weekly (multi-weekday)/monthly/
-    yearly frequencies, interval 1–99, forever / N occurrences / until-date durations.
-    Occurrence identity is `recurringEventId` + `originalStartTime`, so the read path now
-    dedupes department copies **per occurrence** (grids/search/parade/KAH/double-booking
-    keep every occurrence; Pinned Events and My Events collapse a series to its next/earliest
-    row; deep links pick the matching occurrence by `?date=`). Other settings gained the
-    Repeat controls; edit/delete offer This event / This and following / All events, with the scope
-    chosen before the wizard (an abortable `/api/dashboard/series-prefill` route feeds the series
-    anchor or the remaining rule). "This and following" creates a successor series first,
-    removes the old future exceptions, then truncates the old parents; retries reuse the
-    successor by its `splitFromEventId`/`splitAt` notes. Single-occurrence edits create
-    Google exceptions and keep participants/pin/lock/registration series-level. Registration
-    was series-level in 1.404 (superseded by 1.405: per-occurrence rosters; single/following
-    parameter edits and deletes are still rejected).
-    Google integration gained `getEvent`, recurrence/timeZone writes, a `singleEvents:false`
-    read mode (also used by the event-type migration so it patches parents, not instances),
-    and an `_R` sub-series PUT→PATCH fallback; series mutations clear the affected
-    calendars' cache. External/custom series are occurrence-only. Docs:
-    [`recurring-events.md`](docs/recurring-events.md), `event-lifecycle.md`,
-    `event-mutations.md`, `registration-events.md`, `google-integration.md`,
-    `events-cache.md`, `AGENTS.md`.
+  the off-today **Back to Today** jump now appears without shifting any existing control and
+  without covering the calendar: at `lg`+ a pill floats in the date-nav row's permanently empty
+  center (compact desktop tier: an icon circle stacked under the floating fullscreen button);
+  below `lg` a 56px circle joins the
+  FAB row left of the `[<|>]` step pill (right-anchored row). It renders only while today is
+  outside the shown period — pure `isOffToday` (`src/lib/ui/todayAffordance.ts`, unit-tested)
+  reads the same optimistic `shown*` state as the period label, so control and label never
+  disagree. The tap runs the existing `goToday` cross-slide (no new loading surface), the
+  hover/focus/press handlers prefetch today's context like the chevrons', and the sr announcement
+  rides the existing chrome watcher. **A4**: `navigate`/`navigateLocal`, the in-month agenda-day
+  anchor and the one-shot `edit`/`event` URL strips now `router.replace(…, { scroll: false })` —
+  view state no longer stacks history entries, so system Back leaves the calendar in one press
+  (deep links, post-save nav and `openClashEventInCalendar` keep `push`); the `edit`/`event`
+  strips finally honour their own "Back doesn't re-open" comments. **A2**: `user-guide.md` and
+  `dashboard-views.md` describe the real chrome (the phantom ⋮ menu is gone; fullscreen is the
+  shared `FullscreenButton`) plus the new control. Docs: `dashboard-views.md`
+  §1.1 (Today-jump bullet)/§1.2, `user-guide.md` §1.3, `ui-ux-improvements.md` §1.10.1 (Shipped),
+  `AGENTS.md`.
+- 1.400 **In-app Guide, in-place preferences, delete→History pill, offline-aware wizard (UI/UX
+  backlog D2/D5/D6/D7)**: four shipped findings. **D2**: a **Guide** sheet
+  (`src/components/GuideSheet.tsx`) rendered from a typed content module
+  (`src/lib/help/guideContent.ts`, route matcher unit-tested) — one short "what this page is
+  for" block per route, the current page first with a "This page" badge; opened from the
+  profile menu at every width and a **?** circle in the dashboard chrome (wide toolbar tail +
+  mobile control pill; compact tier → profile menu). The shortcut section is deliberately
+  absent until B5 ships; the user guide's prose is not forked. **D5**: saving **Preferences**
+  no longer reloads the document — the dialog clears the snapshots, fires
+  `cloudy2:prefs-changed` (`src/lib/ui/prefsChanged.ts`), confirms and closes; a mounted
+  `DashboardScreen` listens and `revalidate()`s, so the grids rebuild with the new week start
+  while scroll, drafts and warm state survive. **D6**: the pill-vs-toast boundary is now
+  written down (`action-pill.md` §1.2 — actionable → pill, inert confirmation → toast) and
+  the delete success is an action pill offering **History**, opening the shared
+  `EventHistoryModal` hosted by `DashboardView` (payload-less events and hosts without a
+  trail modal keep the green toast). **D7**: one shared `useIsOffline` hook
+  (`src/lib/ui/onlineStatus.ts`, `OfflineBanner` refactored onto it) — while offline every
+  wizard start is refused at the `requestFormStart` choke point with a reason toast, the
+  New-event affordances render disabled beside the amber banner, and the wizard's submit is
+  disabled with a "your draft is saved" one-liner (+ `announce()` guard); drafts stay
+  resumable and the conservative signal never gates a flaky connection. Docs:
+  `ui-ux-improvements.md` (statuses + Shipped), `action-pill.md` §1.2, `user-guide.md`
+  §1.2/§1.3/§1.10, `dashboard-views.md` §1.1/§1.2, `AGENTS.md`.
+- 1.401 **Find-things batch (UI/UX backlog C1/C6 + C2/C3/C4/C5)**: six shipped findings.
+  **C1**: the Settings tab strip groups into **Roster · Events · Delivery · System** with
+  labelled separators at `lg`+ (only KAH Groups moved; the scroller stays below `lg`), and
+  both tiers gained the bottom-nav rail's fade + chevron edges — `RailEdgeControl` extracted
+  to a shared component, with pure `measureScrollEdges` + `useScrollEdges`
+  (`src/lib/ui/scrollEdges.ts`, unit-tested) — plus a scroll-into-view of the active tab on
+  entry. **C6**: the event detail modal caps participants and departments at 5 chips via the
+  shared `PickerBadges` recipe with the **"+N" as the expand trigger**; the signed-in user's
+  chip is pinned first by pure `capBadgeItems` (`src/lib/ui/badgeCap.ts`, unit-tested).
+  **C2**: Contacts is no longer a card wall — one bordered container of dense hairline rows
+  (template name primary, duplicated name line gone), sectioned by **name or department**
+  (sort menu in both chrome tiers) with a right-edge **A–Z jump rail** from four sections up
+  (pure `src/lib/contacts/sections.ts`, unit-tested); the VCF export still follows the active
+  search + filters. **C3**: Parade State gained a **roster search** — a field in the sticky
+  day-nav row at `lg`+, a search circle in the mobile pill that swaps the day label for an
+  inline field (keyboard lift included); client-side fuzzy filter over the loaded users, and
+  the attendance `X/Y`, roll-call summary and Copy report stay org-wide aggregates. **C4**:
+  My Events gained a **title search mirrored in `?q=`** (decision: mirror, like range/page),
+  debounced 300 ms, applied server-side in `buildMyEventsPage` before the page slice via pure
+  `filterMyEventRowsByTitle` (unit-tested) so paging stays honest. **C5**: audit-log rows lead
+  with the **relative age** (shared `relativeChangeLabel`) and the absolute UTC+8 stamp rides
+  under it — computed once per render on this fresh-on-entry route; detail modal and CSV stay
+  absolute. Docs: `ui-ux-improvements.md` (statuses + tier table + Shipped), `user-guide.md`
+  §1.4.2/§1.7/§1.8, `audit-log.md` §1.10, `event-history.md` §1.4, `desktop-responsive.md`
+  §1.6, `dashboard-views.md` §1.1, `loading-transitions.md`, `AGENTS.md`.
+- 1.402 **Contacts A–Z rail rebuild + per-group cards (C2 follow-up, on-device report)**: the
+  rail shipped viewport-fixed _outside_ the list border on the scrollbar zone, with no active
+  state and ~16px rows — users reported it unclickable, unlit and detached — and the list read
+  as one continuous wall. Now **every group is its own rounded card** (letter groups under the
+  name sort, department groups under the department sort), and the rail is a **sticky pill
+  beside the cards** (pinned under the app header / lg search bar through the list), with 26×20
+  letter targets, the **current section's letter highlighted** while scrolling (capture-phase
+  `document` scroll listener + pure `activeSectionKey`, unit-tested — catches window _or_
+  inner-container scrolling), a working `scrollIntoView` jump honouring the existing
+  `scroll-margin-top`, and a live-region announcement. Route skeleton reshaped to per-group
+  cards. Docs: `ui-ux-improvements.md` C2 status, `user-guide.md` §1.8,
+  `desktop-responsive.md` §1.6.
+- 1.403 **Mobile control pill: static period label + panning control strip (A7)**: the pill's six
+  circles left the date label ≈30–100px on a 360–430px phone, so it truncated on every device in
+  the range. The label is now a **static read-out** (`.c2-pill-label`) and the circles live in a
+  **horizontally scrollable strip** (`.c2-pill-actions` / `.c2-pill-scroll`, scrollbar hidden,
+  `overscroll-behavior-x: contain`) right-anchored with an **auto margin** — never
+  `justify-content: flex-end`, which clips the scroll start — behind `RailEdgeControl`-style edge
+  fades driven by `useScrollEdges`. The row wraps to a second line only when the label +
+  `--c2-pill-actions-min` (128px) genuinely cannot share it: flex line-breaking reads the
+  **hypothetical** main size, so no JS measurement is involved. `useScrollEdges` gained a
+  `ResizeObserver` (a sibling reflow changes the clip) and starts unclipped on both edges, so no
+  false fade flashes before the first measurement. The strip keeps `pointer-events: none` (only
+  its buttons catch taps), so a pan never starts a chrome hide and never swallows a grid tap, and
+  the pill's height stays auto-measured, so a stacked pill reflows the FAB offset + page pads by
+  itself. The Guide **"?"** is gone from the dashboard chrome at **both** tiers — the profile menu
+  is the only entry to the sheet. Docs: `ui-ux-improvements.md` (A7 + D2 statuses, tier table,
+  Shipped), `dashboard-views.md` §1.1/§1.2, `user-guide.md` §1.3.1, `AGENTS.md`.
+- 1.404 **Recurring events**: real Google recurring series (RRULE) per department copy,
+  with a compact rule mirror in the notes block; daily/weekly (multi-weekday)/monthly/
+  yearly frequencies, interval 1–99, forever / N occurrences / until-date durations.
+  Occurrence identity is `recurringEventId` + `originalStartTime`, so the read path now
+  dedupes department copies **per occurrence** (grids/search/parade/KAH/double-booking
+  keep every occurrence; Pinned Events and My Events collapse a series to its next/earliest
+  row; deep links pick the matching occurrence by `?date=`). Other settings gained the
+  Repeat controls; edit/delete offer This event / This and following / All events, with the scope
+  chosen before the wizard (an abortable `/api/dashboard/series-prefill` route feeds the series
+  anchor or the remaining rule). "This and following" creates a successor series first,
+  removes the old future exceptions, then truncates the old parents; retries reuse the
+  successor by its `splitFromEventId`/`splitAt` notes. Single-occurrence edits create
+  Google exceptions and keep participants/pin/lock/registration series-level. Registration
+  was series-level in 1.404 (superseded by 1.405: per-occurrence rosters; single/following
+  parameter edits and deletes are still rejected).
+  Google integration gained `getEvent`, recurrence/timeZone writes, a `singleEvents:false`
+  read mode (also used by the event-type migration so it patches parents, not instances),
+  and an `_R` sub-series PUT→PATCH fallback; series mutations clear the affected
+  calendars' cache. External/custom series are occurrence-only. Docs:
+  [`recurring-events.md`](docs/recurring-events.md), `event-lifecycle.md`,
+  `event-mutations.md`, `registration-events.md`, `google-integration.md`,
+  `events-cache.md`, `AGENTS.md`.
 
-  - 1.405 **Recurring edit-scope lifecycle + per-occurrence registration**: fixed the
-    discard→re-edit hang by tokenizing the series prefill (latest request wins), bounding it
-    with `withTimeout`, invalidating on dialog/detail close, resetting busy state on every
-    open/event change, guarding double-clicks and offline, raising the scope dialogs above
-    the detail modal, and refusing to discard/start a draft while a save is in flight
-    (`EventForm.onSubmittingChange`). Registration on a recurring event is now
-    **per occurrence**: the parent owns the flag/cap, the occurrence roster is written as a
-    Google exception across the series target calendars, and other occurrences are
-    untouched; `setOccurrenceRegistration` reuses the occurrence-exception write/audit/cache/
-    webhook/KAH tail, the detail patch is keyed by `eventId + originalStartTime`, and series
-    registration flag/cap changes reset occurrence exceptions. Docs:
-    `registration-events.md`, `recurring-events.md` §1.11, `event-mutations.md` §1.11,
-    `AGENTS.md`.
+- 1.405 **Recurring edit-scope lifecycle + per-occurrence registration**: fixed the
+  discard→re-edit hang by tokenizing the series prefill (latest request wins), bounding it
+  with `withTimeout`, invalidating on dialog/detail close, resetting busy state on every
+  open/event change, guarding double-clicks and offline, raising the scope dialogs above
+  the detail modal, and refusing to discard/start a draft while a save is in flight
+  (`EventForm.onSubmittingChange`). Registration on a recurring event is now
+  **per occurrence**: the parent owns the flag/cap, the occurrence roster is written as a
+  Google exception across the series target calendars, and other occurrences are
+  untouched; `setOccurrenceRegistration` reuses the occurrence-exception write/audit/cache/
+  webhook/KAH tail, the detail patch is keyed by `eventId + originalStartTime`, and series
+  registration flag/cap changes reset occurrence exceptions. Docs:
+  `registration-events.md`, `recurring-events.md` §1.11, `event-mutations.md` §1.11,
+  `AGENTS.md`.
 
-  - 1.406 **Touch-sized series-scope chooser (accessibility §1.9)**: the calendar page's
-    "Edit repeating event" / "Delete repeating event" dialogs offered This event / This and
-    following / All events as bare Mantine radios — a 20px indicator beside a 14px label,
-    ~24px tall, i.e. a fingertip miss in a destructive dialog. Both choosers now render
-    through the shared **`RadioCardGroup`** (`src/components/RadioCardGroup.tsx`): one
-    full-width `Radio.Card` row per scope, `min-height: 48px`, a 24px `Radio.Indicator` and
-    a one-line consequence under each label. The whole row is the tap target (≥44×44 for the
-    width of the dialog), the `radiogroup` is named by its visible "Apply to" label, each
-    card is a `role="radio"` button with `aria-checked`, and Up/Down/Left/Right are roving.
-    Selection is a brand ring + tint **plus** the indicator's filled dot
-    (`.c2-radio-card` in `globals.css`; the ring is an inset shadow so a selection never
-    reflows the row) with scheme-scoped dark values. The option list still follows
-    `editScopes` (registration series → "All events" only, external series → "This event"
-    only). Docs: `accessibility.md` §1.9 (new touch-target section — file index renumbered
-    to §1.10), `recurring-events.md` §1.8/§1.9, `AGENTS.md`.
+- 1.406 **Touch-sized series-scope chooser (accessibility §1.9)**: the calendar page's
+  "Edit repeating event" / "Delete repeating event" dialogs offered This event / This and
+  following / All events as bare Mantine radios — a 20px indicator beside a 14px label,
+  ~24px tall, i.e. a fingertip miss in a destructive dialog. Both choosers now render
+  through the shared **`RadioCardGroup`** (`src/components/RadioCardGroup.tsx`): one
+  full-width `Radio.Card` row per scope, `min-height: 48px`, a 24px `Radio.Indicator` and
+  a one-line consequence under each label. The whole row is the tap target (≥44×44 for the
+  width of the dialog), the `radiogroup` is named by its visible "Apply to" label, each
+  card is a `role="radio"` button with `aria-checked`, and Up/Down/Left/Right are roving.
+  Selection is a brand ring + tint **plus** the indicator's filled dot
+  (`.c2-radio-card` in `globals.css`; the ring is an inset shadow so a selection never
+  reflows the row) with scheme-scoped dark values. The option list still follows
+  `editScopes` (registration series → "All events" only, external series → "This event"
+  only). Docs: `accessibility.md` §1.9 (new touch-target section — file index renumbered
+  to §1.10), `recurring-events.md` §1.8/§1.9, `AGENTS.md`.
 
-  - 1.407 **Hidden keepMounted surfaces & nested dialogs (bugfix)**: after editing a
-    recurring event, opening any event's detail modal could open fully dead — the dialog
-    painted, every click swallowed, only Escape working (and every later event modal dead
-    the same way). Cause: the detail modal is `keepMounted` in Mantine's default `activity`
-    mode. Choosing a scope (or deleting) closes the nested z-300 `ConfirmModal` and the
-    detail in one commit; the detail's exit is `modalZoomExit` 200 ms while the nested
-    dialog's is `popover` 220 ms, so React 19 `<Activity mode="hidden">` hid the parent
-    first and destroyed the subtree's effects, cancelling the child `Transition`'s exit
-    timer. `useTransition` only reacts to `mounted` changes, so the dialog never unmounted
-    and its portaled, full-screen, z-300 overlay stayed in the DOM as an invisible click
-    blocker above every next z-200 detail modal. `EventDetail` and `EventHistoryModal` now
-    hide with **`keepMountedMode="display-none"`** (effects stay alive, the child finishes
-    its exit); the detail body drops its history dialog on an occurrence change, and the
-    wizard's read-only clash detail closes when the wizard minimizes
-    (`EventForm.hidden` → `EventClashCheck.paused`). Docs: `event-lifecycle.md` §1.4.4,
-    `component-framework.md` §1.6.5, `recurring-events.md` §1.8, `event-history.md`,
-    `AGENTS.md`.
-  - 1.408 **Back to Today anchored left of the period chevrons (bugfix)**: the wide desktop
-    tier's pill was absolutely centred in the date-nav row, so on a narrow desktop window (the
-    row below ~700px — roughly an 800–960px viewport with the sidebar expanded) its right half
-    reached the `‹ ›` chevrons and sat on top of them. It is now an **in-flow** child of that
-    row, immediately before the chevrons: the period label is the row's only flexible child, so
-    the pill appearing truncates the label while every control to its right keeps its exact
-    place, and an overlap is impossible at any width. Below 720px of row the `.c2-nav-row`
-    container query in `globals.css` drops the pill to a 36px icon circle (the label span is
-    what hides, so `aria-label`/`title` carry the name) — measuring the row rather than the
-    viewport covers the collapsed-sidebar and no-Quick-links cases for free. The compact desktop
-    tier (circle stacked under the fullscreen button) and the mobile FAB row (already left of
-    the `[<|>]` step pill) are unchanged, as is pure `isOffToday`. Docs: `dashboard-views.md`
-    §1.1, `user-guide.md` §1.3.2, `ui-ux-improvements.md` A1, `AGENTS.md`.
-  - 1.409 **Contacts: centred A–Z rail + wide-screen row grid (C2 follow-up)**: the jump rail no
-    longer hugs the top of the list — it is a **viewport-centred** sticky index. Its `top` is
-    `50dvh − height/2` from the height the component declares (`--c2-rail-h`, from pure
-    `contactRailHeightPx`), so no `translateY` is needed and the un-stuck position at page top stays
-    clean; `max()` clamps it under the sticky chrome and `max-height` (that space doubled) keeps it
-    symmetric, scrolling its own tail instead of losing letters below the viewport. On wide screens
-    the dense rows **inside** each group card flow into `.c2-contact-rows` auto-fill columns — each
-    cell draws its own top/left hairline (inset shadow, offset under the header and card borders),
-    and the blank area beside a partially filled last row is bounded by a strip the last cell draws
-    out to the card's edge (clipped by the card, so no column count is needed): columns stay
-    uniform, the empty space is accepted, and the matrix still closes. The **groups stay one per row**: gridding unevenly sized groups reintroduces exactly the
-    ragged empty space the page should not spend. `activeSectionKey` now resolves level headers to
-    the first of them, and the route skeleton rides the same row grid (no reflow on the
-    skeleton→content swap). Docs: `desktop-responsive.md` §1.6, `ui-ux-improvements.md` C2.
-  - 1.410 **Gesture/explainer captions removed, their space reclaimed**: the app stops
-    narrating itself. Gone are the wizard's "Tap outside or press Esc to minimize" caption, the
-    touch-only "Swipe left or right to change day" caption (Agenda tab, day modal, Month & Agenda
-    and Parade State — `AgendaSwipeHint.tsx`, its `agendaSwipeHint` store and the generic
-    `sessionHint` helper deleted with it), the picker's "Tap the ✕ on a chip to remove it." line
-    (`pickerRemovalHint`) and `FilterModal`'s optional `hint` explainer, whose only caller was
-    Contacts' "Filters combine with the search box." Only the words went: outside-tap / Escape
-    minimize, the `useDrag` day swipe with its one-shot click suppression, and the ✕ on every
-    summary chip behave exactly as before. The space is reclaimed — the phone wizard's
-    `yOffset` drops 44px → 16px so `WIZARD_BODY_HEIGHT_MOBILE` grows to `calc(100dvh - 108px)`
-    (~56px more body; the desktop `min(68dvh, 720px, …)` comfort cap is untouched), and the
-    agenda list, picker row and filter footer now end where their caption used to start. Docs:
-    `event-lifecycle.md` §1.4, `desktop-responsive.md` §1.7, `dashboard-views.md` §1.5/§1.9,
-    `user-picker.md` §1.6/§1.7.
-  - 1.411 **Modal height caps raised; vertical wizard step rail at ≥ 800px**: the large
-    dialogs stop leaving their own screen space unused. The wizard's desktop body grows from
-    `min(68dvh, 720px, calc(100dvh - 200px))` to `min(88dvh, 900px, calc(100dvh - 108px))` —
-    near-full on a tall screen (a 1300px viewport gets the whole 900px, 940px gets 827px,
-    770px gets 662px where the ceiling binds) yet capped so it still reads as a dialog. The
-    third term is the modal's own hard ceiling at **every** width: `yOffset="16px"` leaves a
-    `100dvh - 32px` box and Mantine's chrome (60px sticky header + 16px body padding) takes
-    76px of it, so the dvh terms can only shorten the body, never overflow it. The sibling
-    list dialogs raise their caps under Mantine's own 90dvh content clamp — `FilterModal`
-    `min(88dvh, 880px)`, `UserSelectModal` `min(84dvh, 760px)` (its fixed height kept),
-    `EventSearchBody` and its skeleton `min(84dvh, 760px)` (the literal is repeated on
-    purpose: the chunk fallback stays dependency-free, and both sides say so), the agenda day
-    scroller `56dvh` → `84dvh` on desktop — while a cap on an element **inside** the body
-    still subtracts the chrome by hand (`PinnedEventsPanelBody`
-    `min(calc(90dvh - 76px), 640px)`). Deliberately short
-    still: `EditViewsModalBody`, `GuideSheet`, the `min(60vh, 380px)` dropdown lists, and
-    `EventDetail`, which sizes to its content. On the wide band the freed height is spent on
-    a **vertical step rail** — at `isDesktopWide` (≥ 800px) the guided indicator leaves the
-    bottom strip and runs down the left of the body, naming every step in full (the string
-    its `aria-label` already carried) beside a connector that fills as steps are passed.
-    `EventForm` adds `.c2-event-wizard--split`, a CSS grid whose named areas give the rail a
-    column spanning scroll / offline / actions, so the DOM order stays body-first and the
-    narrow tier renders byte-identical markup — no `order` hacks, and the rail scrolls itself
-    when a short desktop window cannot fit every row. That band also widens 620 → **720px**
-    (exactly 0.9 × 800, so Mantine's own `min(size, 90vw)` clamp never desyncs the
-    shrink-from-trigger landing), read from one `WIZARD_MODAL_WIDTH_PX` map that both the
-    `size` prop and `modalContentWidth` consume. Fixed body height, the internal scroll and
-    its reset on step change, free `goToStep` jumps, the minimize/draft bar, the keyboard
-    order and the dark contrast ramp are untouched; the `rail` / `classic` variants never see
-    the split. Docs: `event-lifecycle.md` §1.4, `desktop-responsive.md` §1.7/§1.9/§1.10,
-    `accessibility.md` §1.7/§1.9, `feature-flags.md`.
-  - 1.412 **Bottom control pill shared as `ControlPill`; auto-hide is calendar-only**: the
-    mobile pill's panning-strip layout leaves the dashboard. The new `ControlPill`
-    (`src/components/ControlPill.tsx`) renders the leading read-out or search field plus the
-    panning circle strip with edge fades, and Parade State, Contacts and `SettingsListChrome`
-    (Users / Departments / Event Types) now render it too: a `.c2-pill-field` search box keeps
-    `--c2-pill-field-min` (140px) and the strip's floor comes from pure `pillActionsMin`
-    (`src/lib/ui/controlPill.ts`, tested — 36px circles → 128px, 44px → 152px, fewer when a page
-    has fewer controls), so six Parade circles or three 44px list circles **pan** first and only
-    then **wrap** to a second row, instead of crushing the day label to ~30px or the search box
-    to a sliver. Because a wrapped pill is taller, the hardcoded 58/50/58px heights are gone:
-    each page measures the pill with `useElementHeight` (callback ref — armed when the `Affix`
-    portal mounts; reads `offsetHeight`, so a `display: none` pill reports 0) and publishes it to
-    its own pad (`--c2-bottom-chrome-height`, the new `--c2-settings-pill-height` behind
-    `.settings-pill-page-pad`, and Parade's attendance-bar offset). Second half: the
-    hide-on-interaction chrome is the **calendar page alone** — `useChromeHide` stays on the
-    dashboard's pill + FAB row (and the docked draft chip) and is dropped from Contacts, Parade
-    State (pill + attendance bar) and the settings lists, whose pill is the only path to their
-    search and actions; `advanceChromeHide`, the chrome-rect hit test and the pill's tap-through
-    contract are unchanged. Docs: `dashboard-views.md` §1.1, `desktop-responsive.md`
-    §1.5/§1.6/§1.13, `ui-ux-improvements.md` A8/A9, `AGENTS.md`.
-  - 1.413 **Contacts A–Z rail scrubs (press, hold, slide)**: the jump rail is the
-    phone-Contacts index bar it always looked like. Press a letter, hold, and slide along the
-    rail and the list follows the letter under the pointer — instant scroll per section (a
-    smooth scroll per letter would queue and lag the finger), the active letter riding along,
-    and the final letter announced on release. The mapping is pure (`railIndexFromPoint` /
-    `railScrubEdgeDirection`, tested): live letter bands (honest while the rail is internally
-    scrolled), clamping to the first/last letter on overshoot, and an edge band that
-    auto-scrolls the rail when it is taller than the window, so no letter hides behind the
-    `touch-action: none` that keeps drags from panning the page (and `user-select: none` from
-    selecting letters). Taps are untouched — smooth jump + announcement; a scrub's trailing
-    pointer click (`detail > 0`) is swallowed while keyboard clicks keep jumping, because the
-    plumbing rides window pointer events, deliberately **not** pointer capture, which would
-    retarget `pointerup` and kill the buttons' native click. Docs: `ui-ux-improvements.md` C2.
-  - 1.414 **KAH Status page aligned with its sibling report pages**: the page chrome catches
-    up with Double Booking / My Events. The head block (title + Look ahead control) is the
-    shared sticky-chrome recipe now — a `c2-glass-surface` block pinned under the app header
-    while the cards scroll beneath, title-left / control-right from 40em and stacked below —
-    with Double Booking's head CSS generalized to `.c2-report-head` (both pages ride it) and
-    `loading.tsx` mirroring it. The overloaded subtitle (window + range + counts) becomes the
-    window label with the admin-view hint folded in, and the result summary moves to a
-    `role="status"` line above the cards ("2 breach periods in the next 1 month — 1 active,
-    1 upcoming") — which also fixes the range change being silent for screen readers (the
-    cards keep `live={false}`, so it announces exactly once). A failed look-ahead change keeps
-    the last good window and shows the inline error + **Retry** strip (the Double Booking
-    recipe) instead of a vanishing toast; the no-breach case is an actionable `EmptyState`
-    (green check + Open calendar) instead of a bare dimmed line; card headings read
-    "Alpha — 40% in country (needs 60%)"; roster chips cap through `capBadgeItems` so the
-    "(You)" chip can never hide behind the cap; and a quiet advisory footnote ("never block
-    event creation") matches the sibling pages. No data-layer change. Docs: `kah.md` §1.7,
-    `ui-ux-improvements.md` D8.
-  - 1.415 **No more midnight leak — episode-first clash display**: the shared clash
-    display core stops letting a midnight-aligned exclusive end (`00:00:00` — a PM
-    half-day via `halfDayRange`, a whole-day event, or a 24:00 close) leak into the
-    next civil day. `clashCoveredDayKeys` steps such an end back one day (so
-    `clashDayBuckets` can no longer fabricate a phantom next-day bucket),
-    `buildClashTimeline` renders no bar for a half-open window that does not touch the
-    day (no 15-minute midnight stub), and labels read **Midnight** on the day the
-    window ends — "8:00 PM – Midnight", "Sep 14, 8:00 PM – Sep 15, Midnight" — with
-    legacy "12:00 AM – 11:59 PM" windows collapsing to "All day". Double Booking cards
-    now head with the *episode*, not its first event: `clashEpisodeTimeLabel` reads
-    "PM" / "AM – PM" for half-day groups and spans clock bounds otherwise, and
-    `clashEpisodeDayKey` files a chain under the first day that genuinely holds two
-    entries (a run colliding only from day 2 files under day 2). KAH breach cards say
-    "down to X% in country (needs Y%)", name the worst day in the summary
-    ("4 away · 7 in country · worst Mon 14 Sep" — new `worstDate` on the episode),
-    read "Ongoing" / "…+" for runs clipped by the scan window, and the away chips
-    carry an explanatory title. Display-only — the clash math was already half-open
-    and correct; no schema or server-read change. Docs: `user-clashes.md` §1.8/§1.9,
-    `event-clashes.md` §1.6/§1.7, `kah.md` §1.7, `ui-ux-improvements.md` D9/D10.
+- 1.407 **Hidden keepMounted surfaces & nested dialogs (bugfix)**: after editing a
+  recurring event, opening any event's detail modal could open fully dead — the dialog
+  painted, every click swallowed, only Escape working (and every later event modal dead
+  the same way). Cause: the detail modal is `keepMounted` in Mantine's default `activity`
+  mode. Choosing a scope (or deleting) closes the nested z-300 `ConfirmModal` and the
+  detail in one commit; the detail's exit is `modalZoomExit` 200 ms while the nested
+  dialog's is `popover` 220 ms, so React 19 `<Activity mode="hidden">` hid the parent
+  first and destroyed the subtree's effects, cancelling the child `Transition`'s exit
+  timer. `useTransition` only reacts to `mounted` changes, so the dialog never unmounted
+  and its portaled, full-screen, z-300 overlay stayed in the DOM as an invisible click
+  blocker above every next z-200 detail modal. `EventDetail` and `EventHistoryModal` now
+  hide with **`keepMountedMode="display-none"`** (effects stay alive, the child finishes
+  its exit); the detail body drops its history dialog on an occurrence change, and the
+  wizard's read-only clash detail closes when the wizard minimizes
+  (`EventForm.hidden` → `EventClashCheck.paused`). Docs: `event-lifecycle.md` §1.4.4,
+  `component-framework.md` §1.6.5, `recurring-events.md` §1.8, `event-history.md`,
+  `AGENTS.md`.
+- 1.408 **Back to Today anchored left of the period chevrons (bugfix)**: the wide desktop
+  tier's pill was absolutely centred in the date-nav row, so on a narrow desktop window (the
+  row below ~700px — roughly an 800–960px viewport with the sidebar expanded) its right half
+  reached the `‹ ›` chevrons and sat on top of them. It is now an **in-flow** child of that
+  row, immediately before the chevrons: the period label is the row's only flexible child, so
+  the pill appearing truncates the label while every control to its right keeps its exact
+  place, and an overlap is impossible at any width. Below 720px of row the `.c2-nav-row`
+  container query in `globals.css` drops the pill to a 36px icon circle (the label span is
+  what hides, so `aria-label`/`title` carry the name) — measuring the row rather than the
+  viewport covers the collapsed-sidebar and no-Quick-links cases for free. The compact desktop
+  tier (circle stacked under the fullscreen button) and the mobile FAB row (already left of
+  the `[<|>]` step pill) are unchanged, as is pure `isOffToday`. Docs: `dashboard-views.md`
+  §1.1, `user-guide.md` §1.3.2, `ui-ux-improvements.md` A1, `AGENTS.md`.
+- 1.409 **Contacts: centred A–Z rail + wide-screen row grid (C2 follow-up)**: the jump rail no
+  longer hugs the top of the list — it is a **viewport-centred** sticky index. Its `top` is
+  `50dvh − height/2` from the height the component declares (`--c2-rail-h`, from pure
+  `contactRailHeightPx`), so no `translateY` is needed and the un-stuck position at page top stays
+  clean; `max()` clamps it under the sticky chrome and `max-height` (that space doubled) keeps it
+  symmetric, scrolling its own tail instead of losing letters below the viewport. On wide screens
+  the dense rows **inside** each group card flow into `.c2-contact-rows` auto-fill columns — each
+  cell draws its own top/left hairline (inset shadow, offset under the header and card borders),
+  and the blank area beside a partially filled last row is bounded by a strip the last cell draws
+  out to the card's edge (clipped by the card, so no column count is needed): columns stay
+  uniform, the empty space is accepted, and the matrix still closes. The **groups stay one per row**: gridding unevenly sized groups reintroduces exactly the
+  ragged empty space the page should not spend. `activeSectionKey` now resolves level headers to
+  the first of them, and the route skeleton rides the same row grid (no reflow on the
+  skeleton→content swap). Docs: `desktop-responsive.md` §1.6, `ui-ux-improvements.md` C2.
+- 1.410 **Gesture/explainer captions removed, their space reclaimed**: the app stops
+  narrating itself. Gone are the wizard's "Tap outside or press Esc to minimize" caption, the
+  touch-only "Swipe left or right to change day" caption (Agenda tab, day modal, Month & Agenda
+  and Parade State — `AgendaSwipeHint.tsx`, its `agendaSwipeHint` store and the generic
+  `sessionHint` helper deleted with it), the picker's "Tap the ✕ on a chip to remove it." line
+  (`pickerRemovalHint`) and `FilterModal`'s optional `hint` explainer, whose only caller was
+  Contacts' "Filters combine with the search box." Only the words went: outside-tap / Escape
+  minimize, the `useDrag` day swipe with its one-shot click suppression, and the ✕ on every
+  summary chip behave exactly as before. The space is reclaimed — the phone wizard's
+  `yOffset` drops 44px → 16px so `WIZARD_BODY_HEIGHT_MOBILE` grows to `calc(100dvh - 108px)`
+  (~56px more body; the desktop `min(68dvh, 720px, …)` comfort cap is untouched), and the
+  agenda list, picker row and filter footer now end where their caption used to start. Docs:
+  `event-lifecycle.md` §1.4, `desktop-responsive.md` §1.7, `dashboard-views.md` §1.5/§1.9,
+  `user-picker.md` §1.6/§1.7.
+- 1.411 **Modal height caps raised; vertical wizard step rail at ≥ 800px**: the large
+  dialogs stop leaving their own screen space unused. The wizard's desktop body grows from
+  `min(68dvh, 720px, calc(100dvh - 200px))` to `min(88dvh, 900px, calc(100dvh - 108px))` —
+  near-full on a tall screen (a 1300px viewport gets the whole 900px, 940px gets 827px,
+  770px gets 662px where the ceiling binds) yet capped so it still reads as a dialog. The
+  third term is the modal's own hard ceiling at **every** width: `yOffset="16px"` leaves a
+  `100dvh - 32px` box and Mantine's chrome (60px sticky header + 16px body padding) takes
+  76px of it, so the dvh terms can only shorten the body, never overflow it. The sibling
+  list dialogs raise their caps under Mantine's own 90dvh content clamp — `FilterModal`
+  `min(88dvh, 880px)`, `UserSelectModal` `min(84dvh, 760px)` (its fixed height kept),
+  `EventSearchBody` and its skeleton `min(84dvh, 760px)` (the literal is repeated on
+  purpose: the chunk fallback stays dependency-free, and both sides say so), the agenda day
+  scroller `56dvh` → `84dvh` on desktop — while a cap on an element **inside** the body
+  still subtracts the chrome by hand (`PinnedEventsPanelBody`
+  `min(calc(90dvh - 76px), 640px)`). Deliberately short
+  still: `EditViewsModalBody`, `GuideSheet`, the `min(60vh, 380px)` dropdown lists, and
+  `EventDetail`, which sizes to its content. On the wide band the freed height is spent on
+  a **vertical step rail** — at `isDesktopWide` (≥ 800px) the guided indicator leaves the
+  bottom strip and runs down the left of the body, naming every step in full (the string
+  its `aria-label` already carried) beside a connector that fills as steps are passed.
+  `EventForm` adds `.c2-event-wizard--split`, a CSS grid whose named areas give the rail a
+  column spanning scroll / offline / actions, so the DOM order stays body-first and the
+  narrow tier renders byte-identical markup — no `order` hacks, and the rail scrolls itself
+  when a short desktop window cannot fit every row. That band also widens 620 → **720px**
+  (exactly 0.9 × 800, so Mantine's own `min(size, 90vw)` clamp never desyncs the
+  shrink-from-trigger landing), read from one `WIZARD_MODAL_WIDTH_PX` map that both the
+  `size` prop and `modalContentWidth` consume. Fixed body height, the internal scroll and
+  its reset on step change, free `goToStep` jumps, the minimize/draft bar, the keyboard
+  order and the dark contrast ramp are untouched; the `rail` / `classic` variants never see
+  the split. Docs: `event-lifecycle.md` §1.4, `desktop-responsive.md` §1.7/§1.9/§1.10,
+  `accessibility.md` §1.7/§1.9, `feature-flags.md`.
+- 1.412 **Bottom control pill shared as `ControlPill`; auto-hide is calendar-only**: the
+  mobile pill's panning-strip layout leaves the dashboard. The new `ControlPill`
+  (`src/components/ControlPill.tsx`) renders the leading read-out or search field plus the
+  panning circle strip with edge fades, and Parade State, Contacts and `SettingsListChrome`
+  (Users / Departments / Event Types) now render it too: a `.c2-pill-field` search box keeps
+  `--c2-pill-field-min` (140px) and the strip's floor comes from pure `pillActionsMin`
+  (`src/lib/ui/controlPill.ts`, tested — 36px circles → 128px, 44px → 152px, fewer when a page
+  has fewer controls), so six Parade circles or three 44px list circles **pan** first and only
+  then **wrap** to a second row, instead of crushing the day label to ~30px or the search box
+  to a sliver. Because a wrapped pill is taller, the hardcoded 58/50/58px heights are gone:
+  each page measures the pill with `useElementHeight` (callback ref — armed when the `Affix`
+  portal mounts; reads `offsetHeight`, so a `display: none` pill reports 0) and publishes it to
+  its own pad (`--c2-bottom-chrome-height`, the new `--c2-settings-pill-height` behind
+  `.settings-pill-page-pad`, and Parade's attendance-bar offset). Second half: the
+  hide-on-interaction chrome is the **calendar page alone** — `useChromeHide` stays on the
+  dashboard's pill + FAB row (and the docked draft chip) and is dropped from Contacts, Parade
+  State (pill + attendance bar) and the settings lists, whose pill is the only path to their
+  search and actions; `advanceChromeHide`, the chrome-rect hit test and the pill's tap-through
+  contract are unchanged. Docs: `dashboard-views.md` §1.1, `desktop-responsive.md`
+  §1.5/§1.6/§1.13, `ui-ux-improvements.md` A8/A9, `AGENTS.md`.
+- 1.413 **Contacts A–Z rail scrubs (press, hold, slide)**: the jump rail is the
+  phone-Contacts index bar it always looked like. Press a letter, hold, and slide along the
+  rail and the list follows the letter under the pointer — instant scroll per section (a
+  smooth scroll per letter would queue and lag the finger), the active letter riding along,
+  and the final letter announced on release. The mapping is pure (`railIndexFromPoint` /
+  `railScrubEdgeDirection`, tested): live letter bands (honest while the rail is internally
+  scrolled), clamping to the first/last letter on overshoot, and an edge band that
+  auto-scrolls the rail when it is taller than the window, so no letter hides behind the
+  `touch-action: none` that keeps drags from panning the page (and `user-select: none` from
+  selecting letters). Taps are untouched — smooth jump + announcement; a scrub's trailing
+  pointer click (`detail > 0`) is swallowed while keyboard clicks keep jumping, because the
+  plumbing rides window pointer events, deliberately **not** pointer capture, which would
+  retarget `pointerup` and kill the buttons' native click. Docs: `ui-ux-improvements.md` C2.
+- 1.414 **KAH Status page aligned with its sibling report pages**: the page chrome catches
+  up with Double Booking / My Events. The head block (title + Look ahead control) is the
+  shared sticky-chrome recipe now — a `c2-glass-surface` block pinned under the app header
+  while the cards scroll beneath, title-left / control-right from 40em and stacked below —
+  with Double Booking's head CSS generalized to `.c2-report-head` (both pages ride it) and
+  `loading.tsx` mirroring it. The overloaded subtitle (window + range + counts) becomes the
+  window label with the admin-view hint folded in, and the result summary moves to a
+  `role="status"` line above the cards ("2 breach periods in the next 1 month — 1 active,
+  1 upcoming") — which also fixes the range change being silent for screen readers (the
+  cards keep `live={false}`, so it announces exactly once). A failed look-ahead change keeps
+  the last good window and shows the inline error + **Retry** strip (the Double Booking
+  recipe) instead of a vanishing toast; the no-breach case is an actionable `EmptyState`
+  (green check + Open calendar) instead of a bare dimmed line; card headings read
+  "Alpha — 40% in country (needs 60%)"; roster chips cap through `capBadgeItems` so the
+  "(You)" chip can never hide behind the cap; and a quiet advisory footnote ("never block
+  event creation") matches the sibling pages. No data-layer change. Docs: `kah.md` §1.7,
+  `ui-ux-improvements.md` D8.
+- 1.415 **No more midnight leak — episode-first clash display**: the shared clash
+  display core stops letting a midnight-aligned exclusive end (`00:00:00` — a PM
+  half-day via `halfDayRange`, a whole-day event, or a 24:00 close) leak into the
+  next civil day. `clashCoveredDayKeys` steps such an end back one day (so
+  `clashDayBuckets` can no longer fabricate a phantom next-day bucket),
+  `buildClashTimeline` renders no bar for a half-open window that does not touch the
+  day (no 15-minute midnight stub), and labels read **Midnight** on the day the
+  window ends — "8:00 PM – Midnight", "Sep 14, 8:00 PM – Sep 15, Midnight" — with
+  legacy "12:00 AM – 11:59 PM" windows collapsing to "All day". Double Booking cards
+  now head with the _episode_, not its first event: `clashEpisodeTimeLabel` reads
+  "PM" / "AM – PM" for half-day groups and spans clock bounds otherwise, and
+  `clashEpisodeDayKey` files a chain under the first day that genuinely holds two
+  entries (a run colliding only from day 2 files under day 2). KAH breach cards say
+  "down to X% in country (needs Y%)", name the worst day in the summary
+  ("4 away · 7 in country · worst Mon 14 Sep" — new `worstDate` on the episode),
+  read "Ongoing" / "…+" for runs clipped by the scan window, and the away chips
+  carry an explanatory title. Display-only — the clash math was already half-open
+  and correct; no schema or server-read change. Docs: `user-clashes.md` §1.8/§1.9,
+  `event-clashes.md` §1.6/§1.7, `kah.md` §1.7, `ui-ux-improvements.md` D9/D10.
+- 1.416 **Wizard trust pass + a merged, size-normalized detail modal**: the review step
+  gains a **Notify participants** switch (default on, rendered only when the save adds
+  participants via a tag-level `addedParticipantCount` diff) — `EventSaveOptions
+{ notify }` on `createEvent`/`updateEvent` skips the push dispatch and records
+  `notifications: "skipped"` in the audit row. The Timestamp step now **snaps** the
+  opposite side instead of erroring on an out-of-order pair (`clampEventStart` mirrors
+  `clampEventEnd`; half-day options snap too) with a one-line Collapse hint +
+  `announce()`. The Remarks step splits into **Description** (the existing `title`
+  field, honestly labelled) and a new **Remarks** field written as plain text into the
+  Google event's notes above the Edit link (notes-block v3 — `withRemarks` /
+  `parseEventRemarks`, round-trip-tested), each with a one-sentence helper; the Other
+  settings step groups into `WizardSection` cards (Repeat / Pinned events / Editing &
+  registration). The event detail modal merges Departments into one **Participants**
+  list (self pinned, accent department chips, one cap + one "+N"), drops read-only
+  chips to compact Badge size (36px now means tappable/removable — `PickerBadges
+size="compact"`), and renames **Duplicate Event** / **Copy to Other Google
+  Calendar**. No schema change. Docs: `event-lifecycle.md` §1.4/§1.4.1/§1.7/§1.12,
+  `event-notifications.md` §1.1/§1.6/§1.9, `event-mutations.md` §1.4/§1.5/§1.8,
+  `user-picker.md` §1.6, `user-guide.md`, `ui-ux-improvements.md` C7/D11/D12/D13.
 
 ## 1.4 Open items & next steps
 

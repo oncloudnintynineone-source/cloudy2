@@ -13,6 +13,13 @@ import { validateRecurrence, type RecurrenceRule } from "./recurrence";
 
 export interface EventFormValues {
   title: string;
+  /**
+   * The organizer's internal note, written as **plain text** at the top of the
+   * Google event's notes (above the `Edit:` link) and mirrored in the notes
+   * block so editing prefills it. Never part of the rendered title, the audit
+   * snapshot or the calendar export. No validation.
+   */
+  remarks?: string;
   /** Selected datetime option ("range" = timed, "full" = full-day). */
   timeOption: TimeOption;
   /** Start half-of-day indicator, required for "full" events. */
@@ -84,8 +91,9 @@ export interface EventFormErrors {
 
 /**
  * The cross-field chronology message. Exported so the wizard can surface the
- * same text inline while the user builds an intentionally inverted range (the
- * start and end sides are both freely editable; validation is the gate).
+ * same text inline — a field edit now snaps the other side instead of creating
+ * an inverted range, so this only appears when switching the datetime option
+ * normalizes a pair that was valid before (and from the server's validation).
  */
 export const END_ORDER_ERROR = "End must be on or after start";
 
@@ -109,10 +117,7 @@ export function normalizeRegistrationCap(value: unknown): number | null {
  * Pure and client-safe (the wizard's stepper uses it); no upper bound, matching
  * the server's normalization.
  */
-export function stepRegistrationCap(
-  current: number | null | undefined,
-  delta: number,
-): number {
+export function stepRegistrationCap(current: number | null | undefined, delta: number): number {
   const base = typeof current === "number" && Number.isFinite(current) ? Math.trunc(current) : 1;
   return Math.max(1, base + Math.trunc(delta));
 }
@@ -135,9 +140,10 @@ function sortKey(values: EventFormValues, end: boolean): string {
  * errors still surface.
  *
  * Mirrors `validateEventForm`'s ordering check (`sortKey` comparison) so
- * client and server stay in sync. It is the write path's (and the clash /
- * optimistic previews') safety net — the wizard no longer calls it on edits, so
- * either side can be changed first and the other fixed afterwards.
+ * client and server stay in sync. The wizard runs it the moment the **start**
+ * side is edited (so the end follows instead of erroring), and the write path
+ * (plus the clash / optimistic previews) runs it as the safety net for a stale
+ * or forged client.
  */
 export function clampEventEnd(values: EventFormValues): EventFormValues {
   if (!values.start || !values.end) {
@@ -166,8 +172,45 @@ export function clampEventEnd(values: EventFormValues): EventFormValues {
 }
 
 /**
+ * The mirror of {@link clampEventEnd}: clamp `start` so it is never after
+ * `end`, bumping `start` (and for half-day, `startAmPm`) to the end side.
+ * Same completeness guards, so an unfinished side still reports its own
+ * required-field error instead of being rewritten.
+ *
+ * The wizard runs this the moment the **end** side is edited — whichever side
+ * the user did not touch is the one that moves — so an inverted range never
+ * appears. The write path keeps `clampEventEnd` as its single normalization.
+ */
+export function clampEventStart(values: EventFormValues): EventFormValues {
+  if (!values.start || !values.end) {
+    return values;
+  }
+  const startComplete =
+    !!values.start && (values.timeOption !== "range" || !!naiveTimePart(values.start));
+  const endComplete =
+    !!values.end && (values.timeOption !== "range" || !!naiveTimePart(values.end));
+  if (!startComplete || !endComplete) {
+    return values;
+  }
+  if (sortKey(values, false) <= sortKey(values, true)) {
+    return values;
+  }
+  // Start is after end — snap start to end. For half-day also snap the
+  // indicator so "PM → 2026-08-15 AM" becomes "AM → AM".
+  if (values.timeOption === "half") {
+    return {
+      ...values,
+      start: `${values.end.slice(0, 10)} 00:00:00`,
+      startAmPm: values.endAmPm || values.startAmPm,
+    };
+  }
+  return { ...values, start: values.end };
+}
+
+/**
  * Whether `values` would need clamping (`end` before `start`). Drives the
- * wizard's inline ordering-error sync; the write path uses `clampEventEnd`.
+ * wizard's edit-time snap (and the ordering-error sync it can still surface
+ * when the time option changes); the write path uses `clampEventEnd`.
  */
 export function needsClamp(values: EventFormValues): boolean {
   if (!values.start || !values.end) {

@@ -146,7 +146,9 @@ attend:
 1. **Type** — the event type, listed under its category (types without a category
    appear at the bottom under "Ungrouped"); each type can restrict the steps below.
 2. **Time** — Start & End date pickers plus tap-select time dropdowns (15-minute
-   steps), or Full day / Half day (AM/PM) options.
+   steps), or Full day / Half day (AM/PM) options. Move one side past the other and
+   the side you didn't touch follows it (with a short note saying so) — an event can
+   never end before it starts.
 3. **Location** — one category: **In camp**, **Out of camp**, or **Overseas**
    (the type decides which are allowed), plus an optional specific place. Overseas
    events are what KAH groups count as "away". Some event types **hide the Location
@@ -158,11 +160,16 @@ attend:
    won't take part (an event must keep at least one participant or department). Your own
    badge carries an amber ring and a **(You)** marker wherever participants are listed —
    on this step, the review, and the event's details.
-5. **Remarks** — the free-text description.
-6. **Other settings** — the **Pin this event** switch (puts the event in the Pinned
-   Events panel, §1.5) and, when you're the organizer, "Only I can edit this event"
-   (locks editing to you; admins always keep it).
-7. **Review** — a summary with a live calendar-title preview, then Create.
+5. **Remarks** — two optional fields: **Description** (the words your admin's title
+   template puts into the calendar title) and **Remarks** (an internal note shown only
+   in the event's Google Calendar notes — never in the title).
+6. **Other settings** — in their own sections: **Repeat** (a recurring series),
+   **Pinned events** (the **Pin this event** switch puts the event in the Pinned Events
+   panel, §1.5) and — when you're the organizer — **Editing & registration**
+   ("Only I can edit this event" locks editing to you; admins always keep it).
+7. **Review** — a summary with a live calendar-title preview; when this save adds new
+   participants, a **Notify participants** switch lets you skip their browser
+   notifications for this save. Then Create.
 
 Tapping outside the wizard (or pressing **Esc**) minimizes it to a **draft bar** docked
 above the bottom controls — your draft survives until you resume it or confirm a
@@ -172,14 +179,15 @@ discard. Starting a different event while a draft exists asks before replacing i
 
 Tap any event for its details. If you are its **organizer**, one of its
 **participants**, or a **member of a department it tags** — or an admin — you get
-**Edit** and **Delete**, plus a **Copy** menu (**Copy event**, **Add to Google
-Calendar**, **Download .ics file**). Everyone who can view the event also gets
+**Edit** and **Delete**, plus a **Copy** menu (**Duplicate Event**, **Copy to Other
+Google Calendar**, **Download .ics file**). Everyone who can view the event also gets
 **Share** — a link that opens the event's details for anyone signed in. (If the
 organizer locked the event to themselves, only they and admins can edit or delete.)
 Editing prefills the wizard with the original details and always keeps the original
 organizer; deleting asks for confirmation and removes every department copy.
-Long participant and department lists are capped to five chips with a **+N** you
-can tap to see the rest — yours is always among the first five.
+Participants and tagged departments share one **Participants** list; long lists are
+capped to five badges with a **+N** you can tap to see the rest — yours is always
+among the first five.
 
 ## 1.5 Pinned events
 
@@ -294,8 +302,10 @@ full-screen app icon.
 - **Cloudy2 remembers where you left off** — your last page, view, date, and filters
   come back on relaunch (the day on Parade State is the exception: it always opens
   on today).
-- **Event titles are templated** by your admin — what you type in Remarks is the
-  description; the calendar title combines it with type, people, and location.
+- **Event titles are templated** by your admin — what you type in Description is the
+  description; the calendar title combines it with type, people, and location. The
+  separate Remarks field never enters the title — it stays in the event's calendar
+  notes.
 - **Themes** — open your profile menu (avatar, top-right) and pick **Light**,
   **Dark**, or **System** (follows the device) — the active one is ticked.
 - **Loading style** — pages show skeletons, never dimmed content; buttons show their

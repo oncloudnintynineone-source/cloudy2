@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNod
 import {
   Badge,
   Button,
+  Collapse,
   Grid,
   Group,
   NumberInput,
@@ -35,6 +36,7 @@ import { PickerBadges, PickerField, type PickerBadgeItem } from "@/components/Pi
 import { NoKeyboardSelect } from "@/components/NoKeyboardSelect";
 import { EventTypeGroupGrid } from "@/components/EventTypeGroupGrid";
 import { useActionPill } from "@/components/ActionPill";
+import { useMotion } from "@/components/MotionProvider";
 import { TimeSelectField } from "@/components/TimeSelectField";
 import { UserSelectModal } from "@/components/UserSelectModal";
 import {
@@ -91,6 +93,8 @@ import {
   type TimeOption,
 } from "@/lib/events/timeOptions";
 import {
+  clampEventEnd,
+  clampEventStart,
   END_ORDER_ERROR,
   needsClamp,
   stepRegistrationCap,
@@ -216,18 +220,35 @@ const AMPM_OPTIONS = [
 ];
 
 /** Maps a server-reported error field to the wizard step that owns it. */
-const STEP_BY_FIELD: Partial<Record<EventResultField | "registrationCap" | "recurrence", StepId>> = {
-  title: "remarks",
-  start: "time",
-  end: "time",
-  startAmPm: "time",
-  endAmPm: "time",
-  registrationCap: "settings",
-  recurrence: "settings",
-};
+const STEP_BY_FIELD: Partial<Record<EventResultField | "registrationCap" | "recurrence", StepId>> =
+  {
+    title: "remarks",
+    start: "time",
+    end: "time",
+    startAmPm: "time",
+    endAmPm: "time",
+    registrationCap: "settings",
+    recurrence: "settings",
+  };
 
 /** Section label of the flat department list inside the invitee badge picker. */
 const PICKER_DEPARTMENTS_SECTION = "Departments";
+
+/**
+ * Bordered section card used by the Other settings and Review steps — the same
+ * recipe as the review step's Calendar preview card (border + uppercase accent
+ * caption), so every grouped block in the wizard reads as one family.
+ */
+function WizardSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <Paper withBorder p="sm">
+      <Text size="sm" fw={500} c="accent.6" tt="uppercase" mb={6}>
+        {title}
+      </Text>
+      <Stack gap="sm">{children}</Stack>
+    </Paper>
+  );
+}
 
 export function EventForm({
   event,
@@ -282,6 +303,17 @@ export function EventForm({
   // waits for the connection. Enhancement only: `navigator.onLine === false`
   // is the conservative report, and the server stays the authority.
   const offline = useIsOffline();
+  // Motion cadence for the inline time-snap hint (docs/motion.md: no component
+  // hardcodes a duration).
+  const motion = useMotion();
+  // One quiet line under the time controls explaining the automatic move when
+  // editing one side snapped the other; null hides it. The screen-reader copy
+  // goes through `announce()` instead (one polite live region app-wide).
+  const [timeSnapHint, setTimeSnapHint] = useState<string | null>(null);
+  // Send the participant Web Push batch with this save? Per-save on purpose —
+  // it is about this save, not a preference, so it is never stored or sent with
+  // the event (docs/event-notifications.md §1.1).
+  const [notifyParticipants, setNotifyParticipants] = useState(true);
 
   const form = useForm<EventFormState>({
     initialValues: buildInitialValues(),
@@ -322,6 +354,9 @@ export function EventForm({
         // Prefill the raw (pre-template) description when the notes block has
         // it, so editing never re-types the rendered calendar title.
         title: event.payload.rawTitle ?? (event.title === "(no title)" ? "" : event.title),
+        // The organizer's note round-trips through the notes block, so editing
+        // prefills it instead of scraping the calendar's plain-text notes.
+        remarks: event.payload.remarks ?? "",
         timeOption,
         // Prefill any half-day markers stored in the notes (legacy full-day
         // events may carry them); AM→PM keeps plain spans marker-free.
@@ -384,6 +419,7 @@ export function EventForm({
             );
       return {
         title: src.payload.rawTitle ?? (src.title === "(no title)" ? "" : src.title),
+        remarks: src.payload.remarks ?? "",
         timeOption,
         startAmPm: src.payload.startAmPm ?? "AM",
         endAmPm: src.payload.endAmPm ?? "PM",
@@ -423,6 +459,7 @@ export function EventForm({
     }
     return {
       title: "",
+      remarks: "",
       timeOption: "range",
       startAmPm: "AM",
       endAmPm: "PM",
@@ -755,7 +792,9 @@ export function EventForm({
 
   // On a step change: reset the body scroll and announce the arrival through
   // the shell's polite live region (the step indicator alone is not enough for
-  // screen-reader users).
+  // screen-reader users). The time-snap hint is dropped by the step navigators
+  // below — it explains an edit on the Time step, so it never follows the user
+  // to another step.
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 0 });
     announce(`Step ${stepPosition}: ${STEP_LABELS[currentStep.id]}`);
@@ -781,6 +820,7 @@ export function EventForm({
 
   function goBack() {
     setDirection("backward");
+    setTimeSnapHint(null);
     setStep((index) => Math.max(index - 1, 0));
   }
 
@@ -795,6 +835,7 @@ export function EventForm({
       return;
     }
     setDirection(index > step ? "forward" : "backward");
+    setTimeSnapHint(null);
     setStep(index);
   }
 
@@ -828,14 +869,17 @@ export function EventForm({
       return;
     }
     setDirection("forward");
+    setTimeSnapHint(null);
     setStep((index) => Math.min(index + 1, steps.length - 1));
   }
 
-  // ---- date/time ordering (both sides freely editable) ----
-  // Either side may be set first: an edit never moves the other side. The
-  // validator's ordering error is surfaced on the End control immediately and
-  // Next/Submit stay blocked until the pair is fixed (`clampEventEnd` remains
-  // the write path's safety net, not an edit-time snap).
+  // ---- date/time ordering (the untouched side follows) ----
+  // Editing one side never leaves the pair inverted: the side the user did not
+  // touch moves onto the one they did (`clampEventEnd` when the start moved,
+  // `clampEventStart` when the end did) and the move is named in a quiet line
+  // under the controls. `validateEventForm`'s ordering error stays as the
+  // submit-time safety net and as the only surface for the time-option switch
+  // below, which normalizes stored values rather than editing a side.
   function syncEndOrderError(values: EventFormValues) {
     if (needsClamp(values)) {
       form.setFieldError("end", END_ORDER_ERROR);
@@ -844,24 +888,56 @@ export function EventForm({
     }
   }
 
+  /**
+   * Commit a start/end edit and keep the pair ordered. `side` names the side the
+   * user just edited, so the **other** side is the one that may move. An
+   * incomplete opposite side never moves — its own required error surfaces.
+   */
+  function syncTimeOrder(patch: Partial<EventFormValues>, side: "start" | "end") {
+    const next = { ...form.values, ...patch };
+    if (form.errors.end === END_ORDER_ERROR) {
+      form.clearFieldError("end");
+    }
+    if (!needsClamp(next)) {
+      setTimeSnapHint(null);
+      return;
+    }
+    const snapped = side === "start" ? clampEventEnd(next) : clampEventStart(next);
+    if (snapped.end !== next.end) {
+      form.setFieldValue("end", snapped.end);
+    }
+    if (snapped.endAmPm !== next.endAmPm) {
+      form.setFieldValue("endAmPm", snapped.endAmPm);
+    }
+    if (snapped.start !== next.start) {
+      form.setFieldValue("start", snapped.start);
+    }
+    if (snapped.startAmPm !== next.startAmPm) {
+      form.setFieldValue("startAmPm", snapped.startAmPm);
+    }
+    const message = `${side === "start" ? "End" : "Start"} set to match the ${side}.`;
+    setTimeSnapHint(message);
+    announce(message);
+  }
+
   function setStartField(nextStart: string) {
     form.setFieldValue("start", nextStart);
-    syncEndOrderError({ ...form.values, start: nextStart });
+    syncTimeOrder({ start: nextStart }, "start");
   }
 
   function setEndField(nextEnd: string) {
     form.setFieldValue("end", nextEnd);
-    syncEndOrderError({ ...form.values, end: nextEnd });
+    syncTimeOrder({ end: nextEnd }, "end");
   }
 
   function setStartAmPmField(next: AmPm) {
     form.setFieldValue("startAmPm", next);
-    syncEndOrderError({ ...form.values, startAmPm: next });
+    syncTimeOrder({ startAmPm: next }, "start");
   }
 
   function setEndAmPmField(next: AmPm) {
     form.setFieldValue("endAmPm", next);
-    syncEndOrderError({ ...form.values, endAmPm: next });
+    syncTimeOrder({ endAmPm: next }, "end");
   }
 
   function switchTimeOption(option: TimeOption) {
@@ -936,9 +1012,11 @@ export function EventForm({
     form.setFieldValue("outOfCamp", clamped.outOfCamp);
     form.setFieldValue("overseas", clamped.overseas);
     form.setFieldValue("location", clamped.location);
-    // A type with remarks disabled carries no description.
+    // A type with remarks disabled carries neither free-text field (mirrors
+    // resolveEventFields on the write path).
     if (type && type.showRemarks === false) {
       form.setFieldValue("title", "");
+      form.setFieldValue("remarks", "");
     }
     // A type with invitees disabled carries no attendees beyond the creator.
     // Registration events always show participants, even if a stale flag says
@@ -1006,6 +1084,20 @@ export function EventForm({
         : `${pinSummaryItems.length} departments`;
   // Quick self add/remove state for the Participants step's toggle button.
   const selfIncluded = selectedInvitees.userIds.includes(currentUser);
+  // Tag-level mirror of the server's participant diff
+  // (`participantNotify/diff.ts`): participants this save newly includes,
+  // which is exactly who a push could reach. Departments compare by tag —
+  // roster membership changes never happen inside this wizard — and the
+  // acting user never counts (the server filters them out too). Zero means
+  // the review step's notify switch would have nothing to switch off.
+  const addedParticipantCount =
+    selectedInvitees.userIds.filter(
+      (id) =>
+        id !== currentUser && !(isEdit && event ? event.payload.inviteeUserIds : []).includes(id),
+    ).length +
+    selectedInvitees.departmentIds.filter(
+      (id) => !(isEdit && event ? event.payload.inviteeDepartmentIds : []).includes(id),
+    ).length;
 
   // The organizer is never auto-added as a participant — {people} tokens and
   // the review derive from the actual invitee selection. The one exception: a
@@ -1233,8 +1325,7 @@ export function EventForm({
         });
         const inviteesIndex = steps.findIndex((s) => s.id === "invitees");
         if (inviteesIndex >= 0) {
-          setDirection(inviteesIndex > step ? "forward" : "backward");
-          setStep(inviteesIndex);
+          goToStep(inviteesIndex);
         }
         return;
       }
@@ -1275,8 +1366,10 @@ export function EventForm({
       }
 
       const result: EventActionResult = isEdit
-        ? await updateEvent(eventRefFromCalendarEvent(event), payload, scope ?? undefined)
-        : await createEvent(payload);
+        ? await updateEvent(eventRefFromCalendarEvent(event), payload, scope ?? undefined, {
+            notify: notifyParticipants,
+          })
+        : await createEvent(payload, { notify: notifyParticipants });
 
       if (result.ok) {
         // Pin the stand-in to the server's group/copy ids, then let the
@@ -1308,8 +1401,7 @@ export function EventForm({
         // Land the user on the step that owns the failing field.
         const target = steps.findIndex((s) => s.id === STEP_BY_FIELD[failedField]);
         if (target >= 0) {
-          setDirection(target > step ? "forward" : "backward");
-          setStep(target);
+          goToStep(target);
         }
       }
       notifications.show({ color: "red", message: result.error });
@@ -1326,8 +1418,7 @@ export function EventForm({
         : undefined;
       const target = owner ? steps.findIndex((s) => s.id === owner) : -1;
       if (target >= 0) {
-        setDirection(target > step ? "forward" : "backward");
-        setStep(target);
+        goToStep(target);
       }
     },
   );
@@ -1337,11 +1428,11 @@ export function EventForm({
   const timeFields = (option: TimeOption) => {
     // Only Half Day carries half-of-day markers; Full Day is a plain range.
     const showAmPm = option === "half";
-    // Both sides are freely editable (set either one first, fix the other
-    // afterwards), so the validator's ordering error is the only chronology
-    // guard. Land it on the control that actually mismatches: a differing date
-    // under the End date, a same-date time under the End time, and a same-date
-    // Half Day marker under the End AM/PM.
+    // Editing a side snaps the other side onto it (syncTimeOrder), so the
+    // validator's ordering error only surfaces from the time-option switch or
+    // a submit. When it does, land it on the control that actually mismatches:
+    // a differing date under the End date, a same-date time under the End
+    // time, and a same-date Half Day marker under the End AM/PM.
     const startDate = naiveDatePart(form.values.start);
     const endDate = naiveDatePart(form.values.end);
     const startTime = naiveTimePart(form.values.start);
@@ -1370,8 +1461,8 @@ export function EventForm({
       return form.values[field] ? form.errors[field] : undefined;
     };
     // Neither date pickers nor the time pickers carry cross-side bounds: an
-    // out-of-order value is a valid intermediate step (the error above flags
-    // it), so either side can be set first and the other fixed afterwards.
+    // out-of-order pick is accepted and the opposite side snaps onto it (see
+    // syncTimeOrder), so either side can be set first without fighting limits.
     const startField =
       option === "range" ? (
         <Stack gap="xs">
@@ -1469,18 +1560,31 @@ export function EventForm({
         </>
       );
     // The modal is wide enough at lg for start/end side by side.
-    if (isDesktop) {
-      return (
-        <Grid gap="sm">
-          <Grid.Col span={6}>{startField}</Grid.Col>
-          <Grid.Col span={6}>{endField}</Grid.Col>
-        </Grid>
-      );
-    }
-    return (
+    const fields = isDesktop ? (
+      <Grid gap="sm">
+        <Grid.Col span={6}>{startField}</Grid.Col>
+        <Grid.Col span={6}>{endField}</Grid.Col>
+      </Grid>
+    ) : (
       <>
         {startField}
         {endField}
+      </>
+    );
+    // Quiet line naming the side that just moved onto the edited one; the
+    // collapse keeps the step height stable when nothing snapped.
+    return (
+      <>
+        {fields}
+        <Collapse
+          expanded={Boolean(timeSnapHint)}
+          transitionDuration={motion.duration.quick}
+          transitionTimingFunction={motion.easing.out}
+        >
+          <Text size="xs" c="dimmed">
+            {timeSnapHint}
+          </Text>
+        </Collapse>
       </>
     );
   };
@@ -1631,12 +1735,26 @@ export function EventForm({
     ...(showRemarksStep
       ? [
           {
+            key: "description",
+            span: 12,
+            node: reviewDef(
+              "Description",
+              <Text size="sm" style={{ overflowWrap: "anywhere", whiteSpace: "pre-wrap" }}>
+                {form.values.title.trim() || "—"}
+              </Text>,
+            ),
+          },
+        ]
+      : []),
+    ...(showRemarksStep && form.values.remarks?.trim()
+      ? [
+          {
             key: "remarks",
             span: 12,
             node: reviewDef(
               "Remarks",
               <Text size="sm" style={{ overflowWrap: "anywhere", whiteSpace: "pre-wrap" }}>
-                {form.values.title.trim() || "—"}
+                {form.values.remarks.trim()}
               </Text>,
             ),
           },
@@ -1856,51 +1974,54 @@ export function EventForm({
                 </Stack>
               ) : (
                 <>
-              {inviteePickerGroups.length > 0 ? (
-                <PickerField
-                  label={registrationType ? "Registered attendees" : "Participants"}
-                  description={
-                    registrationType
-                      ? "Starting roster for each occurrence. The organizer is not added automatically — add yourself only if you'll attend. People can register themselves for each occurrence; only you and admins can edit the series. Departments can't be tagged on registration events."
-                      : "Participants can edit this event too. You're in by default — remove yourself if you won't take part; an event must keep at least one participant or department"
-                  }
-                  items={inviteeSummaryItems}
-                  onRemove={(item) =>
-                    // One tap on a chip's ✕ un-tags that person or department —
-                    // the same prefixed key the dialog commits with.
-                    form.setFieldValue("invitees", removeInvitee(form.values.invitees, item.key))
-                  }
-                  onOpen={() => setInviteePickerOpen(true)}
-                />
-              ) : (
-                <Text size="sm" c="dimmed">
-                  No active users or departments to tag yet.
-                </Text>
-              )}
-              {peopleById[currentUser] && (
-                <Button
-                  variant="subtle"
-                  color="brand"
-                  size="compact-xs"
-                  style={{ alignSelf: "flex-start" }}
-                  leftSection={
-                    selfIncluded ? (
-                      <IconUserMinus size={14} stroke={1.5} />
-                    ) : (
-                      <IconUserPlus size={14} stroke={1.5} />
-                    )
-                  }
-                  onClick={() => {
-                    autoSeededSelfRef.current = false;
-                    form.setFieldValue(
-                      "invitees",
-                      toggleInviteeUser(form.values.invitees, currentUser),
-                    );
-                  }}
-                >
-                  {selfIncluded ? "Remove myself" : "Add myself"}
-                </Button>
-              )}
+                  {inviteePickerGroups.length > 0 ? (
+                    <PickerField
+                      label={registrationType ? "Registered attendees" : "Participants"}
+                      description={
+                        registrationType
+                          ? "Starting roster for each occurrence. The organizer is not added automatically — add yourself only if you'll attend. People can register themselves for each occurrence; only you and admins can edit the series. Departments can't be tagged on registration events."
+                          : "Participants can edit this event too. You're in by default — remove yourself if you won't take part; an event must keep at least one participant or department"
+                      }
+                      items={inviteeSummaryItems}
+                      onRemove={(item) =>
+                        // One tap on a chip's ✕ un-tags that person or department —
+                        // the same prefixed key the dialog commits with.
+                        form.setFieldValue(
+                          "invitees",
+                          removeInvitee(form.values.invitees, item.key),
+                        )
+                      }
+                      onOpen={() => setInviteePickerOpen(true)}
+                    />
+                  ) : (
+                    <Text size="sm" c="dimmed">
+                      No active users or departments to tag yet.
+                    </Text>
+                  )}
+                  {peopleById[currentUser] && (
+                    <Button
+                      variant="subtle"
+                      color="brand"
+                      size="compact-xs"
+                      style={{ alignSelf: "flex-start" }}
+                      leftSection={
+                        selfIncluded ? (
+                          <IconUserMinus size={14} stroke={1.5} />
+                        ) : (
+                          <IconUserPlus size={14} stroke={1.5} />
+                        )
+                      }
+                      onClick={() => {
+                        autoSeededSelfRef.current = false;
+                        form.setFieldValue(
+                          "invitees",
+                          toggleInviteeUser(form.values.invitees, currentUser),
+                        );
+                      }}
+                    >
+                      {selfIncluded ? "Remove myself" : "Add myself"}
+                    </Button>
+                  )}
                 </>
               )}
               <UserSelectModal
@@ -1921,16 +2042,28 @@ export function EventForm({
             className="wizard-step-enter"
             style={{ "--slide-dir": direction === "forward" ? 1 : -1 } as React.CSSProperties}
           >
-            <Textarea
-              label="Remarks"
-              description="Optional — the calendar title is rendered from the title template"
-              placeholder="Add remarks"
-              autosize
-              minRows={2}
-              maxRows={4}
-              style={{ resize: "none" }}
-              {...form.getInputProps("title")}
-            />
+            <Stack gap="sm">
+              <Textarea
+                label="Description"
+                description="Optional — the words your admin's title template puts into the calendar title."
+                placeholder="Add a description"
+                autosize
+                minRows={2}
+                maxRows={4}
+                style={{ resize: "none" }}
+                {...form.getInputProps("title")}
+              />
+              <Textarea
+                label="Remarks"
+                description="Optional — an internal note shown only in the event's Google Calendar notes."
+                placeholder="Add remarks"
+                autosize
+                minRows={2}
+                maxRows={4}
+                style={{ resize: "none" }}
+                {...form.getInputProps("remarks")}
+              />
+            </Stack>
           </div>
         )}
 
@@ -1953,339 +2086,348 @@ export function EventForm({
                 </Text>
               ) : (
                 <>
-              <Switch
-                label="Repeats"
-                description="Create a repeating series. Changing the pattern later resets individually edited occurrences."
-                checked={Boolean(recurrence)}
-                onChange={(event) => toggleRepeats(event.currentTarget.checked)}
-              />
-              {recurrence && (
-                <Stack gap="sm">
-                  <NoKeyboardSelect
-                    label="Frequency"
-                    data={[
-                      { value: "daily", label: "Daily" },
-                      { value: "weekly", label: "Weekly" },
-                      { value: "monthly", label: "Monthly" },
-                      { value: "yearly", label: "Yearly" },
-                    ]}
-                    value={recurrence.freq}
-                    allowDeselect={false}
-                    onChange={(value) => {
-                      if (value) {
-                        changeFrequency(value);
-                      }
-                    }}
-                  />
-                  <Group gap="xs" align="flex-end" wrap="nowrap">
-                    <NumberInput
-                      label="Every"
-                      w={88}
-                      min={1}
-                      max={MAX_RECURRENCE_INTERVAL}
-                      allowDecimal={false}
-                      clampBehavior="blur"
-                      hideControls
-                      value={recurrence.interval}
-                      onChange={(value) =>
-                        updateRecurrence({
-                          interval:
-                            typeof value === "number"
-                              ? Math.min(
-                                  MAX_RECURRENCE_INTERVAL,
-                                  Math.max(1, Math.trunc(value)),
-                                )
-                              : 1,
-                        })
-                      }
+                  <WizardSection title="Repeat">
+                    <Switch
+                      label="Repeats"
+                      description="Create a repeating series. Changing the pattern later resets individually edited occurrences."
+                      checked={Boolean(recurrence)}
+                      onChange={(event) => toggleRepeats(event.currentTarget.checked)}
                     />
-                    <Text size="sm" pb={6}>
-                      {recurrence.freq === "daily"
-                        ? recurrence.interval === 1
-                          ? "day"
-                          : "days"
-                        : recurrence.freq === "weekly"
-                          ? recurrence.interval === 1
-                            ? "week"
-                            : "weeks"
-                          : recurrence.freq === "monthly"
-                            ? recurrence.interval === 1
-                              ? "month"
-                              : "months"
-                            : recurrence.interval === 1
-                              ? "year"
-                              : "years"}
-                    </Text>
-                  </Group>
-                  {recurrence.freq === "weekly" && (
-                    <Stack gap={6}>
-                      <Text size="sm" fw={500}>
-                        Repeat on
-                      </Text>
-                      <Group gap={6} wrap="wrap">
-                        {WEEKDAY_PICKER_ORDER.map((day) => {
-                          const selected = (recurrence.byWeekday ?? []).includes(day);
-                          return (
-                            <UnstyledButton
-                              key={day}
-                              type="button"
-                              aria-pressed={selected}
-                              aria-label={`${WEEKDAY_LABELS[day]}${selected ? ", selected" : ""}`}
-                              onClick={() => toggleWeekday(day)}
-                              style={{ cursor: "pointer" }}
-                            >
-                              <Badge
-                                size="lg"
-                                variant={selected ? "filled" : "light"}
-                                styles={{
-                                  root: { minHeight: "var(--c2-chip-height)" },
-                                }}
-                              >
-                                {WEEKDAY_LABELS[day]}
-                              </Badge>
-                            </UnstyledButton>
-                          );
-                        })}
-                      </Group>
-                    </Stack>
-                  )}
-                  <Stack gap={6}>
-                    <Text size="sm" fw={500}>
-                      Ends
-                    </Text>
-                    <SegmentedControl
-                      fullWidth
-                      aria-label="Repeat duration"
-                      value={recurrenceDuration}
-                      data={[
-                        { value: "forever", label: "Forever" },
-                        { value: "count", label: "After" },
-                        { value: "until", label: "Until" },
-                      ]}
-                      onChange={changeDuration}
-                    />
-                    {recurrenceDuration === "count" && (
-                      <Group gap="xs" align="center" wrap="nowrap">
-                        <NumberInput
-                          aria-label="Number of occurrences"
-                          w={88}
-                          min={2}
-                          max={MAX_RECURRENCE_COUNT}
-                          allowDecimal={false}
-                          clampBehavior="blur"
-                          hideControls
-                          value={recurrence.count ?? 10}
-                          onChange={(value) =>
-                            updateRecurrence({
-                              count:
-                                typeof value === "number"
-                                  ? Math.min(MAX_RECURRENCE_COUNT, Math.max(2, Math.trunc(value)))
-                                  : 10,
-                            })
-                          }
+                    {recurrence && (
+                      <Stack gap="sm">
+                        <NoKeyboardSelect
+                          label="Frequency"
+                          data={[
+                            { value: "daily", label: "Daily" },
+                            { value: "weekly", label: "Weekly" },
+                            { value: "monthly", label: "Monthly" },
+                            { value: "yearly", label: "Yearly" },
+                          ]}
+                          value={recurrence.freq}
+                          allowDeselect={false}
+                          onChange={(value) => {
+                            if (value) {
+                              changeFrequency(value);
+                            }
+                          }}
                         />
-                        <Text size="sm">occurrences</Text>
-                      </Group>
-                    )}
-                    {recurrenceDuration === "until" && (
-                      <DatePickerInput
-                        aria-label="Repeat until"
-                        valueFormat="YYYY-MM-DD"
-                        placeholder="End date"
-                        value={recurrence.until ?? null}
-                        minDate={
-                          /^\d{4}-\d{2}-\d{2}$/.test(form.values.start.slice(0, 10))
-                            ? new Date(`${form.values.start.slice(0, 10)}T00:00:00`)
-                            : undefined
-                        }
-                        onChange={(value) =>
-                          updateRecurrence({
-                            until: value ? String(value).slice(0, 10) : null,
-                          })
-                        }
-                        attributes={{ input: { readOnly: true } }}
-                        popoverProps={{ trapFocus: false }}
-                      />
-                    )}
-                  </Stack>
-                  <Text size="xs" c="dimmed">
-                    {recurrenceText}
-                  </Text>
-                  {form.errors.recurrence && (
-                    <Text size="xs" c="red">
-                      {form.errors.recurrence}
-                    </Text>
-                  )}
-                </Stack>
-              )}
-              <Switch
-                label="Pin this event"
-                description="Show this event in the Pinned Events panel and header ticker for the departments you choose."
-                {...form.getInputProps("pinned", { type: "checkbox" })}
-              />
-              {form.values.pinned && (
-                <>
-                  <PickerField
-                    label="Visible to"
-                    description="Leave empty to show it to every department, including ones created later. A pin also reaches sub-departments."
-                    items={pinSummaryItems}
-                    onRemove={(item) =>
-                      // Clearing the last chip is the same as the dialog's empty
-                      // selection: the pin goes back to every department.
-                      form.setFieldValue(
-                        "pinnedDepartments",
-                        form.values.pinnedDepartments.filter((id) => id !== item.key),
-                      )
-                    }
-                    empty={
-                      <Badge variant="light" color="accent">
-                        All departments
-                      </Badge>
-                    }
-                    triggerLabel="Choose"
-                    onOpen={() => setPinPickerOpen(true)}
-                  />
-                  <UserSelectModal
-                    opened={pinPickerOpen}
-                    onClose={() => setPinPickerOpen(false)}
-                    groups={pinDepartmentGroups}
-                    values={pinPickerValues}
-                    onConfirm={applyPinPicker}
-                    title="Pin to departments"
-                    zIndex={300}
-                  />
-                </>
-              )}
-              {canSetOwnerLock && (
-                <>
-                  <Switch
-                    label={
-                      effectiveCreatorId === currentUser
-                        ? "Only I can edit this event"
-                        : "Only the organizer can edit this event"
-                    }
-                    description="Participants and tagged department members lose edit rights; admins always keep them. Required for registration events."
-                    checked={form.values.ownerOnlyEdits}
-                    onChange={(event) => {
-                      const checked = event.currentTarget.checked;
-                      form.setFieldValue("ownerOnlyEdits", checked);
-                      if (!checked) {
-                        form.setFieldValue("registrationEnabled", false);
-                        form.setFieldValue("registrationCap", null);
-                      }
-                    }}
-                  />
-                  <Switch
-                    label="Open for registration"
-                    description={
-                      registrationType
-                        ? "Anyone who can see the event can register or deregister themselves for each occurrence. Only you and admins can edit the series or manage its starting roster."
-                        : "Let people register or deregister themselves for each occurrence. Requires the organizer-only edit lock above."
-                    }
-                    disabled={!form.values.ownerOnlyEdits}
-                    checked={registrationType}
-                    onChange={(event) => {
-                      const checked = event.currentTarget.checked;
-                      form.setFieldValue("registrationEnabled", checked);
-                      if (checked) {
-                        form.setFieldValue("ownerOnlyEdits", true);
-                        // Registration events are person-only; departments are
-                        // not participants and never count toward the cap.
-                        form.setFieldValue(
-                          "invitees",
-                          form.values.invitees.filter((value) => value.startsWith("user:")),
-                        );
-                        // The organizer is not registered automatically.
-                        if (
-                          autoSeededSelfRef.current &&
-                          form.values.invitees.length === 1 &&
-                          form.values.invitees[0] === `user:${currentUser}`
-                        ) {
-                          autoSeededSelfRef.current = false;
-                          form.setFieldValue("invitees", []);
-                        }
-                      } else {
-                        form.setFieldValue("registrationCap", null);
-                      }
-                    }}
-                  />
-                  {registrationType && (
-                    <Stack gap="xs">
-                      <Switch
-                        label="Limit registrations"
-                        description="Cap self-service registrations per occurrence. You and admins can still add or remove participants beyond it; departments are not participants on registration events."
-                        checked={form.values.registrationCap != null}
-                        onChange={(event) => {
-                          if (!event.currentTarget.checked) {
-                            form.setFieldValue("registrationCap", null);
-                            return;
-                          }
-                          form.setFieldValue(
-                            "registrationCap",
-                            Math.max(1, selectedInvitees.userIds.length || 10),
-                          );
-                        }}
-                      />
-                      {form.values.registrationCap != null && (
-                        <Stack gap={6}>
+                        <Group gap="xs" align="flex-end" wrap="nowrap">
                           <NumberInput
-                            label="Maximum registrations"
-                            description="People can register until this many explicit registrants are on the event."
+                            label="Every"
+                            w={88}
                             min={1}
+                            max={MAX_RECURRENCE_INTERVAL}
                             allowDecimal={false}
                             clampBehavior="blur"
                             hideControls
-                            value={form.values.registrationCap}
-                            error={form.errors.registrationCap}
+                            value={recurrence.interval}
                             onChange={(value) =>
-                              form.setFieldValue(
-                                "registrationCap",
-                                typeof value === "number" ? Math.max(1, Math.trunc(value)) : null,
-                              )
+                              updateRecurrence({
+                                interval:
+                                  typeof value === "number"
+                                    ? Math.min(
+                                        MAX_RECURRENCE_INTERVAL,
+                                        Math.max(1, Math.trunc(value)),
+                                      )
+                                    : 1,
+                              })
                             }
                           />
-                          <Group gap={6} grow>
-                            <Button
-                              variant="default"
-                              size="sm"
-                              disabled={(form.values.registrationCap ?? 1) <= 1}
-                              aria-label="Decrease limit by 10"
-                              onClick={() => bumpRegistrationCap(-10)}
-                            >
-                              −10
-                            </Button>
-                            <Button
-                              variant="default"
-                              size="sm"
-                              disabled={(form.values.registrationCap ?? 1) <= 1}
-                              aria-label="Decrease limit by 1"
-                              onClick={() => bumpRegistrationCap(-1)}
-                            >
-                              −1
-                            </Button>
-                            <Button
-                              variant="default"
-                              size="sm"
-                              aria-label="Increase limit by 1"
-                              onClick={() => bumpRegistrationCap(1)}
-                            >
-                              +1
-                            </Button>
-                            <Button
-                              variant="default"
-                              size="sm"
-                              aria-label="Increase limit by 10"
-                              onClick={() => bumpRegistrationCap(10)}
-                            >
-                              +10
-                            </Button>
-                          </Group>
+                          <Text size="sm" pb={6}>
+                            {recurrence.freq === "daily"
+                              ? recurrence.interval === 1
+                                ? "day"
+                                : "days"
+                              : recurrence.freq === "weekly"
+                                ? recurrence.interval === 1
+                                  ? "week"
+                                  : "weeks"
+                                : recurrence.freq === "monthly"
+                                  ? recurrence.interval === 1
+                                    ? "month"
+                                    : "months"
+                                  : recurrence.interval === 1
+                                    ? "year"
+                                    : "years"}
+                          </Text>
+                        </Group>
+                        {recurrence.freq === "weekly" && (
+                          <Stack gap={6}>
+                            <Text size="sm" fw={500}>
+                              Repeat on
+                            </Text>
+                            <Group gap={6} wrap="wrap">
+                              {WEEKDAY_PICKER_ORDER.map((day) => {
+                                const selected = (recurrence.byWeekday ?? []).includes(day);
+                                return (
+                                  <UnstyledButton
+                                    key={day}
+                                    type="button"
+                                    aria-pressed={selected}
+                                    aria-label={`${WEEKDAY_LABELS[day]}${selected ? ", selected" : ""}`}
+                                    onClick={() => toggleWeekday(day)}
+                                    style={{ cursor: "pointer" }}
+                                  >
+                                    <Badge
+                                      size="lg"
+                                      variant={selected ? "filled" : "light"}
+                                      styles={{
+                                        root: { minHeight: "var(--c2-chip-height)" },
+                                      }}
+                                    >
+                                      {WEEKDAY_LABELS[day]}
+                                    </Badge>
+                                  </UnstyledButton>
+                                );
+                              })}
+                            </Group>
+                          </Stack>
+                        )}
+                        <Stack gap={6}>
+                          <Text size="sm" fw={500}>
+                            Ends
+                          </Text>
+                          <SegmentedControl
+                            fullWidth
+                            aria-label="Repeat duration"
+                            value={recurrenceDuration}
+                            data={[
+                              { value: "forever", label: "Forever" },
+                              { value: "count", label: "After" },
+                              { value: "until", label: "Until" },
+                            ]}
+                            onChange={changeDuration}
+                          />
+                          {recurrenceDuration === "count" && (
+                            <Group gap="xs" align="center" wrap="nowrap">
+                              <NumberInput
+                                aria-label="Number of occurrences"
+                                w={88}
+                                min={2}
+                                max={MAX_RECURRENCE_COUNT}
+                                allowDecimal={false}
+                                clampBehavior="blur"
+                                hideControls
+                                value={recurrence.count ?? 10}
+                                onChange={(value) =>
+                                  updateRecurrence({
+                                    count:
+                                      typeof value === "number"
+                                        ? Math.min(
+                                            MAX_RECURRENCE_COUNT,
+                                            Math.max(2, Math.trunc(value)),
+                                          )
+                                        : 10,
+                                  })
+                                }
+                              />
+                              <Text size="sm">occurrences</Text>
+                            </Group>
+                          )}
+                          {recurrenceDuration === "until" && (
+                            <DatePickerInput
+                              aria-label="Repeat until"
+                              valueFormat="YYYY-MM-DD"
+                              placeholder="End date"
+                              value={recurrence.until ?? null}
+                              minDate={
+                                /^\d{4}-\d{2}-\d{2}$/.test(form.values.start.slice(0, 10))
+                                  ? new Date(`${form.values.start.slice(0, 10)}T00:00:00`)
+                                  : undefined
+                              }
+                              onChange={(value) =>
+                                updateRecurrence({
+                                  until: value ? String(value).slice(0, 10) : null,
+                                })
+                              }
+                              attributes={{ input: { readOnly: true } }}
+                              popoverProps={{ trapFocus: false }}
+                            />
+                          )}
+                        </Stack>
+                        <Text size="xs" c="dimmed">
+                          {recurrenceText}
+                        </Text>
+                        {form.errors.recurrence && (
+                          <Text size="xs" c="red">
+                            {form.errors.recurrence}
+                          </Text>
+                        )}
+                      </Stack>
+                    )}
+                  </WizardSection>
+                  <WizardSection title="Pinned events">
+                    <Switch
+                      label="Pin this event"
+                      description="Show this event in the Pinned Events panel and header ticker for the departments you choose."
+                      {...form.getInputProps("pinned", { type: "checkbox" })}
+                    />
+                    {form.values.pinned && (
+                      <>
+                        <PickerField
+                          label="Visible to"
+                          description="Leave empty to show it to every department, including ones created later. A pin also reaches sub-departments."
+                          items={pinSummaryItems}
+                          onRemove={(item) =>
+                            // Clearing the last chip is the same as the dialog's empty
+                            // selection: the pin goes back to every department.
+                            form.setFieldValue(
+                              "pinnedDepartments",
+                              form.values.pinnedDepartments.filter((id) => id !== item.key),
+                            )
+                          }
+                          empty={
+                            <Badge variant="light" color="accent">
+                              All departments
+                            </Badge>
+                          }
+                          triggerLabel="Choose"
+                          onOpen={() => setPinPickerOpen(true)}
+                        />
+                        <UserSelectModal
+                          opened={pinPickerOpen}
+                          onClose={() => setPinPickerOpen(false)}
+                          groups={pinDepartmentGroups}
+                          values={pinPickerValues}
+                          onConfirm={applyPinPicker}
+                          title="Pin to departments"
+                          zIndex={300}
+                        />
+                      </>
+                    )}
+                  </WizardSection>
+                  {canSetOwnerLock && (
+                    <WizardSection title="Editing & registration">
+                      <Switch
+                        label={
+                          effectiveCreatorId === currentUser
+                            ? "Only I can edit this event"
+                            : "Only the organizer can edit this event"
+                        }
+                        description="Participants and tagged department members lose edit rights; admins always keep them. Required for registration events."
+                        checked={form.values.ownerOnlyEdits}
+                        onChange={(event) => {
+                          const checked = event.currentTarget.checked;
+                          form.setFieldValue("ownerOnlyEdits", checked);
+                          if (!checked) {
+                            form.setFieldValue("registrationEnabled", false);
+                            form.setFieldValue("registrationCap", null);
+                          }
+                        }}
+                      />
+                      <Switch
+                        label="Open for registration"
+                        description={
+                          registrationType
+                            ? "Anyone who can see the event can register or deregister themselves for each occurrence. Only you and admins can edit the series or manage its starting roster."
+                            : "Let people register or deregister themselves for each occurrence. Requires the organizer-only edit lock above."
+                        }
+                        disabled={!form.values.ownerOnlyEdits}
+                        checked={registrationType}
+                        onChange={(event) => {
+                          const checked = event.currentTarget.checked;
+                          form.setFieldValue("registrationEnabled", checked);
+                          if (checked) {
+                            form.setFieldValue("ownerOnlyEdits", true);
+                            // Registration events are person-only; departments are
+                            // not participants and never count toward the cap.
+                            form.setFieldValue(
+                              "invitees",
+                              form.values.invitees.filter((value) => value.startsWith("user:")),
+                            );
+                            // The organizer is not registered automatically.
+                            if (
+                              autoSeededSelfRef.current &&
+                              form.values.invitees.length === 1 &&
+                              form.values.invitees[0] === `user:${currentUser}`
+                            ) {
+                              autoSeededSelfRef.current = false;
+                              form.setFieldValue("invitees", []);
+                            }
+                          } else {
+                            form.setFieldValue("registrationCap", null);
+                          }
+                        }}
+                      />
+                      {registrationType && (
+                        <Stack gap="xs">
+                          <Switch
+                            label="Limit registrations"
+                            description="Cap self-service registrations per occurrence. You and admins can still add or remove participants beyond it; departments are not participants on registration events."
+                            checked={form.values.registrationCap != null}
+                            onChange={(event) => {
+                              if (!event.currentTarget.checked) {
+                                form.setFieldValue("registrationCap", null);
+                                return;
+                              }
+                              form.setFieldValue(
+                                "registrationCap",
+                                Math.max(1, selectedInvitees.userIds.length || 10),
+                              );
+                            }}
+                          />
+                          {form.values.registrationCap != null && (
+                            <Stack gap={6}>
+                              <NumberInput
+                                label="Maximum registrations"
+                                description="People can register until this many explicit registrants are on the event."
+                                min={1}
+                                allowDecimal={false}
+                                clampBehavior="blur"
+                                hideControls
+                                value={form.values.registrationCap}
+                                error={form.errors.registrationCap}
+                                onChange={(value) =>
+                                  form.setFieldValue(
+                                    "registrationCap",
+                                    typeof value === "number"
+                                      ? Math.max(1, Math.trunc(value))
+                                      : null,
+                                  )
+                                }
+                              />
+                              <Group gap={6} grow>
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  disabled={(form.values.registrationCap ?? 1) <= 1}
+                                  aria-label="Decrease limit by 10"
+                                  onClick={() => bumpRegistrationCap(-10)}
+                                >
+                                  −10
+                                </Button>
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  disabled={(form.values.registrationCap ?? 1) <= 1}
+                                  aria-label="Decrease limit by 1"
+                                  onClick={() => bumpRegistrationCap(-1)}
+                                >
+                                  −1
+                                </Button>
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  aria-label="Increase limit by 1"
+                                  onClick={() => bumpRegistrationCap(1)}
+                                >
+                                  +1
+                                </Button>
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  aria-label="Increase limit by 10"
+                                  onClick={() => bumpRegistrationCap(10)}
+                                >
+                                  +10
+                                </Button>
+                              </Group>
+                            </Stack>
+                          )}
                         </Stack>
                       )}
-                    </Stack>
+                    </WizardSection>
                   )}
-                </>
-              )}
                 </>
               )}
             </Stack>
@@ -2347,6 +2489,24 @@ export function EventForm({
                 </Grid>
               ) : (
                 reviewSections.map(({ key, node }) => <div key={key}>{node}</div>)
+              )}
+
+              {/* Only shown when this save actually adds participants — the
+                  server notifies newly-included people only, so with nobody
+                  new there is nothing here to turn off. */}
+              {addedParticipantCount > 0 && (
+                <WizardSection title="Notifications">
+                  <Switch
+                    label="Notify participants"
+                    description={
+                      notifyParticipants
+                        ? "Sends a browser notification to people newly added to this event."
+                        : "No notifications will be sent for this save."
+                    }
+                    checked={notifyParticipants}
+                    onChange={(event) => setNotifyParticipants(event.currentTarget.checked)}
+                  />
+                </WizardSection>
               )}
             </Stack>
           </div>

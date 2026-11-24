@@ -47,6 +47,12 @@ export interface CalendarEventPayload {
   registrationCap: number | null;
   /** Raw (pre-template) description from the notes block; null for legacy events. */
   rawTitle: string | null;
+  /**
+   * The organizer's plain-text remarks (also written above the `Edit:` link in
+   * Google's notes). `mapCalendarItem` always resolves it — `""` when the event
+   * has none — and it is optional only so hand-built payloads may omit it.
+   */
+  remarks?: string;
   /** Datetime option used to create the event; defaults to the timed "range". */
   timeOption: TimeOption;
   /** Start half-of-day indicator for "full" events, else null. */
@@ -103,7 +109,10 @@ function scheduleTime(date: Date, allDay: boolean): string {
  */
 export const listCalendars = cache(() =>
   cachedConfig("calendars", async () =>
-    db.select().from(calendars).orderBy(...DEPARTMENT_ORDER),
+    db
+      .select()
+      .from(calendars)
+      .orderBy(...DEPARTMENT_ORDER),
   ),
 );
 
@@ -156,10 +165,7 @@ export function mapCalendarItem(
   const fields = parseEventDescription(item.description);
   // Organizer-only reads (My Events) pass this: bail before building the
   // payload for events the user did not create.
-  if (
-    filters.creatorFilter !== undefined &&
-    fields.people.creatorId !== filters.creatorFilter
-  ) {
+  if (filters.creatorFilter !== undefined && fields.people.creatorId !== filters.creatorFilter) {
     return null;
   }
   const eventType = fields.eventType;
@@ -203,6 +209,7 @@ export function mapCalendarItem(
       registrationEnabled: fields.registrationEnabled,
       registrationCap: fields.registrationCap,
       rawTitle: fields.rawTitle,
+      remarks: fields.remarks,
       timeOption: fields.timeOption ?? (item.allDay ? "full" : "range"),
       startAmPm: fields.startAmPm,
       endAmPm: fields.endAmPm,

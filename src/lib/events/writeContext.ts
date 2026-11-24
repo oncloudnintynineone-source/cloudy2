@@ -279,10 +279,10 @@ export function resolveEventLocation(
 
 /**
  * Drop form fields the event type hides: a type with remarks disabled carries
- * no description, and a type with invitees disabled carries no attendees
- * beyond the creator. Runs after {@link resolveEventLocation} so the title the
- * template renders (from type/people/location tokens) is the only text a
- * no-remarks event gets.
+ * neither the description nor the organizer's note, and a type with invitees
+ * disabled carries no attendees beyond the creator. Runs after
+ * {@link resolveEventLocation} so the title the template renders (from
+ * type/people/location tokens) is the only text a no-remarks event gets.
  */
 export function resolveEventFields(
   input: EventFormValues,
@@ -290,7 +290,7 @@ export function resolveEventFields(
 ): EventFormValues {
   let next = input;
   if (!context.showRemarks) {
-    next = { ...next, title: "" };
+    next = { ...next, title: "", remarks: "" };
   }
   if (context.registrationEnabled) {
     // Registration events are person-only: department tags are not participants

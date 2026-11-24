@@ -1,15 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import {
-  ActionIcon,
-  Badge,
-  Button,
-  Group,
-  Stack,
-  Text,
-  UnstyledButton,
-} from "@mantine/core";
+import { ActionIcon, Badge, Button, Group, Stack, Text, UnstyledButton } from "@mantine/core";
 import { IconPencil, IconPlus, IconX } from "@tabler/icons-react";
 
 import { pickerTriggerLabel } from "@/lib/ui/picker";
@@ -25,6 +17,12 @@ export interface PickerBadgeItem {
    * "mine" badge (ring + cream tint + "(You)" suffix) and ignores `color`.
    */
   self?: boolean;
+  /**
+   * Screen-reader-only suffix naming what the chip *is* when the label alone
+   * cannot say so — e.g. "department" on a chip inside a row that mixes people
+   * and departments, where the tint is the only visual difference.
+   */
+  srSuffix?: string;
 }
 
 /**
@@ -33,6 +31,18 @@ export interface PickerBadgeItem {
  * pass `"none"` so they stay readable.
  */
 export type PickerChipTextCase = "uppercase" | "none";
+
+/**
+ * Chip size — **size means affordance**:
+ * - `"chip"` (default) is the interactive 36 px chip every tappable/removable
+ *   pill rides, so picker rows line up with the dialog pool and the filter
+ *   summaries everywhere.
+ * - `"compact"` drops the chip box for the plain `Badge` metrics (≈20 px) —
+ *   for **read-only** rows (the event detail modal's participant list), where
+ *   the pill is information to read, not a target to hit, and must not tower
+ *   over the event-type pill beside it. A compact chip never carries the ✕.
+ */
+export type PickerChipSize = "chip" | "compact";
 
 /**
  * The chip box every chip in the app rides: the shared interactive-chip height
@@ -45,6 +55,14 @@ const CHIP_ROOT_STYLES = {
   height: "auto",
   paddingBlock: 4,
 } as const;
+
+/** Compact chips take Mantine's own badge metrics — nothing to override. */
+const PLAIN_ROOT_STYLES = {} as const;
+
+/** Resolve the chip box for a size. */
+function chipRootStyles(size: PickerChipSize | undefined) {
+  return size === "compact" ? PLAIN_ROOT_STYLES : CHIP_ROOT_STYLES;
+}
 
 export interface PickerChipProps {
   label: string;
@@ -65,6 +83,10 @@ export interface PickerChipProps {
   onSelect?: () => void;
   /** Accessible name of the tappable label (default the label itself). */
   selectLabel?: string;
+  /** Chip size; default `"chip"` (see `PickerChipSize`). */
+  size?: PickerChipSize;
+  /** Screen-reader-only suffix naming what the chip is (see `PickerBadgeItem`). */
+  srSuffix?: string;
 }
 
 /**
@@ -79,6 +101,8 @@ export interface PickerChipProps {
  * The chip is inert unless `onSelect` is given. Then the label becomes an
  * `UnstyledButton` and the ✕ stays its **sibling**: the Badge root is a `div`,
  * so the two controls sit side by side rather than one nested in another.
+ * `size="compact"` drops the interactive chip box for plain badge metrics —
+ * read-only rows only (see `PickerChipSize`).
  */
 export function PickerChip({
   label,
@@ -89,17 +113,25 @@ export function PickerChip({
   tt,
   onSelect,
   selectLabel,
+  size,
+  srSuffix,
 }: PickerChipProps) {
   const text = self ? `${label} (You)` : label;
   const removeName = removeLabel ?? `Remove ${text}`;
+  const base = chipRootStyles(size);
+  const content = (
+    <>
+      {text}
+      {srSuffix ? <span className="c2-sr-only">{` ${srSuffix}`}</span> : null}
+    </>
+  );
   return (
     <Badge
       variant="light"
       color={self ? undefined : color}
       className={self ? "c2-my-badge" : undefined}
       styles={{
-        root:
-          tt === "none" ? { ...CHIP_ROOT_STYLES, textTransform: "none" } : CHIP_ROOT_STYLES,
+        root: tt === "none" ? { ...base, textTransform: "none" } : base,
       }}
       rightSection={
         onRemove ? (
@@ -130,10 +162,10 @@ export function PickerChip({
           onClick={onSelect}
           style={{ cursor: "pointer", display: "block", maxWidth: "100%" }}
         >
-          {text}
+          {content}
         </UnstyledButton>
       ) : (
-        text
+        content
       )}
     </Badge>
   );
@@ -156,6 +188,8 @@ export interface PickerBadgesProps {
   removeLabel?: (item: PickerBadgeItem) => string;
   /** Label case of every chip; default Mantine uppercase (see `PickerChip`). */
   tt?: PickerChipTextCase;
+  /** Size of every chip (and the `+N`); default `"chip"` (see `PickerChipSize`). */
+  size?: PickerChipSize;
 }
 
 /**
@@ -172,12 +206,14 @@ export function PickerBadges({
   onRemove,
   removeLabel,
   tt,
+  size,
 }: PickerBadgesProps) {
   if (items.length === 0) {
     return empty ?? null;
   }
   const visible = cap === undefined ? items : items.slice(0, cap);
   const overflow = items.length - visible.length;
+  const base = chipRootStyles(size);
   return (
     <Group gap={6} wrap="wrap">
       {visible.map((item) => (
@@ -187,12 +223,14 @@ export function PickerBadges({
           color={item.color}
           self={item.self}
           tt={tt}
+          size={size}
+          srSuffix={item.srSuffix}
           onRemove={onRemove ? () => onRemove(item) : undefined}
           removeLabel={removeLabel?.(item)}
         />
       ))}
       {overflow > 0 && (
-        <Badge variant="light" styles={{ root: CHIP_ROOT_STYLES }}>
+        <Badge variant="light" styles={{ root: base }}>
           +{overflow}
         </Badge>
       )}
@@ -277,6 +315,7 @@ export function PickerField({
   onRemove,
   removeLabel,
   tt,
+  size,
   triggerLabel,
   addLabel,
   editLabel,
@@ -311,6 +350,7 @@ export function PickerField({
         onRemove={onRemove}
         removeLabel={removeLabel}
         tt={tt}
+        size={size}
       />
     </Stack>
   );

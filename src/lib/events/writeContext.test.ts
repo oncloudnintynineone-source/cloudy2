@@ -62,4 +62,19 @@ describe("resolveEventFields", () => {
     expect(result.registrationCap).toBeNull();
     expect(result.registrationEnabled).toBe(false);
   });
+
+  it("clears both free-text fields when the type hides remarks", () => {
+    const result = resolveEventFields(
+      { ...values, title: "Open day", remarks: "Wear whites." },
+      context({ showRemarks: false }),
+    );
+    expect(result.title).toBe("");
+    expect(result.remarks).toBe("");
+  });
+
+  it("keeps both free-text fields when the type shows remarks", () => {
+    const result = resolveEventFields({ ...values, remarks: "Wear whites." }, context());
+    expect(result.title).toBe("Open day");
+    expect(result.remarks).toBe("Wear whites.");
+  });
 });

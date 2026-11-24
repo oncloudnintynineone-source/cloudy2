@@ -8,6 +8,7 @@ import {
   eventDetailUrl,
   hasInternalEventMarker,
   isExternalEvent,
+  parseEventDescription,
   parseEventEndAmPm,
   parseEventNotes,
   parseEventOutOfCamp,
@@ -16,12 +17,15 @@ import {
   parseEventPinnedDepartments,
   parseEventRegistrationCap,
   parseEventRegistrationEnabled,
+  parseEventRemarks,
   parseEventStartAmPm,
   parseEventTimeOption,
   parseEventType,
   parseEventTitle,
+  rewriteEventNotes,
   withEditLink,
   withInternalMarker,
+  withRemarks,
 } from "./notes";
 
 /** A realistic-ish notes block long enough that compression actually shrinks it. */
@@ -485,5 +489,96 @@ describe("parseEventRegistrationCap", () => {
     expect(
       parseEventRegistrationCap(encodeEventNotes({ registrationCap: "5" as unknown as number })),
     ).toBeNull();
+  });
+});
+
+describe("withRemarks", () => {
+  it("puts the remarks at the top, one blank line above the description", () => {
+    expect(withRemarks("Edit: https://x\n\nBLOCK", "Wear whites.")).toBe(
+      "Wear whites.\n\nEdit: https://x\n\nBLOCK",
+    );
+  });
+
+  it("trims the text and yields it alone for an empty description", () => {
+    expect(withRemarks("", "  Wear whites.  ")).toBe("Wear whites.");
+  });
+
+  it("leaves the description untouched for blank or whitespace-only remarks", () => {
+    expect(withRemarks("Edit: https://x", "")).toBe("Edit: https://x");
+    expect(withRemarks("Edit: https://x", "   \n  ")).toBe("Edit: https://x");
+  });
+});
+
+describe("parseEventRemarks", () => {
+  it("reads the remarks mirrored in the notes block", () => {
+    expect(parseEventRemarks('{"remarks":"Wear whites."}')).toBe("Wear whites.");
+    const description = withInternalMarker(
+      withRemarks(
+        withEditLink(encodeNotesBlock('{"remarks":"Wear whites."}'), "https://x"),
+        "Wear whites.",
+      ),
+    );
+    expect(parseEventRemarks(description)).toBe("Wear whites.");
+  });
+
+  it("returns an empty string when absent, malformed, or legacy", () => {
+    expect(parseEventRemarks("")).toBe("");
+    expect(parseEventRemarks('{"eventType":"Leave"}')).toBe("");
+    expect(parseEventRemarks("not json")).toBe("");
+    expect(parseEventRemarks('{"remarks":42}')).toBe("");
+  });
+});
+
+describe("remarks in the assembled description", () => {
+  // The full writer chain: block → Edit link → remarks on top → marker below.
+  // Mirrors the real writer, which trims and omits blank remarks.
+  const assembled = (remarks: string) =>
+    withInternalMarker(
+      withRemarks(
+        withEditLink(
+          encodeNotesBlock(
+            encodeEventNotes({ eventId: "g-1", title: "", remarks: remarks.trim() || undefined }),
+          ),
+          "https://x",
+        ),
+        remarks,
+      ),
+    );
+
+  it("keeps the block parseable with remarks above the Edit line", () => {
+    const description = assembled("Wear whites.");
+    expect(description.startsWith("Wear whites.\n\nEdit: https://x")).toBe(true);
+    expect(description.endsWith("\n\nCreated in cloudy2")).toBe(true);
+    expect(parseEventNotes(description)).toEqual({
+      eventId: "g-1",
+      title: "",
+      remarks: "Wear whites.",
+    });
+  });
+
+  it("never parses the plain text above the block back as notes", () => {
+    // Remarks that look like JSON must not shadow the real block below.
+    const description = assembled('{"eventType":"Impostor"}');
+    expect(parseEventNotes(description)?.eventType ?? null).toBeNull();
+    expect(parseEventRemarks(description)).toBe('{"eventType":"Impostor"}');
+  });
+
+  it("grows no empty block for blank remarks", () => {
+    const description = assembled("   ");
+    expect(description.startsWith("Edit: https://x")).toBe(true);
+    expect(parseEventRemarks(description)).toBe("");
+  });
+
+  it("survives a rewriteEventNotes round-trip (text and field both kept)", () => {
+    const description = assembled("Wear whites.");
+    const rewritten = rewriteEventNotes(description, (notes) => ({
+      ...notes,
+      eventType: "Parade",
+    }));
+    expect(rewritten.startsWith("Wear whites.\n\nEdit: https://x")).toBe(true);
+    expect(rewritten.endsWith("\n\nCreated in cloudy2")).toBe(true);
+    const fields = parseEventDescription(rewritten);
+    expect(fields.eventType).toBe("Parade");
+    expect(fields.remarks).toBe("Wear whites.");
   });
 });

@@ -133,9 +133,9 @@ its draft. It is a **staged walk** — one input group visible at a time, built 
 | 2   | `time`                      | all | `start`, `end`, `startAmPm`, `endAmPm` validate cleanly                                   |
 | 3   | `location`                  | all | none (policy clamping is live, §1.9)                                                      |
 | 4   | `invitees` (Participants)   | all | none                                                                                      |
-| 5   | `remarks`                   | all | none                                                                                      |
-| 6   | `settings` (Other settings) | all | none — Repeat controls, the "Pin this event" switch (+ its department picker), the organizer-only edit-lock |
-| 7   | `review`                    | all | submit only (last step) — read-only summary of everything entered                         |
+| 5   | `remarks`                   | all | none — the **Description** + **Remarks** free-text fields (§1.4.1)                        |
+| 6   | `settings` (Other settings) | all | none — Repeat controls, the "Pin this event" switch (+ its department picker), the organizer-only edit lock, each in its own section card |
+| 7   | `review`                    | all | submit only (last step) — read-only summary + the notify-participants switch when people are newly added |
 
 The `invitees`, `remarks`, and `location` steps drop out per the selected type's config
 (§1.9.1): `show_location` off removes the Location step entirely — otherwise it always
@@ -184,11 +184,11 @@ Mechanics worth knowing:
     `100dvh - 32px` box and the modal's own chrome takes 76px of it, so the two dvh terms
     can only ever shorten the body, never overflow it.
   - **Wide review step**: at the wide band the review's definition rows (When, Location,
-    Event Type, Organizer, Participants, Departments, Remarks) reflow into a two-column
-    grid beneath the full-width calendar preview and clash check — the extra width reads
-    as structure, not a stretched single column. The grid runs inside the body column
-    beside the step rail, so 720px of dialog still leaves ~544px of content (~264px per
-    column) — the same measure the strip layout had at 620px, with a rail for free.
+    Event Type, Organizer, Participants, Departments, Description, Remarks) reflow into a
+    two-column grid beneath the full-width calendar preview and clash check — the extra
+    width reads as structure, not a stretched single column. The grid runs inside the body
+    column beside the step rail, so 720px of dialog still leaves ~544px of content (~264px
+    per column) — the same measure the strip layout had at 620px, with a rail for free.
   - **Step indicator (locked to Labels + step list)**, rendered by `EventFormSteps`;
     the other implementations remain in code for a future experiment. `EventForm` passes
     `orientation` from `isDesktopWide`, so the locked variant runs **two layouts** of one
@@ -229,10 +229,10 @@ Mechanics worth knowing:
     announces `Step N of M: <name>` through the shell's polite live region.
 - **Enter never submits**: `handleFormKeyDown` (`EventForm.tsx`) cancels the
   browser's implicit form submission for `INPUT`/`SELECT` targets, so only the explicit
-  Create/Save button (review step) commits — the Remarks `Textarea` keeps natural newline
-  behavior. `onSubmit` re-guards with `if (!isLastStep) return` (`EventForm.tsx`),
-  and the Next/submit buttons use distinct React keys so a step-advance click can never
-  activate a leftover `type="submit"` node (`EventForm.tsx`).
+  Create/Save button (review step) commits — the Description/Remarks `Textarea`s keep
+  natural newline behavior. `onSubmit` re-guards with `if (!isLastStep) return`
+  (`EventForm.tsx`), and the Next/submit buttons use distinct React keys so a step-advance
+  click can never activate a leftover `type="submit"` node (`EventForm.tsx`).
 - **Server error → step**: a failed submit maps the server's `field` back onto the owning
   step via `STEP_BY_FIELD` (`EventForm.tsx`) and lands the user there.
 - **Organizer is always the acting user**: there is no admin "On behalf of" step — every
@@ -240,11 +240,14 @@ Mechanics worth knowing:
   creation and never changed by an edit (the server re-derives it from the event itself,
   §1.5.2). Review always shows an **Organizer** row (the stored organizer, or "You" on a
   new/legacy-adopting event).
-- **Other settings**: the always-present "settings" step groups the **Repeats**
-  control (frequency/interval/duration; see [`recurring-events.md`](recurring-events.md)),
-  **Pin this event** (sets the notes `pinned` flag, §Pinned Events) and the
-  **organizer-only edit lock** — a switch shown only when the acting user is the
-  organizer or an admin that sets the notes `ownerOnlyEdits` flag. It reads
+- **Other settings**: the always-present "settings" step groups its controls into
+  **section cards** (`WizardSection` in `EventForm.tsx` — border + uppercase accent
+  caption, the review step's Calendar-preview recipe): **Repeat** (frequency/interval/
+  duration; see [`recurring-events.md`](recurring-events.md)), **Pinned events**
+  ("Pin this event" sets the notes `pinned` flag, §Pinned Events) and **Editing &
+  registration** (the organizer-only edit lock — a switch shown only when the acting user
+  is the organizer or an admin that sets the notes `ownerOnlyEdits` flag; the card is
+  omitted entirely for other editors, never rendered empty). The lock reads
   **"Only I can edit this event"** to the organizer (an admin editing someone else's
   event sees **"Only the organizer can edit this event"** — the lock always binds to
   the event's organizer). Attendees/editors who are not the organizer never see the
@@ -274,14 +277,18 @@ Mechanics worth knowing:
   — an hour keeps the highlighted minute, a minute uses the highlighted hour — so
   closing it any way (X, backdrop tap or Escape) keeps the change. Picking a
   minute while an hour is set also applies the time and closes the dialog.
-  Both sides are freely editable — either the Start or the End may be moved
-  past the other, so a user can set one first and fix the other afterwards.
-  The picker imposes no bounds and no out-of-order styling: every hour and
-  minute stays selectable, with arrow/Home/End visiting every cell. The ordering
-  error ("End must be on or after start") is synced onto the End control
-  immediately as the invalid pair is created; Next and Submit stay blocked until
-  it is fixed. `clampEventEnd` remains the write-path/server safety net, not an
-  edit-time snap.
+  Both sides are freely editable, and **the untouched side follows**: editing one
+  side past the other snaps the opposite side onto it (`syncTimeOrder` →
+  `clampEventEnd` when the start moved, `clampEventStart` when the end did —
+  `EventForm.tsx`), so an inverted pair never appears while editing. The snap is
+  named in a quiet `Collapse` line under the controls ("End set to match the
+  start.") and announced through the live region; it is dropped on any step
+  change. The picker imposes no bounds: every hour and minute stays selectable,
+  with arrow/Home/End visiting every cell. `validateEventForm`'s ordering error
+  ("End must be on or after start") stays as the submit-time safety net and as the
+  only surface for the time-option switch below (which normalizes stored values
+  rather than editing a side); `clampEventEnd` remains the write-path/server
+  normalization.
   `data-mantine-stop-propagation` on every control keeps Escape from also
   minimizing the wizard, and the dialog returns focus to the button. The picked
   `HH:mm` joins into the naive `YYYY-MM-DD HH:mm:ss` string via
@@ -290,9 +297,10 @@ Mechanics worth knowing:
   `DatePickerInput`s (plain dates, no half-day markers); `half` = two
   `DatePickerInput`s plus an AM/PM `SegmentedControl` per side. Neither date
   picker carries a cross-side `minDate`/`maxDate`, and on `half` both AM/PM
-  segments are always enabled; an out-of-order date or marker is a valid
-  intermediate step, flagged by the inline ordering error (placed under the End
-  date when the dates differ and under the End AM/PM when the dates match).
+  segments are always enabled; an out-of-order date or marker snaps the opposite
+  side onto the edited one (above) instead of erroring — the inline ordering error
+  (placed under the End date when the dates differ and under the End AM/PM when
+  the dates match) only surfaces from the time-option switch or a submit.
   Every date input is
   made natively read-only via the styles-API `attributes` (`attributes.input`) —
   **never** the component `readOnly` prop, which would also disable its popover —
@@ -330,19 +338,32 @@ Mechanics worth knowing:
   `EventForm.tsx`). Every summary chip carries a ✕ that drops that person or
   department in place (`removeInvitee`) — no need to reopen the dialog, whose
   confirm button now reads **Done** because it both adds and removes.
-- **Remarks** (`EventForm.tsx`): an autosize `Textarea` bound to the form's
-  `title` field — the **raw description**. It is optional; the calendar title comes from
-  the template (§1.8).
-- **Other settings** (`EventForm.tsx`): the Pin + organizer-only-lock switches (§1.4).
+- **Remarks** (`EventForm.tsx`): two autosize `Textarea`s, each with a one-sentence
+  description. **Description** binds to the form's `title` field — the **raw
+  description**; it is optional and the calendar title comes from the template (§1.8),
+  exactly as the single field before it did. **Remarks** binds to the new `remarks`
+  field — an internal note written as plain text at the top of the event's Google
+  Calendar notes (§1.7.3) and mirrored in the notes block (§1.7.1); it never affects
+  the title or any template. A type with `show_remarks` off clears **both** fields
+  (`handleEventTypeChange` client-side, `resolveEventFields` on the write path).
+- **Other settings** (`EventForm.tsx`): the section cards of the step (§1.4 "Other
+  settings") — Repeat, Pinned events, and (organizer/admin only) Editing &
+  registration.
 - **Review** (`EventForm.tsx`): the read-only final page. It folds in the
   calendar preview Paper plus When / Location (In/Out-of-Camp badge + destination) /
-  Event Type / Organizer / Participants / Departments / Remarks rows, all
+  Event Type / Organizer / Participants / Departments / Description / Remarks rows
+  (the Remarks row only when the note is non-blank), all
   resolved from the same effective state the submit payload uses. The Participants
   row is the full attendee selection (an organizer who tagged themselves appears both as
   Organizer and among the participants — the current user's name there gets the same
-  amber `(You)` badge as on the Participants step). There are no per-section edit links on the review
-  page itself, but the bottom step strip (§1.4) jumps straight back to any earlier step
-  without walking.
+  amber `(You)` badge as on the Participants step). When this save **newly adds**
+  participants (a tag-level mirror of the server's notification diff — added users
+  and departments not on the stored event, the acting user never counted), a
+  **Notifications** section card closes the step with a "Notify participants" switch
+  (default on; §1.6 of [`event-notifications.md`](event-notifications.md)). With
+  nobody new there is nothing to switch off, so the card is omitted. There are no
+  per-section edit links on the review page itself, but the bottom step strip (§1.4)
+  jumps straight back to any earlier step without walking.
 
 ### 1.4.2 Deep links back to the event
 
@@ -560,12 +581,14 @@ department (and only the organizer/admin when the lock is on).
    half-of-day indicator is folded into the sort key (`YYYY-MM-DD AM` < `YYYY-MM-DD PM`,
    since the time part is always `00:00:00`), so same-day AM→PM is valid and PM→AM is not;
    for `range` the full naive strings compare. Violation → "End must be on or after
-   start". The wizard keeps both sides freely editable and syncs this error onto the
-   End control as soon as an edit inverts the pair; Next/Submit stay blocked until it
-   is fixed. The write path still clamps a bypassed submit via `clampEventEnd`.
+   start". The wizard never lets an edit reach this error: the untouched side snaps
+   onto the edited one (`syncTimeOrder`, §1.4.1), so the error only surfaces from the
+   time-option switch or a bypassed submit — which the write path still normalizes
+   via `clampEventEnd`.
 
 Deliberately **not** validated in `validateEventForm`: `title` (may be blank — the
-template produces the title), `eventType` (the wizard's custom gate covers it), invitee
+template produces the title), `remarks` (free-text note, no constraints),
+`eventType` (the wizard's custom gate covers it), invitee
 arrays, `ownerOnlyEdits`, `outOfCamp`, and `location` (policy clamping covers it, §1.9).
 An all-empty invitee selection is still rejected — after the effective-input
 resolution of the write chain (see docs/event-mutations.md) — so an event that would
@@ -641,6 +664,7 @@ The machine-readable state lives in the Google event **description**; the visibl
 | ----------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | `eventType`             | set                                                     | The type's name                                                                                                    |
 | `title`                 | always (even `""`)                                      | The raw pre-template description; a blank value round-trips to distinguish "no text typed" from legacy             |
+| `remarks`               | non-blank (trimmed)                                     | The organizer's internal note, mirrored here so editing prefills the Remarks field; its human copy is the plain text `withRemarks` writes above the `Edit:` line (§1.7.3) |
 | `eventId`               | always (app events)                                     | The logical group id shared by all department copies                                                               |
 | `createdBy`             | set                                                     | Organizer user id — fixed at creation to the acting user; NOT an attendee unless they tagged themselves            |
 | `inviteeUsers`          | non-empty                                               | Tagged attendee user ids (the event shows in each user's row; attendees can edit)                                  |
@@ -659,7 +683,7 @@ migration.
 
 | Version          | Description layout                                                                                           | When written                     |
 | ---------------- | ------------------------------------------------------------------------------------------------------------ | -------------------------------- |
-| **v3** (current) | `Edit: <url>` line, blank line, one **base64url(brotli(JSON))** block line, blank line, `Created in cloudy2` | every create/edit since Phase 2v |
+| **v3** (current) | remarks plain text (only when set), blank line, `Edit: <url>` line, blank line, one **base64url(brotli(JSON))** block line, blank line, `Created in cloudy2` | every create/edit since Phase 2v |
 | **v2**           | `Edit: <url>` line, blank line, one **raw JSON** line                                                        | intermediate era                 |
 | **v1**           | the description **is** the JSON object alone                                                                 | earliest era                     |
 
@@ -683,7 +707,8 @@ The write path assembles the description in `buildGcalEventInput`
 flowchart TB
  N["encodeEventNotes(fields)"] --> B["encodeNotesBlock (brotli + base64url)"]
  B --> E["withEditLink(block, url) — 'Edit: <url>' on top"]
- E --> M["withInternalMarker — 'Created in cloudy2' at the bottom"]
+ E --> R["withRemarks(…, remarks) — plain-text note on top"]
+ R --> M["withInternalMarker — 'Created in cloudy2' at the bottom"]
  M --> D["Google event description"]
 ```
 
@@ -694,6 +719,13 @@ eventId, calendarId)` (`notes.ts`) →
   details deep link (§1.4.2); each copy's link names its own calendar. The app
   origin comes from the request headers (`appBaseUrl`, `src/lib/appUrl.ts`), so the
   link is rebuilt on every create/edit and always points at the deployed app.
+- `withRemarks(description, remarks)` (`notes.ts`): the trimmed Remarks-field text at
+  the **very top**, one blank line clear of the `Edit:` line — the first thing a
+  calendar viewer reads. Blank remarks leave the description untouched (no empty
+  block). The text is **never parsed back**: the notes block carries the machine
+  copy (`EventNotes.remarks`), and `parseEventNotes` scans bottom-up, so the block
+  line is always found before anything written here is considered — even remarks
+  that look like JSON cannot shadow it.
 - `withInternalMarker` (`notes.ts`) appends `INTERNAL_EVENT_MARKER` =
   `"Created in cloudy2"` (`notes.ts`) one blank line below, never duplicated.
 - `isExternalEvent(description)` (`notes.ts`): external = **no marker AND no
@@ -710,14 +742,15 @@ All pure, all total (never throw, tolerate malformed values):
 | `parseEventPeople`                          | `{ eventId, creatorId, userIds, departmentIds }` — the identity used by copy reconciliation and the user filter |
 | `parseEventType`                            | type name or null                                                                                               |
 | `parseEventTitle`                           | raw description: `""` for a deliberately blank one, `null` for legacy (field absent)                            |
+| `parseEventRemarks`                         | the organizer's remarks; `""` when absent (legacy events and no-note events are indistinguishable)              |
 | `parseEventTimeOption`                      | `"range"` \| `"full"` \| null                                                                                   |
 | `parseEventStartAmPm` / `parseEventEndAmPm` | `"AM"` \| `"PM"` \| null                                                                                        |
 | `parseEventOutOfCamp`                       | `true` only when the flag is exactly `true`                                                                     |
 
 `mapCalendarItem` (`queries.ts`) wires these into the `CalendarEventPayload`
 (`queries.ts`), and the edit form reads them back (§1.4.2) — that is the full
-round-trip: raw text typed in Remarks is stored in notes `title` and prefilled on edit,
-so editing never re-types the templated calendar title.
+round-trip: raw text typed in Description/Remarks is stored in notes `title`/`remarks`
+and prefilled on edit, so editing never re-types the templated calendar title.
 
 ## 1.8 Title rendering
 
@@ -1140,9 +1173,9 @@ copies. It never writes to Google or the audit log — it only builds a link or 
 locally. Placement is branch-dependent:
 
 - **Editable branch** — the two exports ride inside the **More actions** menu (the copy
-  icon, `EventDetail.tsx`), collapsed together with the **Copy event** action so the action
-  row stays a single line of icon-only controls (Edit and Delete are icon-only too). The
-  **Share** icon sits immediately left of the menu.
+  icon, `EventDetail.tsx`), collapsed together with the **Duplicate Event** action so the
+  action row stays a single line of icon-only controls (Edit and Delete are icon-only
+  too). The **Share** icon sits immediately left of the menu.
 - **Read-only / view-only branches** — a standalone calendar-plus icon menu, since there
   is no "More actions" menu to host the exports; the **Share** icon sits left of it
   (except the read-only Double Booking surface, which has no share action).
@@ -1153,7 +1186,7 @@ locally. Placement is branch-dependent:
 
 The two menu items are:
 
-- **Add to Google Calendar** — a prefilled
+- **Copy to Other Google Calendar** — a prefilled
   `calendar.google.com/calendar/render?action=TEMPLATE` URL (`text`, `dates`, `location`,
   `details`), opened in a new tab; one save adds the personal copy.
 - **Download `.ics` file** — an RFC 5545 iCalendar file (`text/calendar`); the OS routes
@@ -1182,7 +1215,7 @@ writes, headers) is thin and lives in `actions.ts` / `queries.ts`.
 
 | Helper                                                                                                                                                                             | Module                                            | Tests                                       |
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------- |
-| `encodeEventNotes`, `parseEventNotes` (v1/v2/v3 + gzip fallback), `encodeNotesBlock`, `withEditLink`, `withInternalMarker`, `isExternalEvent`, `eventDetailUrl`, all field parsers | `events/notes.ts`                                 | `notes.test.ts`                             |
+| `encodeEventNotes`, `parseEventNotes` (v1/v2/v3 + gzip fallback), `encodeNotesBlock`, `withEditLink`, `withRemarks`, `withInternalMarker`, `isExternalEvent`, `eventDetailUrl`, all field parsers | `events/notes.ts`                                 | `notes.test.ts`, `eventNotes.test.ts`       |
 | `renderEventTitle`, `renderTitleRecipe`                                                                                                                                            | `events/eventTitle.ts`, `settings/titleRecipe.ts` | `eventAudit.test.ts`, `titleRecipe.test.ts` |
 | `sanitizeTitleRecipe`, recipe validation                                                                                                                                           | `settings/titleRecipe.ts`                         | `titleRecipe.test.ts`                       |
 | `normalizeAssignments` (whitelist keys, drop empties), `validateAssignments` (unknown ids) (§1.8.5)                                                                                | `settings/validate.ts`                            | `settings/validate.test.ts`                 |
@@ -1192,7 +1225,7 @@ writes, headers) is thin and lives in `actions.ts` / `queries.ts`.
 | `buildEventTypePickerSections` (groups in display order, empty-group skip, ungrouped last, dangling-id degrade), `sortEventTypeGroups`, `moveEventTypeGroupOrder` (§1.10)          | `eventTypes/groups.ts`                            | `groups.test.ts`                            |
 | `absEventRange` (timed + all-day exclusive end), naive↔instant, `weekDays`, `monthsInRange`, `shiftMonth`, `monthRange`, `monthGridRows`                                           | `events/datetime.ts`                              | `datetime.test.ts`                          |
 | `modifyGuard`, `canChangeLock`                                                                                                                                                     | `events/guards.ts`                                | `guards.test.ts`                            |
-| `validateEventForm` (range time-part requirement, chronology), `resolveEventAuthor`                                                                                                | `events/validate.ts`                              | `validate.test.ts`                          |
+| `validateEventForm` (range time-part requirement, chronology), `needsClamp`, `clampEventEnd` / `clampEventStart` (the edit-time snap pair), `resolveEventAuthor`                      | `events/validate.ts`                              | `validate.test.ts`                          |
 | `deriveTargetCalendarIds`, `diffEventTargets`, `dedupeEventsByGroupId`, `eventRefFromCalendarEvent`                                                                                | `events/targets.ts`                               | `targets.test.ts`                           |
 | `buildGoogleCalendarUrl`, `buildEventIcs`, `icsFileName` (§1.12)                                                                                                                   | `events/calendarExport.ts`                        | `calendarExport.test.ts`                    |
 

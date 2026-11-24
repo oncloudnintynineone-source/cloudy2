@@ -54,6 +54,12 @@ department *after* it was first tagged is not re-reported by a later unrelated
 edit, and re-saving an event never spams an already-tagged department's members.
 Removing then re-adding a user later *does* re-notify them.
 
+The wizard's review step carries a **Notify participants** switch (only when the
+save newly adds participants — §1.4.1 of [`event-lifecycle.md`](event-lifecycle.md));
+switching it off passes `{ notify: false }` into the action, which skips the
+dispatch entirely for that save (§1.6). The audit row records the skip
+(`notifications: "skipped"`, §1.9).
+
 ## 1.2 Channels & reachability
 
 Only **Web Push** is used (no email fallback):
@@ -136,12 +142,17 @@ dialog, which re-subscribes under the new key).
 
 Entry points — `src/lib/events/actions.ts`:
 
-- `createEvent`: after the copies are written, KAH/webhook/cache work and before
-  `revalidatePath`, calls `dispatchParticipantNotifications({ reason: "created",
-  before: null, after: effectiveInput people, … })`.
-- `updateEvent`: same site, `reason: "added"`, `before` = the ref's stored
-  people, `after` = the effective input people.
+- `createEvent(input, options?)`: after the copies are written, KAH/webhook/cache
+  work and before `revalidatePath`, calls `dispatchParticipantNotifications({
+  reason: "created", before: null, after: effectiveInput people, … })`.
+- `updateEvent(ref, input, scope?, options?)`: same site, `reason: "added"`,
+  `before` = the ref's stored people, `after` = the effective input people.
 - `deleteEvent`: no dispatch (deletion frees people).
+
+Both save actions take an `EventSaveOptions` (`{ notify?: boolean }`); every
+dispatch site above runs only when `options?.notify !== false` — the wizard's
+review-step switch off sends nothing (single-occurrence and "this and following"
+update scopes never notify regardless).
 
 `dispatchParticipantNotifications` (`src/lib/events/participantNotify/notify.ts`)
 registers one `after(async () => …)` and returns immediately. Inside:
@@ -236,6 +247,11 @@ Every send batch writes one `audit_logs` row (`event.participantNotify`):
 There is deliberately **no dedup table** (unlike KAH): the added-set diff makes
 re-saves of an unchanged participant set a no-op, so duplicates only arise from
 genuinely re-adding someone.
+
+A save submitted with the wizard's notify switch off writes **no**
+`event.participantNotify` row (nothing was dispatched); instead the event's own
+`event.create` / `event.update` audit `details` carry `notifications: "skipped"`
+so the deliberate silence is on record.
 
 ## 1.10 Platform notes & limits
 

@@ -36,13 +36,15 @@ import { ConfirmModal } from "@/components/ConfirmModal";
 import { RadioCardGroup, type RadioCardOption } from "@/components/RadioCardGroup";
 import { useActionPill } from "@/components/ActionPill";
 import { PickerBadges, type PickerBadgeItem } from "@/components/PickerField";
-import { deleteEvent, setEventRegistration, type EventActionOk, type EventMutationScope } from "@/lib/events/actions";
+import {
+  deleteEvent,
+  setEventRegistration,
+  type EventActionOk,
+  type EventMutationScope,
+} from "@/lib/events/actions";
 import { withTimeout } from "@/lib/async";
 import { buildEventIcs, buildGoogleCalendarUrl, icsFileName } from "@/lib/events/calendarExport";
-import type {
-  SeriesPrefillResult,
-  SeriesPrefillScope,
-} from "@/lib/events/seriesPrefill";
+import type { SeriesPrefillResult, SeriesPrefillScope } from "@/lib/events/seriesPrefill";
 import { subOneDay } from "@/lib/events/datetime";
 import { buildEventDeepLink } from "@/lib/events/deepLink";
 import { prefetchEventHistory } from "@/lib/events/historyCache";
@@ -53,7 +55,8 @@ import {
   optimisticRemove,
   type OptimisticRemoveOp,
 } from "@/lib/events/optimistic";
-import { eventRefFromCalendarEvent, type EventRef } from "@/lib/events/targets";import type { Rect } from "@/lib/motion/origin";
+import { eventRefFromCalendarEvent, type EventRef } from "@/lib/events/targets";
+import type { Rect } from "@/lib/motion/origin";
 import { popoverTransitionProps } from "@/lib/motion/transitions";
 import { useMotion } from "@/components/MotionProvider";
 import { capBadgeItems } from "@/lib/ui/badgeCap";
@@ -152,7 +155,11 @@ async function requestSeriesPrefill(
 export interface EventDetailProps {
   event: CalendarEvent | null;
   onClose: () => void;
-  onEdit: (event: CalendarEvent, originRect: Rect | null, scope?: EventMutationScope | null) => void;
+  onEdit: (
+    event: CalendarEvent,
+    originRect: Rect | null,
+    scope?: EventMutationScope | null,
+  ) => void;
   onDuplicate: (event: CalendarEvent, originRect: Rect | null) => void;
   onDeleted: () => void;
   /** Optimistic deletion: the row disappears on confirm, before the action returns. */
@@ -252,12 +259,11 @@ export function EventDetailBody({
   // modal via zIndex, replacing the old navigation to the history page).
   const [historyEventId, setHistoryEventId] = useState<string | null>(null);
   const [historyOrigin, setHistoryOrigin] = useState<Rect | null>(null);
-  // Participant/department chip caps (docs/ui-ux-improvements.md C6): a
-  // department-wide event used to paint a wall of chips that pushed the action
-  // row off-screen. Collapsed rows show `DETAIL_BADGE_CAP` chips (the signed-in
-  // user's chip pinned first) with the "+N" as the expand trigger.
-  const [peopleExpanded, setPeopleExpanded] = useState(false);
-  const [departmentsExpanded, setDepartmentsExpanded] = useState(false);
+  // Participant chip cap (docs/ui-ux-improvements.md C6): a department-wide
+  // event used to paint a wall of chips that pushed the action row off-screen.
+  // People and departments share this one row (they are one attendee list, not
+  // two sections), so one cap and one "+N" expand trigger cover both.
+  const [participantsExpanded, setParticipantsExpanded] = useState(false);
   // The share dialog (stacked at zIndex 300 like the history modal): holds the
   // event whose link is shown, null keeps it closed.
   const [shareEvent, setShareEvent] = useState<CalendarEvent | null>(null);
@@ -267,17 +273,14 @@ export function EventDetailBody({
   // the previous event for the exit frame.
   const [displayEvent, setDisplayEvent] = useState<CalendarEvent | null>(event);
   const [prevEvent, setPrevEvent] = useState<CalendarEvent | null>(event);
-  const eventKey = event
-    ? `${event.id}:${event.payload.originalStartTime ?? ""}`
-    : null;
+  const eventKey = event ? `${event.id}:${event.payload.originalStartTime ?? ""}` : null;
   const [prevEventKey, setPrevEventKey] = useState<string | null>(eventKey);
   if (event && event !== prevEvent) {
     setPrevEvent(event);
     setDisplayEvent(event);
     setRegistrationPatch(null);
     setShareEvent(null);
-    setPeopleExpanded(false);
-    setDepartmentsExpanded(false);
+    setParticipantsExpanded(false);
   }
   // Close the scope chooser only when the shown occurrence actually changes, not
   // when the same event object is refreshed with a new identity after a load.
@@ -350,19 +353,39 @@ export function EventDetailBody({
         .map((id) => calendarNames[id])
         .filter((name, index, all): name is string => Boolean(name) && all.indexOf(name) === index)
     : [];
-  // Capped chip rows (C6): the shared PickerBadges recipe with the signed-in
-  // user's chip pinned first, and the "+N" doubling as the expand trigger so
-  // the full list stays reachable without pushing the action row off-screen.
-  const peopleCap = capBadgeItems(peopleResolved, DETAIL_BADGE_CAP, (person) =>
-    person.id === currentUserId,
+  // One attendee row (C6, refined): people first, then departments, capped
+  // **together** with the signed-in user's chip pinned first. They are one
+  // attendee list, not two sections — the separate "Departments" heading made
+  // people hunt for participants in two places. The amber tint stays the only
+  // visual difference between the kinds (the same mapping the wizard's
+  // Participants step teaches), and every department chip names its kind to
+  // screen readers so the merged row never loses that information.
+  const participantItems: PickerBadgeItem[] = [
+    ...peopleResolved.map(({ id, name }) => ({
+      key: `user:${id}`,
+      label: name,
+      self: id === currentUserId,
+    })),
+    ...departmentNamesResolved.map((name) => ({
+      key: `dept:${name}`,
+      label: name,
+      color: "accent",
+      srSuffix: "department",
+    })),
+  ];
+  const participantsCap = capBadgeItems(
+    participantItems,
+    DETAIL_BADGE_CAP,
+    (item) => item.self === true,
   );
-  const peopleBadges: PickerBadgeItem[] = (
-    peopleExpanded ? peopleResolved : peopleCap.visible
-  ).map(({ id, name }) => ({ key: id, label: name, self: id === currentUserId }));
-  const departmentsCap = capBadgeItems(departmentNamesResolved, DETAIL_BADGE_CAP);
-  const departmentBadges: PickerBadgeItem[] = (
-    departmentsExpanded ? departmentNamesResolved : departmentsCap.visible
-  ).map((name) => ({ key: name, label: name, color: "accent" }));
+  const participantBadges = participantsExpanded ? participantItems : participantsCap.visible;
+  // The expand control's accessible name names the group it expands, so it
+  // reads correctly for a registration roster and for a mixed attendee list.
+  const participantGroup = registrationEnabled
+    ? "registrants"
+    : departmentNamesResolved.length > 0
+      ? "participants and departments"
+      : "participants";
   // Who may edit/delete/duplicate: admins always; otherwise the organizer, any
   // attendee, and active members of tagged departments — unless the organizer
   // locked the event to themselves (admins bypass the lock). Registration
@@ -621,295 +644,236 @@ export function EventDetailBody({
         animateHeight
         skeleton={<EventDetailSkeleton />}
       >
-          {showEvent && payload ? (
-            <Stack>
-              <Text fw={600}>{showEvent.title}</Text>
+        {showEvent && payload ? (
+          <Stack>
+            <Text fw={600}>{showEvent.title}</Text>
 
-              {payload.allDay ? (
-                <Text size="sm" c="dimmed">
-                  {formatDateTime(showEvent.start, true)}
-                  {endDisplay && endDisplay !== formatDateTime(showEvent.start, true)
-                    ? ` – ${endDisplay}`
-                    : ""}
-                </Text>
+            {payload.allDay ? (
+              <Text size="sm" c="dimmed">
+                {formatDateTime(showEvent.start, true)}
+                {endDisplay && endDisplay !== formatDateTime(showEvent.start, true)
+                  ? ` – ${endDisplay}`
+                  : ""}
+              </Text>
+            ) : (
+              <Text size="sm" c="dimmed">
+                {formatDateTime(showEvent.start, false)} – {endDisplay}
+              </Text>
+            )}
+
+            {(payload.recurrenceSummary || isRecurring) && (
+              <Group gap={6} wrap="wrap">
+                <Badge variant="light" color="brand">
+                  {payload.recurrenceSummary ?? "Repeats (custom)"}
+                </Badge>
+                {payload.occurrenceOverride && (
+                  <Badge variant="light" color="yellow">
+                    Modified occurrence
+                  </Badge>
+                )}
+              </Group>
+            )}
+
+            <Text size="xs" c="dimmed" fw={600}>
+              Location
+            </Text>
+            <Group gap={6} wrap="wrap" align="center">
+              {payload.outOfCamp ? (
+                <Badge variant="light" color="yellow">
+                  Out of Camp
+                </Badge>
               ) : (
+                <Badge variant="light" color="green">
+                  In Camp
+                </Badge>
+              )}
+              {payload.overseas && (
+                <Badge variant="light" color="blue">
+                  Overseas
+                </Badge>
+              )}
+              {payload.location && (
                 <Text size="sm" c="dimmed">
-                  {formatDateTime(showEvent.start, false)} – {endDisplay}
+                  {payload.location}
                 </Text>
               )}
+            </Group>
 
-              {(payload.recurrenceSummary || isRecurring) && (
+            <Text size="xs" c="dimmed" fw={600}>
+              Event Type
+            </Text>
+            <Group gap={6} wrap="wrap">
+              {payload.eventType && <Badge variant="light">{payload.eventType}</Badge>}
+              {registrationEnabled && (
+                <Badge variant="light" color="accent">
+                  Registration event
+                </Badge>
+              )}
+            </Group>
+
+            {payload.external && (
+              <Group gap={6} wrap="wrap">
+                <Badge variant="light" color="gray">
+                  External
+                </Badge>
+              </Group>
+            )}
+
+            {ownerName && (
+              <>
+                <Text size="xs" c="dimmed" fw={600}>
+                  Owner
+                </Text>
                 <Group gap={6} wrap="wrap">
                   <Badge variant="light" color="brand">
-                    {payload.recurrenceSummary ?? "Repeats (custom)"}
+                    {ownerName}
                   </Badge>
-                  {payload.occurrenceOverride && (
-                    <Badge variant="light" color="yellow">
-                      Modified occurrence
+                  {payload.ownerOnlyEdits && !registrationEnabled && (
+                    <Badge variant="light" color="red">
+                      Organizer-only editing
                     </Badge>
                   )}
                 </Group>
-              )}
+              </>
+            )}
 
-              <Text size="xs" c="dimmed" fw={600}>
-                Location
-              </Text>
-              <Group gap={6} wrap="wrap" align="center">
-                {payload.outOfCamp ? (
-                  <Badge variant="light" color="yellow">
-                    Out of Camp
-                  </Badge>
-                ) : (
-                  <Badge variant="light" color="green">
-                    In Camp
-                  </Badge>
-                )}
-                {payload.overseas && (
-                  <Badge variant="light" color="blue">
-                    Overseas
-                  </Badge>
-                )}
-                {payload.location && (
-                  <Text size="sm" c="dimmed">
-                    {payload.location}
-                  </Text>
-                )}
-              </Group>
-
-              <Text size="xs" c="dimmed" fw={600}>
-                Event Type
-              </Text>
-              <Group gap={6} wrap="wrap">
-                {payload.eventType && <Badge variant="light">{payload.eventType}</Badge>}
-                {registrationEnabled && (
-                  <Badge variant="light" color="accent">
-                    Registration event
-                  </Badge>
-                )}
-              </Group>
-
-              {payload.external && (
-                <Group gap={6} wrap="wrap">
-                  <Badge variant="light" color="gray">
-                    External
-                  </Badge>
-                </Group>
-              )}
-
-              {ownerName && (
-                <>
-                  <Text size="xs" c="dimmed" fw={600}>
-                    Owner
-                  </Text>
-                  <Group gap={6} wrap="wrap">
-                    <Badge variant="light" color="brand">
-                      {ownerName}
-                    </Badge>
-                    {payload.ownerOnlyEdits && !registrationEnabled && (
-                      <Badge variant="light" color="red">
-                        Organizer-only editing
-                      </Badge>
-                    )}
-                  </Group>
-                </>
-              )}
-
-              {(registrationEnabled ? registeredCount > 0 : peopleResolved.length > 0) ? (
-                <>
-                  <Text size="xs" c="dimmed" fw={600}>
-                    {registrationEnabled
-                      ? registrationCap !== null
-                        ? `Registered (${registeredCount} / ${registrationCap})`
-                        : `Registered (${registeredCount})`
-                      : "Participants"}
-                  </Text>
-                  <Stack gap={4}>
-                    <PickerBadges items={peopleBadges} />
-                    {peopleResolved.length > DETAIL_BADGE_CAP && (
-                      <Button
-                        variant="subtle"
-                        size="compact-xs"
-                        w="fit-content"
-                        aria-expanded={peopleExpanded}
-                        aria-label={
-                          peopleExpanded
-                            ? "Show fewer participants"
-                            : `Show all ${peopleResolved.length} participants`
-                        }
-                        onClick={() => setPeopleExpanded((value) => !value)}
-                      >
-                        {peopleExpanded ? "Show less" : `+${peopleCap.overflow}`}
-                      </Button>
-                    )}
-                  </Stack>
-                </>
-              ) : registrationEnabled ? (
-                <>
-                  <Text size="xs" c="dimmed" fw={600}>
-                    {registrationCap !== null
-                      ? `Registered (0 / ${registrationCap})`
-                      : "Registered (0)"}
-                  </Text>
-                  <Text size="sm" c="dimmed">
-                    No one has registered yet.
-                  </Text>
-                </>
-              ) : null}
-
-              {registrationEnabled && registrationCap !== null && (
+            {(registrationEnabled ? registeredCount > 0 : participantItems.length > 0) ? (
+              <>
+                <Text size="xs" c="dimmed" fw={600}>
+                  {registrationEnabled
+                    ? registrationCap !== null
+                      ? `Registered (${registeredCount} / ${registrationCap})`
+                      : `Registered (${registeredCount})`
+                    : "Participants"}
+                </Text>
                 <Stack gap={4}>
-                  <Progress
-                    value={Math.min(100, (registeredCount / registrationCap) * 100)}
-                    color={registrationAtCapacity ? "yellow" : "brand"}
-                    size="sm"
-                    aria-label={`${registeredCount} of ${registrationCap} registrations used`}
-                  />
-                  {registrationAtCapacity && (
-                    <Text size="xs" c="yellow.8">
-                      Registration is full ({registeredCount} / {registrationCap}).
-                    </Text>
-                  )}
-                </Stack>
-              )}
-
-              {!registrationEnabled && departmentNamesResolved.length > 0 && (
-                <>
-                  <Text size="xs" c="dimmed" fw={600}>
-                    Departments
-                  </Text>
-                  <Stack gap={4}>
-                    <PickerBadges items={departmentBadges} />
-                    {departmentNamesResolved.length > DETAIL_BADGE_CAP && (
-                      <Button
-                        variant="subtle"
-                        size="compact-xs"
-                        w="fit-content"
-                        aria-expanded={departmentsExpanded}
-                        aria-label={
-                          departmentsExpanded
-                            ? "Show fewer departments"
-                            : `Show all ${departmentNamesResolved.length} departments`
-                        }
-                        onClick={() => setDepartmentsExpanded((value) => !value)}
-                      >
-                        {departmentsExpanded ? "Show less" : `+${departmentsCap.overflow}`}
-                      </Button>
-                    )}
-                  </Stack>
-                </>
-              )}
-
-              {readOnly ? (
-                <Group justify="flex-end" gap="xs" mt="md">
-                  <AddToCalendarMenu event={showEvent} />
-                  {onOpenInCalendar && (
+                  <PickerBadges items={participantBadges} size="compact" />
+                  {participantItems.length > DETAIL_BADGE_CAP && (
                     <Button
-                      variant="light"
-                      size="md"
-                      leftSection={<IconCalendarEvent size={18} />}
-                      onClick={() => onOpenInCalendar(showEvent)}
+                      variant="subtle"
+                      size="compact-xs"
+                      w="fit-content"
+                      aria-expanded={participantsExpanded}
+                      aria-label={
+                        participantsExpanded
+                          ? `Show fewer ${participantGroup}`
+                          : `Show all ${participantItems.length} ${participantGroup}`
+                      }
+                      onClick={() => setParticipantsExpanded((value) => !value)}
                     >
-                      Open in calendar
+                      {participantsExpanded ? "Show less" : `+${participantsCap.overflow}`}
                     </Button>
                   )}
-                </Group>
-              ) : canModify ? (
-                <Stack gap="xs" mt="md">
-                  <Group justify="flex-end" gap="xs">
-                    {payload.eventId && (
-                      <ShareEventButton onClick={() => setShareEvent(showEvent)} />
-                    )}
-                    <EventActionsMenu event={showEvent} onDuplicate={onDuplicate} />
-                    {payload.eventId && (
-                      <Tooltip label="History" position="top">
-                        <ActionIcon
-                          variant="light"
-                          color="gray"
-                          size="xl"
-                          aria-label="View event history"
-                          onMouseEnter={() => {
-                            if (payload.eventId) {
-                              prefetchEventHistory(payload.eventId);
-                            }
-                          }}
-                          onClick={(event) => {
-                            setHistoryOrigin(event.currentTarget.getBoundingClientRect());
-                            setHistoryEventId(payload.eventId);
-                          }}
-                        >
-                          <IconHistory size={22} />
-                        </ActionIcon>
-                      </Tooltip>
-                    )}
-                    <Tooltip label="Edit" position="top">
+                </Stack>
+              </>
+            ) : registrationEnabled ? (
+              <>
+                <Text size="xs" c="dimmed" fw={600}>
+                  {registrationCap !== null
+                    ? `Registered (0 / ${registrationCap})`
+                    : "Registered (0)"}
+                </Text>
+                <Text size="sm" c="dimmed">
+                  No one has registered yet.
+                </Text>
+              </>
+            ) : null}
+
+            {registrationEnabled && registrationCap !== null && (
+              <Stack gap={4}>
+                <Progress
+                  value={Math.min(100, (registeredCount / registrationCap) * 100)}
+                  color={registrationAtCapacity ? "yellow" : "brand"}
+                  size="sm"
+                  aria-label={`${registeredCount} of ${registrationCap} registrations used`}
+                />
+                {registrationAtCapacity && (
+                  <Text size="xs" c="yellow.8">
+                    Registration is full ({registeredCount} / {registrationCap}).
+                  </Text>
+                )}
+              </Stack>
+            )}
+
+            {readOnly ? (
+              <Group justify="flex-end" gap="xs" mt="md">
+                <AddToCalendarMenu event={showEvent} />
+                {onOpenInCalendar && (
+                  <Button
+                    variant="light"
+                    size="md"
+                    leftSection={<IconCalendarEvent size={18} />}
+                    onClick={() => onOpenInCalendar(showEvent)}
+                  >
+                    Open in calendar
+                  </Button>
+                )}
+              </Group>
+            ) : canModify ? (
+              <Stack gap="xs" mt="md">
+                <Group justify="flex-end" gap="xs">
+                  {payload.eventId && <ShareEventButton onClick={() => setShareEvent(showEvent)} />}
+                  <EventActionsMenu event={showEvent} onDuplicate={onDuplicate} />
+                  {payload.eventId && (
+                    <Tooltip label="History" position="top">
                       <ActionIcon
                         variant="light"
                         color="gray"
                         size="xl"
-                        aria-label="Edit event"
-                        onClick={(e) => {
-                          if (isRecurring) {
-                            openEditScope();
-                            return;
+                        aria-label="View event history"
+                        onMouseEnter={() => {
+                          if (payload.eventId) {
+                            prefetchEventHistory(payload.eventId);
                           }
-                          onEdit(showEvent, e.currentTarget.getBoundingClientRect());
+                        }}
+                        onClick={(event) => {
+                          setHistoryOrigin(event.currentTarget.getBoundingClientRect());
+                          setHistoryEventId(payload.eventId);
                         }}
                       >
-                        <IconPencil size={22} />
+                        <IconHistory size={22} />
                       </ActionIcon>
                     </Tooltip>
-                    <Tooltip label="Delete" position="top">
-                      <ActionIcon
-                        variant="light"
-                        color="red"
-                        size="xl"
-                        aria-label="Delete event"
-                        onClick={() => {
-                          if (isRecurring) {
-                            setDeleteScope((current) =>
-                              editScopes.includes(current) ? current : (editScopes[0] ?? "single"),
-                            );
-                          }
-                          open();
-                        }}
-                      >
-                        <IconTrash size={22} />
-                      </ActionIcon>
-                    </Tooltip>
-                  </Group>
-                  {registrationAvailable && (
-                    <Stack gap={4}>
-                      <Button
-                        size="md"
-                        color={isRegistered ? "gray" : "brand"}
-                        variant={isRegistered ? "light" : "filled"}
-                        loading={registrationBusy}
-                        disabled={registrationFull}
-                        loaderProps={BUTTON_LOADER_PROPS}
-                        leftSection={
-                          isRegistered ? <IconUserMinus size={18} /> : <IconUserPlus size={18} />
-                        }
-                        onClick={handleRegistration}
-                      >
-                        {isRegistered ? "Deregister" : "Register"}
-                      </Button>
-                      {isRecurring && (
-                        <Text size="xs" c="dimmed">
-                          Registration applies to this event only. Other events in the series are
-                          unaffected.
-                        </Text>
-                      )}
-                    </Stack>
                   )}
-                </Stack>
-              ) : registrationAvailable ? (
-                <Stack gap="xs" mt="md">
-                  <Text size="xs" c="dimmed">
-                    This event is open for registration. Only the organizer and admins can edit it.
-                  </Text>
-                  <Group gap="xs">
+                  <Tooltip label="Edit" position="top">
+                    <ActionIcon
+                      variant="light"
+                      color="gray"
+                      size="xl"
+                      aria-label="Edit event"
+                      onClick={(e) => {
+                        if (isRecurring) {
+                          openEditScope();
+                          return;
+                        }
+                        onEdit(showEvent, e.currentTarget.getBoundingClientRect());
+                      }}
+                    >
+                      <IconPencil size={22} />
+                    </ActionIcon>
+                  </Tooltip>
+                  <Tooltip label="Delete" position="top">
+                    <ActionIcon
+                      variant="light"
+                      color="red"
+                      size="xl"
+                      aria-label="Delete event"
+                      onClick={() => {
+                        if (isRecurring) {
+                          setDeleteScope((current) =>
+                            editScopes.includes(current) ? current : (editScopes[0] ?? "single"),
+                          );
+                        }
+                        open();
+                      }}
+                    >
+                      <IconTrash size={22} />
+                    </ActionIcon>
+                  </Tooltip>
+                </Group>
+                {registrationAvailable && (
+                  <Stack gap={4}>
                     <Button
-                      flex="1"
                       size="md"
                       color={isRegistered ? "gray" : "brand"}
                       variant={isRegistered ? "light" : "filled"}
@@ -923,37 +887,63 @@ export function EventDetailBody({
                     >
                       {isRegistered ? "Deregister" : "Register"}
                     </Button>
-                    {payload.eventId && (
-                      <ShareEventButton onClick={() => setShareEvent(showEvent)} />
+                    {isRecurring && (
+                      <Text size="xs" c="dimmed">
+                        Registration applies to this event only. Other events in the series are
+                        unaffected.
+                      </Text>
                     )}
-                    <AddToCalendarMenu event={showEvent} />
-                  </Group>
-                  {isRecurring && (
-                    <Text size="xs" c="dimmed">
-                      Registration applies to this event only. Other events in the series are
-                      unaffected.
-                    </Text>
-                  )}
-                </Stack>
-              ) : (
-                <>
-                  <Text size="xs" c="dimmed" mt="xs">
-                    {registrationEnabled
-                      ? "Only the organizer can edit this event."
-                      : payload.ownerOnlyEdits && !isCreator
-                        ? "Only the organizer can edit this event."
-                        : "You can view this event but not edit it."}
+                  </Stack>
+                )}
+              </Stack>
+            ) : registrationAvailable ? (
+              <Stack gap="xs" mt="md">
+                <Text size="xs" c="dimmed">
+                  This event is open for registration. Only the organizer and admins can edit it.
+                </Text>
+                <Group gap="xs">
+                  <Button
+                    flex="1"
+                    size="md"
+                    color={isRegistered ? "gray" : "brand"}
+                    variant={isRegistered ? "light" : "filled"}
+                    loading={registrationBusy}
+                    disabled={registrationFull}
+                    loaderProps={BUTTON_LOADER_PROPS}
+                    leftSection={
+                      isRegistered ? <IconUserMinus size={18} /> : <IconUserPlus size={18} />
+                    }
+                    onClick={handleRegistration}
+                  >
+                    {isRegistered ? "Deregister" : "Register"}
+                  </Button>
+                  {payload.eventId && <ShareEventButton onClick={() => setShareEvent(showEvent)} />}
+                  <AddToCalendarMenu event={showEvent} />
+                </Group>
+                {isRecurring && (
+                  <Text size="xs" c="dimmed">
+                    Registration applies to this event only. Other events in the series are
+                    unaffected.
                   </Text>
-                  <Group justify="flex-end" gap="xs" mt="md">
-                    {payload.eventId && (
-                      <ShareEventButton onClick={() => setShareEvent(showEvent)} />
-                    )}
-                    <AddToCalendarMenu event={showEvent} />
-                  </Group>
-                </>
-              )}
-            </Stack>
-          ) : null}
+                )}
+              </Stack>
+            ) : (
+              <>
+                <Text size="xs" c="dimmed" mt="xs">
+                  {registrationEnabled
+                    ? "Only the organizer can edit this event."
+                    : payload.ownerOnlyEdits && !isCreator
+                      ? "Only the organizer can edit this event."
+                      : "You can view this event but not edit it."}
+                </Text>
+                <Group justify="flex-end" gap="xs" mt="md">
+                  {payload.eventId && <ShareEventButton onClick={() => setShareEvent(showEvent)} />}
+                  <AddToCalendarMenu event={showEvent} />
+                </Group>
+              </>
+            )}
+          </Stack>
+        ) : null}
       </CrossfadeSwap>
 
       {!readOnly && showEvent && (
@@ -971,9 +961,7 @@ export function EventDetailBody({
               label="Apply to"
               value={deleteScope}
               onChange={(value) => setDeleteScope(value as EventMutationScope)}
-              options={DELETE_SCOPE_OPTIONS.filter((option) =>
-                editScopes.includes(option.value),
-              )}
+              options={DELETE_SCOPE_OPTIONS.filter((option) => editScopes.includes(option.value))}
             />
           )}
         </ConfirmModal>
@@ -1053,7 +1041,7 @@ function CalendarExportMenuItems({ event }: { event: CalendarEvent }) {
         rel="noreferrer"
         leftSection={<IconBrandGoogle size={16} />}
       >
-        Add to Google Calendar
+        Copy to Other Google Calendar
       </Menu.Item>
       <Menu.Item onClick={() => downloadIcs(event)} leftSection={<IconDownload size={16} />}>
         Download .ics file
@@ -1102,10 +1090,10 @@ function ShareEventButton({ onClick }: { onClick: () => void }) {
 }
 
 /**
- * The editable modal's "More actions" menu: the Copy event action plus the two
- * personal-calendar exports, collapsed behind one icon so the action row stays
- * a single line. The duplicate origin rect comes from the clicked menu item, so
- * the wizard still grows out of where the tap landed.
+ * The editable modal's "More actions" menu: the **Duplicate Event** action plus
+ * the two personal-calendar exports, collapsed behind one icon so the action row
+ * stays a single line. The duplicate origin rect comes from the clicked menu
+ * item, so the wizard still grows out of where the tap landed.
  */
 function EventActionsMenu({
   event,
@@ -1129,7 +1117,7 @@ function EventActionsMenu({
           leftSection={<IconCopy size={16} />}
           onClick={(e) => onDuplicate(event, e.currentTarget.getBoundingClientRect())}
         >
-          Copy event
+          Duplicate Event
         </Menu.Item>
         <CalendarExportMenuItems event={event} />
       </Menu.Dropdown>

@@ -6,6 +6,7 @@ import {
   parseEventNotes,
   withEditLink,
   withInternalMarker,
+  withRemarks,
 } from "@/lib/events/notes";
 import {
   defaultMigrationRange,
@@ -121,6 +122,21 @@ describe("rewriteEventTypeNotes", () => {
     expect(result.description.startsWith(`Edit: ${EDIT_URL}`)).toBe(true);
     expect(result.description.endsWith("Created in cloudy2")).toBe(true);
     expect(parseEventNotes(result.description)?.eventType).toBe("New type");
+  });
+
+  it("preserves the plain-text remarks line above the edit link", () => {
+    const description = withRemarks(
+      v3Description({ eventType: "Old type", remarks: "Wear whites." }),
+      "Wear whites.",
+    );
+    const result = rewriteEventTypeNotes(description, "Old type", "New type");
+    expect(result.changed).toBe(true);
+    expect(result.description.startsWith("Wear whites.\n\nEdit: ")).toBe(true);
+    expect(result.description.endsWith("Created in cloudy2")).toBe(true);
+    expect(parseEventNotes(result.description)).toMatchObject({
+      eventType: "New type",
+      remarks: "Wear whites.",
+    });
   });
 
   it("rewrites the legacy JSON-only description (v1)", () => {

@@ -37,6 +37,7 @@ import {
   rewriteEventNotes,
   withEditLink,
   withInternalMarker,
+  withRemarks,
   type EventNotes,
 } from "@/lib/events/notes";
 import {
@@ -277,8 +278,12 @@ function buildGcalEventInput(
     ),
   );
   // The marker line at the bottom flags the event as created in the app, so
-  // externally created (Google-only) events can be told apart on read.
-  const description = withInternalMarker(withEditLink(block, editLink));
+  // externally created (Google-only) events can be told apart on read. The
+  // organizer's remarks ride on top as plain text (above the edit link), which
+  // is the only part of the description a calendar viewer is meant to read.
+  const description = withInternalMarker(
+    withRemarks(withEditLink(block, editLink), input.remarks ?? ""),
+  );
 
   const allDay = input.timeOption !== "range";
   const { start, end } = absEventRange(input.start, input.end, allDay);
@@ -392,6 +397,22 @@ async function findRepresentativeCopy(
 }
 
 /**
+ * Save-time options for the two mutating actions. Kept out of
+ * {@link EventFormValues} on purpose: these are about **this save**, not about
+ * the event, so they never round-trip through the notes block, the clash
+ * advisory or the optimistic preview.
+ */
+export interface EventSaveOptions {
+  /**
+   * Send the participant Web Push batch (newly included people only, never the
+   * actor). Absent or `true` = notify; `false` = the organizer turned
+   * notifications off for this save, which the audit row records as
+   * `notifications: "skipped"`.
+   */
+  notify?: boolean;
+}
+
+/**
  * The three mutations deliberately do **not** call `revalidatePath("/dashboard")`.
  * The dashboard route is a thin client shell that renders no event data — the
  * grid comes from the client's own `/api/dashboard/load` re-read after the
@@ -400,7 +421,10 @@ async function findRepresentativeCopy(
  * invalidation remains awaited inside the action so that re-read is fresh
  * (see docs/event-mutations.md §1.9).
  */
-export async function createEvent(input: EventFormValues): Promise<EventActionResult> {
+export async function createEvent(
+  input: EventFormValues,
+  options?: EventSaveOptions,
+): Promise<EventActionResult> {
   const session = await requireSession();
   // The organizer is always the acting session user — admins can no longer
   // create events on behalf of other users. Clamp end to start before
@@ -415,7 +439,10 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
   }
   // The server re-normalizes the rule (stale/tampered payloads), then every
   // subsequent step (notes, RRULE, audit, KAH look-ahead) sees the same object.
-  normalized = { ...normalized, recurrence: normalizeRecurrence(normalized.recurrence, normalized.start) };
+  normalized = {
+    ...normalized,
+    recurrence: normalizeRecurrence(normalized.recurrence, normalized.start),
+  };
 
   if (!googleCalendarConfigured()) {
     return { ok: false, error: "Google Calendar is not configured" };
@@ -566,6 +593,9 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
         ...snapshot,
         eventId,
         googleEventIds: created.map((copy) => copy.googleEventId),
+        // Flat and human-readable, like every other audit payload: the audit
+        // log can tell an organizer who opted out from a push that failed.
+        ...(options?.notify === false ? { notifications: "skipped" } : {}),
       },
     }),
     effectiveInput.recurrence
@@ -612,27 +642,30 @@ export async function createEvent(input: EventFormValues): Promise<EventActionRe
     });
   }
   // Notify everyone newly included in this event as a participant (best-effort
-  // Web Push via after(); the organizer/actor is never notified).
+  // Web Push via after(); the organizer/actor is never notified). The organizer
+  // can turn this off for the save from the wizard's review step.
   const notifyActor = actorFromSession(session);
-  dispatchParticipantNotifications({
-    actorId: notifyActor.actorId,
-    actorName: notifyActor.actorName,
-    actorRole: notifyActor.actorRole,
-    eventId,
-    description: effectiveInput.title,
-    title: renderedTitle,
-    eventType: effectiveInput.eventType,
-    location: effectiveInput.location,
-    timeParts: timePartsOf(effectiveInput),
-    reason: "created",
-    before: null,
-    after: {
-      inviteeUserIds: effectiveInput.inviteeUserIds,
-      inviteeDepartments: effectiveInput.inviteeDepartments,
-    },
-    copies: created.map(({ calendarId, googleEventId }) => ({ calendarId, googleEventId })),
-    baseUrl,
-  });
+  if (options?.notify !== false) {
+    dispatchParticipantNotifications({
+      actorId: notifyActor.actorId,
+      actorName: notifyActor.actorName,
+      actorRole: notifyActor.actorRole,
+      eventId,
+      description: effectiveInput.title,
+      title: renderedTitle,
+      eventType: effectiveInput.eventType,
+      location: effectiveInput.location,
+      timeParts: timePartsOf(effectiveInput),
+      reason: "created",
+      before: null,
+      after: {
+        inviteeUserIds: effectiveInput.inviteeUserIds,
+        inviteeDepartments: effectiveInput.inviteeDepartments,
+      },
+      copies: created.map(({ calendarId, googleEventId }) => ({ calendarId, googleEventId })),
+      baseUrl,
+    });
+  }
   return {
     ok: true,
     eventId,
@@ -651,6 +684,7 @@ export async function updateEvent(
   ref: EventRef,
   input: EventFormValues,
   scope?: EventMutationScope,
+  options?: EventSaveOptions,
 ): Promise<EventActionResult> {
   const session = await requireSession();
   // A client-supplied ref must never silently apply an edit to the wrong slice
@@ -703,10 +737,13 @@ export async function updateEvent(
 
   // "This event" and "this and following" both start from an occurrence; the
   // series range confirms the stored rule/participants authoritatively.
+  // Neither scope sends a participant push (docs/event-notifications.md §1.1),
+  // so `options.notify` only reaches the dispatch through the series path —
+  // including the split that collapses into a series edit below.
   if (scope === "single" || scope === "following") {
     return scope === "single"
       ? performSingleOccurrenceUpdate(session, ref, normalized)
-      : performFollowingUpdate(session, ref, normalized);
+      : performFollowingUpdate(session, ref, normalized, options);
   }
 
   // Series scope: resolve the parent so a client that only held an instance
@@ -758,6 +795,7 @@ export async function updateEvent(
     method: "updateEvent",
     mode: "update",
     scope,
+    notify: options?.notify,
   });
 }
 
@@ -780,6 +818,8 @@ interface PerformEventUpdateParams {
   scope?: EventMutationScope;
   /** Extra flat audit context (e.g. the registration intent). */
   extraAudit?: Record<string, unknown>;
+  /** Participant push for this save; `false` = the organizer opted out. */
+  notify?: boolean;
 }
 
 /**
@@ -799,6 +839,7 @@ async function performEventUpdate({
   mode,
   scope,
   extraAudit,
+  notify,
 }: PerformEventUpdateParams): Promise<EventActionResult> {
   const integration = await getGoogleIntegration();
   // Old targets come from the ref (its stored people); new targets from the
@@ -864,10 +905,7 @@ async function performEventUpdate({
   let baseUrl: string;
   let reads: { target: string; googleCalendarId: string | null; found: GcalEventItem[] }[];
   try {
-    [unionGoogleIds, baseUrl] = await Promise.all([
-      resolveGoogleCalendarIds(union),
-      appBaseUrl(),
-    ]);
+    [unionGoogleIds, baseUrl] = await Promise.all([resolveGoogleCalendarIds(union), appBaseUrl()]);
     // Read each target's copies concurrently — the reads are side-effect-free,
     // so a bounded batch collapses N serial `listEvents` round trips into ~one.
     reads = await mapWithConcurrency(union, 4, async (target) => {
@@ -922,8 +960,7 @@ async function performEventUpdate({
     const registrationChanged =
       parseEventRegistrationEnabled(firstCopy.description) !==
         (effectiveInput.registrationEnabled === true) ||
-      parseEventRegistrationCap(firstCopy.description) !==
-        (effectiveInput.registrationCap ?? null);
+      parseEventRegistrationCap(firstCopy.description) !== (effectiveInput.registrationCap ?? null);
     const patternChanged =
       ref.start !== effectiveInput.start ||
       ref.end !== effectiveInput.end ||
@@ -1093,6 +1130,7 @@ async function performEventUpdate({
         ...diffFields(before, after),
         eventId,
         ...(scope === "series" ? { seriesScope: "All events" } : {}),
+        ...(notify === false ? { notifications: "skipped" } : {}),
         ...(extraAudit ?? {}),
       },
     }),
@@ -1146,30 +1184,33 @@ async function performEventUpdate({
   }
   // Notify users newly added as participants by this edit (best-effort Web Push
   // via after(); never the acting user). A no-op participant change resolves to
-  // an empty added set inside the dispatch and sends nothing.
+  // an empty added set inside the dispatch and sends nothing. The organizer can
+  // turn the batch off for this save from the wizard's review step.
   const notifyActor = actorFromSession(session);
-  dispatchParticipantNotifications({
-    actorId: notifyActor.actorId,
-    actorName: notifyActor.actorName,
-    actorRole: notifyActor.actorRole,
-    eventId,
-    description: effectiveInput.title,
-    title: renderedTitle,
-    eventType: effectiveInput.eventType,
-    location: effectiveInput.location,
-    timeParts: timePartsOf(effectiveInput),
-    reason: "added",
-    before: {
-      inviteeUserIds: ref.inviteeUserIds,
-      inviteeDepartments: ref.inviteeDepartmentIds,
-    },
-    after: {
-      inviteeUserIds: effectiveInput.inviteeUserIds,
-      inviteeDepartments: effectiveInput.inviteeDepartments,
-    },
-    copies: liveCopies,
-    baseUrl,
-  });
+  if (notify !== false) {
+    dispatchParticipantNotifications({
+      actorId: notifyActor.actorId,
+      actorName: notifyActor.actorName,
+      actorRole: notifyActor.actorRole,
+      eventId,
+      description: effectiveInput.title,
+      title: renderedTitle,
+      eventType: effectiveInput.eventType,
+      location: effectiveInput.location,
+      timeParts: timePartsOf(effectiveInput),
+      reason: "added",
+      before: {
+        inviteeUserIds: ref.inviteeUserIds,
+        inviteeDepartments: ref.inviteeDepartmentIds,
+      },
+      after: {
+        inviteeUserIds: effectiveInput.inviteeUserIds,
+        inviteeDepartments: effectiveInput.inviteeDepartments,
+      },
+      copies: liveCopies,
+      baseUrl,
+    });
+  }
   return { ok: true, eventId, copies: liveCopies, scope };
 }
 
@@ -1184,9 +1225,7 @@ interface ResolvedParent {
 
 /** The parent copy's naive start (all-day inclusive convention for its end). */
 function parentStartNaive(item: GcalEventItem): string {
-  return item.allDay
-    ? `${utcToDateString(item.start)} 00:00:00`
-    : formatInstantToNaive(item.start);
+  return item.allDay ? `${utcToDateString(item.start)} 00:00:00` : formatInstantToNaive(item.start);
 }
 
 function parentEndNaive(item: GcalEventItem): string {
@@ -1255,10 +1294,7 @@ function sameRecurrence(a: RecurrenceRule | null, b: RecurrenceRule | null): boo
 }
 
 /** The series parent merge: presentation fields from the form, series fields stored. */
-function mergeSinglePresentation(
-  stored: EventFormValues,
-  input: EventFormValues,
-): EventFormValues {
+function mergeSinglePresentation(stored: EventFormValues, input: EventFormValues): EventFormValues {
   return {
     ...stored,
     title: input.title,
@@ -1286,11 +1322,7 @@ async function findOccurrenceInstances(params: {
     params.input
       ? unionRange(
           absEventRange(params.ref.start, params.ref.end, params.ref.allDay),
-          absEventRange(
-            params.input.start,
-            params.input.end,
-            params.input.timeOption !== "range",
-          ),
+          absEventRange(params.input.start, params.input.end, params.input.timeOption !== "range"),
         )
       : absEventRange(params.ref.start, params.ref.end, params.ref.allDay),
   );
@@ -1343,10 +1375,7 @@ function truncatedRecurrence(
   splitNaive: string,
 ): { lines: string[]; description: string; rule: RecurrenceRule } | null {
   const parsed = parseRRule(parent.recurrence);
-  const rule =
-    parsed.rule ??
-    parseEventRecurrence(parent.description) ??
-    null;
+  const rule = parsed.rule ?? parseEventRecurrence(parent.description) ?? null;
   if (!rule) {
     return null;
   }
@@ -1355,7 +1384,10 @@ function truncatedRecurrence(
     return null;
   }
   const next: RecurrenceRule = { ...rule, count: null, until };
-  const lines = [recurrenceToRRule(next, parentStartNaive(parent), parent.allDay), ...parsed.extraLines];
+  const lines = [
+    recurrenceToRRule(next, parentStartNaive(parent), parent.allDay),
+    ...parsed.extraLines,
+  ];
   const description = rewriteEventNotes(parent.description, (notes) => ({
     ...notes,
     recurrence: next,
@@ -1406,10 +1438,7 @@ async function performSingleOccurrenceUpdate(
   const effectiveInput = resolveEffectiveInput(merged, titleContext);
   const eventId = resolved.ref.eventId ?? ref.eventId ?? crypto.randomUUID();
   const targets = await refTargetCalendars(resolved.ref);
-  const [googleIds, baseUrl] = await Promise.all([
-    resolveGoogleCalendarIds(targets),
-    appBaseUrl(),
-  ]);
+  const [googleIds, baseUrl] = await Promise.all([resolveGoogleCalendarIds(targets), appBaseUrl()]);
   const namesPromise = Promise.all([
     calendarNames(targets),
     getUsersByIds([
@@ -1575,6 +1604,7 @@ async function performFollowingUpdate(
   session: Awaited<ReturnType<typeof requireSession>>,
   ref: EventRef,
   input: EventFormValues,
+  options?: EventSaveOptions,
 ): Promise<EventActionResult> {
   if (!ref.recurringEventId) {
     return { ok: false, error: "This event is not part of a repeating series" };
@@ -1599,7 +1629,8 @@ async function performFollowingUpdate(
   const integration = await getGoogleIntegration();
   const seriesStart = parentStartNaive(resolved.parent);
   const parentRule =
-    parseEventRecurrence(resolved.parent.description) ?? parseRRule(resolved.parent.recurrence).rule;
+    parseEventRecurrence(resolved.parent.description) ??
+    parseRRule(resolved.parent.recurrence).rule;
   if (!parentRule) {
     return {
       ok: false,
@@ -1622,7 +1653,9 @@ async function performFollowingUpdate(
   // Splitting at the first occurrence is the same as editing the whole series.
   const index = occurrenceIndex(parentRule, seriesStart, splitAt);
   if (index !== null && index <= 1) {
-    return updateEvent(resolved.ref, input, "series");
+    // This branch is the one place a "following" scope reaches the series
+    // pipeline, so it is also where the notify option carries over.
+    return updateEvent(resolved.ref, input, "series", options);
   }
 
   const inputRule = normalizeRecurrence(input.recurrence, input.start);
@@ -1651,7 +1684,9 @@ async function performFollowingUpdate(
     resolveGoogleCalendarIds([...new Set([...oldTargets, ...newTargets])]),
     appBaseUrl(),
   ]);
-  const oldRange = withMargin(absEventRange(seriesStart, parentEndNaive(resolved.parent), resolved.parent.allDay));
+  const oldRange = withMargin(
+    absEventRange(seriesStart, parentEndNaive(resolved.parent), resolved.parent.allDay),
+  );
   const splitDate = splitAt.slice(0, 10);
   const horizonEnd = addDays(seriesStart.slice(0, 10), 365 * EXCEPTION_SCAN_HORIZON_YEARS);
   const finiteEnd = lastOccurrence(parentRule, seriesStart);
@@ -1659,18 +1694,28 @@ async function performFollowingUpdate(
 
   // Read the old parents (series mode) and their future exceptions before any
   // write, so a failure leaves the original series untouched.
-  const oldReads: Array<{ target: string; googleCalendarId: string; parents: GcalEventItem[] }> = [];
-  const successorCreates: Array<{ target: string; googleCalendarId: string; googleEventId: string }> =
+  const oldReads: Array<{ target: string; googleCalendarId: string; parents: GcalEventItem[] }> =
     [];
+  const successorCreates: Array<{
+    target: string;
+    googleCalendarId: string;
+    googleEventId: string;
+  }> = [];
   try {
     for (const target of oldTargets) {
       const googleCalendarId = allGoogleIds[target];
       if (!googleCalendarId) {
         continue;
       }
-      const parents = await findCopies(googleCalendarId, resolved.ref.eventId ?? "", oldRange, null, {
-        parents: true,
-      });
+      const parents = await findCopies(
+        googleCalendarId,
+        resolved.ref.eventId ?? "",
+        oldRange,
+        null,
+        {
+          parents: true,
+        },
+      );
       oldReads.push({ target, googleCalendarId, parents });
     }
     // Create the successor in every new target first.
@@ -1707,7 +1752,9 @@ async function performFollowingUpdate(
     }
   } catch (error) {
     await Promise.allSettled(
-      successorCreates.map((copy) => integration.deleteEvent(copy.googleCalendarId, copy.googleEventId)),
+      successorCreates.map((copy) =>
+        integration.deleteEvent(copy.googleCalendarId, copy.googleEventId),
+      ),
     );
     return { ok: false, error: describeError(error, "Could not split the repeating event") };
   }
@@ -1721,9 +1768,7 @@ async function performFollowingUpdate(
         toNaive: exceptionEnd,
       });
       await Promise.allSettled(
-        exceptions.map((exception) =>
-          integration.deleteEvent(read.googleCalendarId, exception.id),
-        ),
+        exceptions.map((exception) => integration.deleteEvent(read.googleCalendarId, exception.id)),
       );
       for (const parent of read.parents) {
         const truncated = truncatedRecurrence(parent, splitAt);
@@ -1752,19 +1797,20 @@ async function performFollowingUpdate(
       action: AUDIT_ACTIONS.eventUpdate,
       entityType: "calendar",
       entityId: newTargets[0] ?? ref.calendarId,
-      entityName: renderEventTitle({
-        description: effectiveInput.title,
-        eventType: titleContext.eventType,
-        people: titleContext.people,
-        departments: titleContext.departments,
-        location: effectiveInput.location,
-        recipe: titleContext.recipe,
-        timeOption: effectiveInput.timeOption,
-        startTime: naiveTimePart(effectiveInput.start),
-        endTime: naiveTimePart(effectiveInput.end),
-        startAmPm: effectiveInput.startAmPm,
-        endAmPm: effectiveInput.endAmPm,
-      }) || "Untitled event",
+      entityName:
+        renderEventTitle({
+          description: effectiveInput.title,
+          eventType: titleContext.eventType,
+          people: titleContext.people,
+          departments: titleContext.departments,
+          location: effectiveInput.location,
+          recipe: titleContext.recipe,
+          timeOption: effectiveInput.timeOption,
+          startTime: naiveTimePart(effectiveInput.start),
+          endTime: naiveTimePart(effectiveInput.end),
+          startAmPm: effectiveInput.startAmPm,
+          endAmPm: effectiveInput.endAmPm,
+        }) || "Untitled event",
       method: "updateEvent",
       details: {
         eventId: ref.eventId,
@@ -1933,10 +1979,7 @@ async function setOccurrenceRegistration(
   }
   const eventId = resolved.ref.eventId ?? ref.eventId;
   const targets = await refTargetCalendars(resolved.ref);
-  const [googleIds, baseUrl] = await Promise.all([
-    resolveGoogleCalendarIds(targets),
-    appBaseUrl(),
-  ]);
+  const [googleIds, baseUrl] = await Promise.all([resolveGoogleCalendarIds(targets), appBaseUrl()]);
   const namesPromise = Promise.all([
     calendarNames(targets),
     getUsersByIds([
@@ -2277,9 +2320,7 @@ async function deleteSingleOccurrence(
   const snapshot = snapshotFromCopy(instanceRef, first, namesResolved, targets);
   const affected = [
     ...new Set(
-      targets
-        .map((target) => googleIds[target])
-        .filter((id): id is string => Boolean(id)),
+      targets.map((target) => googleIds[target]).filter((id): id is string => Boolean(id)),
     ),
   ];
   await Promise.all([
@@ -2345,7 +2386,8 @@ async function deleteFollowingOccurrence(
   const integration = await getGoogleIntegration();
   const seriesStart = parentStartNaive(resolved.parent);
   const parentRule =
-    parseEventRecurrence(resolved.parent.description) ?? parseRRule(resolved.parent.recurrence).rule;
+    parseEventRecurrence(resolved.parent.description) ??
+    parseRRule(resolved.parent.recurrence).rule;
   if (!parentRule) {
     return {
       ok: false,
@@ -2387,13 +2429,9 @@ async function deleteFollowingOccurrence(
       if (!googleCalendarId) {
         continue;
       }
-      const parents = await findCopies(
-        googleCalendarId,
-        eventId,
-        oldRange,
-        null,
-        { parents: true },
-      );
+      const parents = await findCopies(googleCalendarId, eventId, oldRange, null, {
+        parents: true,
+      });
       if (parents.length === 0) {
         continue;
       }
@@ -2544,9 +2582,7 @@ export async function deleteEvent(
   // deletes run.
   const namesPromise = Promise.all([
     calendarNames(targets),
-    getUsersByIds([
-      ...new Set([...(ref.creatorId ? [ref.creatorId] : []), ...ref.inviteeUserIds]),
-    ]),
+    getUsersByIds([...new Set([...(ref.creatorId ? [ref.creatorId] : []), ...ref.inviteeUserIds])]),
   ]).catch(() => null);
 
   // Read every target's copies concurrently (side-effect-free), then delete the
@@ -2643,10 +2679,7 @@ export async function deleteEvent(
     }),
     isSeries
       ? invalidateGcalCalendarCache([...affectedGoogleIds])
-      : invalidateGcalCache(
-          [...affectedGoogleIds],
-          monthsInRange(seriesRef.start, seriesRef.end),
-        ),
+      : invalidateGcalCache([...affectedGoogleIds], monthsInRange(seriesRef.start, seriesRef.end)),
     invalidatePinnedCache(),
   ]);
   dispatchEventWebhook({
