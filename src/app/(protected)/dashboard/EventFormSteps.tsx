@@ -144,6 +144,9 @@ export function EventFormSteps({
                 variant="subtle"
                 color="gray"
                 size="compact-sm"
+                // Touch-target floor (docs/accessibility.md §1.9): the quiet
+                // text stays, the hit row grows to 44px.
+                styles={{ root: { minHeight: "2.75rem" } }}
                 rightSection={<IconChevronUp size={14} />}
                 aria-label="View all event form steps"
               >
@@ -174,19 +177,53 @@ export function EventFormSteps({
           </Text>
         )}
       </Group>
-      <Stepper
-        active={step}
-        onStepClick={onJump}
-        allowNextStepsSelect
-        wrap={false}
-        size="sm"
-        iconSize={24}
-        styles={{ separator: { marginInline: 6 } }}
-      >
-        {steps.map((stepDef) => (
-          <Stepper.Step key={stepDef.id} aria-label={STEP_LABELS[stepDef.id]} />
-        ))}
-      </Stepper>
+      {variant === "guided" ? (
+        /* Phone/tablet guided strip: icon-only circles (the header names the
+           current step and the menu lists them all), each row a full 44px
+           touch target (docs/accessibility.md §1.9) — the 24px circle is the
+           glyph, not the target. The shared classes ride the same state
+           styling and dark-scheme ramp as the wide rail. */
+        <div
+          className="c2-wizard-guided-steps c2-wizard-guided-steps--icons"
+          role="group"
+          aria-label="Event form steps"
+        >
+          {steps.map((stepDef, index) => {
+            const active = index === step;
+            const completed = index < step;
+            return (
+              <UnstyledButton
+                key={stepDef.id}
+                type="button"
+                className="c2-wizard-guided-step"
+                data-active={active || undefined}
+                data-completed={completed || undefined}
+                aria-label={`Step ${index + 1} of ${steps.length}: ${STEP_LABELS[stepDef.id]}`}
+                aria-current={active ? "step" : undefined}
+                onClick={() => onJump(index)}
+              >
+                <span className="c2-wizard-guided-icon" aria-hidden>
+                  {completed ? <IconCheck size={12} /> : index + 1}
+                </span>
+              </UnstyledButton>
+            );
+          })}
+        </div>
+      ) : (
+        <Stepper
+          active={step}
+          onStepClick={onJump}
+          allowNextStepsSelect
+          wrap={false}
+          size="sm"
+          iconSize={24}
+          styles={{ separator: { marginInline: 6 } }}
+        >
+          {steps.map((stepDef) => (
+            <Stepper.Step key={stepDef.id} aria-label={STEP_LABELS[stepDef.id]} />
+          ))}
+        </Stepper>
+      )}
     </Stack>
   );
 }

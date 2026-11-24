@@ -903,6 +903,8 @@ admin's title template puts into the calendar title.") and **Remarks** → the n
 step renders **Repeat** / **Pinned events** / **Editing & registration** `WizardSection` cards.
 [`event-lifecycle.md`](event-lifecycle.md) §1.4/§1.4.1/§1.7.2–§1.7.4. §1.10.1. **Follow-up
 1.417** (D14): the remarks now also render in the details modal, with link previews.
+**Follow-up 1.419**: the step itself was renamed **Details** — it holds both fields (D15's
+keep-on-type-change work made the step's contents and its old name diverge further).
 
 ### 1.7.11 D14 — Remarks were write-only — the details modal never showed them
 
@@ -931,6 +933,147 @@ redirect hop and `og:image` through the SSRF safety module, bounds each fetch (5
 ≤ 3 hops, 256 KB, `text/html` only), caches per instance and per page load, and answers from a
 plain read route so it never queues behind a save. [`event-lifecycle.md`](event-lifecycle.md)
 §1.7.5. §1.10.1.
+
+### 1.7.12 D15 — Changing the event type silently destroyed entered Description, Remarks and Participants
+
+**Evidence.** Verified at 1.418: `handleEventTypeChange` cleared the title/remarks fields when
+the newly selected type hides the Details step and wiped every participant when invitees are
+off (`EventForm.tsx:1015-1026`), and enabling registration filtered tagged departments out of
+the form (`EventForm.tsx:2332-2337`). Because the step strip is a free jump (`goToStep`,
+`EventForm.tsx:833-840`), the sequence _fill Details → jump back to Type → switch type → text
+gone_ was reachable with no toast and no undo; a Full/Half Day round trip also reset the clock
+times to `00:00:00` (`EventForm.tsx:947-961`).
+
+**Impact.** Silent data loss mid-draft — the only destructive path in the wizard, and it fired
+on a plain settings change the user could not suspect.
+
+**Fix.** Keep every typed value in the form; mirror the server's field dropping client-side so
+preview, review, the notify diff and the payload all match what the save carries.
+
+**Effort.** S. **Respect.** `resolveEventFields` (`writeContext.ts`) stays the authority — the
+client mirror only decides what is _displayed and sent_, never what is stored.
+
+**Status.** Shipped **1.419** (2026-11-24): the clears are gone; `effectiveInviteeTags` /
+`effectiveFreeText` (`src/lib/events/effectiveFields.ts`, unit-tested) gate `previewTitles`,
+the review rows, the summary chips, the notify diff and `valuesToPayload`, so switching the
+type or the registration toggle back restores the full selection. Leaving `range` stores the
+timed span and returning restores it unless the user edited the zeroed times.
+[`event-lifecycle.md`](event-lifecycle.md) §1.4.1. §1.10.1.
+
+### 1.7.13 D16 — The required-participants rule surfaced only at submit, and Review hid the empty section
+
+**Evidence.** Verified at 1.418: the invitees step validated nothing on Next
+(`eventFormStepLogic.ts:33` — `fields: []`), the Review step rendered the Participants row only
+when non-empty (`EventForm.tsx:1679-1700`), and the rule fired as a red toast + bounce at
+submit (`EventForm.tsx:1316-1331`).
+
+**Impact.** The user read a clean Review — the empty section was simply absent — tapped
+"Create event", and got bounced; the one hard people rule was invisible until it failed.
+
+**Fix.** Gate the step walk, and never hide the row the rule governs.
+
+**Effort.** S. **Respect.** Registration events may legitimately start with an empty roster;
+the submit bounce stays as the strip-jump safety net.
+
+**Status.** Shipped **1.419** (2026-11-24): leaving the Participants step with zero tags sets
+an inline red error + `announce()` (`INVITEES_REQUIRED_ERROR`), cleared by any invitee edit;
+Review always shows the row — red "None yet — add at least one participant or department" when
+truly empty, dimmed "No registrants yet" on registration events, "—" when departments alone
+carry the event. §1.10.1.
+
+### 1.7.14 D17 — Review was read-only with no per-section edit affordance
+
+**Evidence.** Verified at 1.418: the definition rows were static caption+value pairs
+(`EventForm.tsx:1596-1603`); the only way back to a field was the step strip — 24px circles on
+phones (D18) or the Steps menu.
+
+**Impact.** Fixing one reviewed value meant re-orienting on the strip instead of tapping the
+thing you were looking at.
+
+**Fix.** Make each Review row tap-to-jump to its owning step; the step↔field mapping already
+existed (`STEP_BY_FIELD`, `steps.findIndex`).
+
+**Effort.** S. **Respect.** The Organizer row stays inert (the organizer is fixed); the 4px
+label recipe (C8) is unchanged.
+
+**Status.** Shipped **1.419** (2026-11-24): `reviewDef(label, node, jumpTo?)` wraps the row in
+a full-width `.c2-review-jump` button (`aria-label="Edit {label}"`, quiet hover fill, shared
+focus ring — the whole row is the target per [`accessibility.md`](accessibility.md) §1.9) that
+jumps to the owning step. §1.10.1.
+
+### 1.7.15 D18 — The phone step strip and compact inline controls fell under the 44px floor
+
+**Evidence.** Verified at 1.418 against [`accessibility.md`](accessibility.md) §1.9 (44×44):
+below 800px the locked `guided` strip rendered a Mantine `Stepper` with clickable 24px circles
+(`EventFormSteps.tsx:177-189`) beside a 32px "Steps · N/M" menu trigger (`:143-151`); the
+registration-cap steppers were 36px (`EventForm.tsx:2389-2424`), "Add myself" `compact-xs`
+(~26px, `:2002-2005`), and the clash-check Retry `compact-xs`
+(`EventClashCheck.tsx:228-236`).
+
+**Impact.** The primary step map on every phone was a fingertip miss, exactly the category
+§1.9 names ("compact inline controls whose whole hit area is the glyph itself").
+
+**Fix.** §1.9's row-wrapper recipe: grow the hit row, never the glyph.
+
+**Effort.** S. **Respect.** The locked `rail`/`classic` variants stay in code untouched.
+
+**Status.** Shipped **1.419** (2026-11-24): the phone guided strip now renders the shared
+`.c2-wizard-guided-steps` row as icon-only circles with full 44px rows
+(`--icons` modifier — the header line names the current step and the menu lists them all),
+riding the same state styling and dark-scheme ramp as the wide rail; the menu trigger, "Add
+myself" and the clash Retry get 44px hit rows; the cap steppers move to `size="lg"` (44px).
+§1.10.1.
+
+### 1.7.16 D19 — The offline line promised the draft survives reload
+
+**Evidence.** Verified at 1.418: "You're offline — your draft is saved."
+(`EventForm.tsx:2538-2545`) and a code comment claiming the draft "survives minimize and
+reload" (`:301-303`) — but `formState` is plain React state in `DashboardView`; grep-verified
+there is no localStorage/IndexedDB draft persistence, and
+[`event-lifecycle.md`](event-lifecycle.md) §1.4.3 documents minimize-only survival.
+
+**Impact.** The reassurance was false on precisely the retry an offline user reaches for — a
+reload — while the copy implied the work was safe.
+
+**Fix.** Say what is true (minimizing keeps the draft) and track real persistence separately.
+
+**Effort.** S. **Status.** Shipped **1.419** (2026-11-24): the line reads "You're offline —
+minimize to keep your draft. Reconnect to submit." (announce + comment aligned). Persistence is
+tracked as **D21** below. §1.10.1.
+
+### 1.7.17 D20 — Two bare-text empty states broke the actionable-EmptyState convention
+
+**Evidence.** Verified at 1.418: "No event types" (`EventForm.tsx:1817-1820`) and "No active
+users or departments to tag yet." (`EventForm.tsx:1997-1999`) were dimmed `Text` — the pattern
+AGENTS.md explicitly replaces with the shared `EmptyState` and role-aware actions.
+
+**Impact.** A staff user facing an unconfigured app saw a dead end with no named next step.
+
+**Effort.** S. **Respect.** No in-draft navigation on the participants step — leaving the
+wizard would lose the draft.
+
+**Status.** Shipped **1.419** (2026-11-24): both are shared `EmptyState`s — the type step is
+role-aware (admins get **Open Event Types** → `/settings/event-types`; staff are pointed at
+their admin), the invitees step names the admin path in its description. §1.10.1.
+
+### 1.7.18 D21 — The wizard draft does not survive a reload
+
+**Evidence.** Verified at 1.418: `formState` lives only in `DashboardView` React state; no
+storage persists it (grep-verified); minimizing keeps it alive (keepMounted), a reload — the
+natural offline retry — loses it. D19 fixed the copy that claimed otherwise; this is the real
+fix.
+
+**Impact.** A full draft typed on a phone is lost to a refresh, a crash, or the PWA document
+swap — the wizard's staged walk makes that draft longer than a single screen of typing.
+
+**Fix.** Snapshot the wizard (values + step + direction) to `localStorage` keyed by the
+existing per-form key, restore on mount, clear on save/discard; restore edge cases are the
+series scope and the duplicate prefill.
+
+**Effort.** M. **Respect.** The discard confirm and the draft chip stay the only ways to drop
+a draft; a restored draft must re-run the same effective-field gating as a fresh one.
+
+**Status.** **Tier 2** (added 2026-11-24).
 
 ## 1.8 Workflow level
 
@@ -1023,18 +1166,18 @@ Order is fixed; held items were removed without renumbering or re-ranking anythi
 
 ```mermaid
 flowchart TD
-  T1["Tier 1 — days, low risk<br/>B1 · B4"] --> T2["Tier 2 — a sprint<br/>B3 · B5"]
+  T1["Tier 1 — days, low risk<br/>B1 · B4"] --> T2["Tier 2 — a sprint<br/>B3 · B5 · D21"]
   T2 --> T3["Tier 3 — design-gated<br/>E3 · E6 hint"]
   T3 --> T4["Tier 4 — feature specs<br/>E1 · E4 · E6 sync"]
   H["Held — not scheduled<br/>A3 · A5 · A6 · B2 · D1 · D3 · D4 · E2 · E5"]
 ```
 
-| Tier                   | Items           | Why here                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| ---------------------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **1 — days, low risk** | B1, B4          | Missing-affordance and correctness fixes. Each is local, reversible, needs no schema or data change, and closes a gap the codebase already knows about (B1). A1/A2/A4, C1/C6 and D5/D6 left this tier shipped (§1.10.1), as did A7 — added and shipped at 1.403 — and A8/A9, added and shipped at 1.412. D8, added and shipped at 1.414, D9/D10, added and shipped at 1.415, and C7/D11/D12/D13, added and shipped at 1.416, never entered the tier table; nor did D14, added and shipped at 1.417, or C8, added and shipped at 1.418. |
-| **2 — a sprint**       | B3, B5          | Keyboard parity and the legibility floor. D2 shipped ahead of the tier (§1.10.1) **without** its shortcut section — fold that section in when B5 lands, per the original "B5 before D2" note. C2/C3/C4/C5 left this tier shipped (§1.10.1).                                                                                                                                                                                                                                                                                            |
-| **3 — design-gated**   | E3, E6-hint     | Advisory and messaging that must be designed against the clashes engine and attendance docs rather than bolted on.                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| **4 — feature work**   | E1, E4, E6-sync | Each needs its own spec, schema, and subsystem doc.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Tier                   | Items           | Why here                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ---------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **1 — days, low risk** | B1, B4          | Missing-affordance and correctness fixes. Each is local, reversible, needs no schema or data change, and closes a gap the codebase already knows about (B1). A1/A2/A4, C1/C6 and D5/D6 left this tier shipped (§1.10.1), as did A7 — added and shipped at 1.403 — and A8/A9, added and shipped at 1.412. D8, added and shipped at 1.414, D9/D10, added and shipped at 1.415, and C7/D11/D12/D13, added and shipped at 1.416, never entered the tier table; nor did D14, added and shipped at 1.417, or C8, added and shipped at 1.418, nor D15–D20, added and shipped at 1.419. |
+| **2 — a sprint**       | B3, B5, D21     | Keyboard parity, the legibility floor, and the wizard draft surviving a reload. D2 shipped ahead of the tier (§1.10.1) **without** its shortcut section — fold that section in when B5 lands, per the original "B5 before D2" note. C2/C3/C4/C5 left this tier shipped (§1.10.1).                                                                                                                                                                                                                                                                                               |
+| **3 — design-gated**   | E3, E6-hint     | Advisory and messaging that must be designed against the clashes engine and attendance docs rather than bolted on.                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| **4 — feature work**   | E1, E4, E6-sync | Each needs its own spec, schema, and subsystem doc.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 
 **Intra-tier notes.** C1 and C6 are independent of everything else.
 
@@ -1067,9 +1210,15 @@ land here.
 | C7  | 1.416 (2026-11-24)                                     | Event detail modal: Departments merged into one **Participants** list (people first, self pinned, then accent department chips with an sr-only "department" suffix) under one `capBadgeItems` cap + one "+N" (`aria-expanded`); read-only chips render as compact Badges (`PickerBadges size="compact"` — 36px `--c2-chip-height` now means tappable/removable, [`user-picker.md`](user-picker.md) §1.6); menu actions renamed **Duplicate Event** / **Copy to Other Google Calendar**. [`event-lifecycle.md`](event-lifecycle.md) §1.12.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | D11 | 1.416 (2026-11-24)                                     | Review-step **Notifications** card: **Notify participants** switch (default on) rendered only when the save adds participants — tag-level `addedParticipantCount` diff (invitee tags not on the event, excluding self); `EventSaveOptions { notify }` on `createEvent`/`updateEvent` skips the dispatch and records `notifications: "skipped"` in the audit row. [`event-notifications.md`](event-notifications.md) §1.1/§1.6/§1.9, [`event-mutations.md`](event-mutations.md) §1.4/§1.5/§1.8.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | D12 | 1.416 (2026-11-24)                                     | `syncTimeOrder` snaps the opposite side on edit — `clampEventStart` (new) mirrors `clampEventEnd` (`src/lib/events/validate.ts`, unit-tested), half-day options snap instead of erroring — with a dimmed one-liner in a motion-token `Collapse` + `announce()`; the ordering error remains only on time-option toggles and submit validation. [`event-lifecycle.md`](event-lifecycle.md) §1.4.1/§1.5.2.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| D13 | 1.416 (2026-11-24)                                     | Remarks step split: **Description** (the existing `title` field — what the title recipe puts into the calendar title) + new **Remarks** (plain text in the Google notes above the Edit link — notes v3 `withRemarks`/`parseEventRemarks`, round-trip-tested), each with a one-sentence helper; review step shows both rows; Other settings step grouped into `WizardSection` cards (Repeat / Pinned events / Editing & registration). [`event-lifecycle.md`](event-lifecycle.md) §1.4/§1.4.1/§1.7.2–§1.7.4.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| D13 | 1.416 (2026-11-24)                                     | Remarks step split: **Description** (the existing `title` field — what the title recipe puts into the calendar title) + new **Remarks** (plain text in the Google notes above the Edit link — notes v3 `withRemarks`/`parseEventRemarks`, round-trip-tested), each with a one-sentence helper; review step shows both rows; Other settings step grouped into `WizardSection` cards (Repeat / Pinned events / Editing & registration). [`event-lifecycle.md`](event-lifecycle.md) §1.4/§1.4.1/§1.7.2–§1.7.4; the step itself renamed **Details** at 1.419 (it holds both fields).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | D14 | 1.417 (2026-11-24)                                     | Details-modal **Remarks** section (`src/components/RichRemarks.tsx`): pre-wrap text, shortened tappable links, and up to 5 preview cards fading in from `POST /api/link-preview` — SSRF-gated per URL/hop/`og:image` (`src/lib/linkPreviews/safety.ts`), bounded fetch (5 s timeout, ≤ 3 re-gated hops, 256 KB, `text/html`), per-instance + per-page-load caches; failed links stay plain links. [`event-lifecycle.md`](event-lifecycle.md) §1.7.5.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | C8  | 1.418 (2026-11-24)                                     | Details-modal sections tightened: a local `DetailSection` (label + content in a 4px `Stack`) wraps Location, Event Type, Owner, Participants/Registered and Remarks — the label sits tight above its pills instead of floating a full 16px stack-gap away; between-section rhythm unchanged.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| D15 | 1.419 (2026-11-24)                                     | Type/registration changes keep every typed value: the destructive clears in `handleEventTypeChange` and the registration toggle are gone, and `effectiveInviteeTags`/`effectiveFreeText` (`src/lib/events/effectiveFields.ts`, unit-tested) mirror `resolveEventFields` across the title preview, review rows, summary chips, notify diff and `valuesToPayload`; a Full/Half Day round trip restores the saved clock times. [`event-lifecycle.md`](event-lifecycle.md) §1.4.1.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| D16 | 1.419 (2026-11-24)                                     | Participants rule moved early: leaving the step with zero tags (non-registration) sets an inline red error + `announce()` (cleared by any invitee edit via `setInvitees`), and Review always shows the row — red flag when empty, "No registrants yet" on registration events, "—" when departments alone carry the event; the submit bounce stays for strip jumps.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| D17 | 1.419 (2026-11-24)                                     | Review rows tap-to-jump: `reviewDef(label, node, jumpTo?)` wraps each row in a full-width `.c2-review-jump` button (`aria-label="Edit {label}"`, whole-row target) that jumps to the owning step; the Organizer row stays inert.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| D18 | 1.419 (2026-11-24)                                     | 44px floor restored on the wizard's compact controls: the phone guided strip renders the shared `.c2-wizard-guided-steps` row as icon-only circles with 44px rows (`--icons`), the Steps menu trigger / "Add myself" / clash Retry get 44px hit rows, and the registration-cap steppers move to `size="lg"`. [`accessibility.md`](accessibility.md) §1.9.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| D19 | 1.419 (2026-11-24)                                     | Offline copy tells the truth: "You're offline — minimize to keep your draft. Reconnect to submit." (line + `announce()` + comment); real persistence tracked as D21.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| D20 | 1.419 (2026-11-24)                                     | Both wizard empty states are shared `EmptyState`s: the type step is role-aware (admins get **Open Event Types** → `/settings/event-types`, staff are pointed at their admin), the invitees step names the admin path without navigating away from the draft.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 
 ## 1.11 Implementation guardrails
 
@@ -1118,29 +1267,31 @@ Every item above inherits these; they are the reason some obvious-looking fixes 
 
 ## 1.13 File index
 
-| Path                                                                 | Role for this research                                                                                |
-| -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `src/app/(protected)/dashboard/DashboardView.tsx`                    | A1, A4, B5, C6 context: chrome, navigation helpers, swipe refs                                        |
-| `src/app/(protected)/dashboard/EventDetailBody.tsx`                  | C6, C7, C8, D6, D14, E3                                                                               |
-| `src/components/RichRemarks.tsx` + `src/lib/linkPreviews/`           | D14 — remarks rendering + the bounded, SSRF-gated preview pipeline                                    |
-| `src/app/(protected)/dashboard/EventForm.tsx`                        | D11, D12, D13 — review-step notify switch, timestamp snap, Description/Remarks split + settings cards |
-| `src/lib/events/notes.ts`                                            | D13 — remarks in the notes-block v3 layout                                                            |
-| `src/app/(protected)/settings/SettingsTabs.tsx`                      | C1                                                                                                    |
-| `src/components/AppShellShell.tsx`                                   | `RailEdgeControl` recipe (C1), header controls                                                        |
-| `src/app/(protected)/contacts/ContactList.tsx`                       | C2                                                                                                    |
-| `src/app/(protected)/parade-state/ParadeStateView.tsx`               | C3, E6, the legend precedent                                                                          |
-| `src/app/(protected)/my-events/MyEventsView.tsx`                     | C4                                                                                                    |
-| `src/app/(protected)/settings/audit-log/AuditLogView.tsx`            | C5                                                                                                    |
-| `src/app/(protected)/kah-status/KahStatusView.tsx`                   | D8, D10                                                                                               |
-| `src/lib/events/clashDisplay.ts` + `src/lib/events/clashTimeline.ts` | D9, D10 — the shared clash display core                                                               |
-| `src/app/(protected)/double-booking/DoubleBookingView.tsx`           | D10 — episode filing + heading                                                                        |
-| `src/lib/kah/status.ts` + `src/lib/kah/range.ts`                     | D10 — `worstDate` on the breach episode                                                               |
-| `src/components/PreferencesModal.tsx`                                | D5, and the future home of any held preference                                                        |
-| `src/components/UserMenu.tsx`                                        | D2 host                                                                                               |
-| `src/app/globals.css`                                                | B1, B3, and the page-zoom / pull-to-refresh rules behind B2 and D4                                    |
-| `src/lib/theme.ts`                                                   | Schedule/Month hook classes for B1; breakpoints for every responsive change                           |
-| [`accessibility.md`](accessibility.md)                               | §1.7 chip contrast (B1), §1.8 page-zoom policy (B2/B3)                                                |
-| [`loading-transitions.md`](loading-transitions.md)                   | §1.2 non-goals that constrain every item                                                              |
-| [`action-pill.md`](action-pill.md)                                   | D6 boundary                                                                                           |
-| [`user-picker.md`](user-picker.md)                                   | §1.6 `PickerBadges` cap + chip-size rule (C6, C7)                                                     |
-| [`event-clashes.md`](event-clashes.md)                               | E3 engine reuse                                                                                       |
+| Path                                                                 | Role for this research                                                                                                                                                                                              |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/app/(protected)/dashboard/DashboardView.tsx`                    | A1, A4, B5, C6 context: chrome, navigation helpers, swipe refs                                                                                                                                                      |
+| `src/app/(protected)/dashboard/EventDetailBody.tsx`                  | C6, C7, C8, D6, D14, E3                                                                                                                                                                                             |
+| `src/components/RichRemarks.tsx` + `src/lib/linkPreviews/`           | D14 — remarks rendering + the bounded, SSRF-gated preview pipeline                                                                                                                                                  |
+| `src/app/(protected)/dashboard/EventForm.tsx`                        | D11, D12, D13, D15–D20 — review-step notify switch, timestamp snap, Description/Remarks split + settings cards, keep-on-type-change gating, early participants rule, tap-to-jump review, offline copy, empty states |
+| `src/lib/events/effectiveFields.ts`                                  | D15 — the client mirror of `resolveEventFields` (kept values, honest payload)                                                                                                                                       |
+| `src/app/(protected)/dashboard/EventFormSteps.tsx`                   | D18 — the phone guided strip (44px icon rows) and the step menu                                                                                                                                                     |
+| `src/lib/events/notes.ts`                                            | D13 — remarks in the notes-block v3 layout                                                                                                                                                                          |
+| `src/app/(protected)/settings/SettingsTabs.tsx`                      | C1                                                                                                                                                                                                                  |
+| `src/components/AppShellShell.tsx`                                   | `RailEdgeControl` recipe (C1), header controls                                                                                                                                                                      |
+| `src/app/(protected)/contacts/ContactList.tsx`                       | C2                                                                                                                                                                                                                  |
+| `src/app/(protected)/parade-state/ParadeStateView.tsx`               | C3, E6, the legend precedent                                                                                                                                                                                        |
+| `src/app/(protected)/my-events/MyEventsView.tsx`                     | C4                                                                                                                                                                                                                  |
+| `src/app/(protected)/settings/audit-log/AuditLogView.tsx`            | C5                                                                                                                                                                                                                  |
+| `src/app/(protected)/kah-status/KahStatusView.tsx`                   | D8, D10                                                                                                                                                                                                             |
+| `src/lib/events/clashDisplay.ts` + `src/lib/events/clashTimeline.ts` | D9, D10 — the shared clash display core                                                                                                                                                                             |
+| `src/app/(protected)/double-booking/DoubleBookingView.tsx`           | D10 — episode filing + heading                                                                                                                                                                                      |
+| `src/lib/kah/status.ts` + `src/lib/kah/range.ts`                     | D10 — `worstDate` on the breach episode                                                                                                                                                                             |
+| `src/components/PreferencesModal.tsx`                                | D5, and the future home of any held preference                                                                                                                                                                      |
+| `src/components/UserMenu.tsx`                                        | D2 host                                                                                                                                                                                                             |
+| `src/app/globals.css`                                                | B1, B3, and the page-zoom / pull-to-refresh rules behind B2 and D4                                                                                                                                                  |
+| `src/lib/theme.ts`                                                   | Schedule/Month hook classes for B1; breakpoints for every responsive change                                                                                                                                         |
+| [`accessibility.md`](accessibility.md)                               | §1.7 chip contrast (B1), §1.8 page-zoom policy (B2/B3)                                                                                                                                                              |
+| [`loading-transitions.md`](loading-transitions.md)                   | §1.2 non-goals that constrain every item                                                                                                                                                                            |
+| [`action-pill.md`](action-pill.md)                                   | D6 boundary                                                                                                                                                                                                         |
+| [`user-picker.md`](user-picker.md)                                   | §1.6 `PickerBadges` cap + chip-size rule (C6, C7)                                                                                                                                                                   |
+| [`event-clashes.md`](event-clashes.md)                               | E3 engine reuse                                                                                                                                                                                                     |

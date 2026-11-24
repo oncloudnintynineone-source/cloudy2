@@ -18,8 +18,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.418 (Details-modal sections tightened; "Optional —"
-  dropped from the Description/Remarks helpers)** is shipped.
+- All work through changelog **1.419 (Event wizard hardening — drafts survive type
+  changes, participants rule moved early, tap-to-jump Review)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -3051,6 +3051,24 @@ size="compact"`), and renames **Duplicate Event** / **Copy to Other Google
   helper lines drop their "Optional —" prefix (the fields are self-evidently
   optional). Pure structure + copy — no behavior change. Docs:
   `ui-ux-improvements.md` C8.
+- 1.419 **Event wizard hardening (findings D15–D20)**: switching the event type or the
+  registration toggle no longer destroys typed values — the clears in
+  `handleEventTypeChange`/the registration switch are gone and `effectiveInviteeTags`/
+  `effectiveFreeText` (`src/lib/events/effectiveFields.ts`, unit-tested) mirror
+  `resolveEventFields` across the title preview, review rows, summary chips, notify diff
+  and `valuesToPayload` (switching back restores the full draft); a Full/Half Day round
+  trip restores the saved clock times. The participants rule moved early: leaving the
+  step with zero tags (non-registration) blocks Next with an inline error + `announce()`,
+  and Review always shows the row (red flag / "No registrants yet" / "—"). Review rows
+  are tap-to-jump (`.c2-review-jump`, whole-row target; Organizer inert). The 44px floor
+  is restored on the phone step strip (guided strip now renders the shared
+  `.c2-wizard-guided-steps` row icon-only with 44px rows), the Steps menu trigger, "Add
+  myself", the clash Retry and the registration-cap steppers. The offline line tells the
+  truth ("minimize to keep your draft"; reload persistence tracked as D21, Tier 2), both
+  bare empty states became shared `EmptyState`s (type step role-aware, admin action →
+  Settings → Event Types), and the Remarks step is renamed **Details** (it holds
+  Description + Remarks). Docs: `ui-ux-improvements.md` D15–D21, `event-lifecycle.md`
+  §1.4/§1.4.1/§1.9.1, `accessibility.md` §1.9, `user-guide.md` §1.4.
 
 ## 1.4 Open items & next steps
 

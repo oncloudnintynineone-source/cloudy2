@@ -25,13 +25,16 @@ import { useMediaQuery } from "@mantine/hooks";
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
 import {
+  IconCalendarEvent,
   IconChevronLeft,
   IconChevronRight,
   IconCloudOff,
   IconUserMinus,
   IconUserPlus,
+  IconUsers,
 } from "@tabler/icons-react";
 
+import { EmptyState } from "@/components/EmptyState";
 import { PickerBadges, PickerField, type PickerBadgeItem } from "@/components/PickerField";
 import { NoKeyboardSelect } from "@/components/NoKeyboardSelect";
 import { EventTypeGroupGrid } from "@/components/EventTypeGroupGrid";
@@ -101,6 +104,7 @@ import {
   validateEventForm,
   type EventFormValues,
 } from "@/lib/events/validate";
+import { effectiveFreeText, effectiveInviteeTags } from "@/lib/events/effectiveFields";
 import type { CalendarEvent } from "@/lib/events/queries";
 import {
   renderTitleRecipe,
@@ -235,6 +239,13 @@ const STEP_BY_FIELD: Partial<Record<EventResultField | "registrationCap" | "recu
 const PICKER_DEPARTMENTS_SECTION = "Departments";
 
 /**
+ * The wizard's one hard people rule: every saved event must occupy someone.
+ * Surfaced when the user leaves the Participants step (and, as the strip-jump
+ * safety net, at submit) — never only at submit.
+ */
+const INVITEES_REQUIRED_ERROR = "Add at least one participant or department";
+
+/**
  * Bordered section card used by the Other settings and Review steps — the same
  * recipe as the review step's Calendar preview card (border + uppercase accent
  * caption), so every grouped block in the wizard reads as one family.
@@ -298,10 +309,12 @@ export function EventForm({
   const verticalSteps = wizardStepIndicator === "guided" && isDesktopWide;
   const { show: showActionPill } = useActionPill();
   // Offline (docs/ui-ux-improvements.md D7): the submit button goes
-  // unavailable with a one-line reason next to it — the draft already
-  // survives minimize and reload, so the work is never lost, only the write
-  // waits for the connection. Enhancement only: `navigator.onLine === false`
-  // is the conservative report, and the server stays the authority.
+  // unavailable with a one-line reason next to it — minimizing keeps the
+  // draft alive (a full reload still starts fresh; persisting the draft is
+  // backlog D21), so the work is not lost on the path the copy promises, and
+  // only the write waits for the connection. Enhancement only:
+  // `navigator.onLine === false` is the conservative report, and the server
+  // stays the authority.
   const offline = useIsOffline();
   // Motion cadence for the inline time-snap hint (docs/motion.md: no component
   // hardcodes a duration).
@@ -641,10 +654,17 @@ export function EventForm({
   // that no longer appear in the picker (e.g. now-inactive users) are kept so
   // editing can't silently drop them — see `mergeInviteeSelection`. The
   // organizer is NOT forced in: attendees are exactly what was picked.
+  /** Commit a new invitee tag list and clear a stale step-gate error. */
+  function setInvitees(next: string[]) {
+    form.setFieldValue("invitees", next);
+    if (form.errors.invitees) {
+      form.clearFieldError("invitees");
+    }
+  }
+
   function applyInviteePicker(values: Record<string, string[]>) {
     autoSeededSelfRef.current = false;
-    form.setFieldValue(
-      "invitees",
+    setInvitees(
       mergeInviteeSelection(
         inviteePickerGroups,
         form.values.invitees,
@@ -789,6 +809,10 @@ export function EventForm({
   // (edit/duplicate forms never auto-seed). Enabling registration clears that
   // seed; a list the user edited is left alone.
   const autoSeededSelfRef = useRef(!isEdit && templateEvent === null);
+  // The timed span saved when the time option leaves `range`, so switching to
+  // Full/Half Day and back restores the clock times instead of leaving the
+  // `00:00:00` the day-based options store (they never silently eat the edit).
+  const lastRangeTimesRef = useRef<{ start: string; end: string } | null>(null);
 
   // On a step change: reset the body scroll and announce the arrival through
   // the shell's polite live region (the step indicator alone is not enough for
@@ -865,6 +889,16 @@ export function EventForm({
         return;
       }
       form.clearFieldError("eventType");
+    } else if (currentStep.id === "invitees" && !registrationType) {
+      // Every saved event must occupy someone — say so when the user leaves
+      // the step, not only at submit (registration events may start with an
+      // empty roster; the submit bounce stays for strip jumps).
+      if (form.values.invitees.length === 0) {
+        form.setFieldError("invitees", INVITEES_REQUIRED_ERROR);
+        announce(INVITEES_REQUIRED_ERROR);
+        return;
+      }
+      form.clearFieldError("invitees");
     } else if (currentStep.fields.some((field) => form.validateField(field).hasError)) {
       return;
     }
@@ -941,24 +975,37 @@ export function EventForm({
   }
 
   function switchTimeOption(option: TimeOption) {
+    // Remember the timed span when leaving `range`, and restore it on the way
+    // back unless the user already edited the zeroed times in the meantime —
+    // a day-based round trip must not silently discard the clock times.
+    const leavingRange = option !== "range" && effectiveTimeOption === "range";
+    const returningToRange = option === "range" && effectiveTimeOption !== "range";
+    if (leavingRange) {
+      lastRangeTimesRef.current = { start: form.values.start, end: form.values.end };
+    }
+    const saved = returningToRange ? lastRangeTimesRef.current : null;
+    const restoreTimes =
+      saved !== null &&
+      form.values.start.endsWith("00:00:00") &&
+      form.values.end.endsWith("00:00:00");
+    const baseStart = restoreTimes ? saved.start : form.values.start;
+    const baseEnd = restoreTimes ? saved.end : form.values.end;
     form.setFieldValue("timeOption", option);
     // Day-based options store a bare `00:00:00` time part; compute the target
     // values up front (form.values is the pre-switch snapshot in this handler).
     const nextStart =
-      option !== "range" && form.values.start
-        ? `${form.values.start.slice(0, 10)} 00:00:00`
-        : form.values.start;
-    const nextEnd =
-      option !== "range" && form.values.end
-        ? `${form.values.end.slice(0, 10)} 00:00:00`
-        : form.values.end;
+      option !== "range" && baseStart ? `${baseStart.slice(0, 10)} 00:00:00` : baseStart;
+    const nextEnd = option !== "range" && baseEnd ? `${baseEnd.slice(0, 10)} 00:00:00` : baseEnd;
     if (option !== "range") {
-      if (form.values.start) {
+      if (baseStart) {
         form.setFieldValue("start", nextStart);
       }
-      if (form.values.end) {
+      if (baseEnd) {
         form.setFieldValue("end", nextEnd);
       }
+    } else if (restoreTimes) {
+      form.setFieldValue("start", nextStart);
+      form.setFieldValue("end", nextEnd);
     }
     // Default to an AM→PM span (a mixed span renders with no title marker).
     const nextStartAmPm = option === "half" ? form.values.startAmPm || "AM" : "";
@@ -1012,18 +1059,10 @@ export function EventForm({
     form.setFieldValue("outOfCamp", clamped.outOfCamp);
     form.setFieldValue("overseas", clamped.overseas);
     form.setFieldValue("location", clamped.location);
-    // A type with remarks disabled carries neither free-text field (mirrors
-    // resolveEventFields on the write path).
-    if (type && type.showRemarks === false) {
-      form.setFieldValue("title", "");
-      form.setFieldValue("remarks", "");
-    }
-    // A type with invitees disabled carries no attendees beyond the creator.
-    // Registration events always show participants, even if a stale flag says
-    // otherwise.
-    if (type && type.showInvitees === false && !form.values.registrationEnabled) {
-      form.setFieldValue("invitees", []);
-    }
+    // A type with remarks or invitees disabled stores neither field (mirrors
+    // resolveEventFields on the write path) — but the typed values STAY in the
+    // form so switching back restores them; `effectiveFreeText` /
+    // `effectiveInviteeTags` keep the preview, review and payload honest.
   }
 
   const peopleById = useMemo(
@@ -1044,9 +1083,30 @@ export function EventForm({
     () => Object.fromEntries(inviteeDepartments.map((dept) => [dept.id, dept.name])),
     [inviteeDepartments],
   );
-  // The currently selected attendees, for the invitee step's summary badges
-  // and the badge picker's draft seeding.
-  const selectedInvitees = splitInvitees(form.values.invitees);
+  // The organizer is never auto-added as a participant — {people} tokens and
+  // the review derive from the actual invitee selection. The tags the SAVE
+  // carries mirror the write path (`resolveEventFields`): registration events
+  // are person-only, and a type whose Participants step is hidden stores the
+  // organizer as its sole attendee (there is no step on which anyone could
+  // self-invite). The raw `form.values.invitees` keeps everything typed, so
+  // toggling registration or the type back restores the full selection.
+  const effectiveCreatorId = form.values.creatorId || currentUser;
+  const effectiveInvitees = effectiveInviteeTags({
+    invitees: form.values.invitees,
+    registrationType,
+    showInviteesStep,
+    creatorId: effectiveCreatorId,
+  });
+  // The free-text fields the save carries (a type with remarks disabled
+  // stores neither) — the form keeps the typed text for a switch back.
+  const effectiveText = effectiveFreeText({
+    title: form.values.title,
+    remarks: form.values.remarks,
+    showRemarksStep,
+  });
+  // The attendees the save carries, for the invitee step's summary badges, the
+  // notify diff and the review — everything the user can see matches the save.
+  const selectedInvitees = splitInvitees(effectiveInvitees);
   // The invitee step's summary badges, in display order: users first (the
   // creator in brand, the signed-in user as an amber "mine" badge, everyone
   // else default) then tagged departments in accent.
@@ -1099,18 +1159,6 @@ export function EventForm({
       (id) => !(isEdit && event ? event.payload.inviteeDepartmentIds : []).includes(id),
     ).length;
 
-  // The organizer is never auto-added as a participant — {people} tokens and
-  // the review derive from the actual invitee selection. The one exception: a
-  // type whose Participants step is hidden stores the organizer as its sole
-  // attendee (there is no step on which they could self-invite), so preview
-  // and review mirror the server's field collapse for those types.
-  const effectiveCreatorId = form.values.creatorId || currentUser;
-  const effectiveInvitees = showInviteesStep
-    ? form.values.invitees
-    : effectiveCreatorId
-      ? [`user:${effectiveCreatorId}`]
-      : [];
-
   // Live rendering of the exact title the server will write to Google, so the
   // user sees the final calendar summary (template tokens) before submitting.
   // Also show the per-view display title when it differs.
@@ -1120,13 +1168,13 @@ export function EventForm({
       .map((value) => value.slice("user:".length))
       .map((id) => peopleById[id])
       .filter((person): person is EventTitlePerson => Boolean(person));
-    const departments = form.values.invitees
+    const departments = effectiveInvitees
       .filter((value) => value.startsWith("dept:"))
       .map((value) => value.slice("dept:".length))
       .map((id) => departmentNames[id])
       .filter((name): name is string => Boolean(name));
     const input: EventTitleRecipeInput = {
-      description: form.values.title,
+      description: effectiveText.title,
       eventType: selectedType
         ? { name: selectedType.name, acronym: selectedType.shortname || selectedType.name }
         : null,
@@ -1171,7 +1219,7 @@ export function EventForm({
   })();
   const reviewDepartments = [
     ...new Set(
-      form.values.invitees
+      effectiveInvitees
         .filter((value) => value.startsWith("dept:"))
         .map((value) => departmentNames[value.slice("dept:".length)])
         .filter((name): name is string => Boolean(name)),
@@ -1225,10 +1273,22 @@ export function EventForm({
   // The exact payload a submit sends to create/update — reused verbatim by the
   // review-step clash check so the advisory reasons about the saved event.
   function valuesToPayload(values: EventFormState): EventFormValues {
-    const { invitees, ...rest } = values;
-    const { userIds, departmentIds } = splitInvitees(invitees);
+    const { invitees, title, remarks, ...rest } = values;
+    // The payload carries exactly what the server will store (the same drop
+    // `resolveEventFields` applies); the form keeps the raw values.
+    const { userIds, departmentIds } = splitInvitees(
+      effectiveInviteeTags({
+        invitees,
+        registrationType,
+        showInviteesStep,
+        creatorId: values.creatorId || currentUser,
+      }),
+    );
+    const text = effectiveFreeText({ title, remarks, showRemarksStep });
     return {
       ...rest,
+      title: text.title,
+      remarks: text.remarks,
       timeOption: effectiveTimeOption,
       startAmPm: effectiveTimeOption === "half" ? rest.startAmPm || "AM" : "",
       endAmPm: effectiveTimeOption === "half" ? rest.endAmPm || "PM" : "",
@@ -1305,7 +1365,7 @@ export function EventForm({
       // Offline: the disabled button already says why; this covers implicit
       // submission (Enter in a textbox) so no doomed write is even attempted.
       if (offline) {
-        announce("You're offline. Reconnect to submit — your draft is kept.");
+        announce("You're offline. Reconnect to submit — minimizing keeps your draft.");
         return;
       }
       const payload = valuesToPayload(values);
@@ -1319,10 +1379,7 @@ export function EventForm({
         payload.inviteeUserIds.length === 0 &&
         payload.inviteeDepartments.length === 0
       ) {
-        notifications.show({
-          color: "red",
-          message: "Add at least one participant or department",
-        });
+        notifications.show({ color: "red", message: INVITEES_REQUIRED_ERROR });
         const inviteesIndex = steps.findIndex((s) => s.id === "invitees");
         if (inviteesIndex >= 0) {
           goToStep(inviteesIndex);
@@ -1592,27 +1649,46 @@ export function EventForm({
   // Review-step definition rows: each is a caption + value pair. On the wide
   // modal (>= 800px viewport, lg host width) they reflow into a two-column
   // grid so the added width reads as structure — the calendar preview and
-  // clash check above stay full-width.
-  const reviewDef = (label: string, node: ReactNode) => (
-    <Stack gap={4}>
-      <Text size="xs" c="dimmed" fw={600}>
-        {label}
-      </Text>
-      {node}
-    </Stack>
-  );
+  // clash check above stay full-width. A row with a `jumpTo` step is the way
+  // back to its fields: the whole row is the target (quiet hover fill, shared
+  // focus ring — `.c2-review-jump`), so reviewing means tapping what changed,
+  // not hunting the step strip.
+  const reviewDef = (label: string, node: ReactNode, jumpTo?: StepId) => {
+    const body = (
+      <>
+        <Text size="xs" c="dimmed" fw={600}>
+          {label}
+        </Text>
+        {node}
+      </>
+    );
+    const target = jumpTo ? steps.findIndex((s) => s.id === jumpTo) : -1;
+    if (!jumpTo || target < 0) {
+      return <Stack gap={4}>{body}</Stack>;
+    }
+    return (
+      <UnstyledButton
+        type="button"
+        className="c2-review-jump"
+        aria-label={`Edit ${label}`}
+        onClick={() => goToStep(target)}
+      >
+        <Stack gap={4}>{body}</Stack>
+      </UnstyledButton>
+    );
+  };
   const reviewSections: Array<{ key: string; span: number; node: ReactNode }> = [
     {
       key: "when",
       span: 6,
-      node: reviewDef("When", <Text size="sm">{whenText || "—"}</Text>),
+      node: reviewDef("When", <Text size="sm">{whenText || "—"}</Text>, "time"),
     },
     ...(scope !== "single" && recurrence
       ? [
           {
             key: "repeat",
             span: 6,
-            node: reviewDef("Repeats", <Text size="sm">{recurrenceText}</Text>),
+            node: reviewDef("Repeats", <Text size="sm">{recurrenceText}</Text>, "settings"),
           },
         ]
       : []),
@@ -1638,6 +1714,7 @@ export function EventForm({
                   </Text>
                 )}
               </Group>,
+              "location",
             ),
           },
         ]
@@ -1656,6 +1733,7 @@ export function EventForm({
             </Text>
           )}
         </Group>,
+        "type",
       ),
     },
     {
@@ -1676,24 +1754,45 @@ export function EventForm({
         </Group>,
       ),
     },
-    ...(reviewPeople.length > 0
+    // The Participants row shows even when empty: on a normal event zero
+    // people is the one rule violation the review must FLAG (the step gate
+    // catches it on the walk; this catches strip jumps), while a registration
+    // event may legitimately start with an empty roster.
+    ...(showInviteesStep
       ? [
           {
             key: "people",
             span: 6,
             node: reviewDef(
               registrationType ? "Registered" : "Participants",
-              <Group gap={6} wrap="wrap">
-                {reviewPeople.map((person) => (
-                  <Badge
-                    key={person.id}
-                    variant="light"
-                    className={person.id === currentUser ? "c2-my-badge" : undefined}
-                  >
-                    {person.id === currentUser ? `${person.name} (You)` : person.name}
-                  </Badge>
-                ))}
-              </Group>,
+              reviewPeople.length > 0 ? (
+                <Group gap={6} wrap="wrap">
+                  {reviewPeople.map((person) => (
+                    <Badge
+                      key={person.id}
+                      variant="light"
+                      className={person.id === currentUser ? "c2-my-badge" : undefined}
+                    >
+                      {person.id === currentUser ? `${person.name} (You)` : person.name}
+                    </Badge>
+                  ))}
+                </Group>
+              ) : registrationType ? (
+                <Text size="sm" c="dimmed">
+                  No registrants yet
+                </Text>
+              ) : reviewDepartments.length > 0 ? (
+                // Departments alone satisfy the rule — the Departments row
+                // below names them; this row just has no people to show.
+                <Text size="sm" c="dimmed">
+                  —
+                </Text>
+              ) : (
+                <Text size="sm" c="red">
+                  None yet — add at least one participant or department
+                </Text>
+              ),
+              "invitees",
             ),
           },
         ]
@@ -1710,6 +1809,7 @@ export function EventForm({
                   ? `${selectedInvitees.userIds.length} / ${form.values.registrationCap}`
                   : `No limit (${selectedInvitees.userIds.length} registered)`}
               </Text>,
+              "settings",
             ),
           },
         ]
@@ -1728,6 +1828,7 @@ export function EventForm({
                   </Badge>
                 ))}
               </Group>,
+              "invitees",
             ),
           },
         ]
@@ -1742,6 +1843,7 @@ export function EventForm({
               <Text size="sm" style={{ overflowWrap: "anywhere", whiteSpace: "pre-wrap" }}>
                 {form.values.title.trim() || "—"}
               </Text>,
+              "remarks",
             ),
           },
         ]
@@ -1756,6 +1858,7 @@ export function EventForm({
               <Text size="sm" style={{ overflowWrap: "anywhere", whiteSpace: "pre-wrap" }}>
                 {form.values.remarks.trim()}
               </Text>,
+              "remarks",
             ),
           },
         ]
@@ -1784,6 +1887,7 @@ export function EventForm({
                   </Badge>
                 )}
               </Group>,
+              "settings",
             ),
           },
         ]
@@ -1815,9 +1919,16 @@ export function EventForm({
           >
             <Stack gap="xs">
               {sortedEventTypes.length === 0 ? (
-                <Text size="sm" c="dimmed">
-                  No event types
-                </Text>
+                <EmptyState
+                  icon={<IconCalendarEvent size={22} />}
+                  description={
+                    isAdmin
+                      ? "No event types exist yet. Add them in Settings → Event Types, then reopen the wizard."
+                      : "No event types exist yet. Ask an admin to add them in Settings → Event Types."
+                  }
+                  actionLabel={isAdmin ? "Open Event Types" : undefined}
+                  actionHref="/settings/event-types"
+                />
               ) : (
                 <>
                   {/* No "currently selected" banner: the chosen type is the one
@@ -1975,34 +2086,42 @@ export function EventForm({
               ) : (
                 <>
                   {inviteePickerGroups.length > 0 ? (
-                    <PickerField
-                      label={registrationType ? "Registered attendees" : "Participants"}
-                      description={
-                        registrationType
-                          ? "Starting roster for each occurrence. The organizer is not added automatically — add yourself only if you'll attend. People can register themselves for each occurrence; only you and admins can edit the series. Departments can't be tagged on registration events."
-                          : "Participants can edit this event too. You're in by default — remove yourself if you won't take part; an event must keep at least one participant or department"
-                      }
-                      items={inviteeSummaryItems}
-                      onRemove={(item) =>
-                        // One tap on a chip's ✕ un-tags that person or department —
-                        // the same prefixed key the dialog commits with.
-                        form.setFieldValue(
-                          "invitees",
-                          removeInvitee(form.values.invitees, item.key),
-                        )
-                      }
-                      onOpen={() => setInviteePickerOpen(true)}
-                    />
+                    <>
+                      <PickerField
+                        label={registrationType ? "Registered attendees" : "Participants"}
+                        description={
+                          registrationType
+                            ? "Starting roster for each occurrence. The organizer is not added automatically — add yourself only if you'll attend. People can register themselves for each occurrence; only you and admins can edit the series. Departments can't be tagged on registration events."
+                            : "Participants can edit this event too. You're in by default — remove yourself if you won't take part; an event must keep at least one participant or department"
+                        }
+                        items={inviteeSummaryItems}
+                        onRemove={(item) =>
+                          // One tap on a chip's ✕ un-tags that person or department —
+                          // the same prefixed key the dialog commits with.
+                          setInvitees(removeInvitee(form.values.invitees, item.key))
+                        }
+                        onOpen={() => setInviteePickerOpen(true)}
+                      />
+                      {form.errors.invitees && (
+                        <Text size="xs" c="red">
+                          {form.errors.invitees}
+                        </Text>
+                      )}
+                    </>
                   ) : (
-                    <Text size="sm" c="dimmed">
-                      No active users or departments to tag yet.
-                    </Text>
+                    <EmptyState
+                      icon={<IconUsers size={22} />}
+                      description="No active users or departments to tag yet. Ask an admin to add people in Settings → Users."
+                    />
                   )}
                   {peopleById[currentUser] && (
                     <Button
                       variant="subtle"
                       color="brand"
                       size="compact-xs"
+                      // Touch-target floor (docs/accessibility.md §1.9): the
+                      // compact glyph stays, the hit row grows to 44px.
+                      styles={{ root: { minHeight: "2.75rem" } }}
                       style={{ alignSelf: "flex-start" }}
                       leftSection={
                         selfIncluded ? (
@@ -2013,10 +2132,7 @@ export function EventForm({
                       }
                       onClick={() => {
                         autoSeededSelfRef.current = false;
-                        form.setFieldValue(
-                          "invitees",
-                          toggleInviteeUser(form.values.invitees, currentUser),
-                        );
+                        setInvitees(toggleInviteeUser(form.values.invitees, currentUser));
                       }}
                     >
                       {selfIncluded ? "Remove myself" : "Add myself"}
@@ -2045,7 +2161,7 @@ export function EventForm({
             <Stack gap="sm">
               <Textarea
                 label="Description"
-                description="The words your admin's title template puts into the calendar title."
+                description="Text in Event Title."
                 placeholder="Add a description"
                 autosize
                 minRows={2}
@@ -2055,7 +2171,7 @@ export function EventForm({
               />
               <Textarea
                 label="Remarks"
-                description="An internal note shown only in the event's Google Calendar notes."
+                description="Notes for the event. Support links/URLs."
                 placeholder="Add remarks"
                 autosize
                 minRows={2}
@@ -2329,12 +2445,11 @@ export function EventForm({
                           form.setFieldValue("registrationEnabled", checked);
                           if (checked) {
                             form.setFieldValue("ownerOnlyEdits", true);
-                            // Registration events are person-only; departments are
-                            // not participants and never count toward the cap.
-                            form.setFieldValue(
-                              "invitees",
-                              form.values.invitees.filter((value) => value.startsWith("user:")),
-                            );
+                            // Tagged departments STAY in the form (registration
+                            // is person-only on the save — `effectiveInviteeTags`
+                            // drops them there, like the write path), so
+                            // switching registration back off restores the
+                            // full selection instead of losing it silently.
                             // The organizer is not registered automatically.
                             if (
                               autoSeededSelfRef.current &&
@@ -2342,7 +2457,7 @@ export function EventForm({
                               form.values.invitees[0] === `user:${currentUser}`
                             ) {
                               autoSeededSelfRef.current = false;
-                              form.setFieldValue("invitees", []);
+                              setInvitees([]);
                             }
                           } else {
                             form.setFieldValue("registrationCap", null);
@@ -2386,10 +2501,12 @@ export function EventForm({
                                   )
                                 }
                               />
+                              {/* 44px (size lg) — the cap steppers are a primary
+                                  touch control (docs/accessibility.md §1.9). */}
                               <Group gap={6} grow>
                                 <Button
                                   variant="default"
-                                  size="sm"
+                                  size="lg"
                                   disabled={(form.values.registrationCap ?? 1) <= 1}
                                   aria-label="Decrease limit by 10"
                                   onClick={() => bumpRegistrationCap(-10)}
@@ -2398,7 +2515,7 @@ export function EventForm({
                                 </Button>
                                 <Button
                                   variant="default"
-                                  size="sm"
+                                  size="lg"
                                   disabled={(form.values.registrationCap ?? 1) <= 1}
                                   aria-label="Decrease limit by 1"
                                   onClick={() => bumpRegistrationCap(-1)}
@@ -2407,7 +2524,7 @@ export function EventForm({
                                 </Button>
                                 <Button
                                   variant="default"
-                                  size="sm"
+                                  size="lg"
                                   aria-label="Increase limit by 1"
                                   onClick={() => bumpRegistrationCap(1)}
                                 >
@@ -2415,7 +2532,7 @@ export function EventForm({
                                 </Button>
                                 <Button
                                   variant="default"
-                                  size="sm"
+                                  size="lg"
                                   aria-label="Increase limit by 10"
                                   onClick={() => bumpRegistrationCap(10)}
                                 >
@@ -2539,7 +2656,7 @@ export function EventForm({
         <Group className="c2-wizard-offline" gap={6} justify="center" wrap="nowrap">
           <IconCloudOff size={15} aria-hidden />
           <Text size="xs" c="dimmed">
-            You&apos;re offline — your draft is saved. Reconnect to submit.
+            You&apos;re offline — minimize to keep your draft. Reconnect to submit.
           </Text>
         </Group>
       )}

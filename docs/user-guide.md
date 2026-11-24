@@ -157,17 +157,19 @@ attend:
 4. **Participants** — invite individual users and/or tag whole departments; the event
    appears on everyone's calendars. Participants (and members of a tagged department)
    can edit this event too. You're pre-selected by default — remove yourself only if you
-   won't take part (an event must keep at least one participant or department). Your own
+   won't take part (an event must keep at least one participant or department — the
+   wizard says so when you press Next with an empty list). Your own
    badge carries an amber ring and a **(You)** marker wherever participants are listed —
    on this step, the review, and the event's details.
-5. **Remarks** — two optional fields: **Description** (the words your admin's title
+5. **Details** — two optional fields: **Description** (the words your admin's title
    template puts into the calendar title) and **Remarks** (an internal note shown only
    in the event's Google Calendar notes — never in the title).
 6. **Other settings** — in their own sections: **Repeat** (a recurring series),
    **Pinned events** (the **Pin this event** switch puts the event in the Pinned Events
    panel, §1.5) and — when you're the organizer — **Editing & registration**
    ("Only I can edit this event" locks editing to you; admins always keep it).
-7. **Review** — a summary with a live calendar-title preview; when this save adds new
+7. **Review** — a summary with a live calendar-title preview; tap any row to jump
+   straight back to the step that owns it. When this save adds new
    participants, a **Notify participants** switch lets you skip their browser
    notifications for this save. Then Create.
 

@@ -161,7 +161,7 @@ Dark mode follows the OS (`defaultColorScheme="auto"`, not a forced theme), so
 every themed surface resolves through Mantine's scheme-scoped CSS variables. For
 a custom colour that means the `light` variant's fill is `darken({c}-9, 0.5)` and
 the `filled` variant's fill is shade 8 — on the dark body (`dark-7 #242424`)
-both are near-black. The pale text *inside* such a badge passes comfortably
+both are near-black. The pale text _inside_ such a badge passes comfortably
 (8–16:1), but the badge's **boundary** against the surface around it drops to
 1.1–1.5:1, so event-info badges read as labels floating with no edge.
 `globals.css` restores the boundary; every rule is dark-only
@@ -169,17 +169,17 @@ both are near-black. The pale text *inside* such a badge passes comfortably
 
 Targets: text ≥ 4.5:1 (WCAG 1.4.3), component boundary ≥ 3:1 (WCAG 1.4.11).
 
-| Surface (dark scheme)                                                | Before                 | After                                | Rule                                                    |
-| -------------------------------------------------------------------- | ---------------------- | ------------------------------------ | ------------------------------------------------------- |
-| `variant="light"` badge (event detail, wizard, filters, pickers)     | 1.08–1.76:1 boundary   | 3.57–4.9:1 ring (fill untouched)     | `color-mix(currentColor 45%, transparent)` border        |
-| `variant="filled"` selected badge (brand-8 fill)                     | 1.45:1 boundary        | 4.95:1 ring                          | same rule, `[data-variant="filled"]`                     |
-| Event-type folder chip (outline, brand-4 text)                       | 4.28:1 text            | 6.52:1 text + border                 | `.c2-event-type-group-tile` → brand-3                    |
-| Guided step — current (brand-8 label/edge)                           | 1.45:1                 | 9.27:1; glyph 7.96:1                 | brand-2                                                  |
-| Guided step — completed (brand-0 label, brand-8 circle)              | 14.0:1 / 1.45:1 edge   | 6.52:1; glyph 5.59:1; edge 6.52:1    | brand-3                                                  |
-| Guided step — future (`dimmed`)                                      | 4.04:1                 | 4.67:1; ring 4.67:1                  | gray-6                                                   |
-| Step caption ("Step 3 of 7")                                         | 4.04:1                 | 7.48:1                               | `.c2-wizard-step-caption` (gray-6 light / gray-5 dark)   |
-| Guided step keyboard focus ring                                      | 1.45:1                 | 6.52:1                               | brand-3 `outline-color`                                  |
-| Guided step rail — connector (passed / ahead)                        | n/a (new rail)         | 6.52:1 / 4.67:1                      | brand-3 / gray-6 `::after`                               |
+| Surface (dark scheme)                                            | Before               | After                             | Rule                                                   |
+| ---------------------------------------------------------------- | -------------------- | --------------------------------- | ------------------------------------------------------ |
+| `variant="light"` badge (event detail, wizard, filters, pickers) | 1.08–1.76:1 boundary | 3.57–4.9:1 ring (fill untouched)  | `color-mix(currentColor 45%, transparent)` border      |
+| `variant="filled"` selected badge (brand-8 fill)                 | 1.45:1 boundary      | 4.95:1 ring                       | same rule, `[data-variant="filled"]`                   |
+| Event-type folder chip (outline, brand-4 text)                   | 4.28:1 text          | 6.52:1 text + border              | `.c2-event-type-group-tile` → brand-3                  |
+| Guided step — current (brand-8 label/edge)                       | 1.45:1               | 9.27:1; glyph 7.96:1              | brand-2                                                |
+| Guided step — completed (brand-0 label, brand-8 circle)          | 14.0:1 / 1.45:1 edge | 6.52:1; glyph 5.59:1; edge 6.52:1 | brand-3                                                |
+| Guided step — future (`dimmed`)                                  | 4.04:1               | 4.67:1; ring 4.67:1               | gray-6                                                 |
+| Step caption ("Step 3 of 7")                                     | 4.04:1               | 7.48:1                            | `.c2-wizard-step-caption` (gray-6 light / gray-5 dark) |
+| Guided step keyboard focus ring                                  | 1.45:1               | 6.52:1                            | brand-3 `outline-color`                                |
+| Guided step rail — connector (passed / ahead)                    | n/a (new rail)       | 6.52:1 / 4.67:1                   | brand-3 / gray-6 `::after`                             |
 
 Mechanics:
 
@@ -278,8 +278,12 @@ app ships its own zoom for the one dense surface that needs it. What remains:
 The app's minimum interactive target is **44×44 px** (WCAG 2.5.5 Target Size),
 measured on the control's own hit area rather than on its visible glyph. The
 fixed chrome already meets it — the mobile FAB row's 56px circles, the wizard's
-44px draft-bar/minimize controls (§1.6) and the 44px-tall rows of its ≥ 800px step
-rail, the 44px time-picker cells, the 36px
+44px draft-bar/minimize controls (§1.6), the 44px-tall rows of its ≥ 800px step
+rail and (since 1.419) of its phone step strip too (icon-only circles with full
+44px rows, `.c2-wizard-guided-steps--icons`), its tap-to-jump Review rows
+(`.c2-review-jump`, whole-row targets), its 44px registration-cap steppers and
+44px hit rows on the quiet compact buttons (Steps menu, "Add myself", clash
+Retry), the 44px time-picker cells, the 36px
 calendar-chrome `ActionIcon`s with their tap padding. What falls short are
 compact inline controls whose whole hit area is the glyph itself. The fix is
 never a bigger glyph: it is a **row-sized wrapper**, so the target grows without
@@ -288,8 +292,8 @@ the control changing shape.
 ### 1.9.1 Radio choice rows (`RadioCardGroup`)
 
 The calendar page's recurring-event dialogs (`EventDetailBody`: "Edit repeating
-event" / "Delete repeating event") offer *This event / This and following
-events / All events in the series*. They shipped as bare Mantine `Radio`s — a
+event" / "Delete repeating event") offer _This event / This and following
+events / All events in the series_. They shipped as bare Mantine `Radio`s — a
 20px indicator beside a 14px label, ~24px tall — which is a fingertip miss on a
 phone, and a miss in the delete dialog costs a re-opened confirmation. Each
 option is now a **full-width row** (`src/components/RadioCardGroup.tsx`): a
@@ -322,8 +326,8 @@ follow the same recipe instead of enlarging the glyph.
 | `src/components/AppShellShell.tsx`                | Skip link, `#main-content` target, announcer mount                |
 | `src/components/PinnedEventsTicker.tsx`           | Pinned-count aria-label; `aria-hidden` chip + rotating titles     |
 | `src/components/FilterButton.tsx`                 | Dynamic filter-count aria-label                                   |
-| `src/app/globals.css`                             | `.c2-sr-only` + `.c2-skip-link` styles, page-zoom `touch-action` |
-| `public/offline.html` · `public/loading.html`     | Same `touch-action` rule (documents outside the app's CSS)       |
+| `src/app/globals.css`                             | `.c2-sr-only` + `.c2-skip-link` styles, page-zoom `touch-action`  |
+| `public/offline.html` · `public/loading.html`     | Same `touch-action` rule (documents outside the app's CSS)        |
 | `src/app/(protected)/dashboard/DashboardView.tsx` | View/period/filter/zoom announcements                             |
 | `src/app/(protected)/dashboard/EventForm.tsx`     | Wizard step announcements                                         |
 | `src/app/(protected)/dashboard/EventDraftBar.tsx` | Minimized-draft bar + docked FAB-row chip, resume/discard targets |

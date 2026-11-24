@@ -48,7 +48,7 @@ export const STEP_LABELS: Record<StepId, string> = {
   time: "Time",
   location: "Location",
   invitees: "Participants",
-  remarks: "Remarks",
+  remarks: "Details",
   settings: "Other settings",
   review: "Review",
 };
@@ -59,7 +59,7 @@ export const STEP_SHORT_LABELS: Record<StepId, string> = {
   time: "Time",
   location: "Location",
   invitees: "Participants",
-  remarks: "Remarks",
+  remarks: "Details",
   settings: "Settings",
   review: "Review",
 };

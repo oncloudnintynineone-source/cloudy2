@@ -1484,6 +1484,15 @@ html.c2-low-end::view-transition-group(*) {
   outline-offset: 2px;
 }
 
+/* Phone/tablet guided strip: icon-only circles (the header line names the
+   current step, the step menu lists them all). Each row is a full 44px touch
+   target (docs/accessibility.md §1.9) — the 24px circle is the glyph, not the
+   target — and the circles spread evenly across the strip. */
+.c2-wizard-guided-steps--icons .c2-wizard-guided-step {
+  min-height: 44px;
+  justify-content: center;
+}
+
 /*
   Guided step strip — dark scheme. The rules above map each state onto a
   primary-colour variable, and in the dark scheme `--mantine-primary-color-*`
@@ -1608,6 +1617,28 @@ html.c2-low-end::view-transition-group(*) {
   scrollbar-width: thin;
 }
 
+/* Review-step rows that jump to their owning step (docs/ui-ux-improvements.md
+   D17): the whole row is the target (docs/accessibility.md §1.9), with a quiet
+   hover fill and the shared focus ring. The padding/negative-margin pair gives
+   the fill breathing room while keeping the label aligned with the non-jump
+   rows (Organizer). */
+.c2-review-jump {
+  display: block;
+  width: 100%;
+  text-align: start;
+  border-radius: var(--mantine-radius-sm);
+  padding: 6px 8px;
+  margin: -6px -8px;
+  transition: background-color 120ms ease;
+}
+.c2-review-jump:hover {
+  background: var(--mantine-color-default-hover);
+}
+.c2-review-jump:focus-visible {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: 2px;
+}
+
 /* Horizontal chip rows (the event-search recent-search pills): scroll the
    chips without showing a scrollbar so a long row stays a single finger-swipe.
    The row is the flex container itself (not a nested Group), and its chips never
@@ -1709,7 +1740,6 @@ html.c2-low-end::view-transition-group(*) {
 .c2-time-minutes > * {
   flex: 1 1 44px;
 }
-
 
 /* In dark mode the active tab's underline (a 2px border in --tabs-color,
    defaulting to --mantine-primary-color-filled = brand shade 8, a dark navy)
@@ -1962,9 +1992,7 @@ html.c2-low-end::view-transition-group(*) {
    At lg the pill is hidden and the page keeps the regular xl bottom padding
    (see the 40em block). */
 .settings-pill-page-pad {
-  padding-bottom: calc(
-    var(--settings-fab-bottom) + var(--c2-settings-pill-height, 58px) + 12px
-  );
+  padding-bottom: calc(var(--settings-fab-bottom) + var(--c2-settings-pill-height, 58px) + 12px);
 }
 
 /*

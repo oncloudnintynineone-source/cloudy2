@@ -132,8 +132,8 @@ its draft. It is a **staged walk** — one input group visible at a time, built 
 | 1   | `type`                      | all | custom: a type must be selected                                                                                                           |
 | 2   | `time`                      | all | `start`, `end`, `startAmPm`, `endAmPm` validate cleanly                                                                                   |
 | 3   | `location`                  | all | none (policy clamping is live, §1.9)                                                                                                      |
-| 4   | `invitees` (Participants)   | all | none                                                                                                                                      |
-| 5   | `remarks`                   | all | none — the **Description** + **Remarks** free-text fields (§1.4.1)                                                                        |
+| 4   | `invitees` (Participants)   | all | custom: at least one participant or department (registration events may start empty)                                                      |
+| 5   | `remarks` (Details)         | all | none — the **Description** + **Remarks** free-text fields (§1.4.1)                                                                        |
 | 6   | `settings` (Other settings) | all | none — Repeat controls, the "Pin this event" switch (+ its department picker), the organizer-only edit lock, each in its own section card |
 | 7   | `review`                    | all | submit only (last step) — read-only summary + the notify-participants switch when people are newly added                                  |
 
@@ -337,15 +337,22 @@ Mechanics worth knowing:
   `inviteeUserIds` / `inviteeDepartments` on submit (`splitInvitees`,
   `EventForm.tsx`). Every summary chip carries a ✕ that drops that person or
   department in place (`removeInvitee`) — no need to reopen the dialog, whose
-  confirm button now reads **Done** because it both adds and removes.
-- **Remarks** (`EventForm.tsx`): two autosize `Textarea`s, each with a one-sentence
-  description. **Description** binds to the form's `title` field — the **raw
+  confirm button now reads **Done** because it both adds and removes. Leaving the step
+  with an empty selection (non-registration) is blocked at **Next** with an inline red
+  error + `announce()` (cleared by any invitee edit); the submit bounce stays as the
+  step-strip-jump safety net. With no active users or departments to tag the step shows
+  the shared `EmptyState` pointing at Settings → Users.
+- **Details** (`EventForm.tsx`, step id `remarks`): two autosize `Textarea`s, each with a
+  one-sentence description. **Description** binds to the form's `title` field — the **raw
   description**; it is optional and the calendar title comes from the template (§1.8),
   exactly as the single field before it did. **Remarks** binds to the new `remarks`
   field — an internal note written as plain text at the top of the event's Google
   Calendar notes (§1.7.3) and mirrored in the notes block (§1.7.1); it never affects
-  the title or any template. A type with `show_remarks` off clears **both** fields
-  (`handleEventTypeChange` client-side, `resolveEventFields` on the write path).
+  the title or any template. A type with `show_remarks` off stores **neither** field —
+  the write path clears them (`resolveEventFields`) and the wizard mirrors that drop
+  client-side (`effectiveFreeText`, `effectiveFields.ts`) while **keeping the typed
+  values in the form**, so switching the type (or the registration toggle) back
+  restores the full draft instead of silently discarding it (1.419).
 - **Other settings** (`EventForm.tsx`): the section cards of the step (§1.4 "Other
   settings") — Repeat, Pinned events, and (organizer/admin only) Editing &
   registration.
@@ -361,9 +368,13 @@ Mechanics worth knowing:
   and departments not on the stored event, the acting user never counted), a
   **Notifications** section card closes the step with a "Notify participants" switch
   (default on; §1.6 of [`event-notifications.md`](event-notifications.md)). With
-  nobody new there is nothing to switch off, so the card is omitted. There are no
-  per-section edit links on the review page itself, but the bottom step strip (§1.4)
-  jumps straight back to any earlier step without walking.
+  nobody new there is nothing to switch off, so the card is omitted. Every row is
+  **tap-to-jump**: the whole row is a button (`aria-label="Edit {label}"`,
+  `.c2-review-jump`) that jumps to the step owning it — the Organizer row stays inert
+  (the organizer is fixed) — so Review doubles as a table of contents back into the
+  draft (1.419). The Participants row shows **even when empty**: a red "None yet — add
+  at least one participant or department" when the event would occupy nobody, a dimmed
+  "No registrants yet" on registration events, and "—" when departments alone carry it.
 
 ### 1.4.2 Deep links back to the event
 
@@ -956,9 +967,10 @@ matrix. Migration `0027` backfilled existing rows (`in`→`[in]`, `out`→`[out,
 Besides the location matrix, each event type carries three boolean toggles (edited in the
 event-type form, Settings → Event Types), all defaulting to `true`:
 
-- `event_types.show_remarks`: when off, the wizard's Remarks step is omitted and the
+- `event_types.show_remarks`: when off, the wizard's Details step is omitted and the
   server clears the description (`resolveEventFields` in `writeContext.ts`), so the title
-  template's other tokens supply the text.
+  template's other tokens supply the text; the wizard keeps the typed values in the form
+  and mirrors the drop in the payload (`effectiveFreeText`, §1.4.1).
 - `event_types.show_invitees`: when off, the wizard's Participants step is omitted
   and the server drops every attendee beyond the creator (`inviteeUserIds` collapses to
   the creator, `inviteeDepartments` empties), so `{people}` renders just the creator and

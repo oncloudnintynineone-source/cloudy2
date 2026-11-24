@@ -229,6 +229,9 @@ export function EventClashCheck({
             size="compact-xs"
             variant="subtle"
             color="gray"
+            // Touch-target floor (docs/accessibility.md §1.9): the quiet text
+            // stays, the hit row grows to 44px.
+            styles={{ root: { minHeight: "2.75rem" } }}
             leftSection={<IconRefresh size={12} />}
             onClick={() => setAttempt((value) => value + 1)}
           >
