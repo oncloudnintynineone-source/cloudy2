@@ -191,7 +191,11 @@ Participants and tagged departments share one **Participants** list; long lists 
 capped to five badges with a **+N** you can tap to see the rest — yours is always
 among the first five. When the organizer wrote **Remarks**, they appear below as
 rich text: links are tappable, and each linked page shows a small preview card
-(title, description, image) that loads in the background.
+(title, description, image) that loads in the background. Long remarks start
+collapsed (six lines and two cards) behind a **Show more** toggle. The action
+buttons — Share, the Copy menu, History, Edit, Delete, and **Register** on
+registration events — ride a frosted footer pinned to the bottom of the dialog,
+so they stay reachable no matter how much detail you are scrolling.
 
 ## 1.5 Pinned events
 

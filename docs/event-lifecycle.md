@@ -806,6 +806,12 @@ Rules:
   `og:image` hides itself (`referrerPolicy="no-referrer"`). The route is a plain
   read route, not a server action, so a background preview fetch can never queue
   ahead of the user's next save.
+- **Collapsed clamp** (D22, 1.420): while collapsed the section shows at most
+  **6 lines** of text and **2** cards, with a **Show more** toggle below —
+  measured (`scrollHeight > clientHeight`), so short remarks never grow the
+  toggle, and it resets when a different event opens. The full text stays one
+  tap away, and the sticky action footer (§1.12) keeps the actions reachable
+  while remarks scroll behind it.
 - The wizard and its review step keep showing remarks as plain text — previews are
   details-modal-only, and the stored text never carries markup.
 
@@ -1242,6 +1248,17 @@ locally. Placement is branch-dependent:
   full-width **Register / Deregister** button (the button stretches via `flex="1"` so the
   icon never wraps to a second line), with the **Share** icon between them.
 
+Whichever branch renders, the action row is a **sticky footer** (D22, 1.420): it rides
+`.c2-detail-footer`, pinned to the bottom of the modal's scrollport and wearing the
+app-wide frosted surface (`.c2-glass-surface`), so long details — remarks with preview
+cards, an expanded participant list — blur behind it as they scroll under instead of
+pushing Share/Edit/Delete/Register below the fold. The modal body's bottom padding is
+zeroed and the footer's negative inline margins bleed the glass flush to the dialog's
+edges (the Paper's radius clips its corners); the blur rides the shared `--c2g-*` tokens,
+so the locked translucency level, the dark scheme, the low-end tint-only tier and the
+`@supports` fallback all come free. **Register / Deregister** and **Open in calendar**
+are `lg` (44px, [`accessibility.md`](accessibility.md) §1.9).
+
 The two menu items are:
 
 - **Copy to Other Google Calendar** — a prefilled
@@ -1331,7 +1348,7 @@ limitations live in [`registration-events.md`](registration-events.md).
 | `src/lib/events/datetime.ts`                      | UTC+8 datetime math (pure)                                                                |
 | `src/lib/events/calendarExport.ts`                | Add-to-calendar builders: Google template URL + `.ics` (pure, §1.12)                      |
 | `src/lib/linkPreviews/`                           | Remarks link previews: extract/safety/parse (pure) + bounded fetcher (§1.7.5)             |
-| `src/components/RichRemarks.tsx`                  | Details-modal remarks renderer: links + preview cards (§1.7.5)                            |
+| `src/components/RichRemarks.tsx`                  | Details-modal remarks renderer: links + preview cards + collapsed clamp (§1.7.5)          |
 | `src/app/api/link-preview/route.ts`               | `POST /api/link-preview` — authenticated preview fan-out read route (§1.7.5)              |
 | `src/lib/events/guards.ts`                        | Creator/ownership guards (pure)                                                           |
 | `src/lib/events/validate.ts`                      | Form validation + creator normalization (pure)                                            |

@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Anchor, Group, Paper, Stack, Text } from "@mantine/core";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Anchor, Button, Group, Paper, Stack, Text } from "@mantine/core";
 import { postJson } from "@/lib/api/client";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
 import { extractPreviewUrls, splitRemarksUrls } from "@/lib/linkPreviews/extract";
@@ -18,7 +18,18 @@ import type { LinkPreview, LinkPreviewEntry } from "@/lib/linkPreviews/types";
  * when it arrives (or never — offline, unsafe or meta-less links simply keep
  * their plain links). Previews are cached per page load, so reopening a
  * modal costs no request.
+ *
+ * Long remarks are clamped (docs/ui-ux-improvements.md D22): the text shows
+ * at most {@link REMARKS_LINE_CLAMP} lines and at most
+ * {@link PREVIEW_CARD_CAP} cards until **Show more** — the details modal's
+ * action footer is sticky, but a wall of remarks still buries everything else
+ * on the one surface the user came to read.
  */
+
+/** Lines of remarks text shown while collapsed. */
+const REMARKS_LINE_CLAMP = 6;
+/** Preview cards shown while collapsed. */
+const PREVIEW_CARD_CAP = 2;
 
 /** Per-page-load preview cache (null = fetched and failed; never retried). */
 const previewCache = new Map<string, LinkPreview | null>();
@@ -35,6 +46,24 @@ export function RichRemarks({ text }: { text: string }) {
   // Re-render trigger once the module cache fills (the cache itself is read
   // directly during render, so no state mirrors it).
   const [, setCacheVersion] = useState(0);
+  // Collapsed by default (D22); a new event's remarks start collapsed too —
+  // the modal is keepMounted, so the reset rides the text change in render.
+  const [expanded, setExpanded] = useState(false);
+  const [prevText, setPrevText] = useState(text);
+  if (text !== prevText) {
+    setPrevText(text);
+    setExpanded(false);
+  }
+  // The toggle only earns its place when the clamped text actually clips —
+  // measured, not guessed from length (wrapping depends on the modal width).
+  const textRef = useRef<HTMLParagraphElement>(null);
+  const [clipped, setClipped] = useState(false);
+  useEffect(() => {
+    const el = textRef.current;
+    if (el) {
+      setClipped(el.scrollHeight > el.clientHeight + 1);
+    }
+  }, [text, expanded]);
 
   useEffect(() => {
     const missing = urls.filter((url) => !previewCache.has(url));
@@ -78,10 +107,17 @@ export function RichRemarks({ text }: { text: string }) {
   const previews = urls
     .map((url) => previewCache.get(url))
     .filter((preview): preview is LinkPreview => Boolean(preview));
+  const visiblePreviews = expanded ? previews : previews.slice(0, PREVIEW_CARD_CAP);
+  const overflowCards = previews.length - visiblePreviews.length;
 
   return (
     <Stack gap="xs">
-      <Text size="sm" style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
+      <Text
+        size="sm"
+        ref={textRef}
+        lineClamp={expanded ? undefined : REMARKS_LINE_CLAMP}
+        style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}
+      >
         {segments.map((segment, index) =>
           segment.kind === "link" ? (
             <Anchor
@@ -99,12 +135,24 @@ export function RichRemarks({ text }: { text: string }) {
           ),
         )}
       </Text>
-      {previews.length > 0 && (
+      {visiblePreviews.length > 0 && (
         <Stack gap={6} className={CONTENT_ENTER_CLASS}>
-          {previews.map((preview) => (
+          {visiblePreviews.map((preview) => (
             <PreviewCard key={preview.url} preview={preview} />
           ))}
         </Stack>
+      )}
+      {(expanded || clipped || overflowCards > 0) && (
+        <Button
+          variant="subtle"
+          size="compact-xs"
+          w="fit-content"
+          aria-expanded={expanded}
+          aria-label={expanded ? "Show fewer remarks" : "Show full remarks"}
+          onClick={() => setExpanded((value) => !value)}
+        >
+          {expanded ? "Show less" : "Show more"}
+        </Button>
       )}
     </Stack>
   );

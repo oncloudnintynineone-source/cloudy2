@@ -18,8 +18,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.419 (Event wizard hardening — drafts survive type
-  changes, participants rule moved early, tap-to-jump Review)** is shipped.
+- All work through changelog **1.420 (Event detail modal hardening — sticky frosted
+  action footer, clamped remarks)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -3069,6 +3069,17 @@ size="compact"`), and renames **Duplicate Event** / **Copy to Other Google
   Settings → Event Types), and the Remarks step is renamed **Details** (it holds
   Description + Remarks). Docs: `ui-ux-improvements.md` D15–D21, `event-lifecycle.md`
   §1.4/§1.4.1/§1.9.1, `accessibility.md` §1.9, `user-guide.md` §1.4.
+- 1.420 **Event detail modal hardening (finding D22)**: the action row is now a sticky
+  footer — the four action branches render inside `.c2-detail-footer`, pinned to the
+  bottom of the modal's scrollport and riding the app-wide frosted surface
+  (`.c2-glass-surface`), so long details (remarks + link previews, expanded
+  participants) blur behind it as they scroll under instead of pushing
+  Share/Edit/Delete/Register below the fold (the C6 disease, new cause). The modal
+  body's bottom padding is zeroed and the footer's negative inline margins bleed the
+  glass flush to the dialog's edges; Register / Open-in-calendar move to `lg` (44px).
+  `RichRemarks` collapses to 6 lines + 2 preview cards behind a measured **Show more**
+  toggle (resets per event). Docs: `ui-ux-improvements.md` D22, `event-lifecycle.md`
+  §1.7.5/§1.12, `accessibility.md` §1.9, `user-guide.md` §1.4.2.
 
 ## 1.4 Open items & next steps
 

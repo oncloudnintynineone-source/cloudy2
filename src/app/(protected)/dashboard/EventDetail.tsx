@@ -16,8 +16,7 @@ import { EventDetailSkeleton } from "./EventDetailSkeleton";
 // is only needed once an event opens. The chrome stays static so the dialog
 // zooms out of the tapped chip immediately and the chunk skeleton dissolves
 // inside it (docs/loading-transitions.md §1.15.1).
-const loadEventDetailBody = () =>
-  import("./EventDetailBody").then((mod) => mod.EventDetailBody);
+const loadEventDetailBody = () => import("./EventDetailBody").then((mod) => mod.EventDetailBody);
 const EventDetailBody = dynamic(loadEventDetailBody, { ssr: false, loading: () => null });
 
 /** Warm the event-detail body chunk on chip intent or the idle pass. */
@@ -76,6 +75,10 @@ export function EventDetail({
       title="Event"
       centered
       size={size}
+      // The body's bottom padding is zeroed so the sticky action footer
+      // (docs/ui-ux-improvements.md D22) bleeds flush to the dialog's bottom
+      // edge; its own padding carries the resting gap.
+      styles={{ body: { paddingBottom: 0 } }}
       keepMounted
       // Never hide this surface with React 19 `<Activity>`: the body hosts
       // nested dialogs (the edit-scope/delete `ConfirmModal`s, History, Share)

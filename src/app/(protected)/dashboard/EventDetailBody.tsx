@@ -815,86 +815,124 @@ export function EventDetailBody({
               </DetailSection>
             )}
 
-            {readOnly ? (
-              <Group justify="flex-end" gap="xs" mt="md">
-                <AddToCalendarMenu event={showEvent} />
-                {onOpenInCalendar && (
-                  <Button
-                    variant="light"
-                    size="md"
-                    leftSection={<IconCalendarEvent size={18} />}
-                    onClick={() => onOpenInCalendar(showEvent)}
-                  >
-                    Open in calendar
-                  </Button>
-                )}
-              </Group>
-            ) : canModify ? (
-              <Stack gap="xs" mt="md">
+            {/* The action row is a sticky footer (docs/ui-ux-improvements.md
+                D22): long details (remarks + link previews, expanded
+                participants) used to push it below the fold — the C6 disease
+                with a new cause. It rides the app-wide frosted surface, so the
+                text scrolling beneath it blurs behind the buttons. */}
+            <div className="c2-detail-footer c2-glass-surface">
+              {readOnly ? (
                 <Group justify="flex-end" gap="xs">
-                  {payload.eventId && <ShareEventButton onClick={() => setShareEvent(showEvent)} />}
-                  <EventActionsMenu event={showEvent} onDuplicate={onDuplicate} />
-                  {payload.eventId && (
-                    <Tooltip label="History" position="top">
+                  <AddToCalendarMenu event={showEvent} />
+                  {onOpenInCalendar && (
+                    <Button
+                      variant="light"
+                      size="lg"
+                      leftSection={<IconCalendarEvent size={18} />}
+                      onClick={() => onOpenInCalendar(showEvent)}
+                    >
+                      Open in calendar
+                    </Button>
+                  )}
+                </Group>
+              ) : canModify ? (
+                <Stack gap="xs">
+                  <Group justify="flex-end" gap="xs">
+                    {payload.eventId && (
+                      <ShareEventButton onClick={() => setShareEvent(showEvent)} />
+                    )}
+                    <EventActionsMenu event={showEvent} onDuplicate={onDuplicate} />
+                    {payload.eventId && (
+                      <Tooltip label="History" position="top">
+                        <ActionIcon
+                          variant="light"
+                          color="gray"
+                          size="xl"
+                          aria-label="View event history"
+                          onMouseEnter={() => {
+                            if (payload.eventId) {
+                              prefetchEventHistory(payload.eventId);
+                            }
+                          }}
+                          onClick={(event) => {
+                            setHistoryOrigin(event.currentTarget.getBoundingClientRect());
+                            setHistoryEventId(payload.eventId);
+                          }}
+                        >
+                          <IconHistory size={22} />
+                        </ActionIcon>
+                      </Tooltip>
+                    )}
+                    <Tooltip label="Edit" position="top">
                       <ActionIcon
                         variant="light"
                         color="gray"
                         size="xl"
-                        aria-label="View event history"
-                        onMouseEnter={() => {
-                          if (payload.eventId) {
-                            prefetchEventHistory(payload.eventId);
+                        aria-label="Edit event"
+                        onClick={(e) => {
+                          if (isRecurring) {
+                            openEditScope();
+                            return;
                           }
-                        }}
-                        onClick={(event) => {
-                          setHistoryOrigin(event.currentTarget.getBoundingClientRect());
-                          setHistoryEventId(payload.eventId);
+                          onEdit(showEvent, e.currentTarget.getBoundingClientRect());
                         }}
                       >
-                        <IconHistory size={22} />
+                        <IconPencil size={22} />
                       </ActionIcon>
                     </Tooltip>
+                    <Tooltip label="Delete" position="top">
+                      <ActionIcon
+                        variant="light"
+                        color="red"
+                        size="xl"
+                        aria-label="Delete event"
+                        onClick={() => {
+                          if (isRecurring) {
+                            setDeleteScope((current) =>
+                              editScopes.includes(current) ? current : (editScopes[0] ?? "single"),
+                            );
+                          }
+                          open();
+                        }}
+                      >
+                        <IconTrash size={22} />
+                      </ActionIcon>
+                    </Tooltip>
+                  </Group>
+                  {registrationAvailable && (
+                    <Stack gap={4}>
+                      <Button
+                        size="lg"
+                        color={isRegistered ? "gray" : "brand"}
+                        variant={isRegistered ? "light" : "filled"}
+                        loading={registrationBusy}
+                        disabled={registrationFull}
+                        loaderProps={BUTTON_LOADER_PROPS}
+                        leftSection={
+                          isRegistered ? <IconUserMinus size={18} /> : <IconUserPlus size={18} />
+                        }
+                        onClick={handleRegistration}
+                      >
+                        {isRegistered ? "Deregister" : "Register"}
+                      </Button>
+                      {isRecurring && (
+                        <Text size="xs" c="dimmed">
+                          Registration applies to this event only. Other events in the series are
+                          unaffected.
+                        </Text>
+                      )}
+                    </Stack>
                   )}
-                  <Tooltip label="Edit" position="top">
-                    <ActionIcon
-                      variant="light"
-                      color="gray"
-                      size="xl"
-                      aria-label="Edit event"
-                      onClick={(e) => {
-                        if (isRecurring) {
-                          openEditScope();
-                          return;
-                        }
-                        onEdit(showEvent, e.currentTarget.getBoundingClientRect());
-                      }}
-                    >
-                      <IconPencil size={22} />
-                    </ActionIcon>
-                  </Tooltip>
-                  <Tooltip label="Delete" position="top">
-                    <ActionIcon
-                      variant="light"
-                      color="red"
-                      size="xl"
-                      aria-label="Delete event"
-                      onClick={() => {
-                        if (isRecurring) {
-                          setDeleteScope((current) =>
-                            editScopes.includes(current) ? current : (editScopes[0] ?? "single"),
-                          );
-                        }
-                        open();
-                      }}
-                    >
-                      <IconTrash size={22} />
-                    </ActionIcon>
-                  </Tooltip>
-                </Group>
-                {registrationAvailable && (
-                  <Stack gap={4}>
+                </Stack>
+              ) : registrationAvailable ? (
+                <Stack gap="xs">
+                  <Text size="xs" c="dimmed">
+                    This event is open for registration. Only the organizer and admins can edit it.
+                  </Text>
+                  <Group gap="xs">
                     <Button
-                      size="md"
+                      flex="1"
+                      size="lg"
                       color={isRegistered ? "gray" : "brand"}
                       variant={isRegistered ? "light" : "filled"}
                       loading={registrationBusy}
@@ -907,61 +945,36 @@ export function EventDetailBody({
                     >
                       {isRegistered ? "Deregister" : "Register"}
                     </Button>
-                    {isRecurring && (
-                      <Text size="xs" c="dimmed">
-                        Registration applies to this event only. Other events in the series are
-                        unaffected.
-                      </Text>
+                    {payload.eventId && (
+                      <ShareEventButton onClick={() => setShareEvent(showEvent)} />
                     )}
-                  </Stack>
-                )}
-              </Stack>
-            ) : registrationAvailable ? (
-              <Stack gap="xs" mt="md">
-                <Text size="xs" c="dimmed">
-                  This event is open for registration. Only the organizer and admins can edit it.
-                </Text>
-                <Group gap="xs">
-                  <Button
-                    flex="1"
-                    size="md"
-                    color={isRegistered ? "gray" : "brand"}
-                    variant={isRegistered ? "light" : "filled"}
-                    loading={registrationBusy}
-                    disabled={registrationFull}
-                    loaderProps={BUTTON_LOADER_PROPS}
-                    leftSection={
-                      isRegistered ? <IconUserMinus size={18} /> : <IconUserPlus size={18} />
-                    }
-                    onClick={handleRegistration}
-                  >
-                    {isRegistered ? "Deregister" : "Register"}
-                  </Button>
-                  {payload.eventId && <ShareEventButton onClick={() => setShareEvent(showEvent)} />}
-                  <AddToCalendarMenu event={showEvent} />
-                </Group>
-                {isRecurring && (
+                    <AddToCalendarMenu event={showEvent} />
+                  </Group>
+                  {isRecurring && (
+                    <Text size="xs" c="dimmed">
+                      Registration applies to this event only. Other events in the series are
+                      unaffected.
+                    </Text>
+                  )}
+                </Stack>
+              ) : (
+                <Stack gap="xs">
                   <Text size="xs" c="dimmed">
-                    Registration applies to this event only. Other events in the series are
-                    unaffected.
-                  </Text>
-                )}
-              </Stack>
-            ) : (
-              <>
-                <Text size="xs" c="dimmed" mt="xs">
-                  {registrationEnabled
-                    ? "Only the organizer can edit this event."
-                    : payload.ownerOnlyEdits && !isCreator
+                    {registrationEnabled
                       ? "Only the organizer can edit this event."
-                      : "You can view this event but not edit it."}
-                </Text>
-                <Group justify="flex-end" gap="xs" mt="md">
-                  {payload.eventId && <ShareEventButton onClick={() => setShareEvent(showEvent)} />}
-                  <AddToCalendarMenu event={showEvent} />
-                </Group>
-              </>
-            )}
+                      : payload.ownerOnlyEdits && !isCreator
+                        ? "Only the organizer can edit this event."
+                        : "You can view this event but not edit it."}
+                  </Text>
+                  <Group justify="flex-end" gap="xs">
+                    {payload.eventId && (
+                      <ShareEventButton onClick={() => setShareEvent(showEvent)} />
+                    )}
+                    <AddToCalendarMenu event={showEvent} />
+                  </Group>
+                </Stack>
+              )}
+            </div>
           </Stack>
         ) : null}
       </CrossfadeSwap>

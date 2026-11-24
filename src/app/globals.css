@@ -2137,6 +2137,29 @@ html.c2-low-end::view-transition-group(*) {
   backdrop-filter: var(--c2g-blur);
 }
 
+/* The event detail modal's sticky action footer (docs/ui-ux-improvements.md
+   D22): the last child of the modal body's scroll flow, pinned to the bottom
+   of the dialog's scrollport (Mantine makes `.mantine-Modal-content` the
+   scroller and already sticks its header to the top). Long details — remarks
+   with link previews, expanded participants — no longer push Share/Edit/Delete/
+   Register below the fold; they scroll under it and blur through the shared
+   frosted surface. The modal body's bottom padding is zeroed (EventDetail.tsx)
+   so the resting and pinned positions agree: the footer's bottom edge sits
+   flush with the dialog's bottom edge (the Paper's radius clips its corners),
+   and the negative inline margins bleed the glass past the body's
+   `--mb-padding` gutter — the +4px padding keeps a focused control's outline
+   from clipping at the dialog edge. z-index stays under the sticky header
+   (1000) and the portaled popovers (400). */
+.c2-detail-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  margin-inline: calc(var(--mb-padding, var(--mantine-spacing-md)) * -1);
+  padding: var(--mantine-spacing-sm) calc(var(--mb-padding, var(--mantine-spacing-md)) + 4px)
+    var(--mantine-spacing-md);
+  border-top: 1px solid var(--mantine-color-default-border);
+}
+
 /*
    Mobile floating rows (below `lg`): `.c2-control-pill` is the bottom pill
    (calendar: a static period label on the left, the circular

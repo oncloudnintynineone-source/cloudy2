@@ -283,7 +283,9 @@ rail and (since 1.419) of its phone step strip too (icon-only circles with full
 44px rows, `.c2-wizard-guided-steps--icons`), its tap-to-jump Review rows
 (`.c2-review-jump`, whole-row targets), its 44px registration-cap steppers and
 44px hit rows on the quiet compact buttons (Steps menu, "Add myself", clash
-Retry), the 44px time-picker cells, the 36px
+Retry), the detail modal's action footer (since 1.420 — `lg` Register / Open in
+calendar buttons beside the 48px icon controls, pinned sticky so they stay
+reachable), the 44px time-picker cells, the 36px
 calendar-chrome `ActionIcon`s with their tap padding. What falls short are
 compact inline controls whose whole hit area is the glyph itself. The fix is
 never a bigger glyph: it is a **row-sized wrapper**, so the target grows without
