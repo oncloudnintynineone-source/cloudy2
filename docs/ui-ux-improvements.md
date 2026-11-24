@@ -880,7 +880,36 @@ admin's title template puts into the calendar title.") and **Remarks** → the n
 `withRemarks` above the Edit link and round-trip-tested (`src/lib/events/notes.ts`,
 `migration.test.ts`); the review step gained Description/Remarks rows, and the Other settings
 step renders **Repeat** / **Pinned events** / **Editing & registration** `WizardSection` cards.
-[`event-lifecycle.md`](event-lifecycle.md) §1.4/§1.4.1/§1.7.2–§1.7.4. §1.10.1.
+[`event-lifecycle.md`](event-lifecycle.md) §1.4/§1.4.1/§1.7.2–§1.7.4. §1.10.1. **Follow-up
+1.417** (D14): the remarks now also render in the details modal, with link previews.
+
+### 1.7.11 D14 — Remarks were write-only — the details modal never showed them
+
+**Evidence.** Verified at 1.416: the wizard's new **Remarks** field (§1.7.10) wrote its note
+into the Google event's notes, but `EventDetailBody.tsx` rendered Location, Event Type, Owner
+and Participants — no Remarks section — so in-app the note was only readable by opening the
+event in Google Calendar itself; and on every surface we control the text was inert: a pasted
+link (the most common remark content — a sign-up sheet, a doc) was not clickable.
+
+**Impact.** The one field meant for the organizer's internal note was invisible to the people
+the note was written for, and its links had to be retyped from Google Calendar to be used.
+
+**Fix.** Render a **Remarks** section in the details modal through a shared `RichRemarks`
+component: preserve line breaks, linkify URLs, and show a preview card (title, description,
+image) per linked page, fetched from a bounded, SSRF-gated `POST /api/link-preview`.
+
+**Effort.** M. **Respect.** Remarks stay plain text in storage (Google Calendar is unchanged);
+previews are enrichment — the modal never waits on them, and a failed fetch leaves the plain
+link.
+
+**Status.** Shipped **1.417** (2026-11-24): the details modal shows a **Remarks** section
+whenever remarks are non-blank, rendered by `RichRemarks` (`src/components/RichRemarks.tsx`) —
+pre-wrap text, shortened tappable links (`rel="noopener noreferrer"`), and up to 5 preview
+cards fading in via `content-enter`. The pipeline (`src/lib/linkPreviews/`) re-gates every URL,
+redirect hop and `og:image` through the SSRF safety module, bounds each fetch (5 s timeout,
+≤ 3 hops, 256 KB, `text/html` only), caches per instance and per page load, and answers from a
+plain read route so it never queues behind a save. [`event-lifecycle.md`](event-lifecycle.md)
+§1.7.5. §1.10.1.
 
 ## 1.8 Workflow level
 
@@ -979,13 +1008,12 @@ flowchart TD
   H["Held — not scheduled<br/>A3 · A5 · A6 · B2 · D1 · D3 · D4 · E2 · E5"]
 ```
 
-| Tier                   | Items           | Why here                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| ---------------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **1 — days, low risk** | B1, B4          | Missing-affordance and correctness fixes. Each is local, reversible, needs no schema or data change, and closes a gap the codebase already knows about (B1). A1/A2/A4, C1/C6 and D5/D6 left this tier shipped (§1.10.1), as did A7 — added and shipped at 1.403 — and A8/A9, added and shipped at 1.412. D8, added and shipped at 1.414, D9/D10, added and shipped at 1.415, and C7/D11/D12/D13, added and shipped at 1.416, never entered the tier |
-| table.                 |
-| **2 — a sprint**       | B3, B5          | Keyboard parity and the legibility floor. D2 shipped ahead of the tier (§1.10.1) **without** its shortcut section — fold that section in when B5 lands, per the original "B5 before D2" note. C2/C3/C4/C5 left this tier shipped (§1.10.1).                                                                                                                                                                                                         |
-| **3 — design-gated**   | E3, E6-hint     | Advisory and messaging that must be designed against the clashes engine and attendance docs rather than bolted on.                                                                                                                                                                                                                                                                                                                                  |
-| **4 — feature work**   | E1, E4, E6-sync | Each needs its own spec, schema, and subsystem doc.                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Tier                   | Items           | Why here                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ---------------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **1 — days, low risk** | B1, B4          | Missing-affordance and correctness fixes. Each is local, reversible, needs no schema or data change, and closes a gap the codebase already knows about (B1). A1/A2/A4, C1/C6 and D5/D6 left this tier shipped (§1.10.1), as did A7 — added and shipped at 1.403 — and A8/A9, added and shipped at 1.412. D8, added and shipped at 1.414, D9/D10, added and shipped at 1.415, and C7/D11/D12/D13, added and shipped at 1.416, never entered the tier table; nor did D14, added and shipped at 1.417. |
+| **2 — a sprint**       | B3, B5          | Keyboard parity and the legibility floor. D2 shipped ahead of the tier (§1.10.1) **without** its shortcut section — fold that section in when B5 lands, per the original "B5 before D2" note. C2/C3/C4/C5 left this tier shipped (§1.10.1).                                                                                                                                                                                                                                                         |
+| **3 — design-gated**   | E3, E6-hint     | Advisory and messaging that must be designed against the clashes engine and attendance docs rather than bolted on.                                                                                                                                                                                                                                                                                                                                                                                  |
+| **4 — feature work**   | E1, E4, E6-sync | Each needs its own spec, schema, and subsystem doc.                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 **Intra-tier notes.** C1 and C6 are independent of everything else.
 
@@ -1019,6 +1047,7 @@ land here.
 | D11 | 1.416 (2026-11-24)                                     | Review-step **Notifications** card: **Notify participants** switch (default on) rendered only when the save adds participants — tag-level `addedParticipantCount` diff (invitee tags not on the event, excluding self); `EventSaveOptions { notify }` on `createEvent`/`updateEvent` skips the dispatch and records `notifications: "skipped"` in the audit row. [`event-notifications.md`](event-notifications.md) §1.1/§1.6/§1.9, [`event-mutations.md`](event-mutations.md) §1.4/§1.5/§1.8.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | D12 | 1.416 (2026-11-24)                                     | `syncTimeOrder` snaps the opposite side on edit — `clampEventStart` (new) mirrors `clampEventEnd` (`src/lib/events/validate.ts`, unit-tested), half-day options snap instead of erroring — with a dimmed one-liner in a motion-token `Collapse` + `announce()`; the ordering error remains only on time-option toggles and submit validation. [`event-lifecycle.md`](event-lifecycle.md) §1.4.1/§1.5.2.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | D13 | 1.416 (2026-11-24)                                     | Remarks step split: **Description** (the existing `title` field — what the title recipe puts into the calendar title) + new **Remarks** (plain text in the Google notes above the Edit link — notes v3 `withRemarks`/`parseEventRemarks`, round-trip-tested), each with a one-sentence helper; review step shows both rows; Other settings step grouped into `WizardSection` cards (Repeat / Pinned events / Editing & registration). [`event-lifecycle.md`](event-lifecycle.md) §1.4/§1.4.1/§1.7.2–§1.7.4.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| D14 | 1.417 (2026-11-24)                                     | Details-modal **Remarks** section (`src/components/RichRemarks.tsx`): pre-wrap text, shortened tappable links, and up to 5 preview cards fading in from `POST /api/link-preview` — SSRF-gated per URL/hop/`og:image` (`src/lib/linkPreviews/safety.ts`), bounded fetch (5 s timeout, ≤ 3 re-gated hops, 256 KB, `text/html`), per-instance + per-page-load caches; failed links stay plain links. [`event-lifecycle.md`](event-lifecycle.md) §1.7.5.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 ## 1.11 Implementation guardrails
 
@@ -1070,7 +1099,8 @@ Every item above inherits these; they are the reason some obvious-looking fixes 
 | Path                                                                 | Role for this research                                                                                |
 | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | `src/app/(protected)/dashboard/DashboardView.tsx`                    | A1, A4, B5, C6 context: chrome, navigation helpers, swipe refs                                        |
-| `src/app/(protected)/dashboard/EventDetailBody.tsx`                  | C6, C7, D6, E3                                                                                        |
+| `src/app/(protected)/dashboard/EventDetailBody.tsx`                  | C6, C7, D6, D14, E3                                                                                   |
+| `src/components/RichRemarks.tsx` + `src/lib/linkPreviews/`           | D14 — remarks rendering + the bounded, SSRF-gated preview pipeline                                    |
 | `src/app/(protected)/dashboard/EventForm.tsx`                        | D11, D12, D13 — review-step notify switch, timestamp snap, Description/Remarks split + settings cards |
 | `src/lib/events/notes.ts`                                            | D13 — remarks in the notes-block v3 layout                                                            |
 | `src/app/(protected)/settings/SettingsTabs.tsx`                      | C1                                                                                                    |

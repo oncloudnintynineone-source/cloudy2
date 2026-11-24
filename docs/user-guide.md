@@ -187,7 +187,9 @@ Editing prefills the wizard with the original details and always keeps the origi
 organizer; deleting asks for confirmation and removes every department copy.
 Participants and tagged departments share one **Participants** list; long lists are
 capped to five badges with a **+N** you can tap to see the rest — yours is always
-among the first five.
+among the first five. When the organizer wrote **Remarks**, they appear below as
+rich text: links are tappable, and each linked page shows a small preview card
+(title, description, image) that loads in the background.
 
 ## 1.5 Pinned events
 

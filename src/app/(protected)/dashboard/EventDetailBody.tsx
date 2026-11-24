@@ -36,6 +36,7 @@ import { ConfirmModal } from "@/components/ConfirmModal";
 import { RadioCardGroup, type RadioCardOption } from "@/components/RadioCardGroup";
 import { useActionPill } from "@/components/ActionPill";
 import { PickerBadges, type PickerBadgeItem } from "@/components/PickerField";
+import { RichRemarks } from "@/components/RichRemarks";
 import {
   deleteEvent,
   setEventRegistration,
@@ -793,6 +794,15 @@ export function EventDetailBody({
                   </Text>
                 )}
               </Stack>
+            )}
+
+            {payload.remarks?.trim() && (
+              <>
+                <Text size="xs" c="dimmed" fw={600}>
+                  Remarks
+                </Text>
+                <RichRemarks text={payload.remarks} />
+              </>
             )}
 
             {readOnly ? (

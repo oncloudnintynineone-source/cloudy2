@@ -127,15 +127,15 @@ its draft. It is a **staged walk** — one input group visible at a time, built 
 `buildSteps` (`EventForm.tsx`); every role walks the same steps
 (no admin-only extras — there is no "On behalf of" creator step):
 
-| #   | Step                        | Who | Gate before advancing                                                                     |
-| --- | --------------------------- | --- | ----------------------------------------------------------------------------------------- |
-| 1   | `type`                      | all | custom: a type must be selected                                                           |
-| 2   | `time`                      | all | `start`, `end`, `startAmPm`, `endAmPm` validate cleanly                                   |
-| 3   | `location`                  | all | none (policy clamping is live, §1.9)                                                      |
-| 4   | `invitees` (Participants)   | all | none                                                                                      |
-| 5   | `remarks`                   | all | none — the **Description** + **Remarks** free-text fields (§1.4.1)                        |
+| #   | Step                        | Who | Gate before advancing                                                                                                                     |
+| --- | --------------------------- | --- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `type`                      | all | custom: a type must be selected                                                                                                           |
+| 2   | `time`                      | all | `start`, `end`, `startAmPm`, `endAmPm` validate cleanly                                                                                   |
+| 3   | `location`                  | all | none (policy clamping is live, §1.9)                                                                                                      |
+| 4   | `invitees` (Participants)   | all | none                                                                                                                                      |
+| 5   | `remarks`                   | all | none — the **Description** + **Remarks** free-text fields (§1.4.1)                                                                        |
 | 6   | `settings` (Other settings) | all | none — Repeat controls, the "Pin this event" switch (+ its department picker), the organizer-only edit lock, each in its own section card |
-| 7   | `review`                    | all | submit only (last step) — read-only summary + the notify-participants switch when people are newly added |
+| 7   | `review`                    | all | submit only (last step) — read-only summary + the notify-participants switch when people are newly added                                  |
 
 The `invitees`, `remarks`, and `location` steps drop out per the selected type's config
 (§1.9.1): `show_location` off removes the Location step entirely — otherwise it always
@@ -221,7 +221,7 @@ Mechanics worth knowing:
     `gray-6` → `brand-3` pair), because Mantine's dark-scheme
     `--mantine-primary-color-filled` (brand-8) is only 1.45:1 on the dark body; see
     [`accessibility.md`](accessibility.md) §1.7 for the measured pairs. The step labels
-    describe the *section*, not a position, because the walk's length shifts
+    describe the _section_, not a position, because the walk's length shifts
     when a type hides its remarks/invitees step. Clicking any step calls `goToStep` — a
     **free jump** (the semantics of the old bottom "Go to Summary" link, now gone):
     nothing in between is validated; the final submit still catches problems and returns
@@ -660,19 +660,19 @@ The machine-readable state lives in the Google event **description**; the visibl
 
 ### 1.7.1 Fields (`EventNotes`, `src/lib/events/notes.ts`)
 
-| Field                   | Stored when                                             | Notes                                                                                                              |
-| ----------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `eventType`             | set                                                     | The type's name                                                                                                    |
-| `title`                 | always (even `""`)                                      | The raw pre-template description; a blank value round-trips to distinguish "no text typed" from legacy             |
+| Field                   | Stored when                                             | Notes                                                                                                                                                                     |
+| ----------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `eventType`             | set                                                     | The type's name                                                                                                                                                           |
+| `title`                 | always (even `""`)                                      | The raw pre-template description; a blank value round-trips to distinguish "no text typed" from legacy                                                                    |
 | `remarks`               | non-blank (trimmed)                                     | The organizer's internal note, mirrored here so editing prefills the Remarks field; its human copy is the plain text `withRemarks` writes above the `Edit:` line (§1.7.3) |
-| `eventId`               | always (app events)                                     | The logical group id shared by all department copies                                                               |
-| `createdBy`             | set                                                     | Organizer user id — fixed at creation to the acting user; NOT an attendee unless they tagged themselves            |
-| `inviteeUsers`          | non-empty                                               | Tagged attendee user ids (the event shows in each user's row; attendees can edit)                                  |
-| `inviteeDepartments`    | non-empty                                               | Tagged department ids (shows in each department row; every active member can edit)                                 |
-| `ownerOnlyEdits`        | only when `true`                                        | Organizer-only modification lock (admins bypass; absence = open to attendees/members)                              |
-| `timeOption`            | set                                                     | `"range"` \| `"full"` \| `"half"`                                                                                  |
-| `startAmPm` / `endAmPm` | `half` only (legacy `full` events may still carry them) | Half-of-day indicators                                                                                             |
-| `outOfCamp`             | **only when `true`**                                    | Absence (legacy) or `false` means in camp; the destination itself goes to Google's `location` field, not the notes |
+| `eventId`               | always (app events)                                     | The logical group id shared by all department copies                                                                                                                      |
+| `createdBy`             | set                                                     | Organizer user id — fixed at creation to the acting user; NOT an attendee unless they tagged themselves                                                                   |
+| `inviteeUsers`          | non-empty                                               | Tagged attendee user ids (the event shows in each user's row; attendees can edit)                                                                                         |
+| `inviteeDepartments`    | non-empty                                               | Tagged department ids (shows in each department row; every active member can edit)                                                                                        |
+| `ownerOnlyEdits`        | only when `true`                                        | Organizer-only modification lock (admins bypass; absence = open to attendees/members)                                                                                     |
+| `timeOption`            | set                                                     | `"range"` \| `"full"` \| `"half"`                                                                                                                                         |
+| `startAmPm` / `endAmPm` | `half` only (legacy `full` events may still carry them) | Half-of-day indicators                                                                                                                                                    |
+| `outOfCamp`             | **only when `true`**                                    | Absence (legacy) or `false` means in camp; the destination itself goes to Google's `location` field, not the notes                                                        |
 
 `encodeEventNotes` (`notes.ts`) drops `undefined`/`null`/empty-array values and keeps
 a blank value **only for `title`**; it returns `""` when nothing survives. The block is a
@@ -681,11 +681,11 @@ migration.
 
 ### 1.7.2 The three stored formats
 
-| Version          | Description layout                                                                                           | When written                     |
-| ---------------- | ------------------------------------------------------------------------------------------------------------ | -------------------------------- |
+| Version          | Description layout                                                                                                                                           | When written                     |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------- |
 | **v3** (current) | remarks plain text (only when set), blank line, `Edit: <url>` line, blank line, one **base64url(brotli(JSON))** block line, blank line, `Created in cloudy2` | every create/edit since Phase 2v |
-| **v2**           | `Edit: <url>` line, blank line, one **raw JSON** line                                                        | intermediate era                 |
-| **v1**           | the description **is** the JSON object alone                                                                 | earliest era                     |
+| **v2**           | `Edit: <url>` line, blank line, one **raw JSON** line                                                                                                        | intermediate era                 |
+| **v1**           | the description **is** the JSON object alone                                                                                                                 | earliest era                     |
 
 `encodeNotesBlock(json)` (`notes.ts`) brotli-compresses and base64url-encodes
 (no padding) — one short, **opaque**, deterministic line. Decoding
@@ -751,6 +751,52 @@ All pure, all total (never throw, tolerate malformed values):
 (`queries.ts`), and the edit form reads them back (§1.4.2) — that is the full
 round-trip: raw text typed in Description/Remarks is stored in notes `title`/`remarks`
 and prefilled on edit, so editing never re-types the templated calendar title.
+
+### 1.7.5 Remarks display in the details modal (link previews)
+
+The plain-text remarks line (§1.7.3) is not only for Google Calendar: when remarks
+are non-blank the details modal renders a **Remarks** section (after the
+participants/registration block, before the action row) through `RichRemarks`
+(`src/components/RichRemarks.tsx`). The text paints exactly as stored (newlines
+preserved via `pre-wrap`), but URLs become real links (`target="_blank"`,
+`rel="noopener noreferrer"`, shortened display text), and up to **5** unique URLs
+additionally get **preview cards** — title, host, description, optional image —
+fetched in the background after the modal paints.
+
+```mermaid
+sequenceDiagram
+  participant M as Details modal (RichRemarks)
+  participant A as POST /api/link-preview
+  participant W as External page
+  M->>A: { urls } (extractPreviewUrls, client-side SSRF pre-filter)
+  A->>W: GET (redirect: manual, 5 s timeout, ≤ 3 hops — each hop re-gated)
+  W-->>A: text/html (≤ 256 KB read cap)
+  A->>A: parseOpenGraphMeta (og: / twitter: / title / description)
+  A-->>M: [{ url, preview | null }]
+  M->>M: cards fade in (content-enter); null → plain link only
+```
+
+Rules:
+
+- **SSRF gate** (`src/lib/linkPreviews/safety.ts`, pure): every URL, every redirect
+  hop and every `og:image` must be http(s) and must not be a `localhost`/`.local`/
+  `.internal`/`.onion`-style name or a literal private/loopback/link-local/CGNAT/
+  metadata/benchmarking/multicast IPv4 or IPv6 address (octet padding rejected too).
+  The route re-validates — the client-side filter is courtesy, not trust. Residual
+  risk (a _domain_ resolving into private space, DNS rebinding) is accepted: the
+  fetched body is only parsed for `<meta>` tags and is never rendered or stored.
+- **Bounded fetch** (`src/lib/linkPreviews/fetch.ts`): 5 s timeout per hop,
+  `text/html` only, 256 KB read cap, ≤ 3 redirects, ≤ 4 URLs in flight per request
+  (`mapSettled`). Results are cached per server instance (24 h, failures 1 h,
+  ≤ 200 entries); the client caches per page load, so reopening a modal costs no
+  request.
+- **Enrichment, never blocking**: the modal never waits on previews — offline,
+  failed, unsafe or meta-less links simply keep their plain links, and a broken
+  `og:image` hides itself (`referrerPolicy="no-referrer"`). The route is a plain
+  read route, not a server action, so a background preview fetch can never queue
+  ahead of the user's next save.
+- The wizard and its review step keep showing remarks as plain text — previews are
+  details-modal-only, and the stored text never carries markup.
 
 ## 1.8 Title rendering
 
@@ -1109,11 +1155,11 @@ flowchart LR
 
 Per event type, `time_options` enables one or more of:
 
-| Option  | Label       | Form fields                                                                      | Notes                                     |
-| ------- | ----------- | -------------------------------------------------------------------------------- | ----------------------------------------- |
+| Option  | Label       | Form fields                                                                       | Notes                                     |
+| ------- | ----------- | --------------------------------------------------------------------------------- | ----------------------------------------- |
 | `range` | Start & End | two date pickers + two "Select time" dialogs (44px hour/minute grid, 15-min step) | always timed                              |
-| `full`  | Full Day    | two date pickers                                                                 | plain all-day dates — no half-day markers |
-| `half`  | Half Day    | two date pickers + AM/PM per side                                                | optional (AM)/(PM) marker in the title    |
+| `full`  | Full Day    | two date pickers                                                                  | plain all-day dates — no half-day markers |
+| `half`  | Half Day    | two date pickers + AM/PM per side                                                 | optional (AM)/(PM) marker in the title    |
 
 Legacy note: the AM/PM markers used to live under `full`; events saved before the split
 still carry `"full"` + markers in their notes and display them as-is. Editing such an
@@ -1213,21 +1259,22 @@ Every decision-making part of the pipeline is a pure, I/O-free function unit-tes
 Vitest without a DB or Google credentials; the I/O glue (DB lookups, the Google
 writes, headers) is thin and lives in `actions.ts` / `queries.ts`.
 
-| Helper                                                                                                                                                                             | Module                                            | Tests                                       |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------- |
-| `encodeEventNotes`, `parseEventNotes` (v1/v2/v3 + gzip fallback), `encodeNotesBlock`, `withEditLink`, `withRemarks`, `withInternalMarker`, `isExternalEvent`, `eventDetailUrl`, all field parsers | `events/notes.ts`                                 | `notes.test.ts`, `eventNotes.test.ts`       |
-| `renderEventTitle`, `renderTitleRecipe`                                                                                                                                            | `events/eventTitle.ts`, `settings/titleRecipe.ts` | `eventAudit.test.ts`, `titleRecipe.test.ts` |
-| `sanitizeTitleRecipe`, recipe validation                                                                                                                                           | `settings/titleRecipe.ts`                         | `titleRecipe.test.ts`                       |
-| `normalizeAssignments` (whitelist keys, drop empties), `validateAssignments` (unknown ids) (§1.8.5)                                                                                | `settings/validate.ts`                            | `settings/validate.test.ts`                 |
-| `formatFullName`                                                                                                                                                                   | `settings/formatName.ts`                          | `formatName.test.ts`                        |
-| `clampOutOfCamp` (all allowed-location sets), `flagsFromCategory` / `categoryFromFlags`, `normalizeAllowedLocations`                                                               | `events/locationPolicy.ts`                        | `locationPolicy.test.ts`                    |
-| `resolveTimeOption(s)`, `normalizeTimeOptions`, `naiveDatePart` / `naiveTimePart` / `joinDateTimeParts`, `timeMinuteOptions`                                                                 | `events/timeOptions.ts`                           | `timeOptions.test.ts`                       |
-| `buildEventTypePickerSections` (groups in display order, empty-group skip, ungrouped last, dangling-id degrade), `sortEventTypeGroups`, `moveEventTypeGroupOrder` (§1.10)          | `eventTypes/groups.ts`                            | `groups.test.ts`                            |
-| `absEventRange` (timed + all-day exclusive end), naive↔instant, `weekDays`, `monthsInRange`, `shiftMonth`, `monthRange`, `monthGridRows`                                           | `events/datetime.ts`                              | `datetime.test.ts`                          |
-| `modifyGuard`, `canChangeLock`                                                                                                                                                     | `events/guards.ts`                                | `guards.test.ts`                            |
-| `validateEventForm` (range time-part requirement, chronology), `needsClamp`, `clampEventEnd` / `clampEventStart` (the edit-time snap pair), `resolveEventAuthor`                      | `events/validate.ts`                              | `validate.test.ts`                          |
-| `deriveTargetCalendarIds`, `diffEventTargets`, `dedupeEventsByGroupId`, `eventRefFromCalendarEvent`                                                                                | `events/targets.ts`                               | `targets.test.ts`                           |
-| `buildGoogleCalendarUrl`, `buildEventIcs`, `icsFileName` (§1.12)                                                                                                                   | `events/calendarExport.ts`                        | `calendarExport.test.ts`                    |
+| Helper                                                                                                                                                                                            | Module                                             | Tests                                                |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- | ---------------------------------------------------- |
+| `encodeEventNotes`, `parseEventNotes` (v1/v2/v3 + gzip fallback), `encodeNotesBlock`, `withEditLink`, `withRemarks`, `withInternalMarker`, `isExternalEvent`, `eventDetailUrl`, all field parsers | `events/notes.ts`                                  | `notes.test.ts`, `eventNotes.test.ts`                |
+| `renderEventTitle`, `renderTitleRecipe`                                                                                                                                                           | `events/eventTitle.ts`, `settings/titleRecipe.ts`  | `eventAudit.test.ts`, `titleRecipe.test.ts`          |
+| `sanitizeTitleRecipe`, recipe validation                                                                                                                                                          | `settings/titleRecipe.ts`                          | `titleRecipe.test.ts`                                |
+| `normalizeAssignments` (whitelist keys, drop empties), `validateAssignments` (unknown ids) (§1.8.5)                                                                                               | `settings/validate.ts`                             | `settings/validate.test.ts`                          |
+| `formatFullName`                                                                                                                                                                                  | `settings/formatName.ts`                           | `formatName.test.ts`                                 |
+| `clampOutOfCamp` (all allowed-location sets), `flagsFromCategory` / `categoryFromFlags`, `normalizeAllowedLocations`                                                                              | `events/locationPolicy.ts`                         | `locationPolicy.test.ts`                             |
+| `resolveTimeOption(s)`, `normalizeTimeOptions`, `naiveDatePart` / `naiveTimePart` / `joinDateTimeParts`, `timeMinuteOptions`                                                                      | `events/timeOptions.ts`                            | `timeOptions.test.ts`                                |
+| `buildEventTypePickerSections` (groups in display order, empty-group skip, ungrouped last, dangling-id degrade), `sortEventTypeGroups`, `moveEventTypeGroupOrder` (§1.10)                         | `eventTypes/groups.ts`                             | `groups.test.ts`                                     |
+| `absEventRange` (timed + all-day exclusive end), naive↔instant, `weekDays`, `monthsInRange`, `shiftMonth`, `monthRange`, `monthGridRows`                                                          | `events/datetime.ts`                               | `datetime.test.ts`                                   |
+| `modifyGuard`, `canChangeLock`                                                                                                                                                                    | `events/guards.ts`                                 | `guards.test.ts`                                     |
+| `validateEventForm` (range time-part requirement, chronology), `needsClamp`, `clampEventEnd` / `clampEventStart` (the edit-time snap pair), `resolveEventAuthor`                                  | `events/validate.ts`                               | `validate.test.ts`                                   |
+| `deriveTargetCalendarIds`, `diffEventTargets`, `dedupeEventsByGroupId`, `eventRefFromCalendarEvent`                                                                                               | `events/targets.ts`                                | `targets.test.ts`                                    |
+| `buildGoogleCalendarUrl`, `buildEventIcs`, `icsFileName` (§1.12)                                                                                                                                  | `events/calendarExport.ts`                         | `calendarExport.test.ts`                             |
+| `extractPreviewUrls` / `splitRemarksUrls` / `normalizeCandidate`, `isSafePreviewUrl` / `isSafeHost`, `parseOpenGraphMeta` (§1.7.5)                                                                | `linkPreviews/extract.ts`, `safety.ts`, `parse.ts` | `extract.test.ts`, `safety.test.ts`, `parse.test.ts` |
 
 I/O-bound (not unit-tested, per the repo convention): `actions.ts` (the server
 actions), `queries.ts` (DB + cache reads, `mapCalendarItem`), `appUrl.ts`
@@ -1268,9 +1315,12 @@ limitations live in [`registration-events.md`](registration-events.md).
 | `src/lib/settings/tokenTemplate.ts`               | Token engine for participant-notification content (pure)                                  |
 | `src/lib/settings/formatName.ts`                  | Display-name template (pure)                                                              |
 | `src/lib/events/locationPolicy.ts`                | Location categories / allowed-locations clamping (pure)                                   |
-| `src/lib/events/timeOptions.ts`                   | Time options + datetime part helpers + AM/PM marker (pure)                               |
+| `src/lib/events/timeOptions.ts`                   | Time options + datetime part helpers + AM/PM marker (pure)                                |
 | `src/lib/events/datetime.ts`                      | UTC+8 datetime math (pure)                                                                |
 | `src/lib/events/calendarExport.ts`                | Add-to-calendar builders: Google template URL + `.ics` (pure, §1.12)                      |
+| `src/lib/linkPreviews/`                           | Remarks link previews: extract/safety/parse (pure) + bounded fetcher (§1.7.5)             |
+| `src/components/RichRemarks.tsx`                  | Details-modal remarks renderer: links + preview cards (§1.7.5)                            |
+| `src/app/api/link-preview/route.ts`               | `POST /api/link-preview` — authenticated preview fan-out read route (§1.7.5)              |
 | `src/lib/events/guards.ts`                        | Creator/ownership guards (pure)                                                           |
 | `src/lib/events/validate.ts`                      | Form validation + creator normalization (pure)                                            |
 | `src/lib/events/targets.ts`                       | Target set, dedup, `EventRef` (pure)                                                      |
@@ -1278,7 +1328,7 @@ limitations live in [`registration-events.md`](registration-events.md).
 | `src/lib/eventTypes/groupActions.ts`              | Group create/rename/delete/move server actions (§1.10)                                    |
 | `src/lib/events/queries.ts`                       | `mapCalendarItem` — read-back into `CalendarEvent`                                        |
 | `src/lib/events/recentLocations.ts`               | `fetchRecentLocations` — per-user location suggestions (server action)                    |
-| `src/components/TimeSelectField.tsx`              | "Select time" button + hour/minute picker dialog (no time bounds)                        |
+| `src/components/TimeSelectField.tsx`              | "Select time" button + hour/minute picker dialog (no time bounds)                         |
 | `src/lib/appUrl.ts`                               | App origin for the `Edit:` link                                                           |
 
 Related docs:

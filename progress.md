@@ -18,8 +18,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.416 (Wizard trust pass — notify switch, time snap,
-  Description/Remarks split — and a merged, size-normalized detail modal)** is shipped.
+- All work through changelog **1.417 (Details-modal Remarks with link previews — the
+  bounded, SSRF-gated preview pipeline)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -3013,8 +3013,8 @@ pan-x pan-y` on `html` (`globals.css`): pinch-zoom needs the `pinch-zoom` token,
   `event-clashes.md` §1.6/§1.7, `kah.md` §1.7, `ui-ux-improvements.md` D9/D10.
 - 1.416 **Wizard trust pass + a merged, size-normalized detail modal**: the review step
   gains a **Notify participants** switch (default on, rendered only when the save adds
-  participants via a tag-level `addedParticipantCount` diff) — `EventSaveOptions
-{ notify }` on `createEvent`/`updateEvent` skips the push dispatch and records
+  participants via a tag-level `addedParticipantCount` diff) — `EventSaveOptions { notify }`
+  on `createEvent`/`updateEvent` skips the push dispatch and records
   `notifications: "skipped"` in the audit row. The Timestamp step now **snaps** the
   opposite side instead of erroring on an out-of-order pair (`clampEventStart` mirrors
   `clampEventEnd`; half-day options snap too) with a one-line Collapse hint +
@@ -3030,6 +3030,19 @@ size="compact"`), and renames **Duplicate Event** / **Copy to Other Google
   Calendar**. No schema change. Docs: `event-lifecycle.md` §1.4/§1.4.1/§1.7/§1.12,
   `event-notifications.md` §1.1/§1.6/§1.9, `event-mutations.md` §1.4/§1.5/§1.8,
   `user-picker.md` §1.6, `user-guide.md`, `ui-ux-improvements.md` C7/D11/D12/D13.
+- 1.417 **Remarks go read-side — details-modal link previews**: the details modal now
+  renders a **Remarks** section whenever the organizer wrote one, through the shared
+  `RichRemarks` component — pre-wrap text, URLs as shortened tappable links, and up to
+  5 **preview cards** (title, host, description, image) fading in in the background.
+  The pipeline (`src/lib/linkPreviews/`) is bounded and SSRF-gated: every URL, every
+  redirect hop and every `og:image` passes `isSafePreviewUrl` (private/loopback/
+  link-local/CGNAT/metadata IPv4 + IPv6, `.local`/`.internal`/`.onion` names,
+  non-http(s) schemes); each fetch runs a 5 s timeout, ≤ 3 re-gated hops, a 256 KB
+  read cap, `text/html` only; results cache per server instance (24 h, negatives 1 h)
+  and per page load. `POST /api/link-preview` is a plain read route (never queues
+  behind a save); failed or unsafe links simply stay plain links. Remarks storage is
+  unchanged (plain text in the Google notes). Docs: `event-lifecycle.md`
+  §1.7.5/§1.13/§1.15, `user-guide.md` §1.4.2, `ui-ux-improvements.md` D14.
 
 ## 1.4 Open items & next steps
 
