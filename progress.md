@@ -18,8 +18,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.422 (Details-modal Show more root cause — measured only
-  once the dialog content has layout)** is shipped.
+- All work through changelog **1.423 (review-step rows were left-shifted and clipped)** is
+  shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -3095,6 +3095,17 @@ size="compact"`), and renames **Duplicate Event** / **Copy to Other Google
   `ResizeObserver` the moment the content appears (also on the xs→md resize and font
   reflows), resets `clipped` per event, and falls back to a ≥ 420-character guarantee so
   a long note always offers **Show more**. Docs: `ui-ux-improvements.md` D22 addendum.
+- 1.423 **Review-step rows no longer left-shifted/clipped**: the tap-to-jump row box
+  (`.c2-review-jump`) was `width: 100%; padding: 6px 8px; margin: -6px -8px` — with
+  border-box that put the box 8px left of its column and 8px short on the right (the text
+  column 16px narrow), and the left overhang was clipped by the wizard body's
+  `overflow-x: hidden`. The row box is now its own class (`.c2-review-row`, shared by the
+  inert Organizer row so labels stay aligned): 8px inner padding, no inline negative
+  margin, vertical bleed kept, focus ring drawn at `outline-offset: -2px` so it is not
+  clipped at the column edge. `.c2-clash-row` (the review step's clash advisory and the
+  Double Booking page share it) gained the matching `width: calc(100% + 1rem)` so its
+  hover box is symmetric inside the card's padding. Pure CSS/markup — no behavior, schema
+  or payload change. Docs: `event-lifecycle.md` §1.4.1.
 
 ## 1.4 Open items & next steps
 

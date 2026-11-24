@@ -1652,7 +1652,9 @@ export function EventForm({
   // clash check above stay full-width. A row with a `jumpTo` step is the way
   // back to its fields: the whole row is the target (quiet hover fill, shared
   // focus ring — `.c2-review-jump`), so reviewing means tapping what changed,
-  // not hunting the step strip.
+  // not hunting the step strip. Both branches share `.c2-review-row` (the row
+  // box = the content column: 8px inner padding, no inline negative margin, so
+  // nothing overflows the horizontally clipped review body and labels align).
   const reviewDef = (label: string, node: ReactNode, jumpTo?: StepId) => {
     const body = (
       <>
@@ -1664,12 +1666,18 @@ export function EventForm({
     );
     const target = jumpTo ? steps.findIndex((s) => s.id === jumpTo) : -1;
     if (!jumpTo || target < 0) {
-      return <Stack gap={4}>{body}</Stack>;
+      // Inert rows carry the same box class as the jump rows, so their labels
+      // stay aligned (the row box is the content column — `.c2-review-row`).
+      return (
+        <Stack gap={4} className="c2-review-row">
+          {body}
+        </Stack>
+      );
     }
     return (
       <UnstyledButton
         type="button"
-        className="c2-review-jump"
+        className="c2-review-jump c2-review-row"
         aria-label={`Edit ${label}`}
         onClick={() => goToStep(target)}
       >

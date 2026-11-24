@@ -1617,18 +1617,31 @@ html.c2-low-end::view-transition-group(*) {
   scrollbar-width: thin;
 }
 
-/* Review-step rows that jump to their owning step (docs/ui-ux-improvements.md
-   D17): the whole row is the target (docs/accessibility.md §1.9), with a quiet
-   hover fill and the shared focus ring. The padding/negative-margin pair gives
-   the fill breathing room while keeping the label aligned with the non-jump
-   rows (Organizer). */
-.c2-review-jump {
-  display: block;
+/* Review-step row box (docs/ui-ux-improvements.md D17), shared by the rows that
+   jump to their owning step and the inert ones (Organizer), so every label in
+   the step stays aligned. The row box IS the content column: 8px of inner
+   padding and no inline negative margin. The wizard body clips horizontally
+   (`overflow-x: hidden` on `.c2-wizard-scroll`, which has no inline padding), so
+   the old `-8px` bleed was clipped on the left and — because `width: 100%` is
+   border-box — left the box 8px short on the right: the text column came out
+   16px narrow and the whole block read as shifted left and truncated. The
+   vertical negative margin is kept, so the fill still gets its 6px of breathing
+   room and the rows keep their old spacing. */
+.c2-review-row {
   width: 100%;
   text-align: start;
   border-radius: var(--mantine-radius-sm);
   padding: 6px 8px;
-  margin: -6px -8px;
+  margin-block: -6px;
+}
+
+/* Interactive review rows: the whole row is the target
+   (docs/accessibility.md §1.9), with a quiet hover fill. The focus ring is
+   drawn just inside the box (`-2px`) — at the default `2px` offset its left and
+   right edges are clipped by the scroll area now that the box reaches the
+   column edge. */
+.c2-review-jump {
+  display: block;
   transition: background-color 120ms ease;
 }
 .c2-review-jump:hover {
@@ -1636,7 +1649,7 @@ html.c2-low-end::view-transition-group(*) {
 }
 .c2-review-jump:focus-visible {
   outline: 2px solid var(--mantine-primary-color-filled);
-  outline-offset: 2px;
+  outline-offset: -2px;
 }
 
 /* Horizontal chip rows (the event-search recent-search pills): scroll the
@@ -4104,10 +4117,14 @@ html.c2-low-end::view-transition-group(*) {
 
 /* A deep-linked event row inside an expanded Double Booking card
    (docs/user-clashes.md §1.8): padded/rounded so the whole row reads as a
-   pressable target, with a hover tint and a focus ring for keyboard users. */
+   pressable target, with a hover tint and a focus ring for keyboard users.
+   `width` adds the two inline paddings back (border-box would otherwise leave
+   the box 8px short on the right while the negative margin pulls it 8px left —
+   an asymmetric hover fill). The bleed stays inside the card's `p="sm"` (12px)
+   gutter, so nothing is clipped. */
 .c2-clash-row {
   display: block;
-  width: 100%;
+  width: calc(100% + 1rem * var(--mantine-scale));
   text-align: left;
   padding: calc(0.4rem * var(--mantine-scale)) calc(0.5rem * var(--mantine-scale));
   margin-inline: calc(-0.5rem * var(--mantine-scale));

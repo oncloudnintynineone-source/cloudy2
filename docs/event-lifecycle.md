@@ -373,7 +373,11 @@ Mechanics worth knowing:
   **tap-to-jump**: the whole row is a button (`aria-label="Edit {label}"`,
   `.c2-review-jump`) that jumps to the step owning it — the Organizer row stays inert
   (the organizer is fixed) — so Review doubles as a table of contents back into the
-  draft (1.419). The Participants row shows **even when empty**: a red "None yet — add
+  draft (1.419). Both kinds of row share `.c2-review-row`, which **is** the content
+  column — 8px inner padding, no inline negative margin: the review body clips
+  horizontally (`overflow-x: hidden`), so a negative inline margin was clipped on the
+  left and left the box short on the right, which read as a left-shifted, truncated
+  block (1.423). The Participants row shows **even when empty**: a red "None yet — add
   at least one participant or department" when the event would occupy nobody, a dimmed
   "No registrants yet" on registration events, and "—" when departments alone carry it.
 
