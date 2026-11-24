@@ -194,9 +194,9 @@ belong to one event, not to its duplicate.
   - Participants step explains that people can register themselves and only
     the organizer/admin can edit;
   - Other settings also shows the registration **Limit registrations** switch
-    + maximum input (empty/off = unlimited) beneath the Open for registration
-    switch, with a **−10 / −1 / +1 / +10** stepper row under the input
-    (clamped to at least 1);
+    - maximum input (empty/off = unlimited) beneath the Open for registration
+      switch, with a **−10 / −1 / +1 / +10** stepper row under the input
+      (clamped to at least 1);
   - registration events use a people-only picker (no Departments section);
   - review shows a “Registration event” badge;
   - zero participants is accepted on submit.
@@ -205,7 +205,8 @@ belong to one event, not to its duplicate.
   - the roster is labelled "Registered (N)" or "Registered (N / cap)" and
     shows an empty state; a capped event adds a progress bar;
   - on a repeating event the roster/cap/full state is for **that occurrence**
-    and the modal says “Registration applies to this event only”;
+    (the modal carries no separate caveat line — the roster label above is
+    already the occurrence's count);
   - at capacity, a non-registered user's **Register** button is disabled and
     the modal says “Registration is full”; an existing registrant can still
     deregister;
@@ -265,16 +266,16 @@ There is no dedicated organizer-notification on someone else registering.
 
 ## 1.10 File index & tests
 
-| File                                                         | Role                                                                                                 |
-| ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
-| `src/lib/events/queries.ts`                                  | `payload.registrationEnabled` / `payload.registrationCap` from notes                                 |
-| `src/lib/events/notes.ts`                                    | `registrationEnabled` + `registrationCap` notes fields and parsers                                   |
-| `src/lib/events/guards.ts`                                   | `registrationEditGuard`                                                                              |
-| `src/lib/events/registration.ts`                             | Pure roster toggle, seat-count/full helpers + rebuild form values from a copy                        |
-| `src/lib/events/actions.ts`                                  | `setEventRegistration`, shared update pipeline, authoritative checks                                 |
-| `src/app/(protected)/dashboard/EventDetail.tsx`              | Register/deregister UI and local roster patch                                                        |
-| `src/app/(protected)/dashboard/EventForm.tsx`                | Zero-registrant creation, no auto-self, duplicated-registration reset, cap input, people-only picker |
-| `src/lib/events/optimistic.ts`                               | Optimistic payload carries the flag + cap                                                            |
+| File                                            | Role                                                                                                 |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `src/lib/events/queries.ts`                     | `payload.registrationEnabled` / `payload.registrationCap` from notes                                 |
+| `src/lib/events/notes.ts`                       | `registrationEnabled` + `registrationCap` notes fields and parsers                                   |
+| `src/lib/events/guards.ts`                      | `registrationEditGuard`                                                                              |
+| `src/lib/events/registration.ts`                | Pure roster toggle, seat-count/full helpers + rebuild form values from a copy                        |
+| `src/lib/events/actions.ts`                     | `setEventRegistration`, shared update pipeline, authoritative checks                                 |
+| `src/app/(protected)/dashboard/EventDetail.tsx` | Register/deregister UI and local roster patch                                                        |
+| `src/app/(protected)/dashboard/EventForm.tsx`   | Zero-registrant creation, no auto-self, duplicated-registration reset, cap input, people-only picker |
+| `src/lib/events/optimistic.ts`                  | Optimistic payload carries the flag + cap                                                            |
 
 Tests: `guards.test.ts`, `registration.test.ts`, `notes.test.ts`,
 `validate.test.ts`, `writeContext.test.ts`, `eventAudit.test.ts`,

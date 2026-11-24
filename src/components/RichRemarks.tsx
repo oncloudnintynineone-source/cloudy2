@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Anchor, Button, Group, Paper, Stack, Text } from "@mantine/core";
 import { postJson } from "@/lib/api/client";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
@@ -56,13 +56,23 @@ export function RichRemarks({ text }: { text: string }) {
   }
   // The toggle only earns its place when the clamped text actually clips —
   // measured, not guessed from length (wrapping depends on the modal width).
+  // `scrollHeight` on a `-webkit-box` clamp is browser-dependent (some builds
+  // report the clamped height), so measure deterministically instead: lift the
+  // clamp for one synchronous read. A layout effect runs before paint, so the
+  // unclamped frame is never visible; this component only ever renders inside
+  // the `ssr: false` detail-body chunk, so the effect is SSR-safe.
   const textRef = useRef<HTMLParagraphElement>(null);
   const [clipped, setClipped] = useState(false);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = textRef.current;
-    if (el) {
-      setClipped(el.scrollHeight > el.clientHeight + 1);
+    if (!el || expanded) {
+      return;
     }
+    const clamped = el.offsetHeight;
+    el.style.webkitLineClamp = "unset";
+    const full = el.offsetHeight;
+    el.style.webkitLineClamp = "";
+    setClipped(full > clamped + 1);
   }, [text, expanded]);
 
   useEffect(() => {

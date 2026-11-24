@@ -1097,10 +1097,14 @@ stacked below); the blur must ride the shared `--c2g-*` tokens so the locked tra
 level, the dark scheme, the low-end tint-only tier and the `@supports` fallback come free.
 
 **Status.** Shipped **1.420** (2026-11-24): the four action branches render inside
-`.c2-detail-footer` (sticky bottom, glass, top border; flush bleed via body `paddingBottom: 0`
-
-- negative inline margins), Register / Open-in-calendar are `lg` (44px), and `RichRemarks`
-  collapses to 6 lines + 2 cards behind a measured **Show more** toggle. §1.10.1.
+`.c2-detail-footer` (sticky bottom, glass, top border; flush bleed via body
+`paddingBottom: 0` together with negative inline margins), Register / Open-in-calendar
+are `lg` (44px), and `RichRemarks` collapses to 6 lines + 2 cards behind a measured
+**Show more** toggle. §1.10.1. **Fixed at 1.421:** the toggle's clip measurement now lifts
+the clamp for one pre-paint height read instead of trusting `scrollHeight` on a
+`-webkit-box` (browser-dependent — it under-reported and hid the toggle); the
+per-occurrence registration caveat line was dropped from the modal (see
+[`registration-events.md`](registration-events.md)).
 
 ## 1.8 Workflow level
 

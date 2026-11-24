@@ -18,8 +18,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.420 (Event detail modal hardening — sticky frosted
-  action footer, clamped remarks)** is shipped.
+- All work through changelog **1.421 (Details-modal follow-up — Show more toggle made
+  reliable, per-occurrence registration hint dropped)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -3080,6 +3080,13 @@ size="compact"`), and renames **Duplicate Event** / **Copy to Other Google
   `RichRemarks` collapses to 6 lines + 2 preview cards behind a measured **Show more**
   toggle (resets per event). Docs: `ui-ux-improvements.md` D22, `event-lifecycle.md`
   §1.7.5/§1.12, `accessibility.md` §1.9, `user-guide.md` §1.4.2.
+- 1.421 **Details-modal follow-up (D22 fix + copy)**: the **Show more** toggle was
+  invisible — `scrollHeight` on a `-webkit-box` clamp under-reports on some builds, so
+  the clip check never fired; `RichRemarks` now measures deterministically by lifting
+  the clamp for one pre-paint height read (`useLayoutEffect`, invisible). The
+  "Registration applies to this event only…" line is removed from both registration
+  branches of the detail modal (the per-occurrence roster behavior is unchanged).
+  Docs: `ui-ux-improvements.md` D22 addendum, `registration-events.md` §1.4.
 
 ## 1.4 Open items & next steps
 

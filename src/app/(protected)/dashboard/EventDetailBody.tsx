@@ -900,28 +900,20 @@ export function EventDetailBody({
                     </Tooltip>
                   </Group>
                   {registrationAvailable && (
-                    <Stack gap={4}>
-                      <Button
-                        size="lg"
-                        color={isRegistered ? "gray" : "brand"}
-                        variant={isRegistered ? "light" : "filled"}
-                        loading={registrationBusy}
-                        disabled={registrationFull}
-                        loaderProps={BUTTON_LOADER_PROPS}
-                        leftSection={
-                          isRegistered ? <IconUserMinus size={18} /> : <IconUserPlus size={18} />
-                        }
-                        onClick={handleRegistration}
-                      >
-                        {isRegistered ? "Deregister" : "Register"}
-                      </Button>
-                      {isRecurring && (
-                        <Text size="xs" c="dimmed">
-                          Registration applies to this event only. Other events in the series are
-                          unaffected.
-                        </Text>
-                      )}
-                    </Stack>
+                    <Button
+                      size="lg"
+                      color={isRegistered ? "gray" : "brand"}
+                      variant={isRegistered ? "light" : "filled"}
+                      loading={registrationBusy}
+                      disabled={registrationFull}
+                      loaderProps={BUTTON_LOADER_PROPS}
+                      leftSection={
+                        isRegistered ? <IconUserMinus size={18} /> : <IconUserPlus size={18} />
+                      }
+                      onClick={handleRegistration}
+                    >
+                      {isRegistered ? "Deregister" : "Register"}
+                    </Button>
                   )}
                 </Stack>
               ) : registrationAvailable ? (
@@ -950,12 +942,6 @@ export function EventDetailBody({
                     )}
                     <AddToCalendarMenu event={showEvent} />
                   </Group>
-                  {isRecurring && (
-                    <Text size="xs" c="dimmed">
-                      Registration applies to this event only. Other events in the series are
-                      unaffected.
-                    </Text>
-                  )}
                 </Stack>
               ) : (
                 <Stack gap="xs">
