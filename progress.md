@@ -18,8 +18,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.421 (Details-modal follow-up — Show more toggle made
-  reliable, per-occurrence registration hint dropped)** is shipped.
+- All work through changelog **1.422 (Details-modal Show more root cause — measured only
+  once the dialog content has layout)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -3087,6 +3087,14 @@ size="compact"`), and renames **Duplicate Event** / **Copy to Other Google
   "Registration applies to this event only…" line is removed from both registration
   branches of the detail modal (the per-occurrence roster behavior is unchanged).
   Docs: `ui-ux-improvements.md` D22 addendum, `registration-events.md` §1.4.
+- 1.422 **Details-modal Show more root-caused**: the toggle was invisible whenever the
+  body chunk mounted inside the modal's opening transition — Mantine renders kept-mounted
+  modal content with `display: none` until the transition leaves `exited` (two frames
+  after open), so the one-shot clamp measurement compared 0 against 0 and never re-ran.
+  `RichRemarks` now skips reads from a box without layout and re-measures through a
+  `ResizeObserver` the moment the content appears (also on the xs→md resize and font
+  reflows), resets `clipped` per event, and falls back to a ≥ 420-character guarantee so
+  a long note always offers **Show more**. Docs: `ui-ux-improvements.md` D22 addendum.
 
 ## 1.4 Open items & next steps
 

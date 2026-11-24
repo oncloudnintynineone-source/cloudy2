@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Anchor, Button, Group, Paper, Stack, Text } from "@mantine/core";
 import { postJson } from "@/lib/api/client";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
@@ -30,6 +30,13 @@ import type { LinkPreview, LinkPreviewEntry } from "@/lib/linkPreviews/types";
 const REMARKS_LINE_CLAMP = 6;
 /** Preview cards shown while collapsed. */
 const PREVIEW_CARD_CAP = 2;
+/**
+ * Length past which remarks are guaranteed to clip even at the widest dialog
+ * (440px at 14px type ≈ 6 lines of ~60 chars). A last-resort guarantee that a
+ * long note always offers the toggle even when no measurement lands; a
+ * redundant toggle on pathological narrow-glyph text is the accepted cost.
+ */
+const REMARKS_GUARANTEED_CLIP_CHARS = 420;
 
 /** Per-page-load preview cache (null = fetched and failed; never retried). */
 const previewCache = new Map<string, LinkPreview | null>();
@@ -48,32 +55,62 @@ export function RichRemarks({ text }: { text: string }) {
   const [, setCacheVersion] = useState(0);
   // Collapsed by default (D22); a new event's remarks start collapsed too —
   // the modal is keepMounted, so the reset rides the text change in render.
+  // `clipped` resets with it, so a previous event's verdict can never leak
+  // onto a short note.
   const [expanded, setExpanded] = useState(false);
+  const [clipped, setClipped] = useState(false);
   const [prevText, setPrevText] = useState(text);
   if (text !== prevText) {
     setPrevText(text);
     setExpanded(false);
+    setClipped(false);
   }
   // The toggle only earns its place when the clamped text actually clips —
   // measured, not guessed from length (wrapping depends on the modal width).
-  // `scrollHeight` on a `-webkit-box` clamp is browser-dependent (some builds
-  // report the clamped height), so measure deterministically instead: lift the
-  // clamp for one synchronous read. A layout effect runs before paint, so the
-  // unclamped frame is never visible; this component only ever renders inside
-  // the `ssr: false` detail-body chunk, so the effect is SSR-safe.
+  // Two traps this measurement must survive, and used to fall into:
+  //   1. `scrollHeight` on a `-webkit-box` clamp is browser-dependent (some
+  //      builds report the clamped height), so the clamp is lifted for one
+  //      synchronous read instead;
+  //   2. the modal's Transition renders its kept-mounted content with
+  //      `display: none` for the first frames of every open (status moves from
+  //      "exited" to "entering" two animation frames after `mounted` flips), so
+  //      a one-shot read in that window sees 0/0 and silently hides the toggle
+  //      for the whole event. Hence: never record a read from a laid-out-less
+  //      box, and re-measure from a ResizeObserver the moment the box appears
+  //      (also covering the xs→md modal resize and font reflows).
   const textRef = useRef<HTMLParagraphElement>(null);
-  const [clipped, setClipped] = useState(false);
-  useLayoutEffect(() => {
+  const measureClip = useCallback(() => {
     const el = textRef.current;
     if (!el || expanded) {
+      return;
+    }
+    // Not laid out (the Transition's `display: none` window, or the dialog
+    // while it is closed): never record that as "does not clip".
+    if (el.offsetHeight === 0) {
       return;
     }
     const clamped = el.offsetHeight;
     el.style.webkitLineClamp = "unset";
     const full = el.offsetHeight;
     el.style.webkitLineClamp = "";
-    setClipped(full > clamped + 1);
-  }, [text, expanded]);
+    const next = full > clamped + 1;
+    // Same-value writes bail out, so the observer can never loop.
+    setClipped((prev) => (prev === next ? prev : next));
+  }, [expanded]);
+
+  useLayoutEffect(() => {
+    measureClip();
+  }, [measureClip, text]);
+
+  useEffect(() => {
+    const el = textRef.current;
+    if (!el || typeof ResizeObserver !== "function") {
+      return;
+    }
+    const observer = new ResizeObserver(() => measureClip());
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [measureClip]);
 
   useEffect(() => {
     const missing = urls.filter((url) => !previewCache.has(url));
@@ -152,7 +189,10 @@ export function RichRemarks({ text }: { text: string }) {
           ))}
         </Stack>
       )}
-      {(expanded || clipped || overflowCards > 0) && (
+      {(expanded ||
+        clipped ||
+        overflowCards > 0 ||
+        text.length >= REMARKS_GUARANTEED_CLIP_CHARS) && (
         <Button
           variant="subtle"
           size="compact-xs"

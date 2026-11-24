@@ -1100,11 +1100,17 @@ level, the dark scheme, the low-end tint-only tier and the `@supports` fallback 
 `.c2-detail-footer` (sticky bottom, glass, top border; flush bleed via body
 `paddingBottom: 0` together with negative inline margins), Register / Open-in-calendar
 are `lg` (44px), and `RichRemarks` collapses to 6 lines + 2 cards behind a measured
-**Show more** toggle. §1.10.1. **Fixed at 1.421:** the toggle's clip measurement now lifts
-the clamp for one pre-paint height read instead of trusting `scrollHeight` on a
-`-webkit-box` (browser-dependent — it under-reported and hid the toggle); the
-per-occurrence registration caveat line was dropped from the modal (see
-[`registration-events.md`](registration-events.md)).
+**Show more** toggle. §1.10.1. Hardened at **1.421**, root-caused and fixed at **1.422**:
+the clip check lifts the clamp for one synchronous height read (`scrollHeight` on a
+`-webkit-box` is browser-dependent), and — the real defect — it must never record a
+reading from a box without layout. Mantine's Transition renders kept-mounted modal content
+with `display: none` for the first two frames of every open, so the original one-shot read
+compared 0 against 0 and silently hid the toggle for the whole event whenever the body
+chunk landed inside that window (warm chunks failed, cold chunks worked — the intermittent
+"sometimes invisible" report). A `ResizeObserver` now re-measures the moment the box
+appears (and on the xs→md resize and font reflows), `clipped` resets per event, and a
+≥ 420-character fallback guarantees the toggle on notes that cannot possibly fit (see
+[`registration-events.md`](registration-events.md) for the dropped per-occurrence caveat).
 
 ## 1.8 Workflow level
 
