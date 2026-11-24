@@ -198,7 +198,6 @@ export function DashboardScreen({
   // plain route-handler fetches precisely so they can be cancelled — a server
   // action cannot be, and a backlog of them used to stall the calendar.
   const loadAbortRef = useRef<AbortController | null>(null);
-  const preloadAbortRef = useRef<AbortController | null>(null);
   const adjacentAbortRef = useRef<AbortController | null>(null);
   const deepLinkAbortRef = useRef<AbortController | null>(null);
   const contextFetchTimerRef = useRef<number | null>(null);
@@ -218,7 +217,6 @@ export function DashboardScreen({
     }
     return () => {
       loadAbortRef.current?.abort();
-      preloadAbortRef.current?.abort();
       adjacentAbortRef.current?.abort();
       deepLinkAbortRef.current?.abort();
       prefetchGenerationRef.current += 1;
@@ -236,18 +234,11 @@ export function DashboardScreen({
       void preloadRendererKind(kind);
     }
   }, [record?.data.activeView.kind]);
-  // Tab preload bookkeeping: the anchor signature + generation last scheduled,
-  // and a generation counter bumped by any mutation/force refresh so an
-  // in-flight preload can't repopulate the warm cache after it was cleared.
-  const preloadedRef = useRef<{ signature: string; generation: number } | null>(null);
+  // Warm-up bookkeeping: a generation counter bumped by any mutation/force
+  // refresh so an in-flight adjacent-period warm can't repopulate the warm cache
+  // after it was cleared. Tabs themselves are warmed on intent or on tap
+  // (`prefetchContext`), never speculatively for the whole strip.
   const preloadGenerationRef = useRef(0);
-  // Background-tab loading indicator (docs/loading-transitions.md §1.13.2):
-  // `preloading` is true while a preload pass is in flight; `backgroundKeys` is
-  // the set of non-warm tab keys captured when that pass started. The bar is
-  // latched to those keys (not recomputed against `warmKeys`) so the min-hold
-  // keeps it up after the pass lands and those tabs turn warm.
-  const [preloading, setPreloading] = useState(false);
-  const [backgroundKeys, setBackgroundKeys] = useState<ReadonlySet<string>>(() => new Set());
 
   // Optimistic active tab: set on tap (via the data context) so the displayed
   // context can move before the URL navigation commits — a warm tab paints
@@ -564,87 +555,12 @@ export function DashboardScreen({
     }
   }, []);
 
-  // Background-preload every tab for the current anchor (docs/pwa-offline.md
-  // §1.18), so a tab switch paints from the warm cache with no round-trip.
-  // The server pass also warms the active tab for the previous month and the
-  // next two, so a month step slides in warm data (docs/loading-transitions.md
-  // §1.14.1). The result is discarded if a mutation/force refresh bumped the
-  // generation or a newer anchor superseded the signature.
-  const preloadTabs = useCallback(
-    async (signature: string, generation: number) => {
-      const current = recordRef.current;
-      if (current) {
-        // Snapshot the tabs this pass must actually load (not already warm for
-        // the anchor), so the background bar latches to them.
-        const warm = warmRecordsRef.current;
-        setBackgroundKeys(
-          new Set(
-            current.data.tabs
-              .map((tab) =>
-                dashboardRequestKey({
-                  viewId: tab.id,
-                  months: requiredMonths(
-                    tab.kind,
-                    current.context.month,
-                    current.context.date,
-                    current.data.weekStartsOn,
-                  ),
-                }),
-              )
-              .filter((key) => !warm.has(key)),
-          ),
-        );
-      }
-      preloadAbortRef.current?.abort();
-      const controller = new AbortController();
-      preloadAbortRef.current = controller;
-      setPreloading(true);
-      try {
-        const result = await postJson<PreloadDashboardTabsResult>(
-          "/api/dashboard/preload",
-          inputFromParams(paramsRef.current),
-          { signal: controller.signal },
-        );
-        if (preloadGenerationRef.current !== generation) return;
-        if (preloadedRef.current?.signature !== signature) return;
-        if (!result.ok) return;
-        const records: DashboardSnapshotRecord[] = result.records.map((entry) => ({
-          version: DASHBOARD_SNAPSHOT_VERSION,
-          savedAt: Date.now(),
-          context: entry.context,
-          data: assembleDashboardSnapshot(result.shared, entry.delta),
-        }));
-        setWarmRecords((current) => {
-          const next = new Map(current);
-          for (const record of records) {
-            next.set(record.context.requestKey, record);
-          }
-          return next;
-        });
-        // One transaction + one prune for the whole batch (not one per tab).
-        void writeDashboardSnapshots(
-          userId,
-          records.map((record) => ({ data: record.data, context: record.context })),
-        );
-      } catch {
-        // Best-effort warm-up: an aborted/offline/failed pass is invisible. The
-        // active tab is already loaded, and any other tab fetches on demand.
-      } finally {
-        if (preloadAbortRef.current === controller) {
-          preloadAbortRef.current = null;
-        }
-        // Only the run that is still current may drop the flag; a superseded or
-        // revalidate-bumped run leaves it to its successor.
-        if (
-          preloadGenerationRef.current === generation &&
-          preloadedRef.current?.signature === signature
-        ) {
-          setPreloading(false);
-        }
-      }
-    },
-    [userId, setWarmRecords],
-  );
+  // Tabs are deliberately NOT preloaded as a strip (docs/pwa-offline.md §1.18):
+  // warming every tab at the anchor shipped the union of all their calendars ×
+  // months on every launch, which is exactly the Neon egress this app has to
+  // stay under (docs/neon-usage.md). A tab now loads when the user reaches for
+  // it — `prefetchContext` on hover/focus/press, or the tap's own read — and the
+  // per-tab `tabStatus` already renders the not-loaded/loading states.
 
   // Hydrate the warm cache and paint a stored context as soon as it is read: the
   // cached context for the anchor the load names (URL params, then the device
@@ -807,11 +723,7 @@ export function DashboardScreen({
         prefetchGenerationRef.current += 1;
         speculativeRef.current?.controller.abort();
         speculativeRef.current = null;
-        // Keep the signature: a force refresh must not trigger another full
-        // background warm-up on top of the read it already forces.
-        preloadAbortRef.current?.abort();
-        setPreloading(false);
-        setBackgroundKeys(new Set());
+        adjacentAbortRef.current?.abort();
         setWarmRecords(new Map());
         void clearDashboardSnapshots(userId);
         void fetchFresh();
@@ -819,70 +731,13 @@ export function DashboardScreen({
     }
   }, [refreshParam, fetchFresh, userId, setWarmRecords]);
 
-  // Preload once the active context is fresh and idle: every tab for the
-  // current anchor, plus the active tab for the previous month and the next
-  // two, so a tab switch or a month navigation paints instantly
-  // (docs/pwa-offline.md §1.18). Runs once per anchor signature (committed tab
-  // + tab set + the months those tabs need), deferred to idle so it never
-  // delays first paint, and skipped offline. Also skipped on weak devices /
-  // constrained connections — it costs a server read plus a write per record,
-  // and the active tab is always loaded, so a skipped preload only means a
-  // later context fetches on demand.
-  useEffect(() => {
-    if (!record || source !== "fresh" || busy) return;
-    if (typeof navigator !== "undefined" && navigator.onLine === false) return;
-    if (!canPreloadTabs()) return;
-    const tabs = record.data.tabs;
-    const months = [
-      ...new Set(
-        tabs.flatMap((tab) =>
-          requiredMonths(
-            tab.kind,
-            record.context.month,
-            record.context.date,
-            record.data.weekStartsOn,
-          ),
-        ),
-      ),
-    ].sort();
-    // The signature deliberately excludes the active `?view=`: switching tabs
-    // must not re-run the whole background read (the warm records it would
-    // refresh are already in place). It changes only when the tab set or the
-    // anchor's required months change.
-    const signature = `${tabs.map((tab) => tab.id).join(",")}|${months.join(",")}`;
-    const generation = preloadGenerationRef.current;
-    // Once a signature has been warmed, it stays warmed for this mount. A
-    // mutation bumps the generation (discarding in-flight results) but does not
-    // force another full pass: the active tab is re-read by `revalidate`, and
-    // any other tab fetches on demand instead of making the user wait.
-    if (preloadedRef.current?.signature === signature) {
-      return;
-    }
-    const run = () => {
-      if (preloadGenerationRef.current !== generation) return;
-      preloadedRef.current = { signature, generation };
-      void preloadTabs(signature, generation);
-    };
-    const handle =
-      typeof requestIdleCallback === "function"
-        ? requestIdleCallback(run, { timeout: 2000 })
-        : window.setTimeout(run, 0);
-    return () => {
-      if (typeof cancelIdleCallback === "function") {
-        cancelIdleCallback(handle);
-      } else {
-        window.clearTimeout(handle);
-      }
-    };
-  }, [record, source, busy, preloadTabs]);
-
-  // Adjacent-only warm after a tab change (docs/pwa-offline.md §1.18). The full
-  // pass warms the tab that was active when it ran; switching tabs deliberately
-  // doesn't re-run it (the signature excludes the active view), so the newly
-  // active tab's previous/next periods stay cold — the Agenda tab crossing a
-  // month edge was the visible symptom. One extra idle request per
-  // active-tab/anchor fills exactly those three contexts; it no-ops when the
-  // full pass already covered them.
+  // Warm the active tab's neighbouring periods after the context is fresh and
+  // idle, so a month step paints from the device cache instead of sliding a
+  // skeleton in (docs/loading-transitions.md §1.14.1). Only the active tab is
+  // warmed — every other tab loads on demand or on intent, so the strip never
+  // ships the union of every tab's calendars × months (docs/neon-usage.md).
+  // The full pass is deliberately gone; `scope: "all"` on the preload route is
+  // the explicit rollback.
   const adjacentWarmRef = useRef<string | null>(null);
   // The displayed (URL-first) tab/period — never the held record's, which lags a
   // tab switch to a warm tab (the record isn't swapped in that case).
@@ -996,11 +851,9 @@ export function DashboardScreen({
       prefetchGenerationRef.current += 1;
       speculativeRef.current?.controller.abort();
       speculativeRef.current = null;
-      // Discard an in-flight warm-up's results without scheduling another pass
-      // (see the preload effect): the user is waiting on this read.
-      preloadAbortRef.current?.abort();
-      setPreloading(false);
-      setBackgroundKeys(new Set());
+      // Discard an in-flight adjacent-period warm and any intent fetch: the
+      // user is waiting on this read, and both would land with pre-mutation data.
+      adjacentAbortRef.current?.abort();
       setWarmRecords(new Map());
       const report = options?.report !== false;
       if (report) setRefreshing(true);
@@ -1044,15 +897,14 @@ export function DashboardScreen({
     [userId],
   );
 
-  // Per-tab loading bars (docs/loading-transitions.md §1.13.2). The active
-  // tab's own read shows immediately and lingers 1s; a background preload waits
-  // 300ms before appearing (a fast warm pass never flashes it) and also holds
-  // 1s once shown. Both ride `tabStatus`, so the tab strip paints a bar per tab.
+  // Per-tab loading status (docs/loading-transitions.md §1.13.2): fresh (solid)
+  // / loading (a sweeping amber bar) / not-loaded (static fade). Only the active
+  // tab's own read lights a bar — a tab the user has not reached for stays
+  // `not-loaded` until its intent warm or its tap fetches it, which is the
+  // lazy-tab default (no strip-wide background pass).
   const activeLoading = useLoadingIndicator(busy, { delayMs: 0, minHoldMs: 1000 });
-  const backgroundLoading = useLoadingIndicator(preloading, { delayMs: 300, minHoldMs: 1000 });
 
-  // Per-tab status for the tab strip (docs/loading-transitions.md §1.13.2):
-  // fresh (solid) / loading (a sweeping amber bar) / not-loaded (static fade).
+  // Per-tab status for the tab strip (docs/loading-transitions.md §1.13.2).
   // The active tab is always treated as fresh unless a read for it is in flight.
   const tabStatus = useMemo(() => {
     if (!record) return {};
@@ -1082,11 +934,6 @@ export function DashboardScreen({
       const activeTab = tabs.find((tab) => tab.id === activeId) ?? record.data.activeView;
       loadingKeys.add(keyForTab(activeTab));
     }
-    // A preload pass lights every tab it still has to load (latched at pass
-    // start, so the 1s hold survives those tabs turning warm).
-    if (backgroundLoading) {
-      for (const key of backgroundKeys) loadingKeys.add(key);
-    }
 
     return tabLoadStates({
       tabs,
@@ -1097,7 +944,7 @@ export function DashboardScreen({
       loadingKeys,
       activeTabId: activeId,
     });
-  }, [record, warmRecords, activeLoading, backgroundLoading, backgroundKeys, navigation]);
+  }, [record, warmRecords, activeLoading, navigation]);
 
   const context = useMemo(
     () => ({

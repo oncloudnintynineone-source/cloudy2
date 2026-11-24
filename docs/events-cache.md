@@ -146,37 +146,70 @@ erDiagram
  google_event_cache {
  text calendar_google_id PK "Google calendar id"
  text month PK "YYYY-MM"
- jsonb events NOT NULL "encoded CachedEvent[]"
+ text payload "brotli+base64url CachedEvent[] (br1:)"
+ jsonb events "LEGACY jsonb payload (read fallback, dropped next release)"
+ boolean creator_indexed "organizer index authoritative?"
  timestamp_tz fetched_at NOT NULL "last successful fetch"
  }
+ google_event_cache_creators {
+ text calendar_google_id PK
+ text month PK
+ uuid creator_id PK
+ }
+ google_event_cache ||--o{ google_event_cache_creators : "organizer index"
 ```
 
 | Column               | Type          | Notes                                                        |
 | -------------------- | ------------- | ------------------------------------------------------------ |
 | `calendar_google_id` | `text`        | Google calendar id (from the `calendars` registry row)       |
 | `month`              | `text`        | `YYYY-MM`                                                    |
-| `events`             | `jsonb`       | `CachedEvent[]` — `GcalEventItem`s with dates as ISO strings |
+| `payload`            | `text`        | Brotli + base64url `CachedEvent[]`, prefix `br1:` (§1.4.3)   |
+| `events`             | `jsonb`       | **Legacy** payload — transition read fallback only           |
+| `creator_indexed`    | `boolean`     | True once the organizer index rows below are authoritative   |
 | `fetched_at`         | `timestamptz` | Set on every successful refresh (drives TTL)                 |
 
 Primary key: `(calendar_google_id, month)`. No foreign key — the row is keyed by the
 Google id, not the registry UUID, so the cache is independent of the `calendars` table.
 
+`google_event_cache_creators` (`(calendar_google_id, month, creator_id)` PK, indexed on
+`creator_id`) records which roster users organized at least one event in that payload —
+the pre-filter that keeps My Events' wide windows from shipping every calendar-month row
+([`neon-usage.md`](neon-usage.md) §1.2.1). It is written in the same transaction as the
+payload row and deleted with it.
+
 ### 1.4.3 Stored payload
 
 `GcalEventItem` (`src/lib/google/types.ts`) has `Date` `start`/`end` values, which JSON
-cannot represent round-trippably. The codec (`eventsCacheCodec.ts`) encodes them as ISO
-strings for storage and reconstructs `Date`s on read:
+cannot represent round-trippably, and the raw `description` dominates a month's bytes (the
+notes block is itself brotli+base64url). The codec (`eventsCacheCodec.ts`) therefore stores
+a **slim, compressed** form (`encodeCachedMonth`):
+
+- JSON of `{ id, start, end, allDay, title?, description?, location?, recurringEventId?,
+  originalStartTime?, recurrence?, status? }` — `calendarId` is omitted (it is the row key)
+  and empty optional values are dropped;
+- the JSON string is brotli-compressed at quality 5 and base64url-encoded, with a `br1:`
+  format tag inline (`payload`), so one row ships a fraction of the legacy jsonb bytes
+  (measured ≈0.47× on an entropy-heavy synthetic month; real months compress better).
+
+`decodeCachedMonth(payload, calendarGoogleId)` reverses it, restores `calendarId` from the
+row key and the omitted fields to their defaults, drops malformed entries, and returns
+`null` for an unusable payload (unknown tag, corrupt brotli, malformed JSON, non-array) so
+the caller treats the row as a miss. `encodeCachedEvents` / `decodeCachedEvents` remain for
+the legacy `events` column and its tests.
 
 ```ts
-interface CachedEvent {
+interface SlimCachedEvent {
   id: string;
-  calendarId: string;
-  title: string;
-  description: string;
+  start: string; // ISO 8601
+  end: string; // ISO 8601
   allDay: boolean;
-  location: string;
-  start: string;
-  end: string; // ISO 8601 dates
+  title?: string;
+  description?: string;
+  location?: string;
+  recurringEventId?: string;
+  originalStartTime?: string;
+  recurrence?: string[];
+  status?: string;
 }
 ```
 
@@ -226,12 +259,15 @@ sequenceDiagram
    exceeds 1024 rows — sized for a wide My Events window (calendars × 25 months) to stay
    resident.
 2. **L2 Postgres** — every L1 hit is verified against the shared row with a
-   **metadata-only `SELECT`** (`calendar_google_id`, `fetched_at` — no `events` payload),
-   so a cross-instance `invalidateGcalCache` (DELETE on another lambda) is visible without
-   re-downloading whole months; full `events` rows are fetched **only for L1 misses** (one
-   batched `SELECT` regardless of calendar count), plus the rare L1 hit whose shared row is
-   meaningfully newer than the local copy. Usable rows (fresh or stale) are decoded and
-   promoted into L1.
+   **metadata-only `SELECT`** (`calendar_google_id`, `creator_indexed`, `fetched_at` — no
+   payload), so a cross-instance `invalidateGcalCache` (DELETE on another lambda) is visible
+   without re-downloading whole months; full payload rows are fetched **only for L1 misses**
+   (one batched `SELECT` regardless of calendar count), plus the rare L1 hit whose shared row
+   is meaningfully newer than the local copy. Usable rows (fresh or stale) are decoded and
+   promoted into L1. A read with `creatorFilter` (My Events) bypasses L1 and narrows the
+   full-row `SELECT` by `google_event_cache_creators` first — see [`neon-usage.md`](neon-usage.md)
+   §1.2.1; rows written before the index existed (`creator_indexed = false`) are fetched
+   conservatively.
 3. **Google** — anything missing or expired blocks on a fresh `events.list` + upsert,
    executed with bounded concurrency (`GOOGLE_FETCH_CONCURRENCY` = 4) over **one flat pool
    of every pending `(month, calendar)` pair** — a wide cold window (My Events ±12) refreshes
@@ -472,15 +508,18 @@ fully-cached views from churning extra Google/DB work after the response. Prefet
 month swiping render from cache on the next navigation.
 
 A second, client-driven warm exists on top of this: after the active context is fresh, the
-dashboard calls `/api/dashboard/preload` (`src/lib/dashboard/data.ts`), which takes the
-**union** of every tab's calendars/months and does **one** `readCalendarRange` (the
-cache-key-independent read the tab projections share), then projects each tab's filtered
-events. It then warms the **active tab** for the next two months with a **second**
-`readCalendarRange` scoped to just that tab's calendars, so a forward month navigation
-paints from the device cache with no round-trip. This never forces a Google refresh and
+dashboard calls `/api/dashboard/preload` (`src/lib/dashboard/data.ts`), which reads the
+**active tab's** previous and next month (`PRELOAD_MONTHS_BEHIND` / `PRELOAD_MONTHS_AHEAD = 1`)
+with **one** `readCalendarRange` scoped to that tab's calendars, so a month navigation in
+either direction paints from the device cache with no round-trip. Other tabs are **not**
+preloaded: a tab loads on tap through its own `/api/dashboard/load`, or on intent
+(hover/focus/press, one deduped speculative request), so a tab the user never reaches for
+ships no payload (the old union pass over every tab's calendars × months was the largest
+source of Neon egress — [`neon-usage.md`](neon-usage.md)). The `scope: "all"` preload input
+restores that eager pass as an explicit rollback. This never forces a Google refresh and
 never uses `after()` — it is a foreground read the client awaits in the background — so it
 warms only what the active context has already fetched plus any genuinely cold
-`(calendar, month)` combinations for other tabs and the active tab's future months (see
+`(calendar, month)` combination for the active tab's neighbours (see
 [`pwa-offline.md`](pwa-offline.md) §1.18). `fetchRangeEvents` is now a thin wrapper
 over `readCalendarRange` + `projectRangeEvents` (`queries.ts`), the split that lets one raw
 read back several filter sets.

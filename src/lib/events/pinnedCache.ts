@@ -16,7 +16,9 @@
  * can never overwrite the post-mutation row.
  *
  * Only the raw `CalendarEvent`s are stored (not rendered titles), so settings,
- * user, and event-type changes apply without invalidating the cache.
+ * user, and event-type changes apply without invalidating the cache. The row is
+ * brotli-compressed + base64url-encoded (same codec as the month cache) so a
+ * cold instance's single read ships as few bytes as possible.
  */
 
 import { eq } from "drizzle-orm";
@@ -28,6 +30,7 @@ import { formatInstantToNaive, monthsInRange } from "@/lib/events/datetime";
 import { fetchRangeEvents, listCalendars, type CalendarEvent } from "@/lib/events/queries";
 import { selectPinnedEvents } from "@/lib/events/pinnedSelect";
 import { decodePinnedSelection, pinnedCacheIsFresh } from "@/lib/events/pinnedSelection";
+import { decodeCompressedPayload, encodeCompressedPayload } from "@/lib/google/eventsCacheCodec";
 import { readCacheEpoch } from "@/lib/google/eventsCache";
 
 const PINNED_CACHE_ID = "singleton";
@@ -65,12 +68,15 @@ async function rebuildUncoalesced(): Promise<CalendarEvent[]> {
 
   if ((await readCacheEpoch()) === epochAtStart) {
     const fetchedAt = new Date();
+    // Same compressed-payload codec as the month cache, so the singleton row
+    // ships a fraction of the bytes raw JSONB did (docs/neon-usage.md).
+    const payload = encodeCompressedPayload(selection);
     await db
       .insert(pinnedEventCache)
-      .values({ id: PINNED_CACHE_ID, events: selection, fetchedAt })
+      .values({ id: PINNED_CACHE_ID, payload, events: null, fetchedAt })
       .onConflictDoUpdate({
         target: pinnedEventCache.id,
-        set: { events: selection, fetchedAt },
+        set: { payload, events: null, fetchedAt },
       });
   }
 
@@ -99,6 +105,7 @@ export function rebuildPinnedSelection(): Promise<CalendarEvent[]> {
 export async function readPinnedSelection(): Promise<CalendarEvent[]> {
   const [row] = await db
     .select({
+      payload: pinnedEventCache.payload,
       events: pinnedEventCache.events,
       fetchedAt: pinnedEventCache.fetchedAt,
     })
@@ -110,7 +117,11 @@ export async function readPinnedSelection(): Promise<CalendarEvent[]> {
     return rebuildPinnedSelection();
   }
 
-  const selection = decodePinnedSelection(row.events);
+  // Prefer the compressed payload; fall back to the legacy jsonb column for a
+  // row written before the compression change. An unusable row rebuilds.
+  const selection = decodePinnedSelection(
+    row.payload !== null ? decodeCompressedPayload(row.payload) : row.events,
+  );
   if (!selection) {
     return rebuildPinnedSelection();
   }

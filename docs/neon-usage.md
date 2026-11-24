@@ -10,6 +10,7 @@ statistics (`pg_stat_statements`).
 
 - [1.1 Why Google Calendar isn't the constraint](#11-why-google-calendar-isnt-the-constraint)
 - [1.2 The real constraint: Neon free tier](#12-the-real-constraint-neon-free-tier)
+  - [1.2.1 What the egress reductions are](#121-what-the-egress-reductions-are)
 - [1.3 Daily usage via the consumption API](#13-daily-usage-via-the-consumption-api)
 - [1.4 Query-level stats via `pg_stat_statements`](#14-query-level-stats-via-pgstatstatements)
 - [1.5 Reading the numbers](#15-reading-the-numbers)
@@ -52,11 +53,45 @@ the binding ceiling:
 - **0.5 GB storage** — the `google_event_cache` rows accumulate per `(calendar, month)`.
 
 Because the free suspend timeout is not configurable, the code-level levers are limited to
-*reducing how often* the DB is touched (fewer keep-alive reads, shorter bursts) — which is
-exactly what the events-cache optimizations do: metadata-only L1 verification, full rows
-only for misses, `React.cache`d per-render reads, and Google refreshes kept outside any
-transaction so the small connection pool is never held open across a Google round-trip (see
+*reducing how often* the DB is touched (fewer keep-alive reads, shorter bursts) and
+*shrinking each touch* — which is what the events-cache optimizations do: metadata-only L1
+verification, full rows only for misses, `React.cache`d per-render reads, and Google
+refreshes kept outside any transaction so the small connection pool is never held open
+across a Google round-trip (see
 [events-cache.md §1.5](events-cache.md#15-read-path)).
+
+### 1.2.1 What the egress reductions are
+
+The month payload is the only large object the app reads, so the tuning is about shipping
+fewer of them and fewer bytes in each:
+
+1. **Compressed payloads.** `google_event_cache.payload` (and `pinned_event_cache.payload`)
+   store the month as **brotli + base64url** instead of jsonb
+   (`encodeCachedMonth` / `decodeCachedMonth`, `src/lib/google/eventsCacheCodec.ts`). The
+   per-event `calendarId` is dropped (it is the row key) and empty optional fields are
+   omitted. Measured on a synthetic entropy-heavy month (30 events, 300-char pseudo-notes
+   each, i.e. the worst case): **21.0 KB legacy JSON → 10.0 KB payload (0.47×)**. Real
+   months compress better (repeated ids/keys, recurring `EXDATE` lists, similar titles).
+   `bytea` would have been 2× in Postgres' hex text output, so the payload stays `text`.
+   Legacy jsonb rows are still read as a fallback and are rewritten in the new format on
+   their next refresh (30-min TTL), so the change needs no backfill.
+2. **Lazy dashboard tabs.** The client no longer warms *every* tab at the anchor on launch
+   (that union read shipped all of their calendars × months — the largest single source).
+   Only the active tab's previous/next month is warmed; other tabs load on tap or on intent
+   (hover/focus/press), so a tab the user never opens ships nothing. Rollback:
+   `scope: "all"` on `/api/dashboard/preload`.
+3. **Organizer pre-filter.** `google_event_cache_creators` records which users organized
+   something in each `(calendar, month)` payload, so My Events' ±6/±12 windows fetch only
+   the rows that can contain the user's events instead of every calendar × month
+   (`readCalendarRange({ creatorFilter })`). Its adjacent-month prefetch is skipped.
+4. **Fewer round trips, same bytes.** The KAH badge reads all its months in one batched
+   cache call instead of one call per month.
+
+Rejected on purpose: `fetch_types: false` (postgres.js v3 uses that connect-time query to
+install the `text[]` parsers the schema relies on), `bytea` payloads (hex output doubles the
+wire size), raising `idle_timeout` (it moves the cost to the compute-hours cap), and
+region moves (latency only). PrivateLink is not on the free plan, but note that
+`private_network_transfer_bytes` is a **separate** metric from the 5 GiB public allowance.
 
 ## 1.3 Daily usage via the consumption API
 
@@ -135,14 +170,19 @@ SELECT pg_stat_statements_reset();
 After the DB-load reductions, expect:
 
 - **Active hours / egress (consumption API):** a downward trend once a workday's usage is
-  compared against the previous window — chiefly because the pinned-events ticker now
-  reads one durable `pinned_event_cache` row instead of rescanning every department ×
-  month on each cold instance, and duplicate per-render reads no longer touch the DB, so
-  idle stretches can actually reach Neon's 5-minute suspend.
-- **`pg_stat_statements`:** `calendars`/`event_types` reads roughly halve per render
-  (page + `fetchRangeEvents` now share one `React.cache`d read each); the `google_event_cache`
-  full-payload `SELECT` call count drops to "one per L1-miss month", with warm views
-  hitting only the tiny metadata `SELECT`.
+  compared against the previous window — chiefly because the month payload is compressed
+  (§1.2.1), a launch no longer ships every tab's calendars × months, My Events no longer
+  reads the whole org, and the pinned-events ticker reads one durable `pinned_event_cache`
+  row instead of rescanning every department × month on each cold instance. Duplicate
+  per-render reads no longer touch the DB, so idle stretches can actually reach Neon's
+  5-minute suspend.
+- **Row-level check on the cache:** compare `sum(pg_column_size(payload))` with the old
+  `sum(pg_column_size(events))` census — that is the per-read saving, independent of traffic.
+- **`pg_stat_statements`:** `calendars`/`event_types` reads roughly halve per render (the
+  page + `fetchRangeEvents` share one `React.cache`d read each); the `google_event_cache`
+  full-payload `SELECT` call count drops to "one per L1-miss month" and its per-call rows
+  shrink to the rows a context actually needs (no all-tab union, no whole-org My Events
+  read), with warm views hitting only the tiny metadata `SELECT`.
 
 One honest caveat: if the team uses the app continuously through the workday, the free
 endpoint stays awake all day and active hours will be consumed **regardless** of these

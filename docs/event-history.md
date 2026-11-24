@@ -292,7 +292,7 @@ flowchart LR
 
 My Events is the one page that reads **every** department calendar across the **whole**
 ±window (3 months at the default ±1, 13 at ±6, 25 at ±12), so it was disproportionately slow: the union's live
-half paid a blocking Google fan-out and a heavy per-event parse on every visit. Four
+half paid a blocking Google fan-out and a heavy per-event parse on every visit. Five
 changes fixed it (measured on `next dev` against the real Neon pooler + Google, 4
 calendars; costs scale linearly with calendars × months):
 
@@ -325,6 +325,17 @@ calendars; costs scale linearly with calendars × months):
    (`audit_logs_actor_action_created_idx`, migration `0072`); the cache's cold Google refresh
    now runs one flat pool across all pending `(month, calendar)` pairs instead of a
    sequential month loop.
+5. **Pre-filter at the cache row, not just the projection.** The organizer lives inside the
+   compressed notes, so filtering in JS still meant **shipping** every calendar-month payload
+   in the window — the page's Neon egress grew with calendars × months. The cache now records
+   the distinct organizers of each `(calendar, month)` payload in
+   `google_event_cache_creators` (`collectCreatorIds`, written in the same transaction as the
+   payload), and `readCalendarRange({ creatorFilter })` consults that index first: only rows
+   that can contain the user's events are fetched, and rows written before the index existed
+   (`creator_indexed = false`) are fetched conservatively until their next refresh. The read
+   also skips the adjacent-month prefetch, since My Events is not a navigation surface. The
+   organizer filter inside the projection (item 3) stays as the final guard.
+   Details: [`neon-usage.md`](neon-usage.md).
 
 `src/lib/perf.ts` (`PERF_LOG=1`) prints per-stage timings (`gcalCache …`,
 `buildMyEventsData …`) for re-measuring without a profiler. The always-fresh contract
@@ -495,6 +506,8 @@ functions, `buildMyEventsData`, the My Events route page, and the client views
 | `src/components/WaitOverlay.tsx` + `src/lib/loading/waitCopy.ts` | Shared wait overlay (rotating copy, tips) on the list skeleton covering the always-fresh build's residual wait (§1.4.2) |
 | `src/db/schema.ts` + `drizzle/0056_charming_blue_marvel.sql` | `audit_logs_event_id_idx` |
 | `src/db/schema.ts` + `drizzle/0072_steady_brother_voodoo.sql` | `audit_logs_actor_action_created_idx` (My Events create read, §1.4.2) |
+| `src/db/schema.ts` + `drizzle/0073_melted_baron_zemo.sql` | `google_event_cache_creators` + `google_event_cache.payload` / `creator_indexed` (organizer row pre-filter, §1.4.2) |
+| `src/lib/google/eventsCacheCreators.ts` | `collectCreatorIds` — distinct, UUID-valid organizers of one cached month (unit-tested) |
 | `src/components/AppShellShell.tsx` | My Events nav entry + footer More `Menu` |
 | `src/lib/pwa/swRules.ts` | Always-fresh prefixes |
 

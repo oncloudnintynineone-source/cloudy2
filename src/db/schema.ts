@@ -655,21 +655,57 @@ export const auditLogs = pgTable(
 
 /**
  * Server-side cache of one department calendar's month of events, keyed by the
- * Google calendar id + `YYYY-MM`. `events` holds `GcalEventItem`s with dates
- * encoded as ISO strings (see `src/lib/google/eventsCacheCodec.ts`). Kept in
- * Postgres so it is shared across serverless instances and survives restarts;
- * entries are TTL'd on read (fresh 30s → stale-while-revalidate → expire 30min)
- * and invalidated by in-app mutations via `invalidateGcalCache()`.
+ * Google calendar id + `YYYY-MM`. `payload` holds the `GcalEventItem`s with
+ * dates encoded as ISO strings, brotli-compressed and base64url-encoded (see
+ * `src/lib/google/eventsCacheCodec.ts`) so the row ships a fraction of the
+ * bytes the equivalent JSONB did — Neon bills that egress. Kept in Postgres so
+ * it is shared across serverless instances and survives restarts; entries are
+ * TTL'd on read (fresh 30s → stale-while-revalidate → expire 30min) and
+ * invalidated by in-app mutations via `invalidateGcalCache()`.
+ *
+ * `events` is the LEGACY jsonb payload: written by releases before the
+ * compression change, read as a transition fallback, and dropped once every
+ * environment runs the new code (a cache row is disposable either way).
  */
 export const googleEventCache = pgTable(
   "google_event_cache",
   {
     calendarGoogleId: text("calendar_google_id").notNull(),
     month: text("month").notNull(),
-    events: jsonb("events").notNull(),
+    /** Brotli+base64url month payload (codec tag `br1:`); null on pre-migration rows. */
+    payload: text("payload"),
+    /** LEGACY jsonb payload — transition read fallback only; dropped next release. */
+    events: jsonb("events"),
+    /**
+     * Whether the `google_event_cache_creators` rows for this key are
+     * authoritative. False = written before the creator index existed, so a
+     * creator-filtered read must fetch the payload to be safe.
+     */
+    creatorIndexed: boolean("creator_indexed").notNull().default(false),
     fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull(),
   },
   (table) => [primaryKey({ columns: [table.calendarGoogleId, table.month] })],
+);
+
+/**
+ * Which users organized at least one event inside one cached
+ * `(calendar, month)` payload — the index that lets the organizer-filtered
+ * "My Events" read fetch only the month rows that can contain the user's
+ * events instead of every calendar × every month of the window. Written
+ * alongside the payload row on every refresh (same transaction) and deleted
+ * with it; never read on its own other than as a key pre-filter.
+ */
+export const googleEventCacheCreators = pgTable(
+  "google_event_cache_creators",
+  {
+    calendarGoogleId: text("calendar_google_id").notNull(),
+    month: text("month").notNull(),
+    creatorId: uuid("creator_id").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.calendarGoogleId, table.month, table.creatorId] }),
+    index("gcal_cache_creators_creator_idx").on(table.creatorId),
+  ],
 );
 
 /**
@@ -680,12 +716,18 @@ export const googleEventCache = pgTable(
  * shapes the display list per request from the cached config reads. Shared
  * across serverless instances and invalidated by event CRUD, so a cold instance
  * reads one row instead of rescanning every department/month.
+ *
+ * `payload` is the brotli+base64url form (same codec as the month cache);
+ * `events` is the LEGACY jsonb payload, kept as a transition read fallback.
  */
 export const pinnedEventCache = pgTable(
   "pinned_event_cache",
   {
     id: text("id").primaryKey().default("singleton"),
-    events: jsonb("events").notNull(),
+    /** Brotli+base64url selection payload (codec tag `br1:`); null on pre-migration rows. */
+    payload: text("payload"),
+    /** LEGACY jsonb payload — transition read fallback only; dropped next release. */
+    events: jsonb("events"),
     fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull(),
   },
   (table) => [check("pinned_event_cache_singleton", sql`${table.id} = 'singleton'`)],

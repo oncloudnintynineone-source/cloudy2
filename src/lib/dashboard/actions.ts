@@ -20,6 +20,7 @@
 import { requireSession } from "@/lib/session";
 
 import { buildDashboardData, buildDashboardPreload } from "./data";
+import type { DashboardPreloadScope } from "./data";
 import {
   DASHBOARD_SNAPSHOT_VERSION,
   isRefreshNonceFresh,
@@ -36,6 +37,12 @@ export interface LoadDashboardDataInput {
   refresh?: string | null;
   /** Preload only the active tab's adjacent-anchor contexts (tab-switch warm). */
   adjacentOnly?: boolean;
+  /**
+   * Preload only: `"active"` (default) warms the active tab's neighbours and
+   * leaves every other tab to load on demand; `"all"` is the legacy eager pass
+   * (every tab at the anchor), kept as an explicit rollback.
+   */
+  scope?: DashboardPreloadScope;
 }
 
 export type LoadDashboardDataResult =
@@ -93,15 +100,13 @@ export type PreloadDashboardTabsResult =
   | { ok: false; error: string };
 
 /**
- * Background preload (docs/pwa-offline.md §1.18). After the active context
- * paints, the client calls this to warm every tab for the current anchor plus
- * the active tab for the previous month and the next two, off a single cache
- * read per anchor set, so a tab switch or a month navigation paints from the
- * device cache with no round-trip. `adjacentOnly` narrows the pass to just the
- * active tab's adjacent anchors — the follow-up after a tab switch, whose
- * neighbours the previous pass didn't warm. Never forces a Google refresh;
- * failures are returned, not thrown, so a failed preload never disturbs the
- * painted calendar.
+ * Background preload (docs/pwa-offline.md §1.18). The default `"active"` scope
+ * warms only the active tab for the previous month and the next one, so a month
+ * navigation paints from the device cache with no round-trip; other tabs warm
+ * on intent or on tap (never speculatively). `"all"` is the legacy eager pass
+ * — every tab at the anchor — behind an explicit request. Never forces a Google
+ * refresh; failures are returned, not thrown, so a failed preload never
+ * disturbs the painted calendar.
  */
 export async function preloadDashboardTabs(
   input: LoadDashboardDataInput,
@@ -119,6 +124,7 @@ export async function preloadDashboardTabs(
         adjacentOnly: input.adjacentOnly === true,
       },
       session,
+      input.scope === "all" ? "all" : "active",
     );
     return { ok: true, shared: built.shared, records: built.records };
   } catch (error) {

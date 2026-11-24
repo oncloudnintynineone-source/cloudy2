@@ -265,9 +265,14 @@ export function requiredMonths(
 /**
  * How many months beyond the viewed anchor the preload also warms for the
  * active tab. The anchor month itself is always included, so "current + next
- * two" is `PRELOAD_MONTHS_AHEAD = 2`.
+ * one" is `PRELOAD_MONTHS_AHEAD = 1`.
+ *
+ * Deliberately 1, not 2: every extra anchor costs a whole calendar-set payload
+ * download on a cold instance (Neon bills that egress — docs/neon-usage.md),
+ * and a one-month step is the overwhelmingly common navigation. Stepping two
+ * months ahead simply pays a blocking read.
  */
-export const PRELOAD_MONTHS_AHEAD = 2;
+export const PRELOAD_MONTHS_AHEAD = 1;
 
 /**
  * How many months before the viewed anchor the preload also warms for the
@@ -430,13 +435,12 @@ export const WARM_SNAPSHOT_FRESH_MS = 60_000;
  * `tab × visited period`, so they grow without bound, and each record is a full
  * snapshot (events plus the duplicated config), so the cap bounds disk usage,
  * the cold-start hydration parse, and the risk of silently hitting the
- * IndexedDB quota (`localStore` swallows write failures). Set to cover the
- * preloaded contexts for a typical account — every tab for the current anchor
- * plus the active tab for the previous month and the next two — with LRU
- * headroom for a couple of older visited periods and the adjacent-only warm
- * that follows a tab switch (three more contexts on top of the full pass); the
- * 20-view tab cap (`MAX_VIEWS_PER_USER`) plus the three adjacent anchors and a
- * tab-switch set is the floor. The oldest contexts evict first by LRU.
+ * IndexedDB quota (`localStore` swallows write failures). Sized for the warmed
+ * contexts of a typical account — the active tab's previous/current/next month,
+ * the tab-switch adjacent set, and the tabs actually visited (each tab is loaded
+ * on demand or on intent, never preloaded as a strip) — with LRU headroom. The
+ * 20-view tab cap (`MAX_VIEWS_PER_USER`) plus the adjacent anchors is the floor.
+ * The oldest contexts evict first by LRU.
  */
 export const MAX_SNAPSHOTS_PER_USER = 30;
 
@@ -552,10 +556,10 @@ export function selectSnapshotsToEvict(
 
 /**
  * Bound the in-memory warm map to the same cap as the on-disk store, evicting
- * the oldest contexts first. The preload can warm every tab plus the active
- * tab's adjacent months (up to 23), so without this the map — each record a
- * full snapshot — grows unbounded. The displayed record is held separately, so
- * evicting it here only drops it as a warm *cache* entry, never from the screen.
+ * the oldest contexts first. Visited tabs plus the active tab's adjacent months
+ * accumulate (each record a full snapshot), so without this the map would grow
+ * unbounded. The displayed record is held separately, so evicting it here only
+ * drops it as a warm *cache* entry, never from the screen.
  */
 export function capSnapshotMap(
   records: ReadonlyMap<string, DashboardSnapshotRecord>,

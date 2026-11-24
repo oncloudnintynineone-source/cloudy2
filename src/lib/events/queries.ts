@@ -269,6 +269,11 @@ export async function readCalendarRange(params: {
   force?: boolean;
   /** Per-month cache freshness override (see `MonthEventsOptions.freshnessFor`). */
   freshnessFor?: (month: string) => MonthCacheFreshness;
+  /**
+   * Organizer pre-filter (My Events): only fetch `(calendar, month)` rows whose
+   * creator index lists this user. See `MonthEventsOptions.creatorFilter`.
+   */
+  creatorFilter?: string;
 }): Promise<CalendarRangeData> {
   const months = [...new Set(params.months)].sort();
   if (params.calendarIds.length === 0 || months.length === 0) {
@@ -299,12 +304,21 @@ export async function readCalendarRange(params: {
   const cached = await getCachedMonthEventsForCalendarsMulti(googleCalendarIds, months, {
     force: params.force === true,
     freshnessFor: params.freshnessFor,
+    creatorFilter: params.creatorFilter,
   });
 
   // Prefetch the months adjacent to the whole range only when this read missed
   // the cache (i.e. the user is actually navigating), so fully-cached views
-  // don't churn extra Google/DB work after the response ships.
-  if (PREFETCH_ADJACENT_MONTHS && !cached.allServed && params.force !== true) {
+  // don't churn extra Google/DB work after the response ships. An
+  // organizer-filtered read (My Events) never prefetches: it is not a
+  // navigation surface, and warming both neighbours for every calendar would
+  // dwarf the narrowed read it just did.
+  if (
+    PREFETCH_ADJACENT_MONTHS &&
+    !params.creatorFilter &&
+    !cached.allServed &&
+    params.force !== true
+  ) {
     const beforeRange = shiftMonth(months[0], -1);
     const afterRange = shiftMonth(months[months.length - 1], 1);
     after(() => {

@@ -2,12 +2,18 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { after } from "next/server";
 
 import { db } from "@/db";
-import { cacheInvalidation, googleEventCache } from "@/db/schema";
+import { cacheInvalidation, googleEventCache, googleEventCacheCreators } from "@/db/schema";
 import { mapWithConcurrency } from "@/lib/async";
 import { monthRange } from "@/lib/events/datetime";
 import { perf } from "@/lib/perf";
 import { getGoogleIntegration } from "./index";
-import { cacheEntryState, decodeCachedEvents, encodeCachedEvents } from "./eventsCacheCodec";
+import {
+  cacheEntryState,
+  decodeCachedEvents,
+  decodeCachedMonth,
+  encodeCachedMonth,
+} from "./eventsCacheCodec";
+import { collectCreatorIds } from "./eventsCacheCreators";
 import type { GcalEventItem } from "./types";
 
 /** Serve cached month data directly for this long. */
@@ -198,6 +204,19 @@ export interface MonthEventsOptions {
    * (bounded by the widened `expireMs`).
    */
   freshnessFor?: (month: string) => MonthCacheFreshness;
+  /**
+   * Only fetch payloads for `(calendar, month)` rows whose
+   * `google_event_cache_creators` index lists this organizer (docs/neon-usage.md).
+   * My Events uses it so a ±12-month window no longer ships every
+   * calendar-month row just to discard events someone else organized. Rows
+   * written before the index existed (`creatorIndexed = false`) are fetched
+   * conservatively, so the guarantee is never weakened — only the bytes.
+   *
+   * L1 is bypassed in this mode (a memory entry carries a whole payload and no
+   * organizer set), so the caller pays one metadata read plus the matching
+   * payload rows.
+   */
+  creatorFilter?: string;
 }
 
 export interface MultiMonthEventsResult {
@@ -270,15 +289,20 @@ export async function getCachedMonthEventsForCalendarsMulti(
 
   let allServed = true;
   const freshnessFor = options.freshnessFor ?? (() => DEFAULT_MONTH_FRESHNESS);
+  const creatorFilter = options.creatorFilter ?? null;
   const doneRead = perf(`gcalCache read ${ids.length}cal × ${monthList.length}mo`);
 
   // Partition ids per month by L1 presence: hits may still be stale due to a
   // cross-instance invalidation (DELETE on another lambda's DB, invisible to
   // this lambda's Map). Every L1 hit is verified against the shared L2 row
-  // with a lightweight metadata-only SELECT — `calendar_google_id` and
-  // `fetched_at`, no `events` JSONB — so warm views keep their
+  // with a lightweight metadata-only SELECT — `calendar_google_id`,
+  // `creator_indexed` and `fetched_at`, no payload — so warm views keep their
   // cross-instance read-your-writes guarantee without re-downloading whole
   // month payloads.
+  //
+  // A creator-filtered read skips L1 entirely: an in-memory entry carries a
+  // whole payload but no organizer set, so serving it would defeat the
+  // pre-filter (a user's wide My Events window would re-ship every month).
   const l1Hits = new Map<string, Map<string, MemoryEntry>>();
   const l1MissIds = new Map<string, string[]>();
   for (const month of monthList) {
@@ -289,7 +313,7 @@ export async function getCachedMonthEventsForCalendarsMulti(
     const freshness = freshnessFor(month);
     for (const id of ids) {
       const key = memoryKey(id, month);
-      const entry = memory.get(key);
+      const entry = creatorFilter ? undefined : memory.get(key);
       if (entry && entryState(entry, freshness) !== "expired") {
         // Touch for the LRU eviction in `remember` (insertion order ≈ recency).
         memory.delete(key);
@@ -310,6 +334,7 @@ export async function getCachedMonthEventsForCalendarsMulti(
     .select({
       month: googleEventCache.month,
       calendarGoogleId: googleEventCache.calendarGoogleId,
+      creatorIndexed: googleEventCache.creatorIndexed,
       fetchedAt: googleEventCache.fetchedAt,
     })
     .from(googleEventCache)
@@ -323,6 +348,30 @@ export async function getCachedMonthEventsForCalendarsMulti(
   const metaByKey = new Map(
     metaRows.map((row) => [`${row.month}:${row.calendarGoogleId}`, row]),
   );
+
+  // The organizer pre-filter: which (calendar, month) rows can even contain an
+  // event this user organized. One tiny indexed read, no payloads.
+  const creatorKeys = new Set<string>();
+  if (creatorFilter) {
+    const doneCreators = perf("  gcalCache creator index select");
+    const rows = await db
+      .select({
+        month: googleEventCacheCreators.month,
+        calendarGoogleId: googleEventCacheCreators.calendarGoogleId,
+      })
+      .from(googleEventCacheCreators)
+      .where(
+        and(
+          inArray(googleEventCacheCreators.month, monthList),
+          inArray(googleEventCacheCreators.calendarGoogleId, ids),
+          eq(googleEventCacheCreators.creatorId, creatorFilter),
+        ),
+      );
+    for (const row of rows) {
+      creatorKeys.add(`${row.month}:${row.calendarGoogleId}`);
+    }
+    doneCreators(`${creatorKeys.size} rows`);
+  }
 
   const pending = new Map<string, string[]>();
   const needFullRow = new Map<string, string[]>();
@@ -368,7 +417,18 @@ export async function getCachedMonthEventsForCalendarsMulti(
     }
 
     for (const id of l1MissIds.get(month)!) {
-      const meta = metaByKey.get(`${month}:${id}`);
+      const key = `${month}:${id}`;
+      const meta = metaByKey.get(key);
+      if (creatorFilter) {
+        // Organizer-filtered: only a row whose index lists this user can
+        // contribute. Rows written before the index existed
+        // (`creatorIndexed = false`) are fetched conservatively, and a row with
+        // no metadata at all is fetched (Google) so the guarantee never weakens.
+        if (!meta || !meta.creatorIndexed || creatorKeys.has(key)) {
+          needFullRow.get(month)!.push(id);
+        }
+        continue;
+      }
       if (meta) {
         const { usable, stale } = rowUsable(meta.fetchedAt, freshness);
         if (usable) {
@@ -400,7 +460,13 @@ export async function getCachedMonthEventsForCalendarsMulti(
   if (needFullRowKeys.size > 0) {
     const doneFull = perf("  gcalCache full-row select");
     const rows = await db
-      .select()
+      .select({
+        calendarGoogleId: googleEventCache.calendarGoogleId,
+        month: googleEventCache.month,
+        payload: googleEventCache.payload,
+        events: googleEventCache.events,
+        fetchedAt: googleEventCache.fetchedAt,
+      })
       .from(googleEventCache)
       .where(
         and(
@@ -414,7 +480,17 @@ export async function getCachedMonthEventsForCalendarsMulti(
       if (!needFullRowKeys.has(key)) {
         continue;
       }
-      const decoded = decodeCachedEvents(row.events);
+      // Prefer the compressed payload; fall back to the legacy jsonb column for
+      // rows written before the compression change. An unusable payload is a
+      // miss (the post-loop below turns it into a blocking refresh).
+      const decoded = row.payload
+        ? decodeCachedMonth(row.payload, row.calendarGoogleId)
+        : row.events !== null
+          ? decodeCachedEvents(row.events)
+          : null;
+      if (decoded === null) {
+        continue;
+      }
       // Inherit the row's age so L1 can't extend past GCAL_CACHE_EXPIRE_MS.
       remember(row.calendarGoogleId, row.month, decoded, row.fetchedAt.getTime());
       events[row.month][row.calendarGoogleId] = decoded;
@@ -486,6 +562,7 @@ export async function purgeGcalCache(): Promise<void> {
   await bumpCacheEpoch();
   memory.clear();
   inflight.clear();
+  await db.delete(googleEventCacheCreators);
   await db.delete(googleEventCache);
 }
 
@@ -494,13 +571,13 @@ export async function purgeGcalCache(): Promise<void> {
  * so the next view re-fetches and shows the change immediately. Over-invalidation
  * across the touched calendars and months is harmless.
  *
- * The epoch bump and the row delete run as **one** SQL statement (a
- * data-modifying CTE): they are the mutation's response-path tail, and every
- * event create/update/delete pays them before it can resolve, so a second Neon
- * round trip is pure latency. The bump still commits atomically with the delete:
- * a background refresh that started before the mutation sees the advanced epoch
- * on its post-fetch check and refuses to persist the pre-mutation snapshot (see
- * `refreshMonthEvents`).
+ * The epoch bump, the payload-row delete and the matching creator-index delete
+ * run as **one** SQL statement (a data-modifying CTE): they are the mutation's
+ * response-path tail, and every event create/update/delete pays them before it
+ * can resolve, so extra Neon round trips are pure latency. The bump still
+ * commits atomically with both deletes: a background refresh that started
+ * before the mutation sees the advanced epoch on its post-fetch check and
+ * refuses to persist the pre-mutation snapshot (see `refreshMonthEvents`).
  */
 export async function invalidateGcalCache(
   googleCalendarIds: string[],
@@ -527,10 +604,15 @@ export async function invalidateGcalCache(
       UPDATE cache_invalidation
       SET epoch = epoch + 1, updated_at = now()
       WHERE id = 'singleton'
+    ), cleared AS (
+      DELETE FROM google_event_cache
+      WHERE ${inArray(googleEventCache.calendarGoogleId, ids)}
+        AND ${inArray(googleEventCache.month, monthSet)}
+      RETURNING 1
     )
-    DELETE FROM google_event_cache
-    WHERE ${inArray(googleEventCache.calendarGoogleId, ids)}
-      AND ${inArray(googleEventCache.month, monthSet)}
+    DELETE FROM google_event_cache_creators
+    WHERE ${inArray(googleEventCacheCreators.calendarGoogleId, ids)}
+      AND ${inArray(googleEventCacheCreators.month, monthSet)}
   `);
 }
 
@@ -563,9 +645,13 @@ export async function invalidateGcalCalendarCache(googleCalendarIds: string[]): 
       UPDATE cache_invalidation
       SET epoch = epoch + 1, updated_at = now()
       WHERE id = 'singleton'
+    ), cleared AS (
+      DELETE FROM google_event_cache
+      WHERE ${inArray(googleEventCache.calendarGoogleId, ids)}
+      RETURNING 1
     )
-    DELETE FROM google_event_cache
-    WHERE ${inArray(googleEventCache.calendarGoogleId, ids)}
+    DELETE FROM google_event_cache_creators
+    WHERE ${inArray(googleEventCacheCreators.calendarGoogleId, ids)}
   `);
 }
 
@@ -594,19 +680,48 @@ async function refreshMonthEvents(
   if ((await readCacheEpoch()) !== epochAtStart) {
     return items;
   }
-  const events = encodeCachedEvents(items);
-  await db
-    .insert(googleEventCache)
-    .values({
-      calendarGoogleId: googleCalendarId,
-      month,
-      events,
-      fetchedAt: new Date(),
-    })
-    .onConflictDoUpdate({
-      target: [googleEventCache.calendarGoogleId, googleEventCache.month],
-      set: { events, fetchedAt: new Date() },
-    });
+  const payload = encodeCachedMonth(items);
+  const creatorIds = collectCreatorIds(items);
+  const fetchedAt = new Date();
+  // One transaction: the payload row and its organizer index are replaced
+  // together, so a creator-filtered read can never see a row whose index is
+  // missing (or stale against) it.
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(googleEventCacheCreators)
+      .where(
+        and(
+          eq(googleEventCacheCreators.calendarGoogleId, googleCalendarId),
+          eq(googleEventCacheCreators.month, month),
+        ),
+      );
+    if (creatorIds.length > 0) {
+      await tx
+        .insert(googleEventCacheCreators)
+        .values(
+          creatorIds.map((creatorId) => ({
+            calendarGoogleId: googleCalendarId,
+            month,
+            creatorId,
+          })),
+        )
+        .onConflictDoNothing();
+    }
+    await tx
+      .insert(googleEventCache)
+      .values({
+        calendarGoogleId: googleCalendarId,
+        month,
+        payload,
+        events: null,
+        creatorIndexed: true,
+        fetchedAt,
+      })
+      .onConflictDoUpdate({
+        target: [googleEventCache.calendarGoogleId, googleEventCache.month],
+        set: { payload, events: null, creatorIndexed: true, fetchedAt },
+      });
+  });
   remember(googleCalendarId, month, items);
   return items;
 }

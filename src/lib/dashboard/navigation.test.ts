@@ -607,8 +607,8 @@ describe("pickColdPaintRecord", () => {
   const silent = { urlView: null, urlMonth: null, urlDate: null };
 
   it("paints the remembered anchor month, not the newer preload anchors", () => {
-    // The preload batch (previous + current + next two months) is written
-    // after the viewed month, so "newest" alone lands two months ahead.
+    // A warm batch (previous + current + next month) is written after the viewed
+    // month, so "newest" alone lands a month ahead.
     const cached = [
       anchor(monthTab, "2026-10", 100),
       anchor(monthTab, "2026-11", 200),

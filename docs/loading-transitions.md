@@ -845,27 +845,27 @@ timer machine):
 
 - **Active tab** — the active read (`busy`) shows the spinner immediately
   (`delayMs: 0`) and holds it a minimum of **1 s**, so a fast read can't flash.
-- **Background tabs** — the preload pass (`preloading`) waits **300 ms** before
-  showing spinners (a quick warm pass never shows one) and also holds **1 s**. The
-  set of tabs it lights is latched at pass start (the non-warm keys, captured in
-  `backgroundKeys`) rather than re-derived against `warmKeys`, so the hold keeps
-  the spinner up after the records land and those tabs turn warm.
+  There is no strip-wide background pass any more: a cold tab's own tap-driven
+  read lights its spinner the same way (the tab strip shows `not-loaded` until
+  then), and an intent warm that lands first means no spinner at all.
 
 Freshness is deliberately **not** surfaced as a badge: an earlier iteration put a
 small amber dot on warm-but-old / background-preloading tabs, but a corner dot
 reads as an unread notification and confused users. Warm copies of any age render
 solid; a tap revalidates them silently.
 
-**Loading strategy (hybrid).** The efficient single union-read preload
-(`/api/dashboard/preload`) still warms every tab in one pass, so a
-not-yet-loaded tab flips to solid as its record lands — and, once the pass runs
-past the 300 ms delay, every tab it still has to load shows the spinner until
-the 1 s hold elapses. A tap on a not-yet-loaded tab fires the normal priority
-read for that tab, which shows its spinner immediately. A single-tab
-account skips the preload entirely (the active read already covers it), avoiding
-a second config pass — and for multi-tab accounts that pass's config
-reads are served from the 60s TTL cache (`docs/events-cache.md` §1.12), so it
-adds no DB round trips of its own.
+**Loading strategy (lazy tabs).** Tabs other than the active one are no longer
+preloaded: a not-yet-loaded tab renders the static `not-loaded` fade
+(`c2-tab-not-loaded`) and fetches when the user reaches for it. Hover/focus/press
+starts the intent warm (`prefetchContext`, one deduped speculative request), so a
+desktop tap usually adopts an in-flight or landed record and paints solid; a tap
+with no prior intent fires the normal priority read for that tab, whose spinner
+shows immediately and holds for 1 s. This replaced the strip-wide
+`/api/dashboard/preload` union pass, which shipped every tab's calendars × months
+on every launch (the largest Neon egress source — [`neon-usage.md`](neon-usage.md));
+`scope: "all"` on the preload route restores it. The active tab's own
+previous/current/next month still warms in one read per anchor, so month steps
+keep painting from the device cache.
 
 **Optimistic switch.** A tap also sets `previewView` in `DashboardDataContext`;
 `DashboardScreen` resolves the displayed context from `previewView ??
@@ -1032,7 +1032,7 @@ Parade State's keyed `agenda-slide-*` CSS slide likewise remains as the
 fallback and is cleared (`slideDir === 0`) when the real transition ran.
 
 **Warm targets paint in the same commit.** The preload warms the active tab for
-the **previous month and the next two** (docs/pwa-offline.md §1.18), and a
+the **previous and next month** (docs/pwa-offline.md §1.18), and a
 tab-switch follow-up warms any newly active tab's neighbours. A period step
 also publishes an optimistic **period preview** (`setPreviewPeriod`, mirroring
 the tab `previewView`): `DashboardScreen` resolves the warm record for the
@@ -1130,8 +1130,10 @@ document for it, so without the warm pass every entry pays the full
 wide-window build on the critical path; the always-fresh guarantee survives the
 warm payload because `useLiveRouteRefresh` forces one live re-read when the
 painted payload is older than `LIVE_ROUTE_MAX_AGE_MS` (paint-then-swap,
-`src/lib/loading/liveRefreshRules.ts`). The all-tab **data** preload
-and the active tab's next two months (§1.11/§1.13.2) are unchanged. The Double Booking
+`src/lib/loading/liveRefreshRules.ts`). The tab **data** warm is now the active
+tab's previous/next month only (§1.11/§1.13.2); other tabs load on tap or on
+intent, which is what keeps a launch from shipping every tab's calendars ×
+months (docs/neon-usage.md). The Double Booking
 scan itself is not re-fetched by the pass — its month cache is already warmed by
 the shell's nav-badge read (see the row above); the pass only adds its route
 prefetch and leaf chunk. The wizard's lazy

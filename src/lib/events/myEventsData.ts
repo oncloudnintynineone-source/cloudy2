@@ -91,7 +91,11 @@ export async function buildMyEventsData(params: {
       typeFilter: [],
       userFilter: [],
       // The organizer filter runs inside the projection, so non-matching
-      // events never build a payload (the window spans every calendar).
+      // events never build a payload. It ALSO pre-filters at the cache layer:
+      // `readCalendarRange` forwards it to the `google_event_cache_creators`
+      // index, so a wide window fetches only the calendar-month rows that can
+      // contain one of this user's events instead of every calendar × month
+      // (docs/neon-usage.md).
       creatorFilter: params.userId,
       // Past months are near-immutable — serve them cached for 24 h.
       freshnessFor: myEventsFreshnessFor(today.slice(0, 7)),

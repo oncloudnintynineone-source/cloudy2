@@ -113,13 +113,18 @@ doc content here.
   are route handlers, **not server actions**, on purpose:
   Next serializes server actions client-side, so a background warm-up would otherwise
   delay the user's next save/read; the load is also abortable and debounced. After the
-  active context is fresh, the client **preloads every tab** for the current anchor **and
-  the active tab for the previous month and the next two** (`/api/dashboard/preload` →
-  `buildDashboardPreload`: one union `readCalendarRange` for the anchor + a second read
-  scoped to the active tab's calendars for the adjacent months, each projected by
-  `projectRangeEvents` and reassembled by `assembleDashboardSnapshot`) so tab switches and
-  month navigations (either direction) paint from the warm cache with no round-trip and
-  cross-slide with real data (`docs/loading-transitions.md` §1.14.1). The step also sets an
+  active context is fresh, the client warms **only the active tab's neighbouring
+  months** — one month back and one forward (`/api/dashboard/preload` →
+  `buildDashboardPreload`, `PRELOAD_MONTHS_AHEAD = 1`; `readCalendarRange` scoped to the
+  active tab's calendars, projected by `projectRangeEvents` and reassembled by
+  `assembleDashboardSnapshot`) so month navigation (either direction) paints from the
+  warm cache with no round-trip and cross-slides with real data
+  (`docs/loading-transitions.md` §1.14.1). **Other tabs are not preloaded**: a tab
+  loads on tap (its own `/api/dashboard/load`, with the tab's spinner + grid skeleton) or
+  on **intent** (hover/focus/press, one deduped speculative request). A tab the user never
+  reaches for ships no payload — the strip-wide pass that warmed every tab at the anchor
+  was the single largest source of Neon egress. `scope: "all"` on the preload route is
+  the explicit rollback. The step also sets an
   optimistic **period preview** (like the tab preview) **only when the target context is
   already warm** (`previewPeriodIfWarm`), so a warm target paints in the same commit as the
   slide — no skeleton; cold steps show the skeleton regardless. The real cross-slide is
@@ -127,9 +132,7 @@ doc content here.
   loading, on the `c2-low-end` tier, and for heavy grid kinds on coarse-pointer (touch)
   devices, which fall back to the passive WAAPI nudge. After a **tab switch**, a follow-up idle
   `POST /api/dashboard/preload` with `adjacentOnly: true` warms the newly active tab's
-  previous/next periods (the full pass only warms the previously active tab's neighbours).
-  The full pass runs once per signature (tab set + required months — **not** the active
-  view) and is not re-run after a mutation or force refresh. **Code**
+  previous/next periods. **Code**
   warming is narrower: only the active renderer + the renderer kinds the account has
   tabs for, plus event details, warm at idle; the wizard waits 5 s on capable devices;
   Parade State, Contacts, Double Booking and My Events get one idle route-prefetch +

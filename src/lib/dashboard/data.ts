@@ -11,8 +11,9 @@
  * The resolution is split into a shared config pass (`resolveDashboardConfig` —
  * calendars, event types, users, settings, tabs, filter validators) and a
  * per-tab projection (`projectTab` / the preload builder). `buildDashboardData`
- * resolves one tab; `buildDashboardPreload` resolves every tab off a single
- * cache read so the client can preload them for instant tab switches.
+ * resolves one tab (the active read); `buildDashboardPreload` warms the active
+ * tab's adjacent months, and only resolves every tab when an explicit
+ * `scope: "all"` rollback is requested.
  */
 
 import { cookies } from "next/headers";
@@ -95,9 +96,9 @@ export interface BuildDashboardDataInput {
   force: boolean;
   /**
    * Preload mode: return only the active tab's adjacent-anchor contexts
-   * (previous month + next two), not every tab at the current anchor. Used
-   * after a tab switch, when the full pass warmed the *previous* active tab's
-   * neighbours (docs/pwa-offline.md §1.18).
+   * (previous month + `PRELOAD_MONTHS_AHEAD` forward). Sent after a tab switch,
+   * when the mount warm ran for the previously active tab and its neighbours
+   * (docs/pwa-offline.md §1.18).
    */
   adjacentOnly?: boolean;
 }
@@ -557,37 +558,54 @@ export interface BuiltDashboardPreload {
   /** The snapshot fields every preloaded record shares. */
   shared: DashboardSharedConfig;
   /**
-   * One entry per warmed context: the current anchor for every tab, plus the
-   * active tab for each of the next `PRELOAD_MONTHS_AHEAD` months. Each entry
-   * carries its own context (month/date/requestKey) and variable snapshot fields.
+   * One entry per warmed context: the active tab for each adjacent anchor
+   * (`"active"` scope), or the current anchor for every tab plus the active
+   * tab's neighbours (`"all"` scope). Each entry carries its own context
+   * (month/date/requestKey) and variable snapshot fields.
    */
   records: { context: DashboardSnapshotContext; delta: DashboardTabDelta }[];
 }
 
 /**
+ * Which contexts a preload pass warms:
+ *
+ * - `"active"` (default): only the **active tab's** adjacent anchors — one
+ *   month back and `PRELOAD_MONTHS_AHEAD` forward — so a month step paints
+ *   from the warm cache. Every other tab is loaded on demand (tap) or on
+ *   intent (hover/focus/press, `prefetchContextOnIntent`), so a tab the user
+ *   never reaches for ships no payload at all. This is the Neon-egress default
+ *   (docs/neon-usage.md).
+ * - `"all"`: the legacy eager pass — every tab at the current anchor plus the
+ *   active tab's neighbours. It ships the union of every tab's calendars ×
+ *   months on every launch, so it is only reachable by an explicit request
+ *   (a one-line client rollback if the lazy default ever misbehaves).
+ */
+export type DashboardPreloadScope = "active" | "all";
+
+/**
  * Resolve the warmed contexts off a single cache read per anchor set, so the
- * client can paint a tab switch or a month navigation with no server
- * round-trip (docs/pwa-offline.md). Every tab is warmed for the current anchor;
- * the active tab is additionally warmed for the previous month and the next
- * two. The config
- * pass is shared, the calendars/months are unioned per read, and each record's
- * events are projected from the raw read. Never forces a Google refresh — it
- * warms what the active context already read plus the genuinely cold future
- * months for the active tab.
+ * client can paint a month navigation (and, in `"all"` scope, a tab switch)
+ * with no server round-trip (docs/pwa-offline.md). The config pass is shared,
+ * the calendars/months are unioned per read, and each record's events are
+ * projected from the raw read. Never forces a Google refresh — it warms what
+ * the active context already read plus the genuinely cold future months for
+ * the active tab.
  */
 export async function buildDashboardPreload(
   input: BuildDashboardDataInput,
   session: Session,
+  scope: DashboardPreloadScope = "active",
 ): Promise<BuiltDashboardPreload> {
   const config = await resolveDashboardConfig(session);
   const activeTab = resolveRequestedTab(config, input);
   const period = resolvePeriod(config, activeTab.kind, input);
 
-  // Adjacent anchors (one month back, two forward) warm only the active tab,
-  // so their read is scoped to that tab's calendars — not every tab's — keeping
-  // the extra Google/DB work bounded to what the user is actually looking at.
-  // The previous month is included so stepping back paints from the warm cache
-  // (the directional cross-slide, docs/loading-transitions.md §1.14.1).
+  // Adjacent anchors (one month back, `PRELOAD_MONTHS_AHEAD` forward) warm only
+  // the active tab, so their read is scoped to that tab's calendars — not every
+  // tab's — keeping the extra Google/DB work bounded to what the user is
+  // actually looking at. The previous month is included so stepping back paints
+  // from the warm cache (the directional cross-slide,
+  // docs/loading-transitions.md §1.14.1).
   const adjacentAnchors = preloadAnchors(period).filter((anchor) => anchor.month !== period.month);
   const activeCalendars = config.resolveSelectedFilters(activeTab).cal;
   const adjacentMonths = [
@@ -598,10 +616,11 @@ export async function buildDashboardPreload(
     ),
   ];
 
-  // Adjacent-only mode (docs/pwa-offline.md §1.18): after a tab switch the full
-  // pass already warmed every tab at this anchor, so only the newly active
-  // tab's neighbours are missing. One read, no all-tabs projection.
-  if (input.adjacentOnly) {
+  // Active scope (docs/pwa-offline.md §1.18): warm the active tab's neighbours
+  // only. The same branch serves an `adjacentOnly` request, which the client
+  // sends after a tab switch (the previously active tab's neighbours no longer
+  // matter — the newly active tab's do).
+  if (input.adjacentOnly || scope === "active") {
     const adjacentRange =
       adjacentMonths.length > 0 && activeCalendars.length > 0
         ? await readCalendarRange({ months: adjacentMonths, calendarIds: activeCalendars })

@@ -241,8 +241,8 @@ string maps to the first tab of that kind.
   the new one slides in from the tapped side. It runs through
   `slideViewTransition` (`src/lib/ui/viewTransition.ts`) in the step handlers
   and is documented in [`loading-transitions.md`](loading-transitions.md)
-  §1.14.1. The preload warms the previous and next two months (plus a
-  tab-switch follow-up for the newly active tab), and the step publishes an
+  §1.14.1. The preload warms the previous and next month of the **active tab** only
+  (other tabs load on tap or on intent), and the step publishes an
   optimistic period preview, so a warm target paints the **real** next period in
   the same commit — no skeleton flash. Only genuinely cold targets slide the
   skeleton in (the skeleton now matches the grid's header/row geometry).
@@ -735,12 +735,13 @@ directly ([`events-cache.md`](events-cache.md)):
   by Week (D).
 - The Month view range-reads the months its natural (4–6) week grid displays
   (`monthGridMonths()`, `src/lib/events/datetime.ts`).
-- Every tab is **preloaded for instant switches**: after the active context is
-  fresh, `DashboardScreen` calls `/api/dashboard/preload` once per signature
-  (the tab set + the months those tabs need — not the active view), which reads
-  the union of every tab's calendars/months in one pass and projects each tab's
-  delta (see [`pwa-offline.md`](pwa-offline.md) §1.18). Switching tabs then
-  paints from the device cache with no server round-trip.
+- Tabs are **not** preloaded as a strip. After the active context is fresh,
+  `DashboardScreen` calls `/api/dashboard/preload` once per active tab + anchor,
+  which reads only that tab's previous/next month in one pass (see
+  [`pwa-offline.md`](pwa-offline.md) §1.18). A tab fetches on tap (its own
+  `/api/dashboard/load`) or on intent (hover/focus/press), so a tab the user
+  never reaches for ships no payload — the old all-tab union read was the
+  largest source of Neon egress ([`neon-usage.md`](neon-usage.md)).
 - **Tab switches are optimistic, decoupled from the router.** A tap sets a
   `previewView` in `DashboardDataContext`; `DashboardScreen` resolves the
   displayed context from `previewView ?? searchParams.view`, so a warm tab paints

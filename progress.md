@@ -18,8 +18,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.424 (URLs linkified correctly; external links open in a new
-  tab; hrefs hardened)** is shipped.
+- All work through changelog **1.425 (Neon egress: compressed cache payloads · lazy
+  dashboard tabs · organizer index)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -3127,6 +3127,25 @@ size="compact"`), and renames **Duplicate Event** / **Copy to Other Google
   `dangerouslySetInnerHTML` sites audited (motion CSS = constants; boot payload already
   escapes `<`/`>`/`&`/U+2028-9) — no new injection point. Docs:
   `event-lifecycle.md` §1.7.5, `quick-links.md` §1.4.
+- 1.425 **Neon egress: compressed cache payloads · lazy dashboard tabs · organizer index**:
+  the free-tier 5 GiB/month `public_network_transfer_bytes` cap, not Google quota, is the
+  constraint (`neon-usage.md` §1.2.1). The Google month cache now stores a **brotli +
+  base64url** payload (`google_event_cache.payload`, `br1:` tag, codec in
+  `eventsCacheCodec.ts`) with the per-event `calendarId` dropped and empty fields omitted —
+  measured ≈0.47× the legacy jsonb on an entropy-heavy synthetic month, better on real ones;
+  `pinned_event_cache` uses the same codec. The legacy `events` column stays as a transition
+  read fallback (rewritten on each refresh, no backfill; dropped in a later release).
+  **Dashboard tabs are no longer preloaded as a strip**: the launch-time union read over
+  every tab's calendars × months is gone, so only the active tab's previous/next month warms
+  (`PRELOAD_MONTHS_AHEAD = 1`) and other tabs load on tap or on intent (hover/focus/press);
+  `scope: "all"` on `/api/dashboard/preload` is the rollback.
+  **My Events** gains an organizer index (`google_event_cache_creators`, written in the same
+  transaction as the payload; `collectCreatorIds`), so a ±6/±12-month window fetches only
+  the `(calendar, month)` rows that can contain the user's events and skips the
+  adjacent-month prefetch. The KAH badge reads all its months in one batched cache call.
+  Migration `0073`. Docs: `neon-usage.md` §1.2.1, `events-cache.md` §1.4.2–1.4.3,
+  `event-history.md` §1.4.2, `pwa-offline.md` §1.18, `loading-transitions.md` §1.13.2,
+  `dashboard-views.md` §1.6, `AGENTS.md` (dashboard bullet).
 
 ## 1.4 Open items & next steps
 

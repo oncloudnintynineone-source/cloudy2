@@ -51,10 +51,11 @@ export function canWarmRoutes(): boolean {
 }
 
 /**
- * Gate for the dashboard's all-tab data preload — heavier than the chunk
- * warm-up (it costs a server read plus an IndexedDB write per tab). Skipped on
- * weak devices (bounded RAM/CPU) *and* constrained connections; the active tab
- * is always loaded, and any other tab fetches on demand.
+ * Gate for the dashboard's active-tab adjacent-period warm — heavier than the
+ * chunk warm-up (it costs a server read plus an IndexedDB write per warmed
+ * period). Skipped on weak devices (bounded RAM/CPU) *and* constrained
+ * connections; the active tab's neighbours then fetch on demand like any other
+ * cold context.
  */
 export interface TabPreloadCapabilities extends WarmupCapabilities {
   hardwareConcurrency?: number;

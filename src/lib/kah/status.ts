@@ -31,7 +31,7 @@ import {
   parseEventType,
 } from "@/lib/events/notes";
 import type { TimeOption } from "@/lib/events/timeOptions";
-import { getCachedMonthEventsForCalendars } from "@/lib/google/eventsCache";
+import { getCachedMonthEventsForCalendarsMulti } from "@/lib/google/eventsCache";
 import { inCountryPercentage, type KahGroupCheck } from "@/lib/kah/check";
 import { isUuid } from "@/lib/uuid";
 
@@ -269,11 +269,12 @@ export async function overseasEventEntriesInRange(
 
   const seen = new Set<string>();
   const events: KahBreachEvent[] = [];
-  const cachedPerMonth = await Promise.all(
-    months.map((month) => getCachedMonthEventsForCalendars(googleCalendarIds, month)),
-  );
-  for (const cached of cachedPerMonth) {
-    for (const [googleCalendarId, items] of Object.entries(cached.events)) {
+  // One batched multi-month read (one metadata round trip for every month)
+  // rather than one read per month — same payloads, fewer round trips on the
+  // path the nav badge runs on every shell mount (docs/neon-usage.md).
+  const cached = await getCachedMonthEventsForCalendarsMulti(googleCalendarIds, months);
+  for (const month of months) {
+    for (const [googleCalendarId, items] of Object.entries(cached.events[month] ?? {})) {
       const calendar = calendarByGoogleId.get(googleCalendarId);
       if (!calendar) {
         continue;

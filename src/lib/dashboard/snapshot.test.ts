@@ -104,31 +104,28 @@ describe("requiredMonths", () => {
 });
 
 describe("preloadAnchors", () => {
-  it("includes the previous month, the current anchor, and the next two by default", () => {
+  it("includes the previous month, the current anchor, and the next one by default", () => {
     const anchors = preloadAnchors({ month: "2026-10", date: "2026-10-24" });
     expect(anchors).toEqual([
       { month: "2026-09", date: "2026-09-24" },
       { month: "2026-10", date: "2026-10-24" },
       { month: "2026-11", date: "2026-11-24" },
-      { month: "2026-12", date: "2026-12-24" },
     ]);
   });
 
   it("rolls over the year in both directions", () => {
-    const anchors = preloadAnchors({ month: "2026-11", date: "2026-11-15" });
+    const anchors = preloadAnchors({ month: "2026-12", date: "2026-12-15" });
     expect(anchors.map((anchor) => anchor.month)).toEqual([
-      "2026-10",
       "2026-11",
       "2026-12",
       "2027-01",
     ]);
-    expect(anchors[3].date).toBe("2027-01-15");
+    expect(anchors[2].date).toBe("2027-01-15");
     const jan = preloadAnchors({ month: "2027-01", date: "2027-01-05" });
     expect(jan.map((anchor) => anchor.month)).toEqual([
       "2026-12",
       "2027-01",
       "2027-02",
-      "2027-03",
     ]);
   });
 
@@ -139,7 +136,6 @@ describe("preloadAnchors", () => {
       "2026-02-28",
       "2026-03-31",
       "2026-04-30",
-      "2026-05-31",
     ]);
     const jan = preloadAnchors({ month: "2026-01", date: "2026-01-31" });
     expect(jan[0].date).toBe("2025-12-31");
