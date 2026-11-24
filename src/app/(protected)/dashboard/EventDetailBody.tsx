@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   ActionIcon,
   Badge,
@@ -209,6 +209,22 @@ export interface EventDetailProps {
    * wizard's review-step advisory). Undefined keeps Mantine's default.
    */
   zIndex?: number;
+}
+
+/**
+ * A details-modal section: the label sits tight above its content (one 4px
+ * gap) while the outer Stack keeps the between-section rhythm — a flat
+ * sibling label floated a full 16px stack-gap from the pills it names.
+ */
+function DetailSection({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <Stack gap={4}>
+      <Text size="xs" c="dimmed" fw={600}>
+        {label}
+      </Text>
+      {children}
+    </Stack>
+  );
 }
 
 export function EventDetailBody({
@@ -675,42 +691,40 @@ export function EventDetailBody({
               </Group>
             )}
 
-            <Text size="xs" c="dimmed" fw={600}>
-              Location
-            </Text>
-            <Group gap={6} wrap="wrap" align="center">
-              {payload.outOfCamp ? (
-                <Badge variant="light" color="yellow">
-                  Out of Camp
-                </Badge>
-              ) : (
-                <Badge variant="light" color="green">
-                  In Camp
-                </Badge>
-              )}
-              {payload.overseas && (
-                <Badge variant="light" color="blue">
-                  Overseas
-                </Badge>
-              )}
-              {payload.location && (
-                <Text size="sm" c="dimmed">
-                  {payload.location}
-                </Text>
-              )}
-            </Group>
+            <DetailSection label="Location">
+              <Group gap={6} wrap="wrap" align="center">
+                {payload.outOfCamp ? (
+                  <Badge variant="light" color="yellow">
+                    Out of Camp
+                  </Badge>
+                ) : (
+                  <Badge variant="light" color="green">
+                    In Camp
+                  </Badge>
+                )}
+                {payload.overseas && (
+                  <Badge variant="light" color="blue">
+                    Overseas
+                  </Badge>
+                )}
+                {payload.location && (
+                  <Text size="sm" c="dimmed">
+                    {payload.location}
+                  </Text>
+                )}
+              </Group>
+            </DetailSection>
 
-            <Text size="xs" c="dimmed" fw={600}>
-              Event Type
-            </Text>
-            <Group gap={6} wrap="wrap">
-              {payload.eventType && <Badge variant="light">{payload.eventType}</Badge>}
-              {registrationEnabled && (
-                <Badge variant="light" color="accent">
-                  Registration event
-                </Badge>
-              )}
-            </Group>
+            <DetailSection label="Event Type">
+              <Group gap={6} wrap="wrap">
+                {payload.eventType && <Badge variant="light">{payload.eventType}</Badge>}
+                {registrationEnabled && (
+                  <Badge variant="light" color="accent">
+                    Registration event
+                  </Badge>
+                )}
+              </Group>
+            </DetailSection>
 
             {payload.external && (
               <Group gap={6} wrap="wrap">
@@ -721,10 +735,7 @@ export function EventDetailBody({
             )}
 
             {ownerName && (
-              <>
-                <Text size="xs" c="dimmed" fw={600}>
-                  Owner
-                </Text>
+              <DetailSection label="Owner">
                 <Group gap={6} wrap="wrap">
                   <Badge variant="light" color="brand">
                     {ownerName}
@@ -735,18 +746,19 @@ export function EventDetailBody({
                     </Badge>
                   )}
                 </Group>
-              </>
+              </DetailSection>
             )}
 
             {(registrationEnabled ? registeredCount > 0 : participantItems.length > 0) ? (
-              <>
-                <Text size="xs" c="dimmed" fw={600}>
-                  {registrationEnabled
+              <DetailSection
+                label={
+                  registrationEnabled
                     ? registrationCap !== null
                       ? `Registered (${registeredCount} / ${registrationCap})`
                       : `Registered (${registeredCount})`
-                    : "Participants"}
-                </Text>
+                    : "Participants"
+                }
+              >
                 <Stack gap={4}>
                   <PickerBadges items={participantBadges} size="compact" />
                   {participantItems.length > DETAIL_BADGE_CAP && (
@@ -766,18 +778,19 @@ export function EventDetailBody({
                     </Button>
                   )}
                 </Stack>
-              </>
+              </DetailSection>
             ) : registrationEnabled ? (
-              <>
-                <Text size="xs" c="dimmed" fw={600}>
-                  {registrationCap !== null
+              <DetailSection
+                label={
+                  registrationCap !== null
                     ? `Registered (0 / ${registrationCap})`
-                    : "Registered (0)"}
-                </Text>
+                    : "Registered (0)"
+                }
+              >
                 <Text size="sm" c="dimmed">
                   No one has registered yet.
                 </Text>
-              </>
+              </DetailSection>
             ) : null}
 
             {registrationEnabled && registrationCap !== null && (
@@ -797,12 +810,9 @@ export function EventDetailBody({
             )}
 
             {payload.remarks?.trim() && (
-              <>
-                <Text size="xs" c="dimmed" fw={600}>
-                  Remarks
-                </Text>
+              <DetailSection label="Remarks">
                 <RichRemarks text={payload.remarks} />
-              </>
+              </DetailSection>
             )}
 
             {readOnly ? (

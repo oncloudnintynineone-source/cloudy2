@@ -18,8 +18,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.417 (Details-modal Remarks with link previews — the
-  bounded, SSRF-gated preview pipeline)** is shipped.
+- All work through changelog **1.418 (Details-modal sections tightened; "Optional —"
+  dropped from the Description/Remarks helpers)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -3043,6 +3043,14 @@ size="compact"`), and renames **Duplicate Event** / **Copy to Other Google
   behind a save); failed or unsafe links simply stay plain links. Remarks storage is
   unchanged (plain text in the Google notes). Docs: `event-lifecycle.md`
   §1.7.5/§1.13/§1.15, `user-guide.md` §1.4.2, `ui-ux-improvements.md` D14.
+- 1.418 **Details-modal sections tightened + shorter remarks helpers**: every labelled
+  details-modal section (Location, Event Type, Owner, Participants/Registered, Remarks)
+  now wraps its label and content in a local `DetailSection` (4px inner gap), so the
+  dimmed label sits tight above its pills instead of floating a full 16px stack-gap
+  away; the between-section rhythm is unchanged. The wizard's Description/Remarks
+  helper lines drop their "Optional —" prefix (the fields are self-evidently
+  optional). Pure structure + copy — no behavior change. Docs:
+  `ui-ux-improvements.md` C8.
 
 ## 1.4 Open items & next steps
 

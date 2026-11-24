@@ -2045,7 +2045,7 @@ export function EventForm({
             <Stack gap="sm">
               <Textarea
                 label="Description"
-                description="Optional — the words your admin's title template puts into the calendar title."
+                description="The words your admin's title template puts into the calendar title."
                 placeholder="Add a description"
                 autosize
                 minRows={2}
@@ -2055,7 +2055,7 @@ export function EventForm({
               />
               <Textarea
                 label="Remarks"
-                description="Optional — an internal note shown only in the event's Google Calendar notes."
+                description="An internal note shown only in the event's Google Calendar notes."
                 placeholder="Add remarks"
                 autosize
                 minRows={2}
