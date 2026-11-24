@@ -33,6 +33,7 @@ import { CrossfadeSwap } from "@/components/CrossfadeSwap";
 import { EventDetailSkeleton } from "./EventDetailSkeleton";
 import { EventHistoryModal } from "@/components/EventHistoryModal";
 import { ConfirmModal } from "@/components/ConfirmModal";
+import { LinkifiedText } from "@/components/LinkifiedText";
 import { RadioCardGroup, type RadioCardOption } from "@/components/RadioCardGroup";
 import { useActionPill } from "@/components/ActionPill";
 import { PickerBadges, type PickerBadgeItem } from "@/components/PickerField";
@@ -61,6 +62,7 @@ import type { Rect } from "@/lib/motion/origin";
 import { popoverTransitionProps } from "@/lib/motion/transitions";
 import { useMotion } from "@/components/MotionProvider";
 import { capBadgeItems } from "@/lib/ui/badgeCap";
+import { EXTERNAL_LINK_PROPS } from "@/lib/ui/externalLink";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 import { useIsOffline } from "@/lib/ui/onlineStatus";
 import { formatDateTime } from "./clientDateTime";
@@ -709,7 +711,9 @@ export function EventDetailBody({
                 )}
                 {payload.location && (
                   <Text size="sm" c="dimmed">
-                    {payload.location}
+                    {/* A URL pasted into the location is a link too, on the same
+                        http(s)-only / new-tab recipe as the remarks. */}
+                    <LinkifiedText text={payload.location} />
                   </Text>
                 )}
               </Group>
@@ -1056,8 +1060,7 @@ function CalendarExportMenuItems({ event }: { event: CalendarEvent }) {
       <Menu.Item
         component="a"
         href={buildGoogleCalendarUrl(event)}
-        target="_blank"
-        rel="noreferrer"
+        {...EXTERNAL_LINK_PROPS}
         leftSection={<IconBrandGoogle size={16} />}
       >
         Copy to Other Google Calendar

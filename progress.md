@@ -18,8 +18,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.423 (review-step rows were left-shifted and clipped)** is
-  shipped.
+- All work through changelog **1.424 (URLs linkified correctly; external links open in a new
+  tab; hrefs hardened)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -3106,6 +3106,27 @@ size="compact"`), and renames **Duplicate Event** / **Copy to Other Google
   Double Booking page share it) gained the matching `width: calc(100% + 1rem)` so its
   hover box is symmetric inside the card's padding. Pure CSS/markup — no behavior, schema
   or payload change. Docs: `event-lifecycle.md` §1.4.1.
+- 1.424 **URLs linkified correctly · external links open in a new tab · hrefs hardened**:
+  the remarks linkifier (`src/lib/linkPreviews/extract.ts`) was rewritten around a
+  candidate-trimming resolver. Fixed: comma-joined URLs became one bogus href
+  (`https://a.com,https://b.com` → `https://a.com,https//b.com`), the rendered href
+  dropped `#fragments` (wrong section), and prose glued to a URL's tail was
+  percent-encoded into it (`…/a的东西`, `…/a’s`) — the tail is now returned to the text
+  while IDN hosts survive. Scheme-less hosts (`example.com/x`, `www.x.com`, `foo.sg/a`)
+  linkify via a curated TLD list with an email/path/scheme-payload guard, so `e.g.`,
+  `report.pdf` and `name@example.com` stay text. Fragments are kept for rendering and
+  stripped for the preview key (two anchors on one page cost one card), and cards open
+  the author's exact href. Only `http:`/`https:` can ever reach an `href`/`src`: the
+  extractor rejects every other scheme (including `mailto:`/`data:`/`file:`/`blob:`/
+  `javascript:`), the renderer re-checks with `isHttpUrl` (defense in depth), preview
+  images are re-gated, and link display text drops bidi/zero-width controls. New shared
+  `LinkifiedText` renderer + `EXTERNAL_LINK_PROPS` (`target="_blank"`,
+  `rel="noopener noreferrer"`) applied to remarks links, preview cards, the details
+  modal's Location row and every Google Calendar hand-off; Quick Links became real
+  anchors instead of `window.open` (middle-click/context menu work). Existing
+  `dangerouslySetInnerHTML` sites audited (motion CSS = constants; boot payload already
+  escapes `<`/`>`/`&`/U+2028-9) — no new injection point. Docs:
+  `event-lifecycle.md` §1.7.5, `quick-links.md` §1.4.
 
 ## 1.4 Open items & next steps
 

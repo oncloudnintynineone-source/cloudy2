@@ -53,8 +53,10 @@ enabled.
   - `lg`: light-`accent` 36px nav-row chip labelled "Quick links".
 - Renders only when the list is non-empty and **always opens the menu** (never a
   direct link).
-- Items are page-scale (16px text, ~44px rows) and open their URL in a new tab; the
-  dropdown pops from the anchored corner like the kebab menu.
+- Items are page-scale (16px text, ~44px rows) and are **real links** to their URL,
+  opening in a new tab (`EXTERNAL_LINK_PROPS`, `src/lib/ui/externalLink.ts`) — so
+  middle-click, Ctrl-click and the browser's own "open in new tab" behave like any
+  other anchor; the dropdown pops from the anchored corner like the kebab menu.
 
 ## 1.5 File index & related docs
 

@@ -1,18 +1,24 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Anchor, Button, Group, Paper, Stack, Text } from "@mantine/core";
+import { Button, Group, Paper, Stack, Text } from "@mantine/core";
 import { postJson } from "@/lib/api/client";
+import { LinkifiedText } from "@/components/LinkifiedText";
 import { CONTENT_ENTER_CLASS } from "@/lib/loading/contentEnter";
-import { extractPreviewUrls, splitRemarksUrls } from "@/lib/linkPreviews/extract";
+import {
+  extractPreviewUrls,
+  previewUrlFor,
+  splitRemarksUrls,
+} from "@/lib/linkPreviews/extract";
+import { EXTERNAL_LINK_PROPS, isHttpUrl, shortenUrl } from "@/lib/ui/externalLink";
 import type { LinkPreview, LinkPreviewEntry } from "@/lib/linkPreviews/types";
 
 /**
  * The event's remarks rendered "rich" in the details modal
- * (docs/event-lifecycle.md §1.12): the text stays exactly as stored (plain
+ * (docs/event-lifecycle.md §1.7.5): the text stays exactly as stored (plain
  * text — Google Calendar shows the same words), but URLs become real links
- * and each linked page gets a preview card fetched from
- * `POST /api/link-preview`.
+ * (opened in a new tab, http(s) only — `LinkifiedText`) and each linked page
+ * gets a preview card fetched from `POST /api/link-preview`.
  *
  * The remarks text paints immediately; cards are enrichment that fades in
  * when it arrives (or never — offline, unsafe or meta-less links simply keep
@@ -41,15 +47,24 @@ const REMARKS_GUARANTEED_CLIP_CHARS = 420;
 /** Per-page-load preview cache (null = fetched and failed; never retried). */
 const previewCache = new Map<string, LinkPreview | null>();
 
-/** Link display text: no scheme, no trailing slash, ellipsised when long. */
-function shortenUrl(href: string): string {
-  const bare = href.replace(/^https?:\/\//, "").replace(/\/$/, "");
-  return bare.length > 48 ? `${bare.slice(0, 47)}…` : bare;
-}
-
 export function RichRemarks({ text }: { text: string }) {
   const segments = useMemo(() => splitRemarksUrls(text), [text]);
   const urls = useMemo(() => extractPreviewUrls(text), [text]);
+  // The author's own href per preview key, so a card whose page was linked with
+  // a `#fragment` still lands on that fragment (the preview key drops it).
+  const previewHrefs = useMemo(() => {
+    const hrefs = new Map<string, string>();
+    for (const segment of segments) {
+      if (segment.kind !== "link") {
+        continue;
+      }
+      const key = previewUrlFor(segment.href);
+      if (!hrefs.has(key)) {
+        hrefs.set(key, segment.href);
+      }
+    }
+    return hrefs;
+  }, [segments]);
   // Re-render trigger once the module cache fills (the cache itself is read
   // directly during render, so no state mirrors it).
   const [, setCacheVersion] = useState(0);
@@ -151,11 +166,15 @@ export function RichRemarks({ text }: { text: string }) {
     };
   }, [urls]);
 
-  const previews = urls
-    .map((url) => previewCache.get(url))
-    .filter((preview): preview is LinkPreview => Boolean(preview));
-  const visiblePreviews = expanded ? previews : previews.slice(0, PREVIEW_CARD_CAP);
-  const overflowCards = previews.length - visiblePreviews.length;
+  // Read straight from the cache during render (the version state above is only
+  // the re-render trigger), pairing each card with the href to open: the
+  // author's own link when there is one, else the server's final URL.
+  const cards = urls.flatMap((url) => {
+    const preview = previewCache.get(url);
+    return preview ? [{ key: url, href: previewHrefs.get(url) ?? preview.url, preview }] : [];
+  });
+  const visibleCards = expanded ? cards : cards.slice(0, PREVIEW_CARD_CAP);
+  const overflowCards = cards.length - visibleCards.length;
 
   return (
     <Stack gap="xs">
@@ -165,27 +184,12 @@ export function RichRemarks({ text }: { text: string }) {
         lineClamp={expanded ? undefined : REMARKS_LINE_CLAMP}
         style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}
       >
-        {segments.map((segment, index) =>
-          segment.kind === "link" ? (
-            <Anchor
-              key={index}
-              href={segment.href}
-              target="_blank"
-              rel="noopener noreferrer"
-              size="sm"
-              inline
-            >
-              {shortenUrl(segment.href)}
-            </Anchor>
-          ) : (
-            <span key={index}>{segment.text}</span>
-          ),
-        )}
+        <LinkifiedText text={text} segments={segments} />
       </Text>
-      {visiblePreviews.length > 0 && (
+      {visibleCards.length > 0 && (
         <Stack gap={6} className={CONTENT_ENTER_CLASS}>
-          {visiblePreviews.map((preview) => (
-            <PreviewCard key={preview.url} preview={preview} />
+          {visibleCards.map((card) => (
+            <PreviewCard key={card.key} preview={card.preview} href={card.href} />
           ))}
         </Stack>
       )}
@@ -209,57 +213,63 @@ export function RichRemarks({ text }: { text: string }) {
 }
 
 /** One preview card: the whole card is the link; a broken image hides itself. */
-function PreviewCard({ preview }: { preview: LinkPreview }) {
+function PreviewCard({ preview, href }: { preview: LinkPreview; href: string }) {
   const [imageFailed, setImageFailed] = useState(false);
   const label = preview.title ? `Open ${preview.title} (${preview.host})` : `Open ${preview.host}`;
-  return (
-    <Paper
-      component="a"
-      href={preview.url}
-      target="_blank"
-      rel="noopener noreferrer"
-      withBorder
-      radius="sm"
-      p="xs"
-      aria-label={label}
-      style={{ display: "block", textDecoration: "none" }}
-    >
-      <Group gap="sm" wrap="nowrap">
-        <Stack gap={2} flex="1" style={{ minWidth: 0 }}>
-          <Text size="sm" fw={500} lineClamp={2}>
-            {preview.title ?? shortenUrl(preview.url)}
+  // Render-time allowlist (defense in depth: the extractor allowlists authored
+  // links and the SSRF gate vetted this one server-side). Anything that is not
+  // http(s) renders as a plain, non-interactive card instead of an anchor.
+  const image = preview.image && isHttpUrl(preview.image) ? preview.image : null;
+  const cardProps = {
+    withBorder: true,
+    radius: "sm",
+    p: "xs",
+    style: { display: "block", textDecoration: "none" },
+  } as const;
+  const content = (
+    <Group gap="sm" wrap="nowrap">
+      <Stack gap={2} flex="1" style={{ minWidth: 0 }}>
+        <Text size="sm" fw={500} lineClamp={2}>
+          {preview.title ?? shortenUrl(href)}
+        </Text>
+        <Text size="xs" c="dimmed">
+          {preview.host}
+        </Text>
+        {preview.description && (
+          <Text size="xs" c="dimmed" lineClamp={2}>
+            {preview.description}
           </Text>
-          <Text size="xs" c="dimmed">
-            {preview.host}
-          </Text>
-          {preview.description && (
-            <Text size="xs" c="dimmed" lineClamp={2}>
-              {preview.description}
-            </Text>
-          )}
-        </Stack>
-        {preview.image && !imageFailed && (
-          // A plain <img> on purpose: preview images live on arbitrary third
-          // hosts, which next/image could only load through a wildcard
-          // remote-pattern — the SSRF gate already ran server-side.
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={preview.image}
-            alt=""
-            aria-hidden
-            loading="lazy"
-            referrerPolicy="no-referrer"
-            onError={() => setImageFailed(true)}
-            style={{
-              width: 64,
-              height: 64,
-              objectFit: "cover",
-              flexShrink: 0,
-              borderRadius: "var(--mantine-radius-sm)",
-            }}
-          />
         )}
-      </Group>
+      </Stack>
+      {image && !imageFailed && (
+        // A plain <img> on purpose: preview images live on arbitrary third
+        // hosts, which next/image could only load through a wildcard
+        // remote-pattern — the SSRF gate already ran server-side.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={image}
+          alt=""
+          aria-hidden
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          onError={() => setImageFailed(true)}
+          style={{
+            width: 64,
+            height: 64,
+            objectFit: "cover",
+            flexShrink: 0,
+            borderRadius: "var(--mantine-radius-sm)",
+          }}
+        />
+      )}
+    </Group>
+  );
+  if (!isHttpUrl(href)) {
+    return <Paper {...cardProps}>{content}</Paper>;
+  }
+  return (
+    <Paper {...cardProps} component="a" href={href} {...EXTERNAL_LINK_PROPS} aria-label={label}>
+      {content}
     </Paper>
   );
 }

@@ -4,6 +4,7 @@ import { Menu, useMantineTheme } from "@mantine/core";
 
 import { useMotion } from "@/components/MotionProvider";
 import type { QuickLinkMenuItem } from "@/lib/quickLinks/types";
+import { EXTERNAL_LINK_PROPS } from "@/lib/ui/externalLink";
 
 import { QuickLinkIcon } from "./QuickLinkIcon";
 
@@ -22,7 +23,9 @@ interface QuickLinksMenuProps {
 /**
  * The dashboard's quick-links menu. Deliberately distinct from the grey
  * "More options" kebab: an amber trigger and larger, page-scale rows.
- * Selecting an item opens its URL in a new tab.
+ * Selecting an item opens its URL in a new tab through a real anchor
+ * (`EXTERNAL_LINK_PROPS`), so middle-click, Ctrl-click and the browser's own
+ * "open in new tab" work like any other link.
  */
 export function QuickLinksMenu({ links, trigger, position }: QuickLinksMenuProps) {
   const theme = useMantineTheme();
@@ -46,8 +49,10 @@ export function QuickLinksMenu({ links, trigger, position }: QuickLinksMenuProps
           return (
             <Menu.Item
               key={link.id}
+              component="a"
+              href={link.url}
+              {...EXTERNAL_LINK_PROPS}
               leftSection={<QuickLinkIcon iconKey={link.icon} size={20} color={palette?.[8]} />}
-              onClick={() => window.open(link.url, "_blank", "noopener,noreferrer")}
             >
               {link.label}
             </Menu.Item>

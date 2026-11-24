@@ -22,6 +22,7 @@ import {
   type MyCalendarAccessResult,
   type MyCalendarRow,
 } from "@/lib/roster/actions";
+import { EXTERNAL_LINK_PROPS } from "@/lib/ui/externalLink";
 
 const ROLE_LABELS: Record<MyCalendarRow["role"], string> = {
   reader: "Read only",
@@ -62,8 +63,7 @@ function CalendarRow({ calendar }: { calendar: MyCalendarRow }) {
         </Group>
         <Anchor
           href={addCalendarHref(calendar.googleCalendarId)}
-          target="_blank"
-          rel="noreferrer"
+          {...EXTERNAL_LINK_PROPS}
           size="sm"
         >
           Add to my Google Calendar

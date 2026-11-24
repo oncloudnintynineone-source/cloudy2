@@ -774,10 +774,11 @@ The plain-text remarks line (§1.7.3) is not only for Google Calendar: when rema
 are non-blank the details modal renders a **Remarks** section (after the
 participants/registration block, before the action row) through `RichRemarks`
 (`src/components/RichRemarks.tsx`). The text paints exactly as stored (newlines
-preserved via `pre-wrap`), but URLs become real links (`target="_blank"`,
-`rel="noopener noreferrer"`, shortened display text), and up to **5** unique URLs
-additionally get **preview cards** — title, host, description, optional image —
-fetched in the background after the modal paints.
+preserved via `pre-wrap`), but URLs become real links (opened in a new tab,
+shortened display text) through the shared `LinkifiedText` renderer, and up to **5**
+unique URLs additionally get **preview cards** — title, host, description, optional
+image — fetched in the background after the modal paints. The modal's **Location**
+row uses the same renderer, so a URL pasted as a location is tappable too.
 
 ```mermaid
 sequenceDiagram
@@ -794,6 +795,28 @@ sequenceDiagram
 
 Rules:
 
+- **Link detection** (`src/lib/linkPreviews/extract.ts`, pure + unit-tested): both
+  `http(s)://…` and scheme-less hosts are recognised (`example.com/x`, `www.x.com`,
+  `foo.sg/a`). A bare host must end in a curated TLD set — that is what keeps `e.g.`,
+  `i.e.`, `report.pdf` and `name@example.com` as text — and a match glued to a bigger
+  token (an email, a path, a `blob:`/`javascript:` payload) is not a link. The
+  **fragment is kept** on the rendered href (a `#section` link lands on that section)
+  while previews dedupe on the fragment-free page. Prose glued to a URL's tail (CJK
+  text, `’`, `。`, a bidi mark) is returned to the text: the candidate is trimmed until
+  the href round-trips without new percent-escapes, so IDN hosts survive (punycoded).
+  Trailing sentence punctuation is trimmed and balanced brackets in a path are kept.
+  Only the URL prefix of a match becomes the link, so a link can never point somewhere
+  the author did not write.
+- **Safe by construction**: only `http:`/`https:` can reach an `href`/`src` — the
+  extractor rejects every other scheme (`mailto:`, `data:`, `file:`, `blob:`,
+  `javascript:`, …) and the renderer re-checks with `isHttpUrl`
+  (`src/lib/ui/externalLink.ts`) as defense in depth, so a non-http value renders as
+  text (or a non-interactive card) whatever its source. Every external link carries
+  `EXTERNAL_LINK_PROPS` (`target="_blank"`, `rel="noopener noreferrer"`): a new tab,
+  and no `window.opener` for the opened page. Link display text drops bidi/zero-width
+  controls so a URL cannot visually spoof another address. Everything renders through
+  React — there is no `dangerouslySetInnerHTML` anywhere in this path, so neither the
+  note's text nor preview metadata can execute.
 - **SSRF gate** (`src/lib/linkPreviews/safety.ts`, pure): every URL, every redirect
   hop and every `og:image` must be http(s) and must not be a `localhost`/`.local`/
   `.internal`/`.onion`-style name or a literal private/loopback/link-local/CGNAT/

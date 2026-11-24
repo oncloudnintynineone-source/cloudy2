@@ -32,6 +32,7 @@ import { departmentTreeRows, parentOptionsFor } from "@/lib/roster/hierarchy";
 import type { DepartmentAccess, DepartmentAccessRole } from "@/lib/roster/shares";
 import { validateCalendarForm, type CalendarFormValues } from "@/lib/roster/validate";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
+import { EXTERNAL_LINK_PROPS } from "@/lib/ui/externalLink";
 import { submitCrudForm } from "@/lib/ui/submitCrudForm";
 import { showValidationFailure } from "@/lib/ui/validationFeedback";
 import { ColorSwatchPicker } from "@/components/ColorSwatchPicker";
@@ -365,7 +366,7 @@ export function DepartmentDetailBody({
                       </Button>
                     )}
                   </CopyButton>
-                  <Anchor href={addHref} target="_blank" rel="noreferrer" size="sm">
+                  <Anchor href={addHref} {...EXTERNAL_LINK_PROPS} size="sm">
                     Add to my Google Calendar
                   </Anchor>
                 </Group>
