@@ -290,8 +290,8 @@ content-height `ScrollArea` and scrolls away with the page, so the view passes
 `withWeekDays={false}` and a custom strip pins beneath the chrome. The strip
 **hugs its labels** (`height: auto` + a 2px `paddingBlock` — no fixed 36px box
 wasting a band before the grid) and is **non-shrinkable** (`flex-shrink: 0`), so
-when it is the fixed header of the Month & Agenda pane's bounded column the
-pane's overflowing grid can't crush and clip it. In the month view only, the grid
+when it is the fixed header of the Month view's bounded column the
+column's overflowing grid can't crush and clip it. In the month view only, the grid
 wrapper cancels the page `Stack` gap (`marginTop: calc(-1 * var(--mantine-spacing-sm))`
 at every width) so the strip **docks flush under the sticky top chrome** at rest and on
 scroll — its rest position equals its pinned `top`, so there is no gap at the

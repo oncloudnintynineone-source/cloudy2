@@ -32,7 +32,6 @@ export const DASHBOARD_VIEW_VALUES = [
   "weekgrid",
   "schedule",
   "agenda",
-  "dual",
 ] as const;
 export type DashboardViewValue = (typeof DASHBOARD_VIEW_VALUES)[number];
 
@@ -63,7 +62,6 @@ export const EVENT_TITLE_TARGET_LABELS: Record<EventTitleAssignmentTarget, strin
   weekgrid: "Week (Grid)",
   schedule: "Day",
   agenda: "Agenda",
-  dual: "Month & Agenda",
   pinned: "Pinned events (panel)",
   pinnedHeader: "Pinned events (header)",
   doubleBooking: "Double booking (clash report)",

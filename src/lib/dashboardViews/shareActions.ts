@@ -30,7 +30,6 @@ import {
 } from "./shareToken";
 import {
   DASHBOARD_VIEW_KIND_LABELS,
-  isDashboardViewKind,
   MAX_VIEWS_PER_USER,
   resolveTabFilters,
   sanitizeDashboardViewName,
@@ -203,9 +202,6 @@ export async function addSharedDashboardView(token: string): Promise<AddSharedVi
   }
   const payload = decodeDashboardViewShare(token, secret);
   if (!payload) {
-    return { ok: false, error: INVALID_LINK };
-  }
-  if (!isDashboardViewKind(payload.k)) {
     return { ok: false, error: INVALID_LINK };
   }
   const name = sanitizeDashboardViewName(payload.n);

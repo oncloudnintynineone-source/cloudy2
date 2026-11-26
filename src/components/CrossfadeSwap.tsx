@@ -13,7 +13,7 @@ interface CrossfadeSwapProps {
   skeleton: ReactNode;
   /** Screen-reader announcement while loading (never during the dissolve). */
   label?: string;
-  /** Fill the bounded flex column (`Month` fit-to-height / `Month & Agenda`). */
+  /** Fill the bounded flex column (`Month` fit-to-height). */
   fill?: boolean;
   /**
    * Minimum time the skeleton stays up once `loading` turns true (the shared

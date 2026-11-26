@@ -132,9 +132,6 @@ function resolvePresentation(
  * - Month → anchored starts on today;
  * - anchored → a different anchored kind keeps the anchor day;
  * - same kind keeps the current period (just the `?view=` change).
- *
- * Dual Pane is a day-anchored kind too (its Month pane follows the agenda day's
- * month), so it rides the anchored branches unchanged.
  */
 function tabSwitchTarget(
   target: Pick<DashboardViewTab, "id" | "kind">,
@@ -235,7 +232,7 @@ export function candidateKeyForUrl(
 }
 
 /**
- * Whether the months a held record already read fully cover the Month/Dual grid
+ * Whether the months a held record already read fully cover the Month grid
  * of `targetMonth`. A month tap may paint the tapped grid straight from the held
  * events only when every month that grid renders is already in hand; a partial
  * overlap would paint the tapped month with empty trailing days that then fill

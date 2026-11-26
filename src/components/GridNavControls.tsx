@@ -50,7 +50,7 @@ import { MAX_ZOOM, MIN_ZOOM } from "@/lib/ui/slotZoom";
  * and re-measured on window resize, anchor size change, or a `layoutKey` flip
  * (the caller's breakpoint + measured chrome height) — never per scroll frame.
  * The anchor's rect is read with `layoutRect` (transform-free layout geometry,
- * not `getBoundingClientRect`): for Week (D) and Month & Agenda the anchor sits
+ * not `getBoundingClientRect`): for Week (D) the anchor sits
  * inside the dashboard's transiently transformed slide wrapper, so the visual
  * rect would otherwise be captured mid-slide and leave the controls displaced
  * (left or right, by the slide direction) until a resize. There is no scroll
@@ -164,11 +164,10 @@ export function GridNavControls({
       const onScreen = visibleTop < visibleBottom;
       // 8px inside each grid edge; clamp to the anchor's own midpoint so a very
       // narrow grid can't push the controls off-screen or onto each other. The
-      // anchor midpoint (not the viewport's) matters for the Dual Pane's Month
-      // pane: it lives in the left portion of the viewport, so clamping to the
-      // viewport centre would freeze the cluster mid-screen once the pane's
-      // right edge crossed it. Full-width grids have their midpoint at the
-      // viewport centre, so this is identical to the old clamp there.
+      // anchor midpoint (not the viewport's) keeps the cluster honest when the
+      // anchored grid is narrower than the viewport (horizontal pan); for the
+      // full-width grids it sits at the viewport centre, so the clamp is a
+      // no-op there.
       const anchorCenterX = (rect.left + rect.right) / 2;
       setPos({
         center: onScreen ? (visibleTop + visibleBottom) / 2 : window.innerHeight / 2,

@@ -9,7 +9,6 @@ import type { DashboardViewKind } from "@/lib/dashboardViews/views";
  */
 const HEAVY_GRID_KINDS: ReadonlySet<DashboardViewKind> = new Set([
   "month",
-  "dual",
   "week",
   "weekv2",
   "weekgrid",

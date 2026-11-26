@@ -105,8 +105,14 @@ describe("swRules", () => {
       expect(isAlwaysFreshPath("/my-events/")).toBe(true);
     });
 
+    it("matches Resource Usage so a snapshot is never shown from cache", () => {
+      expect(isAlwaysFreshPath("/settings/metrics")).toBe(true);
+      expect(isAlwaysFreshPath("/settings/metrics/")).toBe(true);
+    });
+
     it("does not match sibling settings tabs or a prefix-lookalike", () => {
       expect(isAlwaysFreshPath("/settings/audit-log-x")).toBe(false);
+      expect(isAlwaysFreshPath("/settings/metrics-x")).toBe(false);
       expect(isAlwaysFreshPath("/settings/users")).toBe(false);
       expect(isAlwaysFreshPath("/settings")).toBe(false);
       expect(isAlwaysFreshPath("/dashboard")).toBe(false);

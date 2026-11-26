@@ -70,7 +70,7 @@ const SCHEDULE_PRELOADERS: Partial<Record<DashboardViewKind, readonly unknown[]>
   schedule: [LazyResourcesDayView],
   agenda: [LazyAgendaView],
   weekgrid: [LazyWeekView, LazyMoreEvents],
-  // `dual` and `weekv2` are custom grids, warmed from DashboardView.
+  // `weekv2` is a custom grid, warmed from DashboardView.
 };
 
 /**

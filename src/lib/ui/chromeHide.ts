@@ -45,8 +45,8 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from "react"
  *   is a genuine release.
  *
  * Scroll sources: document scrolling (window) and the page's internal
- * ScrollArea viewports (the dashboard's month/week/day pan, Week (Grid) hour
- * rows, dual panes). `scroll` does not bubble, so the pane listens in the
+ * ScrollArea viewports (the dashboard's month/week/day pan and Week (Grid)
+ * hour rows). `scroll` does not bubble, so the pane listens in the
  * **capture** phase to catch descendant viewports; `scrollend` bubbles, so the
  * same pane node catches the internal viewports and a `document` capture
  * listener catches document scrolling. `scrollend` is missing in older
@@ -310,8 +310,8 @@ export function useChromeHide({
 
     // --- Scroll (trigger + settle). ---
     // `scroll` does not bubble — the capture phase catches the descendant
-    // ScrollArea viewports (the dashboard's month/week/day pan, Week (Grid)
-    // rows, dual panes).
+    // ScrollArea viewports (the dashboard's month/week/day pan and Week
+    // (Grid) rows).
     pane.addEventListener("scroll", onScroll, true);
     // …wheel/trackpad scrolling (no pressed pointer) is still user-driven.
     pane.addEventListener("wheel", onWheel, { passive: true });

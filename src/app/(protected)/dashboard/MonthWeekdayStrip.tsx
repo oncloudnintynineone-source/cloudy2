@@ -18,10 +18,6 @@ const MONTH_COLUMNS = 7;
  * translates by -scrollLeft (driven by the MonthView ScrollArea's
  * `onScrollPositionChange`), so the initials stay over their columns whenever
  * the grid overflows the viewport — at zoom 1 the track simply fills the strip.
- *
- * Shared by the standalone Month view and the Dual Pane view's Month pane
- * (where the strip is constrained to that pane's column, so its 100%-based
- * track tracks that pane's grid).
  */
 export function MonthWeekdayStrip({
   chromeOffset,
@@ -34,10 +30,10 @@ export function MonthWeekdayStrip({
   /** Which day the week starts on, so the initials match the grid columns. */
   weekStartsOn: WeekStart;
   /**
-   * Pin beneath the shared chrome (standalone Month view / stacked Dual Pane).
-   * `false` when the strip is already the fixed header of the Dual Pane's own
-   * bounded scroll pane at `lg`, where the pane is the scroll container and a
-   * chrome-relative `top` would push the strip down inside it.
+   * Pin beneath the shared chrome (the document-scrolling Month view below
+   * `lg`). `false` in the fit-to-height column at `lg`, where the strip is
+   * already the bounded column's fixed header and a chrome-relative `top`
+   * would push the strip down inside it.
    */
   sticky?: boolean;
 }) {
@@ -58,12 +54,13 @@ export function MonthWeekdayStrip({
         paddingBlock: "calc(0.125rem * var(--mantine-scale))",
         borderBottom: "1px solid var(--mantine-color-default-border)",
         overflow: "hidden",
-        // In the Dual Pane's Month column this strip is a flex item, and
-        // `overflow: hidden` nullifies its automatic minimum size — so without
-        // this the pane's scroll box (whose content can exceed the bounded
-        // height) would shrink the strip and clip its labels. Pinning the flex
-        // basis keeps the strip whole; the scroll box absorbs the overflow.
-        // (No effect in the standalone Month view, where the parent is a block.)
+        // The strip is a flex item in the fit-to-height Month column at `lg`,
+        // and `overflow: hidden` nullifies its automatic minimum size — so
+        // without this the column's scroll box (whose content can exceed the
+        // bounded height) would shrink the strip and clip its labels. Pinning
+        // the flex basis keeps the strip whole; the scroll box absorbs the
+        // overflow. (No effect in the standalone Month view, where the parent
+        // is a block.)
         flexShrink: 0,
         minHeight: "min-content",
       }}

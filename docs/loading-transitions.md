@@ -156,9 +156,8 @@ block loads with the same two-line shape), `my-events/myEventsSkeleton.tsx` (the
 bordered result list, shared by the route fallback and `MyEventsView`'s
 `CrossfadeSwap`), `dashboard/calendarSkeleton.tsx`
 (the view grids — `MonthGridSkeleton`, `WeekMatrixSkeleton` (Week (D)
-matrix), `WeekGridSkeleton` (Week (H)), `AgendaListSkeleton`, `ScheduleGridSkeleton`,
-and `DualPaneSkeleton` (Month + Agenda at the persisted split; month-only
-below `lg`, where the Agenda pane is hidden); used by the
+matrix), `WeekGridSkeleton` (Week (H)), `AgendaListSkeleton`, `ScheduleGridSkeleton`;
+used by the
 dashboard's **in-page** kind-shaped transitions, not the plain-box
 route fallback), `parade-state/paradeStateSkeleton.tsx`,
 `settings/audit-log/AuditLogRowSkeleton.tsx`.
@@ -968,7 +967,7 @@ the navigation simply happens with no animation — the app is unaffected.
 
 ### 1.14.1 In-page period & day cross-slide
 
-The dashboard grid (Month, Dual Pane and the Week/Day kinds) and the Parade
+The dashboard grid (Month and the Week/Day kinds) and the Parade
 State roster play a **real directional cross-slide** on a period step: the old
 period slides out opposite the direction of travel while the new one slides in
 from the tapped side. Forward (next month/week/day, Today, a later date) slides
@@ -997,7 +996,7 @@ already loaded), so they slide the same way and need no flushSync gap.
   mutation itself) when the API is missing or reduced motion is on, and removes
   the class when the transition finishes or is skipped. `GRID_SLIDE_*` and
   `PARADE_SLIDE_*` are the two class pairs.
-- `DashboardView` — `shiftMonth`/`shiftDay`/`shiftWeek`/`shiftDualMonth`,
+- `DashboardView` — `shiftMonth`/`shiftDay`/`shiftWeek`,
   `goToday`, `pickDate`, `pickMonth`, and the Agenda tab's `applyAgendaDay`
   run their chrome update through `slidePeriod`/`slidePeriodTo`
   (`slidePeriodTo` skips a no-op jump); the data-bearing ones also set the
@@ -1074,7 +1073,7 @@ unit-tested) keeps it off when:
 - the grid is still loading (`gridLoading` — sliding the skeleton is the most
   expensive and least useful case);
 - the device is the `c2-low-end` tier;
-- the view is a heavy grid kind (`month`, `dual`, `week`, `weekv2`, `weekgrid`,
+- the view is a heavy grid kind (`month`, `week`, `weekv2`, `weekgrid`,
   `schedule`) on a **coarse pointer** (touch) device. The Agenda list is small
   enough to slide everywhere.
 
@@ -1106,7 +1105,7 @@ lands on, so it carries the most aggressive splitting.
 **Lazy dashboard chunks.** `DashboardView` statically renders the active grid
 (via `@mantine/schedule`), but everything used on demand is a `next/dynamic`
 import: the event wizard (`EventForm`, plus its `@mantine/dates`/`@mantine/form`
-chain), the two single-kind custom grids (`DualPaneView`, `WeekMatrixView`), the
+chain), the single-kind custom grid (`WeekMatrixView`), the
 event-details modal (`EventDetail`), the manage-views modal (`EditViewsModal`)
 and the date picker. Only the target screen's active renderer loads on first
 paint; the warm policy is deliberately probability-based:
@@ -1243,7 +1242,7 @@ re-render the whole dashboard view.
 | `src/lib/ui/periodSlide.ts`                                      | Pure `shouldUsePeriodSlide` gate (loading / low-end / heavy-grid-on-touch) for the real period cross-slide — §1.14.1                                                                                                                                                                                                           |
 | `src/app/(protected)/**/page.tsx`                                | Each protected page renders its content through `PageTransition` (§1.14)                                                                                                                                                                                                                                                      |
 | `src/app/(protected)/*/loading.tsx`                              | Route-level skeletons (16 segments)                                                                                                                                                                                                                                                                                           |
-| `src/app/(protected)/dashboard/calendarSkeleton.tsx`             | The view grid skeletons (shared by route + in-page): `MonthGridSkeleton`, `WeekMatrixSkeleton`, `WeekGridSkeleton`, `AgendaListSkeleton`, `ScheduleGridSkeleton`, `DualPaneSkeleton`                                                                                                                                          |
+| `src/app/(protected)/dashboard/calendarSkeleton.tsx`             | The view grid skeletons (shared by route + in-page): `MonthGridSkeleton`, `WeekMatrixSkeleton`, `WeekGridSkeleton`, `AgendaListSkeleton`, `ScheduleGridSkeleton`                                                                                                                                          |
 | `src/app/(protected)/dashboard/eventFormLayout.ts`               | Fixed wizard body-height tokens shared by `EventForm` and its lazy `EventFormSkeleton` fallback (§1.15)                                                                                                                                                                                                                       |
 | `src/app/(protected)/dashboard/EventFormSkeleton.tsx`            | Lazy fallback for the code-split event wizard (§1.15)                                                                                                                                                                                                                                                                         |
 | `src/components/FormModalSkeleton.tsx`                           | Generic modal skeleton — `dynamic` fallback and `CrossfadeSwap` skeleton for the lazy settings modal forms (§1.15/§1.15.1)                                                                                                                                                                                                    |

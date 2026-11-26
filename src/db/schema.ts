@@ -4,6 +4,7 @@ import {
   boolean,
   check,
   date,
+  doublePrecision,
   index,
   integer,
   jsonb,
@@ -21,6 +22,13 @@ import {
   PARADE_EMAIL_BODY_TEMPLATE_DEFAULT,
   PARADE_EMAIL_SUBJECT_TEMPLATE_DEFAULT,
 } from "@/lib/parade-email/emailDefaults";
+import {
+  METRICS_DEFAULT_CAP_COMPUTE_HOURS,
+  METRICS_DEFAULT_CAP_EGRESS_BYTES,
+  METRICS_DEFAULT_CAP_STORAGE_BYTES,
+  METRICS_DEFAULT_SNAPSHOT_TIME,
+  METRICS_RETENTION_DEFAULT,
+} from "@/lib/metrics/config";
 
 const timestamps = {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -125,11 +133,13 @@ export const userCalendarAccess = pgTable(
 /**
  * A user's on-demand dashboard calendar view (tab). Each row is one tab the
  * user created: a renderer kind (`month` | `week` | `weekv2` | `weekgrid` |
- * `schedule` | `agenda` | `dual`), a user-chosen
+ * `schedule` | `agenda`), a user-chosen
  * display `name`, a per-user `sortOrder` for the tab strip, and the tab's own
  * filter overrides. Duplicates of the same kind are allowed (two Agenda tabs
  * with different names/filters); the tab's UUID is its identity, carried in
- * the URL as `?view=<id>`.
+ * the URL as `?view=<id>`. The column is plain text (no check constraint):
+ * retired kinds (e.g. `dual`) stay readable and are coerced to their
+ * replacement on read (`resolveViewKind`, src/lib/dashboardViews/views.ts).
  *
  * Filter semantics: each of `calFilter`/`usersFilter`/`typesFilter` is a JSON
  * array of selected calendar ids / roster user ids / event-type *names*, or
@@ -465,6 +475,45 @@ export const settings = pgTable(
     paradeEmailBodyTemplate: text("parade_email_body_template")
       .notNull()
       .default(PARADE_EMAIL_BODY_TEMPLATE_DEFAULT),
+    /**
+     * Resource-usage ledger (Settings → Resource Usage). The snapshot schedule
+     * reuses the parade-email shape — a UTC+8 `HH:mm` cutoff plus ISO weekdays,
+     * fired by a lazy in-app tick and claimed once per day — because there is no
+     * external scheduler in this deployment.
+     *
+     * The three caps are stored, not hard-coded: Neon's usage API is paid-plan
+     * only (it answers 403 on the free tier), so the ledger measures itself
+     * against the admin's record of the ceiling. Move to a paid plan and these
+     * numbers are the only thing that changes.
+     */
+    metricsEnabled: boolean("metrics_enabled").notNull().default(true),
+    metricsSnapshotTime: text("metrics_snapshot_time")
+      .notNull()
+      .default(METRICS_DEFAULT_SNAPSHOT_TIME),
+    /** ISO weekdays (1=Mon … 7=Sun) a snapshot is taken on. */
+    metricsSnapshotDays: jsonb("metrics_snapshot_days")
+      .notNull()
+      .default(sql`'[1,2,3,4,5,6,7]'::jsonb`),
+    metricsNeonCapComputeHours: doublePrecision("metrics_neon_cap_compute_hours")
+      .notNull()
+      .default(METRICS_DEFAULT_CAP_COMPUTE_HOURS),
+    metricsNeonCapEgressBytes: doublePrecision("metrics_neon_cap_egress_bytes")
+      .notNull()
+      .default(METRICS_DEFAULT_CAP_EGRESS_BYTES),
+    metricsNeonCapStorageBytes: doublePrecision("metrics_neon_cap_storage_bytes")
+      .notNull()
+      .default(METRICS_DEFAULT_CAP_STORAGE_BYTES),
+    /**
+     * Multiplier applied to the app's own byte accounting to reach Neon's
+     * figure. Defaults to 1 (uncalibrated); pasted once from Neon Console →
+     * Billing → Usage it turns an estimate into a calibrated estimate.
+     */
+    metricsEgressCalibration: doublePrecision("metrics_egress_calibration")
+      .notNull()
+      .default(1),
+    metricsRetentionDays: integer("metrics_retention_days")
+      .notNull()
+      .default(METRICS_RETENTION_DEFAULT),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [check("settings_singleton", sql`${table.id} = 'singleton'`)],
@@ -733,6 +782,108 @@ export const pinnedEventCache = pgTable(
   (table) => [check("pinned_event_cache_singleton", sql`${table.id} = 'singleton'`)],
 );
 
+/**
+ * The resource ledger's running counters (Settings → Resource Usage).
+ *
+ * One additive row per `(day, metric, label_key)`. Cloud Run is scale-to-zero
+ * with up to four instances and no shared memory, so in-process counters die
+ * with the instance — anything that must survive a mid-day suspend is merged
+ * here with `value = value + excluded.value`, flushed at most once every few
+ * minutes per instance and only when non-zero. The daily snapshot reads these
+ * rows and closes the day into `metrics_day`.
+ *
+ * Deliberately coarse: the question this answers ("are we about to run out of
+ * Neon?") is a daily question, and finer resolution would spend the very
+ * storage allowance it is watching.
+ */
+export const metricsRunning = pgTable(
+  "metrics_running",
+  {
+    /** UTC+8 calendar day the counter belongs to (`YYYY-MM-DD`). */
+    day: date("day").notNull(),
+    metric: text("metric").notNull(),
+    /** Canonical sorted `k=v|k=v` dimensions; "" for the unlabelled row. */
+    labelKey: text("label_key").notNull().default(""),
+    value: doublePrecision("value").notNull().default(0),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.day, table.metric, table.labelKey] })],
+);
+
+/**
+ * Minutes the app touched the database, as minute-of-day indices (0–1439).
+ *
+ * Merged as a set union in SQL (`ON CONFLICT … minutes = <union>`), which is
+ * what makes the distinct active-minute count exact even while up to four
+ * Cloud Run instances write it concurrently — a plain counter would overcount
+ * by up to the instance count, and that error is fatal against a 100-hour
+ * budget. A sorted int array costs ~2 KB on a busy day, which is nothing
+ * against the 0.5 GiB this ledger exists to watch.
+ */
+export const metricsActivity = pgTable("metrics_activity", {
+  day: date("day").primaryKey(),
+  minutes: integer("minutes")
+    .array()
+    .notNull()
+    .default(sql`'{}'::integer[]`),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * The closed daily ledger — one row per `(day, metric, label_key)`, written by
+ * the snapshot collector. `source` records whether the number is `sql` (read
+ * straight out of Postgres), `app` (counted by the app), or `estimate`
+ * (derived, because Neon's own usage API is paid-plan only); the UI never
+ * presents an estimate as a measurement.
+ *
+ * `detail` carries the day's bounded breakdowns (top tables, top queries,
+ * per-route bytes) so a drill-down needs no fourth table and no extra writes.
+ */
+export const metricsDay = pgTable(
+  "metrics_day",
+  {
+    day: date("day").notNull(),
+    metric: text("metric").notNull(),
+    labelKey: text("label_key").notNull().default(""),
+    value: doublePrecision("value").notNull(),
+    source: text("source", { enum: ["sql", "app", "estimate"] }).notNull().default("sql"),
+    detail: jsonb("detail"),
+    snapshotAt: timestamp("snapshot_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.day, table.metric, table.labelKey] }),
+    index("metrics_day_day_metric_idx").on(table.day, table.metric),
+  ],
+);
+
+/**
+ * Once-per-day claims for ledger jobs, mirroring `parade_email_sends`' unique
+ * `send_date`: the lazy tick can fire from any device, so the primary key is
+ * the idempotency guard. A `failed` claim, or one older than the lease, is
+ * claimable again — a day nobody was online for is snapshotted late, never
+ * skipped, because every counter it reads is date-keyed.
+ */
+export const metricsClaim = pgTable(
+  "metrics_claim",
+  {
+    kind: text("kind").notNull(),
+    day: date("day").notNull(),
+    status: text("status", { enum: ["claimed", "done", "failed"] })
+      .notNull()
+      .default("claimed"),
+    /** Cloud Run instance id (`os.hostname()`), for telling instances apart. */
+    instance: text("instance"),
+    attempts: integer("attempts").notNull().default(1),
+    claimedAt: timestamp("claimed_at", { withTimezone: true }).notNull().defaultNow(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    error: text("error"),
+  },
+  (table) => [
+    primaryKey({ columns: [table.kind, table.day] }),
+    index("metrics_claim_claimed_idx").on(table.claimedAt),
+  ],
+);
+
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type Calendar = typeof calendars.$inferSelect;
@@ -770,3 +921,9 @@ export type UserPreference = typeof userPreferences.$inferSelect;
 export type NewUserPreference = typeof userPreferences.$inferInsert;
 export type PushSubscription = typeof pushSubscriptions.$inferSelect;
 export type NewPushSubscription = typeof pushSubscriptions.$inferInsert;
+export type MetricsRunning = typeof metricsRunning.$inferSelect;
+export type NewMetricsRunning = typeof metricsRunning.$inferInsert;
+export type MetricsActivity = typeof metricsActivity.$inferSelect;
+export type MetricsDay = typeof metricsDay.$inferSelect;
+export type NewMetricsDay = typeof metricsDay.$inferInsert;
+export type MetricsClaim = typeof metricsClaim.$inferSelect;

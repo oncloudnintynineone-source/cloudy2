@@ -4,7 +4,7 @@
  * with any transformed ancestor.
  *
  * The dashboard's fixed pan/zoom controls (`GridNavControls`) anchor to the
- * grid's box, and for Week (D) and Month & Agenda that box lives inside the
+ * grid's box, and for Week (D) that box lives inside the
  * transiently transformed grid-slide wrapper (`DashboardView`'s `gridSlideRef`,
  * a `translateX(±10%)` Web Animation on every view/date change). Measuring the
  * visual rect during that animation captured a shifted `right` inset, leaving

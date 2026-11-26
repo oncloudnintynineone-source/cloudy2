@@ -132,7 +132,7 @@ The audit replaced the rough edges that made motion feel jerky:
 | Modal exits | non-bouncy curves | overshoot on exit looked like a bounce-back |
 | Badge tick, rail nudge, clash rows, pill progress | tokenized durations/easings | raw `120ms ease`/`500ms` literals drifted from the system |
 
-Layout-inherent motion (banner height, dual-pane gutter) stays but reads from
+Layout-inherent motion (banner height) stays but reads from
 the tokens.
 
 ## 1.7 Adding or moving an animation

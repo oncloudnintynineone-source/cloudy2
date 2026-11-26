@@ -13,6 +13,7 @@ import {
   isDashboardViewKind,
   nameAfterKindChange,
   normalizeTextFilter,
+  resolveViewKind,
   sanitizeDashboardViewName,
   type DashboardTabFilters,
   type DashboardViewKind,
@@ -128,9 +129,9 @@ export async function changeDashboardViewKind(
     return { ok: false, error: "Pick a view type", field: "kind" };
   }
   const kind = input.kind as DashboardViewKind;
-  const oldKind = isDashboardViewKind(owned.view.viewType)
-    ? owned.view.viewType
-    : "month";
+  // A retired stored kind resolves to its replacement, so the rename rule
+  // compares against the kind the tab actually renders as.
+  const oldKind = resolveViewKind(owned.view.viewType) ?? "month";
   const name = nameAfterKindChange(owned.view.name, oldKind, kind);
   await db
     .update(userDashboardViews)

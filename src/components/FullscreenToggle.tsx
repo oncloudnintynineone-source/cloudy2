@@ -6,7 +6,7 @@ import { IconArrowsMaximize, IconArrowsMinimize } from "@tabler/icons-react";
 
 /**
  * Toggle geometry, shared with views that must keep their own chrome clear of
- * the floating button (the Month & Agenda pane header reserves this box so its
+ * the floating button (the Month bounded column reserves this box so its
  * day chevrons stay tappable). Button diameter + the inset from the sticky
  * chrome's bottom edge and the grid's right edge.
  */

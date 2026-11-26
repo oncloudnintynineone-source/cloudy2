@@ -42,7 +42,7 @@ export interface DashboardDataValue {
    */
   setPreviewView: (viewId: string | null) => void;
   /**
-   * The optimistically stepped period (month / dual / agenda-edge data
+   * The optimistically stepped period (month / agenda-edge data
    * navigation), set in the same commit as the cross-slide. `DashboardScreen`
    * resolves the displayed record from `previewPeriod ?? searchParams`, so a
    * preloaded adjacent period paints instantly (no skeleton) instead of waiting

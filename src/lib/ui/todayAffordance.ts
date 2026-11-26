@@ -9,7 +9,7 @@
 // - Month: the shown month.
 // - Week kinds: the whole shown week (Monday/Sunday per the account's
 //   `weekStartsOn`) — a week that merely CONTAINS today shows today.
-// - Day / Agenda / Dual Pane: the anchored day (Agenda passes its viewed day).
+// - Day / Agenda: the anchored day (Agenda passes its viewed day).
 //
 // Pure + unit-tested; the component maps its optimistic state onto this.
 

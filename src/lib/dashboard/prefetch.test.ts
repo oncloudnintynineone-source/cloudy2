@@ -12,12 +12,6 @@ describe("prefetchTargetForPeriod", () => {
     ).toEqual({ month: "2025-12", date: null });
   });
 
-  it("steps an anchored dual pane month and clamps the day", () => {
-    expect(
-      prefetchTargetForPeriod({ kind: "dual", month: "2026-01", date: "2026-01-31" }, 1),
-    ).toEqual({ month: "2026-02", date: "2026-02-28" });
-  });
-
   it("steps week and day kinds by their own unit", () => {
     expect(
       prefetchTargetForPeriod({ kind: "week", month: "2026-01", date: "2026-01-28" }, 1),

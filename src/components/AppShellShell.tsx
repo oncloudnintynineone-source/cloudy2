@@ -73,6 +73,7 @@ import { LIVE_REFRESH_EVENT } from "@/lib/loading/liveRefreshRules";
 import { useInactivityRefresh, useOneShotRefreshStrip } from "@/lib/pwa/client";
 import { resolveShellViewportHeight } from "@/lib/pwa/viewport";
 import { useParadeEmailTick } from "@/lib/parade-email/client";
+import { useMetricsTick } from "@/lib/metrics/client";
 import { usePushSubscriptionRepair } from "@/lib/events/participantNotify/client";
 import { isAlwaysFreshPath } from "@/lib/pwa/swRules";
 import { mark } from "@/lib/perf/marks";
@@ -468,6 +469,11 @@ export function AppShellShell({
   // docs/parade-state-email.md). Fire-and-forget; the server action is
   // idempotent and never blocks the shell.
   useParadeEmailTick();
+
+  // Same mechanism for the daily resource-usage snapshot (src/lib/metrics/):
+  // the ledger closes a day on the first activity at/after its cutoff, claimed
+  // once per day so concurrent devices are harmless.
+  useMetricsTick();
 
   // Self-heal this device's Web Push subscription on load / return-to-foreground:
   // browsers rotate or drop subscriptions over time, and the update flow

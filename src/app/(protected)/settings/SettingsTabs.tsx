@@ -11,13 +11,17 @@ import { BOTTOM_NAV_HEIGHT_CSS } from "@/lib/bottomNav";
 import { useScrollEdges } from "@/lib/ui/scrollEdges";
 
 /**
- * The 13 settings tabs in four discovery groups (docs/ui-ux-improvements.md
+ * The 14 settings tabs in four discovery groups (docs/ui-ux-improvements.md
  * C1): the strip used to be a bare scroller, so Webhooks / Feature Flags /
  * Parade State Email hid off-edge with no hint. The groups read as labelled
  * separators at `lg`+; below `lg` the strip stays the same scroller (the
  * groups would eat the row's height), and both tiers get the bottom-nav
  * rail's fade + chevron edge affordance plus a scroll-into-view of the active
  * tab on entry.
+ *
+ * Resource Usage carries an amber dot when a budget projection crosses its
+ * warning threshold — the ledger's forewarning has to be visible from wherever
+ * the admin already is, or it is a page nobody opens.
  */
 const SETTINGS_TAB_GROUPS = [
   {
@@ -51,11 +55,15 @@ const SETTINGS_TAB_GROUPS = [
       { value: "/settings/security", label: "Security" },
       { value: "/settings/audit-log", label: "Audit Log" },
       { value: "/settings/feature-flags", label: "Feature Flags" },
+      { value: "/settings/metrics", label: "Resource Usage" },
     ],
   },
 ];
 
 const tabs = SETTINGS_TAB_GROUPS.flatMap((group) => group.tabs);
+
+/** The tab that carries the ledger's warning dot. */
+const METRICS_TAB = "/settings/metrics";
 
 interface SettingsTabsProps {
   /**
@@ -64,9 +72,11 @@ interface SettingsTabsProps {
    * the tabs.
    */
   onHeightChange?: (height: number) => void;
+  /** Amber dot on Resource Usage when a budget projection is over threshold. */
+  metricsWarning?: boolean;
 }
 
-export function SettingsTabs({ onHeightChange }: SettingsTabsProps = {}) {
+export function SettingsTabs({ onHeightChange, metricsWarning = false }: SettingsTabsProps = {}) {
   const pathname = usePathname();
   const router = useRouter();
   const theme = useMantineTheme();
@@ -170,26 +180,47 @@ export function SettingsTabs({ onHeightChange }: SettingsTabsProps = {}) {
                   </Text>
                 </Box>
               )}
-              {group.tabs.map((tab) => (
-                <Tabs.Tab
-                  key={tab.value}
-                  value={tab.value}
-                  // Own hook for the scroll-into-view query above (Mantine's
-                  // TabsTab spreads unknown props to the DOM but carries no
-                  // `data-value` of its own).
-                  data-settings-tab={tab.value}
-                  style={
-                    isDesktop
-                      ? undefined
-                      : {
-                          minHeight:
-                            "calc((var(--mantine-spacing-xs) + var(--mantine-font-size-sm) + var(--mantine-spacing-xs)) * 1.5)",
-                        }
-                  }
-                >
-                  {tab.label}
-                </Tabs.Tab>
-              ))}
+              {group.tabs.map((tab) => {
+                const warnTab = tab.value === METRICS_TAB && metricsWarning;
+                return (
+                  <Tabs.Tab
+                    key={tab.value}
+                    value={tab.value}
+                    // The warning dot is decorative; the message rides the
+                    // control's accessible name (accessibility.md §1.9).
+                    aria-label={warnTab ? `${tab.label} — needs attention` : undefined}
+                    // Own hook for the scroll-into-view query above (Mantine's
+                    // TabsTab spreads unknown props to the DOM but carries no
+                    // `data-value` of its own).
+                    data-settings-tab={tab.value}
+                    style={
+                      isDesktop
+                        ? undefined
+                        : {
+                            minHeight:
+                              "calc((var(--mantine-spacing-xs) + var(--mantine-font-size-sm) + var(--mantine-spacing-xs)) * 1.5)",
+                          }
+                    }
+                  >
+                    {tab.label}
+                    {warnTab && (
+                      <Box
+                        aria-hidden
+                        component="span"
+                        style={{
+                          display: "inline-block",
+                          width: 8,
+                          height: 8,
+                          marginLeft: 6,
+                          borderRadius: "50%",
+                          verticalAlign: "middle",
+                          background: "var(--mantine-color-yellow-filled)",
+                        }}
+                      />
+                    )}
+                  </Tabs.Tab>
+                );
+              })}
             </Fragment>
           ))}
         </Tabs.List>

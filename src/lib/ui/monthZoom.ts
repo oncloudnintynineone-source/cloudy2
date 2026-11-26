@@ -69,20 +69,15 @@ function fitRowHeight(availableHeightPx: number, rows: number): number | null {
  * `N` makes `rows` natural rows (4–6) land exactly inside `availableHeightPx`
  * (minus one row border per row) and the grid fills the bounded box with no
  * vertical scroll. `null` for an unmeasured box so the caller falls back to the
- * library's natural height. `minRowHeightPx` is the legibility floor: the
- * default (76px = 52 + one 24px chip slot) keeps at least one whole chip per
- * row; callers that want the natural 4-chip row (dual pane) pass 148.
+ * library's natural height. The 76px legibility floor (52 + one 24px chip slot)
+ * keeps at least one whole chip per row.
  */
-export function monthFillEvents(
-  availableHeightPx: number,
-  rows: number,
-  minRowHeightPx: number = 76,
-): number | null {
+export function monthFillEvents(availableHeightPx: number, rows: number): number | null {
   const rowHeight = fitRowHeight(availableHeightPx, rows);
   if (rowHeight === null) {
     return null;
   }
-  return (Math.max(minRowHeightPx, rowHeight) - 52) / 24;
+  return (Math.max(76, rowHeight) - 52) / 24;
 }
 
 /**

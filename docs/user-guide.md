@@ -68,7 +68,6 @@ them with the tabs above the grid:
 | **Week (D)**       | One week as day columns — events as spanning banners per row                                                                                                                                                                                                                                                                                                                                           |
 | **Day**            | A single day, hour-by-hour                                                                                                                                                                                                                                                                                                                                                                             |
 | **Agenda**         | A day-by-day list                                                                                                                                                                                                                                                                                                                                                                                      |
-| **Month & Agenda** | The Month grid and the Agenda list together — side by side on desktop (drag the divider between them to resize). Tapping a day in the grid shows that day in the agenda pane (event chips aren't clickable — every tap selects the day). On phones the agenda pane is hidden and the grid works like the Month tab: tap an event for its details, tap a day to see that day's events and add a new one |
 
 - **Zoom**: the Day and Week (H) views zoom their hour columns in and out; the
   Month view's columns start at **fit-to-width** (all seven days on screen) and
@@ -108,7 +107,7 @@ them with the tabs above the grid:
 ### 1.3.2 Dates & filters
 
 - Date-nav arrows (‹ ›) step the period: a day in Day and Agenda, a week in
-  the Week views, a month in Month and Month & Agenda. The calendar icon opens
+  the Week views, a month in Month. The calendar icon opens
   the **date picker** (which has its own **Today** button).
 - **Back to Today** appears **only while you are looking at another period**,
   and always sits **immediately left of the ‹ › arrows**: on desktop a pill in
@@ -120,8 +119,8 @@ them with the tabs above the grid:
   by department) up front, Event Types behind a **Show** toggle, and a **Myself**
   one-tap (events you are tagged on, plus events tagged to your department).
   **Reset** clears them (back to your role default).
-- **Filters are per view** — each of Month / Week (H) / Week (D) / Day / Agenda /
-  Month & Agenda remembers its own Calendars/Users/Event Types selection, and the dialog notes
+- **Filters are per view** — each of Month / Week (H) / Week (D) / Day / Agenda
+  remembers its own Calendars/Users/Event Types selection, and the dialog notes
   _"These filters apply to {view} only"_. Setting a filter on one view never
   affects the others; clearing one view's filters never resets the rest.
   An untouched view shows your role default (admin: all departments). Filtering

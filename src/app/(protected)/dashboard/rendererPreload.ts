@@ -7,7 +7,6 @@ import { preloadScheduleViewKinds } from "./scheduleViews";
 const LAST_RENDERER_KIND_KEY = "cloudy2.dashboard.rendererKind";
 
 const CUSTOM_RENDERERS: Partial<Record<DashboardViewKind, () => Promise<unknown>>> = {
-  dual: () => import("./DualPaneView"),
   weekv2: () => import("./WeekMatrixView"),
 };
 

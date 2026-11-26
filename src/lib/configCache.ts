@@ -29,6 +29,14 @@ export const CONFIG_CACHE_KEYS = {
   settings: "config:settings",
   eventTitleTemplates: "config:eventTitleTemplates",
   quickLinks: "config:quickLinks",
+  /**
+   * The resource ledger summary. Cached because the settings layout reads it on
+   * every `/settings/*` render to light the Resource Usage tab's warning pill —
+   * the forewarning mechanism has to be visible from wherever the admin is.
+   * The 60s window bounds that to one small indexed read per instance per
+   * minute; the metrics page itself bypasses it on demand.
+   */
+  metricsLedger: "config:metricsLedger",
 } as const;
 
 /** A key of the config cache (the auditable set of cached reads). */

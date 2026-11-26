@@ -4,7 +4,6 @@ import { cookies } from "next/headers";
 import { PageTransition } from "@/components/PageTransition";
 import { clampMonthZoom } from "@/lib/ui/monthZoom";
 import { GRID_WEEK_COL_ZOOM_DEFAULT, clampGridWeekColZoom, clampZoom } from "@/lib/ui/slotZoom";
-import { DUAL_SPLIT_DEFAULT, clampDualSplit } from "@/lib/ui/dualSplit";
 import { UI_STATE_COOKIE, decodeUiState } from "@/lib/ui/uiState";
 import { requireSession } from "@/lib/session";
 import { serializeDashboardBootPayload } from "@/lib/dashboard/boot";
@@ -49,8 +48,6 @@ export default async function DashboardPage({
   // Week (D) day-column zoom — single-axis, floored at fit (1).
   const initialWeekMatrixZoom = clampGridWeekColZoom(nav?.weekMatrixZoom) ?? 1;
   const initialMonthZoom = clampMonthZoom(nav?.monthZoom) ?? 1;
-  // Dual Pane split ratio (Month pane fraction) — same device-local contract.
-  const initialDualSplit = clampDualSplit(nav?.dualSplit) ?? DUAL_SPLIT_DEFAULT;
   // The remembered anchor month (validated like the server's `resolvePeriod`)
   // tells the client which cached context to paint on a cold open, so the
   // preload's future-month anchors never become the landing view.
@@ -79,7 +76,6 @@ export default async function DashboardPage({
             initialGridWeekRowZoom={initialGridWeekRowZoom}
             initialWeekMatrixZoom={initialWeekMatrixZoom}
             initialMonthZoom={initialMonthZoom}
-            initialDualSplit={initialDualSplit}
             initialMonth={initialMonth}
           />
         </Suspense>

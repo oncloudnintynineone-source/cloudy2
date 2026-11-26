@@ -9,10 +9,10 @@ describe("tabWarmKinds", () => {
         { kind: "month" },
         { kind: "agenda" },
         { kind: "month" },
-        { kind: "dual" },
+        { kind: "week" },
         { kind: "agenda" },
       ]),
-    ).toEqual(["month", "agenda", "dual"]);
+    ).toEqual(["month", "agenda", "week"]);
   });
 
   it("returns an empty list when there are no tabs", () => {

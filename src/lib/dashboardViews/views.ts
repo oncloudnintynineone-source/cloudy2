@@ -1,11 +1,14 @@
 /**
  * The user-created dashboard "Views" (tabs) domain — pure vocabulary, shape
  * and normalization. A tab is a server row in `user_dashboard_views`: one
- * renderer kind (Month / Week (H) / Week (D) / Week (Grid) / Day / Agenda /
- * Dual Pane), a
+ * renderer kind (Month / Week (H) / Week (D) / Week (Grid) / Day / Agenda), a
  * user-chosen display name, a per-user strip order, and that tab's own filter
  * overrides. Tabs are stored server-side per account (design:
  * docs/dashboard-views.md, docs/ui-state.md).
+ *
+ * `dual` (Month & Agenda) was **retired**: it is no longer a kind, and rows
+ * still stored with it fall through to `month` at read time (see
+ * `LEGACY_VIEW_KINDS`, which also keeps pre-retirement share links working).
  *
  * Filter semantics (this module + the read-time validation in the dashboard
  * page): each of `cal`/`users`/`types` is either `null` — meaning "role
@@ -22,7 +25,6 @@
 import { normalizeStringArray } from "@/lib/validation/arrays";
 
 export const DASHBOARD_VIEW_KINDS = [
-  "dual",
   "month",
   "week",
   "weekv2",
@@ -40,11 +42,35 @@ export const DASHBOARD_VIEW_KIND_LABELS: Record<DashboardViewKind, string> = {
   weekgrid: "Week (Grid)",
   schedule: "Day",
   agenda: "Agenda",
-  dual: "Month & Agenda",
 };
 
 export function isDashboardViewKind(value: unknown): value is DashboardViewKind {
   return typeof value === "string" && (DASHBOARD_VIEW_KINDS as readonly string[]).includes(value);
+}
+
+/**
+ * Retired renderer kinds mapped to the kind that replaced them. Stored tab rows
+ * need no mapping — `queries.ts` already falls an unknown kind through to
+ * `month` — but a share token is stateless and cannot be revoked, so a link
+ * minted before the retirement has to decode to its replacement rather than
+ * fail as an invalid link.
+ */
+export const LEGACY_VIEW_KINDS: Readonly<Record<string, DashboardViewKind>> = {
+  dual: "month",
+};
+
+/** A kind, resolving a retired one to its replacement; `null` when unknown. */
+export function resolveViewKind(value: unknown): DashboardViewKind | null {
+  if (isDashboardViewKind(value)) {
+    return value;
+  }
+  if (typeof value === "string") {
+    const replacement = LEGACY_VIEW_KINDS[value];
+    if (replacement) {
+      return replacement;
+    }
+  }
+  return null;
 }
 
 /**

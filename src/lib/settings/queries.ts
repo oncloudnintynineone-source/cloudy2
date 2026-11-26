@@ -21,6 +21,16 @@ import {
   PARADE_EMAIL_DEFAULT_DAYS,
   PARADE_EMAIL_DEFAULT_SEND_TIME,
 } from "@/lib/parade-email/schedule";
+import {
+  METRICS_DEFAULT_CAP_COMPUTE_HOURS,
+  METRICS_DEFAULT_CAP_EGRESS_BYTES,
+  METRICS_DEFAULT_CAP_STORAGE_BYTES,
+  METRICS_DEFAULT_SNAPSHOT_DAYS,
+  METRICS_DEFAULT_SNAPSHOT_TIME,
+  METRICS_RETENTION_DEFAULT,
+  METRICS_RETENTION_MAX,
+  METRICS_RETENTION_MIN,
+} from "@/lib/metrics/config";
 import { PARADE_EMAIL_SEND_TIME_PATTERN } from "@/lib/parade-email/validate";
 import { sanitizeTitleRecipe, type TitleRecipe } from "@/lib/settings/titleRecipe";
 import { normalizeFeatureFlags, type FeatureFlagKey } from "@/lib/settings/featureFlags";
@@ -69,6 +79,19 @@ export interface SettingsView {
   paradeEmailBodyTemplate: string;
   /** Feature-flag values (Settings → Feature Flags), resolved per the registry. */
   featureFlags: Record<FeatureFlagKey, string>;
+  /**
+   * Resource-usage ledger (Settings → Resource Usage): the snapshot schedule
+   * (UTC+8 cutoff + ISO weekdays, the parade-email shape), the Neon caps the
+   * ledger measures against, the egress calibration ratio, and retention.
+   */
+  metricsEnabled: boolean;
+  metricsSnapshotTime: string;
+  metricsSnapshotDays: number[];
+  metricsNeonCapComputeHours: number;
+  metricsNeonCapEgressBytes: number;
+  metricsNeonCapStorageBytes: number;
+  metricsEgressCalibration: number;
+  metricsRetentionDays: number;
 }
 
 /** Coerce a jsonb value to a string array (unknown entries dropped). */
@@ -88,6 +111,34 @@ function normalizeWeekdays(value: unknown): number[] {
 function normalizeSendTime(value: unknown): string {
   const time = typeof value === "string" ? value.trim() : "";
   return PARADE_EMAIL_SEND_TIME_PATTERN.test(time) ? time : PARADE_EMAIL_DEFAULT_SEND_TIME;
+}
+
+/**
+ * Coerce a stored number into a usable range. A hand-edited or pre-migration
+ * row must never produce a cap of 0 (every budget bar would read as breached)
+ * or a negative calibration ratio, so out-of-range values fall back rather than
+ * clamp-to-edge — the fallback is the shipped default, which is always sensible.
+ */
+function normalizeNumber(value: unknown, fallback: number, min: number, max: number): number {
+  const parsed = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(parsed) || parsed < min || parsed > max) {
+    return fallback;
+  }
+  return parsed;
+}
+
+/** The ledger's snapshot cutoff, independent of the parade email's default. */
+function normalizeSnapshotTime(value: unknown): string {
+  const time = typeof value === "string" ? value.trim() : "";
+  return PARADE_EMAIL_SEND_TIME_PATTERN.test(time) ? time : METRICS_DEFAULT_SNAPSHOT_TIME;
+}
+
+/** ISO weekdays a snapshot runs on; an empty or bogus list falls back to daily. */
+function normalizeMetricsDays(value: unknown): number[] {
+  const days = Array.isArray(value)
+    ? [...new Set(value.filter((day): day is number => Number.isInteger(day) && day >= 1 && day <= 7))]
+    : [];
+  return days.length > 0 ? days.sort((a, b) => a - b) : [...METRICS_DEFAULT_SNAPSHOT_DAYS];
 }
 
 /**
@@ -139,6 +190,39 @@ export async function getSettings(): Promise<SettingsView> {
       row?.paradeEmailSubjectTemplate?.trim() || PARADE_EMAIL_SUBJECT_TEMPLATE_DEFAULT,
     paradeEmailBodyTemplate:
       row?.paradeEmailBodyTemplate?.trim() || PARADE_EMAIL_BODY_TEMPLATE_DEFAULT,
+    metricsEnabled: row?.metricsEnabled ?? true,
+    metricsSnapshotTime: normalizeSnapshotTime(row?.metricsSnapshotTime),
+    metricsSnapshotDays: normalizeMetricsDays(row?.metricsSnapshotDays),
+    metricsNeonCapComputeHours: normalizeNumber(
+      row?.metricsNeonCapComputeHours,
+      METRICS_DEFAULT_CAP_COMPUTE_HOURS,
+      1,
+      100_000,
+    ),
+    metricsNeonCapEgressBytes: normalizeNumber(
+      row?.metricsNeonCapEgressBytes,
+      METRICS_DEFAULT_CAP_EGRESS_BYTES,
+      1,
+      Number.MAX_SAFE_INTEGER,
+    ),
+    metricsNeonCapStorageBytes: normalizeNumber(
+      row?.metricsNeonCapStorageBytes,
+      METRICS_DEFAULT_CAP_STORAGE_BYTES,
+      1,
+      Number.MAX_SAFE_INTEGER,
+    ),
+    metricsEgressCalibration: normalizeNumber(
+      row?.metricsEgressCalibration,
+      1,
+      0.05,
+      100,
+    ),
+    metricsRetentionDays: normalizeNumber(
+      row?.metricsRetentionDays,
+      METRICS_RETENTION_DEFAULT,
+      METRICS_RETENTION_MIN,
+      METRICS_RETENTION_MAX,
+    ),
     featureFlags: normalizeFeatureFlags(row ?? {}),
   };
 }

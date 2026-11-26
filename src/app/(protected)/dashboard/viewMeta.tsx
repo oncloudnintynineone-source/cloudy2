@@ -4,7 +4,6 @@ import {
   IconCalendarTime,
   IconCalendarUser,
   IconCalendarWeek,
-  IconColumns2,
   IconLayoutGrid,
   IconListDetails,
 } from "@tabler/icons-react";
@@ -49,11 +48,5 @@ export const VIEW_TAB_META: Record<
     label: "Agenda",
     icon: <IconListDetails size={16} />,
     thumbnail: VIEW_THUMBNAILS.agenda,
-  },
-  dual: {
-    label: "Month & Agenda",
-    icon: <IconColumns2 size={16} />,
-    thumbnail: VIEW_THUMBNAILS.dual,
-    nowrap: true,
   },
 };

@@ -47,21 +47,6 @@ describe("requiredMonths", () => {
     ]);
   });
 
-  it("reads the whole 6-week grid for Month & Agenda too (its agenda day is in-month)", () => {
-    // Month & Agenda is day-anchored: the month is the agenda day's month, so
-    // the grid's months already cover the agenda day.
-    expect(requiredMonths("dual", "2026-09", "2026-09-12")).toEqual([
-      "2026-08",
-      "2026-09",
-      "2026-10",
-    ]);
-    expect(requiredMonths("dual", "2026-09", "2026-09-30")).toEqual([
-      "2026-08",
-      "2026-09",
-      "2026-10",
-    ]);
-  });
-
   it("reads the single containing month for Day and Agenda", () => {
     expect(requiredMonths("schedule", "2026-09", "2026-09-12")).toEqual(["2026-09"]);
     expect(requiredMonths("agenda", "2026-09", "2026-09-30")).toEqual(["2026-09"]);

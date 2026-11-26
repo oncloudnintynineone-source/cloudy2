@@ -18,7 +18,7 @@ import { brotliCompressSync, brotliDecompressSync } from "node:zlib";
 
 import {
   DASHBOARD_VIEW_NAME_MAX_LENGTH,
-  isDashboardViewKind,
+  resolveViewKind,
   type DashboardViewKind,
 } from "./views";
 
@@ -97,7 +97,10 @@ export function normalizeSharePayload(raw: unknown): DashboardViewSharePayload |
     return null;
   }
   const value = raw as Record<string, unknown>;
-  if (value.v !== SHARE_TOKEN_VERSION || !isDashboardViewKind(value.k)) {
+  // A retired kind resolves to its replacement, so a link minted before a kind
+  // was retired still opens — tokens are stateless and cannot be revoked.
+  const kind = resolveViewKind(value.k);
+  if (value.v !== SHARE_TOKEN_VERSION || kind === null) {
     return null;
   }
   if (typeof value.n !== "string") {
@@ -127,7 +130,7 @@ export function normalizeSharePayload(raw: unknown): DashboardViewSharePayload |
   return {
     v: SHARE_TOKEN_VERSION,
     n: name,
-    k: value.k,
+    k: kind,
     c: value.c,
     u: value.u,
     t: value.t,

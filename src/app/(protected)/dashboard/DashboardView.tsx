@@ -83,7 +83,6 @@ import {
 
 import {
   AgendaListSkeleton,
-  DualPaneSkeleton,
   MonthGridSkeleton,
   ScheduleGridSkeleton,
   WeekGridSkeleton,
@@ -153,7 +152,6 @@ import {
 import { gridWeekAllDayLayout, type GridWeekAllDayLayout } from "@/lib/events/gridWeek";
 import { announce } from "@/lib/ui/announcer";
 import { useChromeHide } from "@/lib/ui/chromeHide";
-import { DUAL_SPLIT_DEFAULT, clampDualSplit } from "@/lib/ui/dualSplit";
 import { useGridPan } from "@/lib/ui/gridPan";
 import { useImmersiveMode } from "@/lib/ui/immersiveMode";
 import { useIsOffline } from "@/lib/ui/onlineStatus";
@@ -221,14 +219,8 @@ import { mark } from "@/lib/perf/marks";
 const loadEventForm = () => import("./EventForm").then((mod) => mod.EventForm);
 const EventForm = dynamic(loadEventForm, { ssr: false, loading: () => null });
 
-// The custom Dual Pane (Month + Agenda) and Week (D) matrix views are each used
-// by exactly one view kind. They warm only when the account actually has a tab
-// of that kind, or on tab intent.
-const DualPaneView = dynamic(() => import("./DualPaneView").then((mod) => mod.DualPaneView), {
-  ssr: false,
-  loading: () => <ScheduleGridSkeleton rows={6} />,
-});
-
+// The custom Week (D) matrix view is used by exactly one view kind. It warms
+// only when the account actually has a tab of that kind, or on tab intent.
 const WeekMatrixView = dynamic(() => import("./WeekMatrixView").then((mod) => mod.WeekMatrixView), {
   ssr: false,
   loading: () => <WeekMatrixSkeleton rows={6} />,
@@ -294,9 +286,8 @@ function subscribeRendererReady(listener: () => void): () => void {
 function ensureRendererKind(kind: DashboardViewKind): Promise<void> {
   const done = () => markRendererKindReady(kind);
   let loading: Promise<unknown> | undefined;
-  if (kind === "dual" || kind === "weekv2") {
-    const component = kind === "dual" ? DualPaneView : WeekMatrixView;
-    loading = (component as Preloadable).preload?.() ?? Promise.resolve();
+  if (kind === "weekv2") {
+    loading = (WeekMatrixView as Preloadable).preload?.() ?? Promise.resolve();
   } else {
     loading = preloadScheduleViewKinds([kind]);
   }
@@ -402,10 +393,10 @@ const NO_GRID_WEEK_ALLDAY: GridWeekAllDayLayout = {
   hiddenIds: new Set(),
 };
 
-// Stable empties for the per-view-kind computations below: Month / Agenda /
-// Dual Pane never consume the schedule resources (and vice versa for the month
-// event sort), so those O(events × users) builds are skipped entirely and the
-// unused consumers read these.
+// Stable empties for the per-view-kind computations below: Month / Agenda never
+// consume the schedule resources (and vice versa for the month event sort), so
+// those O(events × users) builds are skipped entirely and the unused consumers
+// read these.
 const EMPTY_SCHEDULE_RESOURCES: ScheduleResources = { resources: [], groups: undefined };
 const EMPTY_SCHEDULE_EVENTS: CalendarEvent[] = [];
 const EMPTY_MONTH_EVENTS: CalendarEvent[] = [];
@@ -449,12 +440,6 @@ export interface DashboardViewProps extends DashboardSnapshot {
    * first paint the same way. Seeding value for the client month-zoom state.
    */
   initialMonthZoom: MonthZoom;
-  /**
-   * Remembered Dual Pane split (the Month pane's width fraction), resolved
-   * from the UI-state cookie before first paint. Seeding value for the client
-   * split state.
-   */
-  initialDualSplit: number;
   /**
    * Event group id from the `?edit=` deep link (the event search modal's
    * "Edit" action); its edit form opens automatically once the events are
@@ -1128,7 +1113,6 @@ function DashboardViewImpl({
   initialGridWeekRowZoom,
   initialWeekMatrixZoom,
   initialMonthZoom,
-  initialDualSplit,
   events,
   calendars,
   eventTypes,
@@ -1393,13 +1377,6 @@ function DashboardViewImpl({
   const [monthZoom, setMonthZoom] = useState<MonthZoom>(initialMonthZoom);
   const prevMonthZoomRef = useRef(monthZoom);
 
-  // Dual Pane split: the Month pane's width fraction (the Agenda pane takes
-  // the rest). Same ownership contract as the zooms — client state seeded from
-  // the cookie, persisted back by `usePersistDashboardNav` below. A drag
-  // commits here once per gesture, never per frame: the live fraction is
-  // written straight to the DOM by `DualPaneView`.
-  const [dualSplit, setDualSplit] = useState<number>(initialDualSplit);
-
   // Label-column widths for the schedule views: mobile-narrowed 48px/24px for
   // phones, comfortable 96px/56px on desktop.
   const scheduleLabelWidths = isDesktop
@@ -1426,7 +1403,7 @@ function DashboardViewImpl({
   // Week (Grid) uses its columns level here; its row level is vertical and rides
   // its own `--c2-row-zoom` / ROW_ZOOM_VAR.
   const activeZoom =
-    view === "month" || view === "dual"
+    view === "month"
       ? monthZoom
       : view === "weekv2"
         ? weekMatrixZoom
@@ -1772,14 +1749,12 @@ function DashboardViewImpl({
     }
   }
   const shownIsAgenda = shownView === "agenda";
-  const shownIsDual = shownView === "dual";
   const shownIsWeekV2 = shownView === "weekv2";
   const shownIsGridWeek = shownView === "weekgrid";
   const shownIsWeek = shownView === "week" || shownIsWeekV2 || shownIsGridWeek;
   // Day/week-anchored chrome flag mirroring `isAnchoredView`, which stays bound
-  // to the committed props because it drives data rendering below. Dual Pane is
-  // day-anchored too (its Month pane follows the agenda day's month).
-  const shownIsAnchored = shownView === "schedule" || shownIsWeek || shownIsAgenda || shownIsDual;
+  // to the committed props because it drives data rendering below.
+  const shownIsAnchored = shownView === "schedule" || shownIsWeek || shownIsAgenda;
 
   // Reclaim the shell's left/right gutters when the shown view is zoomed in:
   // the --app-shell-padding sides are bare chrome at rest (the grids fill the
@@ -1792,7 +1767,7 @@ function DashboardViewImpl({
   // never widens the grid. Follows the `shownIs*` flags because the zoom states
   // (see above) are all in scope; Agenda has no zoom and keeps the padding.
   const reclaimGutter =
-    ((shownView === "month" || shownIsDual) && monthZoom > 1) ||
+    (shownView === "month" && monthZoom > 1) ||
     ((shownView === "schedule" || shownView === "week") && zoom > 1) ||
     (shownIsWeekV2 && weekMatrixZoom > 1) ||
     (shownIsGridWeek && gridWeekColZoom > 1);
@@ -2101,7 +2076,7 @@ function DashboardViewImpl({
   // displayed record, so `month` already equals the tapped month and this branch
   // never applies. Anchored views don't need this: their `date` prop is
   // URL-first, and a cross-month move is already `isNavigating`.
-  const monthChanging = (shownView === "month" || shownView === "dual") && shownMonth !== month;
+  const monthChanging = shownView === "month" && shownMonth !== month;
   const monthOptimistic = monthChanging && gridMonthsCovered(month, shownMonth, weekStartsOn);
   const monthPending = monthChanging && !monthOptimistic;
   // Hold the skeleton until the real renderer chunk can mount, not just until
@@ -2127,11 +2102,11 @@ function DashboardViewImpl({
   const monthFitBoxRef = useRef<HTMLDivElement | null>(null);
   const monthFitRef = useMergedRef(gridSlideRef, monthFitBoxRef);
   const monthFitActive = isDesktop && shownView === "month";
-  // The two viewport-bounded views at `lg` (Month fit-to-height and Month &
-  // Agenda). Their height is a pure CSS flex chain (see the Stack + wrapper
-  // below), never `100dvh − measured chrome`, so a resize can't leave a blank
-  // strip under the grid when a chrome-tier flip coalesces its observer.
-  const boundedPage = monthFitActive || (isDesktop && shownIsDual);
+  // The viewport-bounded view at `lg` (Month fit-to-height). Its height is a
+  // pure CSS flex chain (see the Stack + wrapper below), never `100dvh −
+  // measured chrome`, so a resize can't leave a blank strip under the grid when
+  // a chrome-tier flip coalesces its observer.
+  const boundedPage = monthFitActive;
   const [monthFitHeight, setMonthFitHeight] = useState(0);
   useLayoutEffect(() => {
     const el = monthFitBoxRef.current;
@@ -2231,7 +2206,7 @@ function DashboardViewImpl({
   const slidePeriodKey =
     shownView === "agenda"
       ? null
-      : shownView === "month" || shownView === "dual"
+      : shownView === "month"
         ? shownMonth
         : shownDate;
   const prevSlideRef = useRef({ viewId: activeView.id, periodKey: slidePeriodKey });
@@ -2288,25 +2263,23 @@ function DashboardViewImpl({
     });
   }, [activeView.id, slidePeriodKey, shownTabId, tabs, isDesktop, motion]);
 
-  // Device-local "where you are": persist the resolved date/month anchor, the
-  // Day/Week (H) + Month-grid zooms and the Dual Pane split to the per-device
-  // cookie whenever the rendered state changes, so a cold start (or F5) lands
-  // on the same period, zooms and split. The date is stored when the URL pins
-  // one (day-anchored views) — and always for Dual Pane, whose agenda day is
-  // its identity even before the URL carries it. In Month view the remembered
-  // month drives the read. The tabs + their filters are server-side and need no
-  // cookie. An in-month day move no longer refetches, so the committed `date`
-  // prop lags the URL — persist the client-effective date instead.
+  // Device-local "where you are": persist the resolved date/month anchor and
+  // the Day/Week (H) + Month-grid zooms to the per-device cookie whenever the
+  // rendered state changes, so a cold start (or F5) lands on the same period
+  // and zooms. The date is stored when the URL pins one (day-anchored views).
+  // In Month view the remembered month drives the read. The tabs + their
+  // filters are server-side and need no cookie. An in-month day move no longer
+  // refetches, so the committed `date` prop lags the URL — persist the
+  // client-effective date instead.
   const effectiveDate = view === "agenda" ? (viewedDay ?? date) : shownDate;
   usePersistDashboardNav({
-    ...(searchParams.has("date") || view === "dual" ? { date: effectiveDate } : {}),
+    ...(searchParams.has("date") ? { date: effectiveDate } : {}),
     month,
     zoom,
     gridWeekColZoom,
     gridWeekRowZoom,
     weekMatrixZoom,
     monthZoom,
-    dualSplit,
   });
 
   // Post-mutation refresh reporter for the view (tab) CRUD: renames, reorder
@@ -2359,17 +2332,13 @@ function DashboardViewImpl({
       ? weekDays(shownDate, weekStartsOn)
       : null;
   const weekLabel = week ? formatWeekLabel(week[0], week[6]) : "";
-  // Dual Pane labels the nav row with the MONTH (the pane header carries the
-  // agenda day), so a month move reads on the shared chrome.
   const periodLabel = shownIsAgenda
     ? dayjs(viewedDay ?? shownDate).format("ddd, MMM D, YYYY")
-    : shownIsDual
-      ? monthLabel
-      : shownIsWeek
-        ? weekLabel
-        : shownIsAnchored
-          ? dayLabel
-          : monthLabel;
+    : shownIsWeek
+      ? weekLabel
+      : shownIsAnchored
+        ? dayLabel
+        : monthLabel;
 
   // The tab currently highlighted (optimistic during a switch); its name drives
   // the sr announcement, the mobile view-menu trigger's label and the compact
@@ -2383,11 +2352,7 @@ function DashboardViewImpl({
   // announcing on plain page load would be noise.
   const lastAnnouncedChromeRef = useRef<string | null>(null);
   useEffect(() => {
-    // Dual Pane's period label is the month, so the agenda day is announced
-    // alongside it — a day move otherwise changes nothing announced.
-    const message = shownIsDual
-      ? `${shownTabName} view, ${periodLabel}, ${dayLabel}`
-      : `${shownTabName} view, ${periodLabel}`;
+    const message = `${shownTabName} view, ${periodLabel}`;
     if (lastAnnouncedChromeRef.current === null) {
       lastAnnouncedChromeRef.current = message;
       return;
@@ -2396,14 +2361,14 @@ function DashboardViewImpl({
       lastAnnouncedChromeRef.current = message;
       announce(message);
     }
-  }, [shownTabName, shownView, periodLabel, dayLabel, shownIsDual]);
+  }, [shownTabName, shownView, periodLabel]);
   const today = dayjs().format("YYYY-MM-DD");
   const todayMonth = dayjs().format("YYYY-MM");
   // A1: the Today jump (mobile pill + compact cluster) exists only while today
   // is outside the shown period — the same optimistic `shown*` state the period
   // label reads, so the control and the label never disagree. Agenda passes
-  // its viewed day, Dual Pane its day anchor (the month pane follows it), week
-  // kinds the whole week (a week merely containing today is on today).
+  // its viewed day, week kinds the whole week (a week merely containing today
+  // is on today).
   const offToday = isOffToday(
     shownIsAgenda
       ? { kind: "day", date: viewedDay ?? shownDate }
@@ -2673,7 +2638,7 @@ function DashboardViewImpl({
   const userFilterActive = selectedUserIds.length > 0;
   const scheduleResources = useMemo(() => {
     // Only the Day / Week (H) / Week (D) grids consume this; skip the
-    // O(events × users) build entirely for Month / Agenda / Dual Pane.
+    // O(events × users) build entirely for Month / Agenda.
     if (view !== "schedule" && view !== "week" && view !== "weekv2") {
       return EMPTY_SCHEDULE_RESOURCES;
     }
@@ -2754,7 +2719,7 @@ function DashboardViewImpl({
   // rows of every day.
   const monthEvents = useMemo(
     () =>
-      view === "month" || view === "dual"
+      view === "month"
         ? sortMineFirst(viewEvents, myEventIds)
         : EMPTY_MONTH_EVENTS,
     [view, viewEvents, myEventIds],
@@ -2840,13 +2805,11 @@ function DashboardViewImpl({
   const isWeek = view === "week" || isWeekV2 || isGridWeek;
   const isSchedule = view === "schedule";
   const isAgenda = view === "agenda";
-  const isDual = view === "dual";
-  // Day/week-anchored views (Day, Week (H), Week (D), Week (Grid), Agenda,
-  // Dual Pane): a `?date=` anchor drives the fetch and the rendered grid (the
-  // week kinds show the week-start week containing the anchor day; Dual Pane
-  // shows that day's month + the day's agenda). `isWeek` includes Week (D) and
-  // Week (Grid).
-  const isAnchoredView = isSchedule || isWeek || isAgenda || isDual;
+  // Day/week-anchored views (Day, Week (H), Week (D), Week (Grid), Agenda):
+  // a `?date=` anchor drives the fetch and the rendered grid (the week kinds
+  // show the week-start week containing the anchor day). `isWeek` includes
+  // Week (D) and Week (Grid).
+  const isAnchoredView = isSchedule || isWeek || isAgenda;
 
   // Week (Grid) all-day overflow: the fixed-height strip renders only its first
   // two lanes (24px chips in a 48px strip), so the rest are clipped. This pure
@@ -3236,36 +3199,16 @@ function DashboardViewImpl({
   }
 
   /**
-   * Dual Pane month move (the nav-row chevrons). The shared anchor is the
-   * agenda day, so a month step keeps the day-of-month (dayjs clamps overflow —
-   * Jan 31 → Feb 28) and the Month pane follows. It changes the required month
-   * set, so it is a data navigation (`navigate`, like `shiftMonth`).
-   */
-  function shiftDualMonth(delta: number) {
-    const next = dayjs(shownDate).add(delta, "month");
-    const nextDate = next.format("YYYY-MM-DD");
-    const nextMonth = next.format("YYYY-MM");
-    slidePeriod(delta > 0 ? 1 : -1, () => {
-      setShownDate(nextDate);
-      setShownMonth(nextMonth);
-      previewPeriodIfWarm({ month: nextMonth, date: nextDate });
-    });
-    navigate({ date: nextDate, month: nextMonth });
-  }
-
-  /**
    * View-aware period step, shared by the desktop top-row chevrons and the
    * mobile bottom-right cluster so both stay in lockstep: Agenda steps a day,
-   * week kinds a week, Dual Pane a month, the remaining anchored kinds (Day) a
-   * day, and Month a month.
+   * week kinds a week, the remaining anchored kinds (Day) a day, and Month a
+   * month.
    */
   function navigatePeriod(dir: -1 | 1) {
     if (isAgenda) {
       applyAgendaDay(dayjs(headerDate).add(dir, "day").format("YYYY-MM-DD"));
     } else if (isWeek) {
       shiftWeek(dir);
-    } else if (isDual) {
-      shiftDualMonth(dir);
     } else if (isAnchoredView) {
       shiftDay(dir);
     } else {
@@ -3276,17 +3219,12 @@ function DashboardViewImpl({
   /**
    * Accessible name for a period-step control, read off the optimistic chrome
    * (`shown*`) so it matches the period the label already shows. Mirrors the
-   * same unit precedence as `navigatePeriod` (week kinds before Dual Pane
-   * before the other anchored kinds).
+   * same unit precedence as `navigatePeriod` (week kinds before the other
+   * anchored kinds).
    */
   function periodStepLabel(prefix: "Previous" | "Next") {
-    const unit = shownIsWeek ? "week" : shownIsDual ? "month" : shownIsAnchored ? "day" : "month";
+    const unit = shownIsWeek ? "week" : shownIsAnchored ? "day" : "month";
     return `${prefix} ${unit}`;
-  }
-
-  /** Commit a Dual Pane split (drag end, keyboard step or double-click reset). */
-  function handleSplitCommit(pct: number) {
-    setDualSplit(clampDualSplit(pct) ?? DUAL_SPLIT_DEFAULT);
   }
 
   /**
@@ -3394,10 +3332,8 @@ function DashboardViewImpl({
 
   function pickDate(picked: string) {
     const pickedMonth = picked.slice(0, 7);
-    // Dual Pane's period key is the month (a same-month day tap moves the
-    // agenda pane silently, mirroring the nudge effect's key); the other
-    // anchored kinds key on the day.
-    slidePeriodTo(shownIsDual ? shownMonth : shownDate, shownIsDual ? pickedMonth : picked, () => {
+    // Anchored kinds key the slide on the day.
+    slidePeriodTo(shownDate, picked, () => {
       setShownDate(picked);
       setShownMonth(pickedMonth);
     });
@@ -3463,8 +3399,7 @@ function DashboardViewImpl({
 
   /**
    * Opens the agenda day modal fresh from a tapped day cell (the Month view's
-   * cell tap, reused by Month & Agenda below `lg` where the agenda pane is
-   * hidden): a fresh open animates with the modal itself, not a day slide.
+   * cell tap): a fresh open animates with the modal itself, not a day slide.
    */
   function openDayModal(day: string, origin: Rect) {
     captureModalViewport();
@@ -4390,7 +4325,7 @@ function DashboardViewImpl({
       {...warmOnIntent(warmWizardChunk)}
       onClick={(e) =>
         openCreate(
-          isAgenda ? headerDate : isDual ? shownDate : today,
+          isAgenda ? headerDate : today,
           e.currentTarget.getBoundingClientRect(),
         )
       }
@@ -4408,7 +4343,7 @@ function DashboardViewImpl({
       {...warmOnIntent(warmWizardChunk)}
       onClick={(e) =>
         openCreate(
-          isAgenda ? headerDate : isDual ? shownDate : today,
+          isAgenda ? headerDate : today,
           e.currentTarget.getBoundingClientRect(),
         )
       }
@@ -4721,21 +4656,16 @@ function DashboardViewImpl({
     // lg (globals.css). The Week (Grid) is the exception: its grid is
     // viewport-bounded and scrolls internally, so it drops that clearance
     // (`weekgrid-page-pad`) and runs flush to the bottom nav, letting the FABs
-    // overlay its bottom-right. Month & Agenda is the other bounded view: at lg
-    // its panes fill to the viewport bottom (`dual-page-pad`, which also
-    // reclaims Main's bottom padding via a negative margin); below lg it is the
-    // document-scrolling standalone Month view, so it keeps the FAB clearance.
-    // Follows the optimistic view so it matches the skeleton during a tab
-    // switch.
+    // overlay its bottom-right. Month fit-to-height (`month-page-pad`, `lg`
+    // only) is the other bounded view. Follows the optimistic view so it
+    // matches the skeleton during a tab switch.
     <Stack
       className={
         shownIsGridWeek
           ? "weekgrid-page-pad"
-          : shownIsDual
-            ? "dual-page-pad"
-            : monthFitActive
-              ? "month-page-pad"
-              : "fab-page-pad"
+          : monthFitActive
+            ? "month-page-pad"
+            : "fab-page-pad"
       }
       gap="sm"
       style={
@@ -5207,11 +5137,6 @@ function DashboardViewImpl({
                       // Match the real grid's fitted chip/row variables.
                       style={monthFitStyle}
                     />
-                  ) : shownIsDual ? (
-                    <DualPaneSkeleton
-                      rows={monthGridRows(shownMonth, weekStartsOn)}
-                      splitPct={dualSplit}
-                    />
                   ) : shownIsWeekV2 ? (
                     <WeekMatrixSkeleton />
                   ) : shownIsGridWeek ? (
@@ -5295,49 +5220,6 @@ function DashboardViewImpl({
                     setDetailEvent(event as unknown as CalendarEvent);
                   }}
                   onDayClick={(d, e) => openDayModal(d, e.currentTarget.getBoundingClientRect())}
-                />
-              ) : view === "dual" ? (
-                <DualPaneView
-                  // While an adjacent month is loading, anchor the grid to the
-                  // tapped month (`shownMonth`) so it draws from the held events.
-                  month={monthOptimistic ? shownMonth : month}
-                  day={shownDate}
-                  weekStartsOn={weekStartsOn}
-                  monthEvents={monthEvents}
-                  events={viewEvents}
-                  monthZoom={monthZoom}
-                  onZoomIn={() => {
-                    const next = stepMonthZoom(monthZoom, 1);
-                    setMonthZoom(next);
-                    announce(`Zoom ${Math.round(next * 100)}%`);
-                  }}
-                  onZoomOut={() => {
-                    const next = stepMonthZoom(monthZoom, -1);
-                    setMonthZoom(next);
-                    announce(`Zoom ${Math.round(next * 100)}%`);
-                  }}
-                  // Pinch commits an arbitrary level; the pane announces on release.
-                  onMonthZoomChange={setMonthZoom}
-                  splitPct={dualSplit}
-                  onSplitCommit={handleSplitCommit}
-                  renderMonthEvent={renderMyMonthEvent}
-                  renderAgendaEvent={renderMyAgendaEvent}
-                  onEventClick={(event, e) => {
-                    if (isOptimisticStandIn(event)) return;
-                    setDetailOriginRect(e.currentTarget.getBoundingClientRect());
-                    setDetailEvent(event);
-                  }}
-                  // A day tap selects the shared anchor (the agenda pane follows)
-                  // instead of opening the month day modal.
-                  onDaySelect={pickDate}
-                  // Narrow only (agenda pane hidden below `lg`): the month pane is
-                  // the standalone Month view, whose cell tap opens the day modal.
-                  onDayOpen={openDayModal}
-                  chromeOffset={topChromeHeight}
-                  bottomBarrierRef={isDesktop ? null : fabStackRef}
-                  // Full desktop only: the month pane's chip text matches the
-                  // day number (see the standalone MonthView above).
-                  matchMonthChipText={isDesktopWide && !isCompactDesktop}
                 />
               ) : isAgenda ? (
                 <div
@@ -6308,7 +6190,7 @@ function DashboardViewImpl({
         <DateSelectorModal
           opened={pickerOpened}
           kind={view === "month" ? "month" : isWeek ? "week" : "day"}
-          date={view === "month" ? month : isAgenda ? headerDate : isDual ? shownDate : date}
+          date={view === "month" ? month : isAgenda ? headerDate : date}
           onPick={view === "month" ? pickMonth : isAgenda ? applyAgendaDay : pickDate}
           onToday={goToday}
           onClose={closePicker}
@@ -6581,7 +6463,7 @@ function DashboardViewImpl({
                 {...warmOnIntent(warmWizardChunk)}
                 onClick={(e) =>
                   openCreate(
-                    isAgenda ? headerDate : isDual ? shownDate : today,
+                    isAgenda ? headerDate : today,
                     e.currentTarget.getBoundingClientRect(),
                   )
                 }

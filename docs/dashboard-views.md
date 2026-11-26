@@ -1,8 +1,7 @@
 # 1. Dashboard views & filters
 
-The Calendar dashboard (`/dashboard`) renders one of the seven event-view
-**kinds** (Month / Week (H) / Week (D) / Week (Grid) / Day / Agenda /
-Month & Agenda) over the
+The Calendar dashboard (`/dashboard`) renders one of the six event-view
+**kinds** (Month / Week (H) / Week (D) / Week (Grid) / Day / Agenda) over the
 shared server-side events cache ([`events-cache.md`](events-cache.md)). The
 dashboard does **not** show one fixed instance of each kind: the user builds an
 on-demand set of **views (tabs)** — one per-account row per tab (kind + user
@@ -10,7 +9,7 @@ name + strip order + that tab's own filter state), stored server-side in
 `user_dashboard_views` (`src/lib/dashboardViews`). This document covers the tab
 inventory & management, the filters (one button + modal, scoped per tab), the
 custom Week (D) matrix — the one view no Mantine Schedule component can render —
-the Month & Agenda split (side by side), the per-view "mine" and
+the per-view "mine" and
 external-entry highlights, and the Day / Week (H) timeline zoom plus the Month
 grid's fit-to-width zoom.
 
@@ -26,7 +25,7 @@ grid's fit-to-width zoom.
 - [1.7.1 Week (Grid) all-day overflow](#171-week-grid-all-day-overflow)
 - [1.8 Month-grid zoom (fit-to-width)](#18-month-grid-zoom-fit-to-width)
 - [1.8.1 Fit-to-height (lg, no scrolling)](#181-fit-to-height-lg-no-scrolling)
-- [1.9 Month & Agenda](#19-month--agenda)
+- [1.9 Month & Agenda (retired)](#19-month--agenda-retired)
 - [1.10 Sharing views](#110-sharing-views)
 - [1.11 File index & related docs](#111-file-index--related-docs)
 
@@ -36,7 +35,6 @@ The renderer kinds (`DASHBOARD_VIEW_KINDS`, `src/lib/dashboardViews/views.ts`):
 
 | Kind | Label | Renderer |
 | ---------- | -------- | ---------------------------------------------------------------------------------------- |
-| `dual` | Month & Agenda | Month grid + Agenda list side by side, resizable (§1.9) |
 | `month` | Month | Mantine calendar month grid (natural 4–6 weeks — see [`events-cache.md`](events-cache.md)) |
 | `week` | Week (H) | Mantine Schedule, hour columns per resource row |
 | `weekv2` | Week (D) | custom week matrix (§1.3) |
@@ -44,8 +42,13 @@ The renderer kinds (`DASHBOARD_VIEW_KINDS`, `src/lib/dashboardViews/views.ts`):
 | `schedule` | Day | Mantine Schedule, single day per resource row |
 | `agenda` | Agenda | list view |
 
+Retired kinds never appear here: `LEGACY_VIEW_KINDS` maps each retired kind to
+its replacement (`dual` → `month`) and `resolveViewKind` coerces stored rows,
+share tokens and legacy `?view=` params on read (§1.9), so a retired kind can
+never be selected or rendered.
+
 The `DASHBOARD_VIEW_KINDS` array's order is the **type-picker display order**
-(Month & Agenda first, then Month, …); it is not a default — a new account is
+(Month first, then Week (H), …); it is not a default — a new account is
 seeded with a single "Month" tab.
 
 **Week start.** A per-account preference (`user_preferences.week_start`, set
@@ -270,7 +273,7 @@ string maps to the first tab of that kind.
   cluster (`FullscreenToggle`'s `below` slot). The period rule: Month compares
   the shown month, the week kinds the whole
   shown week (Monday/Sunday per `weekStartsOn` — a week merely *containing*
-  today is on today), and Day / Agenda / Dual Pane the anchored day (Agenda its
+  today is on today), and Day / Agenda the anchored day (Agenda its
   viewed day). Pure `isOffToday` (`src/lib/ui/todayAffordance.ts`, unit-tested)
   reads the same optimistic `shown*` state the period label renders, so control
   and label never disagree — and on today the control is simply absent, leaving
@@ -335,7 +338,7 @@ string maps to the first tab of that kind.
   (`chromeOffset` = measured `topChromeHeight`), and the viewport-bounded
    grids (Week (Grid), skeletons) run flush to the bottom nav — the floating
     rows overlay the bottom edge. The document-scrolling page pads
-    (`.fab-page-pad`, `.dual-page-pad`) add the inline
+    (`.fab-page-pad`) add the inline
     `--c2-bottom-chrome-height` var (measured pill + FAB row, net of the FAB
     diameter the formula already adds — the docked draft chip rides inside the FAB
     row, so it needs no extra clearance) so the last row
@@ -394,7 +397,7 @@ string maps to the first tab of that kind.
   is **touching the calendar pane** (even without any scrolling) or **scrolling
   it** in
    either direction (document scroll, the dashboard's month/week/day horizontal
-   pan, Week (Grid) hour rows, Month & Agenda panes), the floating rows — the
+   pan, Week (Grid) hour rows), the floating rows — the
    dashboard's control pill + FAB row (a docked minimized-draft chip rides its
    FAB row) — fade out and sink away so the
    canvas owns the whole viewport. They
@@ -533,7 +536,7 @@ string maps to the first tab of that kind.
   chrome (view tabs + date nav + the mobile view-indicator line) and its inline
   buttons, the pinned horizontal
   grid headers (Week (H) day strip / hour ruler, Month weekday strip, Week (D)
-  day header, Week (Grid) day header + all-day row, Month & Agenda pane header),
+  day header, Week (Grid) day header + all-day row),
   and the floating zoom/pan cluster and fullscreen toggle. The app **header** and
   overlays (modals, menus, popovers, tooltips, toasts) stay **opaque** — only
   page-level surfaces are translucent. The **sticky-left label columns** (resource/hour labels and
@@ -924,7 +927,7 @@ slot granularity (still 60-minute columns) or the row height.
 shell's `md` gutter (16px each side, `--app-shell-padding`). At fit the grids fill
 that padded width, but any zoomed-in grid overflows into a horizontal pan — so the
 gutters become dead space. Whenever the shown view's horizontal zoom is above its
-fit/base level (`reclaimGutter` in DashboardView: Month/Dual `monthZoom > 1`,
+fit/base level (`reclaimGutter` in DashboardView: Month `monthZoom > 1`,
 Day/Week (H) `zoom > 1`, Week (D) `weekMatrixZoom > 1`, Week (Grid) columns
 `gridWeekColZoom > 1`), an **inner canvas wrapper** inside the padded
 `weekBoxRef` is flushed to the shell edges (`margin-inline: calc(-1 *
@@ -1077,7 +1080,6 @@ The rest of this section describes the shared horizontal mechanism.
   re-anchors on the **pinch midpoint** — both re-anchor helpers take an optional
   focal offset (default: the viewport centre, the button contract) — so the
   content stays under the fingers, and the level is announced once on release.
-  The Month & Agenda pane wires the same hook to its Month pane.
 - **Mechanism**: each view reads its slot width from a CSS variable on the view root
   (`--resources-week-view-slot-width` / `--resources-day-view-slot-width`). Mantine
   sizes the day container from that var and lays every event out as a **percentage**
@@ -1116,8 +1118,7 @@ The rest of this section describes the shared horizontal mechanism.
   relaunch). See [`ui-state.md`](ui-state.md).
 - **Scope**: the shared horizontal level covers Day and Week (H). Week (D) — its
   columns are day-granularity, not hour slots — and Month and Agenda are
-  unaffected. (Month & Agenda's Month pane uses the separate fit-width zoom of
-  §1.8; Week (Grid) uses the vertical variant with its own level, above.)
+  unaffected. (Week (Grid) uses the vertical variant with its own level, above.)
 - **Re-anchoring**: zooming keeps the time that was at the viewport's _center_
   centered — a `useLayoutEffect` (declared before the ruler measurement effect)
   re-anchors `scrollLeft` from the previous/next slot-width ratio via the pure
@@ -1270,114 +1271,30 @@ which any real desktop viewport beats. The box is
 measured with a `ResizeObserver`, so resizes and immersive mode re-fill without
 re-deriving the chrome vars, and the fill follows the month the grid actually
 renders (the optimistic month during an adjacent-month read).
-`MonthGridSkeleton` fills the same bounded column during loads (`fill`). The
-Month & Agenda month pane runs the identical recipe through the same helper,
-keeping its natural 148px-row floor so a short pane can still scroll. Horizontal
+`MonthGridSkeleton` fills the same bounded column during loads (`fill`). Horizontal
 zoom/pan is untouched: fit-width is still the zoom-1 base at every width.
 
-## 1.9 Month & Agenda
+## 1.9 Month & Agenda (retired)
 
-A tab whose kind is `dual` renders the Month grid and the Agenda list in one
-view — side by side at `lg` and up; below `lg` the Agenda pane is hidden and
-the Month pane behaves exactly like the standalone Month view — in
-`DualPaneView.tsx` (`src/app/(protected)/dashboard/DualPaneView.tsx`).
+The `dual` kind (Month grid + Agenda list side by side, a resizable split
+remembered in the device cookie) was **retired**: it is no longer a renderer
+kind, `DualPaneView.tsx` and `src/lib/ui/dualSplit.ts` are gone, and the type
+picker no longer offers it. The split earned its keep on wide desktops only —
+below `lg` the Agenda pane never rendered, so the view was the Month view with
+a dead kind name — and the standalone Month + Agenda tabs cover both halves at
+every width.
 
-**It is a day-anchored kind**, like Day/Week/Agenda: one shared `?date=` anchor
-drives both panes. The Month pane shows the anchor day's month and the Agenda
-pane shows that day's list, so the two always agree. The nav row's chevrons
-move **±1 month** (keeping the day-of-month — dayjs clamps overflow, so Jan 31 →
-Feb 28), the Agenda pane's own ‹ › header moves **±1 day** (a step across a
-month edge moves the grid too), and the date picker opens in day mode.
-At `lg` and up, **tapping a day cell in the grid selects that day in the
-Agenda pane** — this view has no day modal there, the pane *is* the day detail
-(the chips are pass-through, see the Month-pane bullet). Below `lg` the grid
-is the standalone Month view: chips open the event detail and a cell tap opens
-the shared agenda day modal. Data needs are therefore
-identical to Month's (`requiredMonths` returns `monthGridMonths` for `dual`),
-and `planDashboardSwitch` needs no dual-specific rule: the anchored branches already
-cover it (Month → Month & Agenda starts today, anchored → Month & Agenda keeps
-the anchor day, Month & Agenda → Month keeps the anchor month).
-
-- **Layout & independent scroll.** At `lg` and up the whole view is **bounded to
-  the viewport's remaining height** (the dashboard's CSS flex chain:
-  `100dvh − header − footer` with the chrome as a fixed first item — no
-  measured-chrome term in the height, so a resize can't leave a blank strip) and
-  each pane is a fixed-header column with
-  its **own vertical scroll** (`overflow-y: auto` + `overscroll-behavior: contain`),
-  so scrolling one never moves the other. The page's own bottom padding is
-  reclaimed (`dual-page-pad`: zero bottom padding + a negative bottom margin that
-  cancels `AppShell.Main`'s padding, symmetric with the Stack's negative top
-  margin), so the bounded container still totals exactly `100dvh` — no document
-  scroll — while the panes run **flush to the viewport bottom** (no blank strip
-  under the agenda card or the month grid). **Both panes' content fills that
-  bounded height**: the Agenda card stretches to the pane (a long day list
-  scrolls inside the card, not the pane) and the Month grid's natural week rows
-  grow to fill the pane on a tall viewport. The layout key is
-  the `lg` breakpoint, not the device: a large phone (e.g. an unfolded Fold)
-  gets the side-by-side bounded layout too. Below `lg` the Agenda pane is hidden
-  — the full-width month grid scrolls with the document and the handle is absent.
-- **Split & resize.** The Month pane takes the remembered `dualSplit` fraction
-  (device-local cookie, [`ui-state.md`](ui-state.md); default 0.6, clamped
-  0.25–0.75 by `src/lib/ui/dualSplit.ts`). A drag handle between the panes
-  resizes them: a pointer-capture drag writes the live fraction straight to a
-  `--c2-dual-split` CSS variable on the container (no React work per frame) and
-  commits once on release; the handle is a focusable `separator` whose
-  Left/Right arrows step 5% and whose double-click resets to the default.
-- **Month pane.** The standalone Month view's grid: the fit-to-width zoom of
-  §1.8 including its **pinch-to-zoom** (its own `useGridPan` instance,
-  `MonthWeekdayStrip`, and a
-  `GridNavControls` cluster portaled to `<body>` so the transient slide
-  transform can't jitter the fixed controls), the same `monthEvents` ordering
-  and `renderMyMonthEvent` highlights. At `lg` the strip is the pane's fixed
-  header (`sticky={false}` — the pane is the scroll container, so a
-  chrome-relative `top` would push it down) and is pinned non-shrinkable
-  (`flex-shrink: 0`): as a flex item, `overflow: hidden` would otherwise nullify
-  its automatic minimum size and let the pane's overflow crush and clip the
-  labels. Also at `lg`, the month's natural
-  week rows grow to fill the bounded pane: the pane's scroll box is measured and Mantine's
-  `--month-view-max-events` gets a fractional override (`52px + N * 24px` per
-  row), so the event chips scale with the row while the rendered count stays at
-  four; a 4-event floor keeps the natural row height — and the pane's own scroll
-  — on shorter viewports. At `lg` and up the event chips
-  are deliberately **pass-through** (`c2-inert-event` in `globals.css` disables
-  the chip's whole subtree + `tabIndex: -1`, no `onEventClick`): Mantine
-  re-enables `pointer-events` on the inner chip, so the root-only override was
-  not enough — the class kills the inner chip too, so every tap falls through
-  to the day-cell button beneath and chip and empty-cell taps alike select the
-  day (day cells keep their roving tabindex for keyboard). Below `lg` (where
-  the Agenda pane is hidden) the grid is the standalone Month view's wiring:
-  the chips render live and open the event detail, a cell tap opens the shared
-  agenda day modal (`onDayOpen` → the same helper the Month view's cell tap
-  uses), and the `+N more` popover works too.
-- **Agenda pane** (at `lg` and up — not rendered below `lg`). The Agenda tab's
-  list under a day header (day label + ‹ › chevrons): `eventsOnDay`,
-  `renderMyAgendaEvent`, the directional slide on a day change, and the touch
-  swipe-to-change-day gesture. The header is
-  the pane's fixed header (bounded layout), and the bordered card fills the pane
-  below it — a long day list scrolls inside the card (`agendaViewBody`), so a
-  short day never leaves a blank strip under the card. Both the card root and
-  that body carry `touch-action: pan-y`: the body is a scroll container nested
-  inside the swipe container, and the browser intersects `touch-action` only up
-  to the first containing scrolling element, so without it the outer swipe
-  container's value is ignored and the browser's `pointercancel` kills the
-  swipe. `pan-y` keeps the vertical scroll native while the app owns horizontal.
-- **Chrome.** The nav row labels the period with the **month** (the pane header
-  carries the day); the screen-reader announcement appends the agenda day so a
-  day move is announced too. The agenda header reserves the floating fullscreen
-  toggle's box on its right (desktop only — the toggle floats over that corner),
-  so the day chevrons stay tappable under it. The loading skeleton is
-  `DualPaneSkeleton` — the two view skeletons in the same responsive layout at
-  the same split.
-
-```mermaid
-flowchart LR
- D["?date= anchor"] --> M["Month pane<br/>monthGridMonths(month)"]
- D --> A["Agenda pane<br/>eventsOnDay(day)<br/>(lg and up only)"]
- D --> R["requiredMonths = monthGridMonths<br/>(same as Month)"]
- H["drag handle / arrow keys"] --> S["dualSplit cookie<br/>(--c2-dual-split CSS var)"]
- S --> M
- N["below lg: month pane = Month view<br/>chip → detail, cell → day modal"] -.-> M
-```
+Retirement is read-side coercion, never a migration: `LEGACY_VIEW_KINDS`
+(`src/lib/dashboardViews/views.ts`) maps `dual` → `month` and `resolveViewKind`
+applies it to stored rows (`toDashboardViewTab`), share-token payloads (links
+are stateless and cannot be revoked), legacy `?view=dual` params and the
+event-title target list, so an existing Month & Agenda tab simply opens as a
+Month tab and the kind rewrites itself on the next save. `view_type` is plain
+`text` in `user_dashboard_views` (no check constraint), so no schema migration
+is needed; an optional data-only `UPDATE "user_dashboard_views" SET
+"view_type" = 'month' WHERE "view_type" = 'dual';` can tidy existing rows at
+leisure. The `dualSplit` cookie key was dropped with cookie v3.7
+([`ui-state.md`](ui-state.md)); a pre-retirement cookie simply loses it.
 
 ## 1.10 Sharing views
 
@@ -1445,12 +1362,10 @@ flowchart LR
 | `src/app/(protected)/dashboard/DashboardView.tsx`  | Tab strip (+ trailing Add-view button, right-side Manage-views gear and All-views jump popover), optimistic tab switch + period rules + tab-URL prefetch, filter state, schedule zoom + month zoom state & widths |
 | `src/app/(protected)/dashboard/DashboardScreen.tsx` | Snapshot/warm-cache/preload owner; resolves the displayed context from `previewView ?? ?view=` so warm tab switches paint without waiting on the RSC |
 | `src/app/(protected)/dashboard/EditViewsModal.tsx` | Manage-views dialog: Add-view button + single-line card rows (drag handle reorder left, name middle, per-row **⋮ menu** right with Share/Edit/Delete; Edit dialog for name+type+filters, nested delete confirm) |
-| `src/app/(protected)/dashboard/ViewTypePicker.tsx` | Shared seven-kind picker (Month & Agenda/Month/Week (H)/Week (D)/Week (Grid)/Day/Agenda): a **thumbnail grid** in the Add-view dialog and the Edit-view dialog's type chooser, a compact text list for other uses |
-| `src/app/(protected)/dashboard/DualPaneView.tsx` | Month & Agenda renderer: resizable Month + Agenda panes (§1.9) |
-| `src/app/(protected)/dashboard/MonthWeekdayStrip.tsx` | Pinned weekday-initials strip, shared by the Month view and the Month & Agenda view's Month pane |
-| `src/lib/ui/dualSplit.ts` | Pure Month & Agenda split levels + clamping (`clampDualSplit`, `stepDualSplit`) |
+| `src/app/(protected)/dashboard/ViewTypePicker.tsx` | Shared six-kind picker (Month/Week (H)/Week (D)/Week (Grid)/Day/Agenda): a **thumbnail grid** in the Add-view dialog and the Edit-view dialog's type chooser, a compact text list for other uses |
+| `src/app/(protected)/dashboard/MonthWeekdayStrip.tsx` | Pinned weekday-initials strip for the Month view |
 | `src/app/(protected)/dashboard/viewMeta.tsx` | Kind → icon/label/thumbnail map shared by the strip, the type picker, the Manage-views rows |
-| `src/app/(protected)/dashboard/viewThumbnails.tsx` | Hand-drawn SVG wireframe previews (120×80, `currentColor` strokes + amber event chips) for each of the seven kinds |
+| `src/app/(protected)/dashboard/viewThumbnails.tsx` | Hand-drawn SVG wireframe previews (120×80, `currentColor` strokes + amber event chips) for each of the six kinds |
 | `src/components/reorderUpDown.tsx` | Shared touch-friendly manage-row recipe: ~40px ↑/↓ chevron pair (`ReorderUpDown`) + row-action sizes |
 | `src/app/(protected)/dashboard/page.tsx` | Resolves tabs + active tab (`?view=` → remembered → first), validates per-tab filters |
 | `src/app/(protected)/dashboard/WeekMatrixView.tsx` | Week (D) matrix renderer |

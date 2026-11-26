@@ -64,8 +64,16 @@ const EXCLUDED_EXACT = new Set(["/login", "/share"]);
  * carries a `renderedAt` the client uses to tell a live payload from a
  * replayed one. (The per-event history is now a modal fetched fresh per open,
  * so it needs no route here.)
+ *
+ * `Resource Usage` joins the list for a narrower reason: its whole purpose is
+ * the row written moments ago. A replayed ledger would show yesterday after a
+ * "Snapshot now", which reads as the feature being broken.
  */
-const ALWAYS_FRESH_PREFIXES = ["/settings/audit-log", "/my-events"] as const;
+const ALWAYS_FRESH_PREFIXES = [
+  "/settings/audit-log",
+  "/settings/metrics",
+  "/my-events",
+] as const;
 
 /** Whether a path is on the always-fresh list (the exact path or a subpath). */
 export function isAlwaysFreshPath(pathname: string): boolean {

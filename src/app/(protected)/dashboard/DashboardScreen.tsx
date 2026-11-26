@@ -68,8 +68,6 @@ interface DashboardScreenProps {
   /** Week (D) day-column zoom, seeded from the device cookie. */
   initialWeekMatrixZoom: SlotZoom;
   initialMonthZoom: MonthZoom;
-  /** Dual Pane Month-pane fraction, seeded from the device cookie. */
-  initialDualSplit: number;
   /** The device cookie's remembered anchor month, used to pick the cold paint. */
   initialMonth: string | null;
 }
@@ -119,7 +117,6 @@ export function DashboardScreen({
   initialGridWeekRowZoom,
   initialWeekMatrixZoom,
   initialMonthZoom,
-  initialDualSplit,
   initialMonth,
 }: DashboardScreenProps) {
   const router = useRouter();
@@ -246,7 +243,7 @@ export function DashboardScreen({
   // `useSearchParams`. Cleared when the URL catches up (see the sync below), or
   // when the router transition ends without the URL matching.
   const [previewView, setPreviewView] = useState<string | null>(null);
-  // Optimistic period step (a month/dual/agenda data navigation): the tapped
+  // Optimistic period step (a month/agenda data navigation): the tapped
   // period paints its warm snapshot in the same commit as the cross-slide, so a
   // preloaded adjacent month never flashes the skeleton
   // (docs/loading-transitions.md §1.14.1). Cleared when the URL catches up (or
@@ -1131,7 +1128,6 @@ export function DashboardScreen({
           initialGridWeekRowZoom={initialGridWeekRowZoom}
           initialWeekMatrixZoom={initialWeekMatrixZoom}
           initialMonthZoom={initialMonthZoom}
-          initialDualSplit={initialDualSplit}
           initialEditEventId={initialEditEventId}
           initialDetailEventId={initialDetailEventId}
           deepLinkEvent={deepLinkTarget}

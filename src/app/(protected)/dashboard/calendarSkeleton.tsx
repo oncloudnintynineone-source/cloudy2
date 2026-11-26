@@ -50,8 +50,8 @@ export function MonthGridSkeleton({
   /**
    * Draw Mantine's weekday-initials row inside the box. The real standalone
    * Month view replaces it with the pinned `MonthWeekdayStrip` (outside the
-   * grid box), so its in-page skeleton passes `false`; the route/dual skeletons
-   * have no strip and keep it (default `true`).
+   * grid box), so its in-page skeleton passes `false`; the route skeleton
+   * has no strip and keeps it (default `true`).
    */
   withWeekdayRow?: boolean;
   /** Extra container style — the in-page Month skeleton passes `monthFitStyle`
@@ -345,79 +345,6 @@ export function WeekGridSkeleton({ rows = 6 }: { rows?: number }) {
         ))}
       </Box>
     </Paper>
-  );
-}
-
-/**
- * Dual Pane skeleton: the Month grid skeleton and the Agenda list skeleton in
- * the view's own responsive layout — side by side at `lg` (Month at the
- * persisted split ratio, Agenda filling the rest). Below `lg` the Agenda pane
- * is hidden (the view is the standalone Month view), so only the month column
- * renders. Mirrors the real `DualPaneView` shapes so the swap on load is
- * seamless; the sr-only LoadingStatus is rendered by the caller, as with the
- * other view skeletons.
- */
-export function DualPaneSkeleton({ rows, splitPct }: { rows: number; splitPct: number }) {
-  const theme = useMantineTheme();
-  const isDesktop = useMediaQuery(`(min-width: ${theme.breakpoints.lg})`);
-  const scrollBody = {
-    flex: "1 1 auto",
-    minHeight: 0,
-    display: "flex",
-    flexDirection: "column" as const,
-    overflowY: "auto" as const,
-    overflowX: "hidden" as const,
-  };
-  return (
-    <Box
-      style={{
-        display: "flex",
-        flexDirection: isDesktop ? "row" : "column",
-        alignItems: isDesktop ? "stretch" : "flex-start",
-        gap: isDesktop ? 0 : "var(--mantine-spacing-md)",
-        ...(isDesktop
-          ? {
-              // Mirrors DualPaneView: the dashboard's bounded flex column is
-              // already exactly the remaining viewport, so the skeleton fills
-              // it (no measured-chrome term → a resize can't leave a stale gap).
-              height: "100%",
-              overflow: "hidden",
-            }
-          : null),
-      }}
-    >
-      <Box
-        style={{
-          flex: isDesktop ? `0 0 ${splitPct * 100}%` : undefined,
-          width: isDesktop ? undefined : "100%",
-          minWidth: 0,
-          display: isDesktop ? "flex" : undefined,
-          flexDirection: isDesktop ? "column" : undefined,
-          minHeight: isDesktop ? 0 : undefined,
-        }}
-      >
-        <Box style={isDesktop ? scrollBody : undefined}>
-          <MonthGridSkeleton rows={rows} fill={isDesktop} />
-        </Box>
-      </Box>
-      {/* The agenda column is desktop only — below `lg` the view (and its
-          loading shape) is the standalone Month view. */}
-      {isDesktop && (
-        <Box
-          style={{
-            flex: "1 1 0",
-            minWidth: 0,
-            display: "flex",
-            flexDirection: "column",
-            minHeight: 0,
-          }}
-        >
-          <Box style={scrollBody}>
-            <AgendaListSkeleton fill />
-          </Box>
-        </Box>
-      )}
-    </Box>
   );
 }
 

@@ -11,6 +11,7 @@ import {
   periodSwitchDirection,
   resolveActiveTab,
   resolveTabFilters,
+  resolveViewKind,
   sanitizeDashboardViewName,
   viewSwitchDirection,
   type DashboardViewTab,
@@ -48,6 +49,22 @@ describe("isDashboardViewKind", () => {
   it("rejects anything else", () => {
     for (const raw of ["foobar", "", 7, null, undefined, {}]) {
       expect(isDashboardViewKind(raw)).toBe(false);
+    }
+  });
+});
+
+describe("resolveViewKind", () => {
+  it("accepts every current renderer kind", () => {
+    for (const kind of DASHBOARD_VIEW_KINDS) {
+      expect(resolveViewKind(kind)).toBe(kind);
+    }
+  });
+  it("maps the retired `dual` kind to its replacement", () => {
+    expect(resolveViewKind("dual")).toBe("month");
+  });
+  it("rejects unknown kinds", () => {
+    for (const raw of ["foobar", "", 7, null, undefined, {}]) {
+      expect(resolveViewKind(raw)).toBeNull();
     }
   });
 });
@@ -93,8 +110,6 @@ describe("nameAfterKindChange", () => {
     expect(nameAfterKindChange("Month", "month", "agenda")).toBe("Agenda");
     expect(nameAfterKindChange("Week (D)", "weekv2", "month")).toBe("Month");
     expect(nameAfterKindChange("Week (Grid)", "weekgrid", "agenda")).toBe("Agenda");
-    expect(nameAfterKindChange("Month", "month", "dual")).toBe("Month & Agenda");
-    expect(nameAfterKindChange("Month & Agenda", "dual", "agenda")).toBe("Agenda");
   });
   it("keeps a custom name", () => {
     expect(nameAfterKindChange("Ops Month", "month", "week")).toBe("Ops Month");

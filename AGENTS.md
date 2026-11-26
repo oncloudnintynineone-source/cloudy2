@@ -204,8 +204,7 @@ doc content here.
   settled ops drop via a guarded render-phase reconcile — never an effect.
   Design: [docs/optimistic-mutations.md](docs/optimistic-mutations.md).
 - **Dashboard views (tabs) & filters:** per-account rows in `user_dashboard_views`
-  (`src/lib/dashboardViews`), renderer kinds Month / Week (H) / Week (D) / Day / Agenda /
-  Month & Agenda (Month + Agenda side by side, resizable; day-anchored, `src/lib/ui/dualSplit.ts`).
+  (`src/lib/dashboardViews`), renderer kinds Month / Week (H) / Week (D) / Day / Agenda.
   Per-tab Cal/Users/Types/**Event-name** filters are stored server-side (no
   `cal/users/types` URL params); the optional Event-name field is a case-insensitive
   substring over the typed name + rendered title, applied server-side in the tab
@@ -477,6 +476,20 @@ the floating fullscreen button — never over the canvas
   step if the schema changed (§1.11). **Suggest a commit message** summarizing the change,
   matching the repo's concise style — then stop. **You never run these git commands
   yourself** (see Hard rules): hand the user the exact commands and let them push.
+- **Verify UI work visually before handoff:** any change that affects what the user sees —
+  components, layout, styling, loading transitions, responsive tiers, accessibility — must
+  be **rendered and looked at** before it is called done: run `pnpm dev` (or use the Vercel
+  preview after push), screenshot the affected routes/states, and actually inspect the
+  images with vision — layout, spacing, brand colors, skeleton/crossfade states, dark
+  scheme, and both the mobile-first and `lg`+ (640px) layouts (plus the ≤ 360px compact
+  tier when touched). Prefer the `browser-testing-with-devtools` skill (Chrome DevTools
+  MCP) when it is configured; otherwise use any available browser/screenshot tooling.
+  Reach protected pages with the dev credentials in `.env.local` (staff keyword / admin
+  PIN / break-glass). If no browser tooling is available, **say so explicitly** — never
+  silently skip the check or claim a UI change is correct unseen. Screenshots verify
+  visual correctness and regressions; they do not replace the on-device judgment the
+  [ui-ux backlog](docs/ui-ux-improvements.md) calls for (no telemetry — that note is about
+  UX-quality judgment, not correctness checks).
 - **App build version:** after every codebase change (not docs-only), bump `APP_VERSION` in
   `src/lib/appVersion.ts` before handing over the git commands. Format `YYYY.MM.DD-N`; on
   the first change of a new day advance the date to today and reset the counter to `1`,

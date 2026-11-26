@@ -813,8 +813,8 @@ visible viewport, which can be shorter than the layout viewport for safe-area /
 toolbar states). **Android — notably foldables — uses
 `max(documentElement.clientHeight, visualViewport.height)`**: a fold/posture
 change can make the visual viewport transiently smaller than the layout one, and
-following that smaller value left the shell (and the viewport-bounded Month /
-Month & Agenda column) short with a blank strip above the fixed footer.
+following that smaller value left the shell (and the viewport-bounded Month
+column) short with a blank strip above the fixed footer.
 `resolveShellViewportHeight` (`src/lib/pwa/viewport.ts`, unit-tested) owns that
 rule. The effect re-syncs on `resize`, `orientationchange`,
 `screen.orientation.change`, and `visualViewport` `resize`/`scroll`, observes

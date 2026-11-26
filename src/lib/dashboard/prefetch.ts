@@ -1,4 +1,4 @@
-import { addDays, lastDayOfMonth, shiftMonth } from "@/lib/events/datetime";
+import { addDays, shiftMonth } from "@/lib/events/datetime";
 import type { DashboardViewKind } from "@/lib/dashboardViews/views";
 
 export interface DashboardPrefetchTarget {
@@ -28,15 +28,6 @@ export function prefetchTargetForPeriod(
 ): { month: string; date: string | null } {
   if (anchor.kind === "month") {
     return { month: shiftMonth(anchor.month, dir), date: null };
-  }
-  if (anchor.kind === "dual") {
-    const nextMonth = shiftMonth(anchor.date.slice(0, 7), dir);
-    const day = Number(anchor.date.slice(8, 10));
-    const lastDay = Number(lastDayOfMonth(nextMonth).slice(8, 10));
-    return {
-      month: nextMonth,
-      date: `${nextMonth}-${String(Math.min(day, lastDay)).padStart(2, "0")}`,
-    };
   }
   if (anchor.kind === "week" || anchor.kind === "weekv2" || anchor.kind === "weekgrid") {
     const date = addDays(anchor.date, dir * 7);

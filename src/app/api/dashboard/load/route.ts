@@ -1,5 +1,8 @@
-import { loadDashboardData } from "@/lib/dashboard/actions";
+import { after } from "next/server";
+
 import { apiJson, optionalString, withApiJson } from "@/lib/api/server";
+import { recordActivityMinute } from "@/lib/metrics/activity";
+import { loadDashboardData } from "@/lib/dashboard/actions";
 
 /**
  * The dashboard's active-context read (docs/pwa-offline.md).
@@ -26,6 +29,11 @@ export async function POST(request: Request) {
   }
   const body = auth.body;
 
+  // The ledger's activity sample. This is the app's hottest authenticated read,
+  // so one write per minute per instance here is dense enough for the compute
+  // estimate to be meaningful — and `after()` keeps it off the response path
+  // entirely (src/lib/metrics/activity.ts).
+  after(() => recordActivityMinute());
   const result = await loadDashboardData({
     view: optionalString(body.view),
     month: optionalString(body.month),

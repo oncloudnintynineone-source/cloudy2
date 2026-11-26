@@ -33,7 +33,6 @@ describe("encodeUiState/decodeUiState", () => {
         gridWeekRowZoom: 0.75,
         weekMatrixZoom: 1.5,
         monthZoom: 2,
-        dualSplit: 0.65,
       },
     };
     expect(decodeUiState(encodeUiState(state))).toEqual(state);
@@ -93,7 +92,7 @@ describe("cookie versioning", () => {
     });
   });
 
-  it("migrates a v3.1 cookie (no dualSplit) to the current shape", () => {
+  it("migrates a v3.1 cookie to the current shape", () => {
     const value = b64url(
       JSON.stringify({
         v: [3, 1],
@@ -115,9 +114,10 @@ describe("cookie versioning", () => {
         dashboard: { month: "2026-08", zoom: 1.25, dualSplit: 0.65 },
       }),
     );
+    // The v3.7 dualSplit field is gone: a legacy cookie keeps the rest.
     expect(decodeUiState(value)).toEqual({
       lastPage: "/dashboard",
-      dashboard: { month: "2026-08", zoom: 1.25, dualSplit: 0.65 },
+      dashboard: { month: "2026-08", zoom: 1.25 },
     });
   });
 
@@ -275,18 +275,11 @@ describe("normalizeUiState (shape safety)", () => {
     ).toEqual({});
   });
 
-  it("clamps dualSplit to the usable band and drops junk values", () => {
-    expect(normalizeUiState({ dashboard: { dualSplit: 0.4 } })).toEqual({
-      dashboard: { dualSplit: 0.4 },
-    });
-    expect(normalizeUiState({ dashboard: { dualSplit: 0.9 } })).toEqual({
-      dashboard: { dualSplit: 0.75 },
-    });
-    expect(normalizeUiState({ dashboard: { dualSplit: 0.05 } })).toEqual({
-      dashboard: { dualSplit: 0.25 },
-    });
-    expect(normalizeUiState({ dashboard: { dualSplit: "0.5" } })).toEqual({});
-    expect(normalizeUiState({ dashboard: { dualSplit: Number.NaN } })).toEqual({});
+  it("drops the retired dualSplit field", () => {
+    expect(normalizeUiState({ dashboard: { dualSplit: 0.4 } })).toEqual({});
+    expect(
+      normalizeUiState({ dashboard: { month: "2026-08", dualSplit: 0.4 } }),
+    ).toEqual({ dashboard: { month: "2026-08" } });
   });
 });
 

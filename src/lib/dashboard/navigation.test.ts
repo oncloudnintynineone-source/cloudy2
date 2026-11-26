@@ -242,43 +242,6 @@ describe("planDashboardSwitch", () => {
     ).toEqual({ view: "d2" });
   });
 
-  // Month & Agenda is a day-anchored kind (its Month pane follows the agenda
-  // day's month), so it rides the anchored branches above.
-  it("Month → Month & Agenda starts on today", () => {
-    expect(
-      planDashboardSwitch({ id: "dp", kind: "dual" }, { ...base, view: "month" }, RELOAD_STUB)
-        .updates,
-    ).toEqual({ view: "dp", date: "2026-09-13", month: null });
-  });
-
-  it("anchored → Month & Agenda keeps the anchor day", () => {
-    expect(
-      planDashboardSwitch({ id: "dp", kind: "dual" }, { ...base, view: "agenda" }, RELOAD_STUB)
-        .updates,
-    ).toEqual({ view: "dp", date: "2026-09-12", month: null });
-  });
-
-  it("Month & Agenda → Month carries the anchor month and clears the day", () => {
-    expect(
-      planDashboardSwitch({ id: "m2", kind: "month" }, { ...base, view: "dual" }, RELOAD_STUB)
-        .updates,
-    ).toEqual({ view: "m2", month: "2026-09", date: null });
-  });
-
-  it("Month & Agenda → a different anchored kind keeps the anchor day", () => {
-    expect(
-      planDashboardSwitch({ id: "w2", kind: "week" }, { ...base, view: "dual" }, RELOAD_STUB)
-        .updates,
-    ).toEqual({ view: "w2", date: "2026-09-12", month: null });
-  });
-
-  it("Month & Agenda → Month & Agenda keeps the current period", () => {
-    expect(
-      planDashboardSwitch({ id: "dp2", kind: "dual" }, { ...base, view: "dual" }, RELOAD_STUB)
-        .updates,
-    ).toEqual({ view: "dp2" });
-  });
-
   const monthTab = tab({ id: "m", kind: "month" });
   const agendaA = tab({ id: "a1", kind: "agenda" });
   const agendaB = tab({ id: "a2", kind: "agenda" });

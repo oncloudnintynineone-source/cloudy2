@@ -24,7 +24,7 @@ describe("shouldUsePeriodSlide", () => {
   });
 
   it("keeps heavy grids on the nudge on touch devices", () => {
-    for (const kind of ["month", "dual", "week", "weekv2", "weekgrid", "schedule"] as const) {
+    for (const kind of ["month", "week", "weekv2", "weekgrid", "schedule"] as const) {
       expect(shouldUsePeriodSlide({ ...desktop, kind, coarsePointer: true })).toBe(false);
     }
   });

@@ -71,13 +71,7 @@ describe("monthFillEvents", () => {
     expect(monthFillEvents(148 * 5 + 5, 5)).toBe(4);
   });
 
-  it("respects a caller floor (dual pane keeps the natural 148px row)", () => {
-    // Short box: the 148 floor wins, so the pane keeps its natural scroll.
-    const events = monthFillEvents(400, 4, 148);
-    expect(events).toBe(4);
-  });
-
-  it("floors at one chip slot at the default minimum", () => {
+  it("floors at one chip slot", () => {
     // Degenerate box: one 24px slot minimum (row = 76px -> N = 1).
     expect(monthFillEvents(10, 4)).toBe(1);
   });

@@ -277,53 +277,6 @@ function AgendaThumb() {
   );
 }
 
-/** Month & Agenda — the split view: month grid left, agenda rows right. */
-function DualThumb() {
-  const divider = 62;
-  const gridColumns = [1, 2].map((i) => 6 + (i * (divider - 6 - 4)) / 3);
-  const gridRows = [1, 2].map((i) => 24 + (i * 50) / 3);
-  const rowHeight = 58 / 5;
-  return (
-    <Thumb>
-      <Shell />
-      <line x1={divider} y1={6} x2={divider} y2={74} stroke={NEUTRAL} strokeOpacity={0.55} />
-      {gridColumns.map((x) => (
-        <line key={`c${x}`} x1={x} y1={22} x2={x} y2={74} stroke={NEUTRAL} strokeOpacity={0.22} />
-      ))}
-      {gridRows.map((y) => (
-        <line key={`r${y}`} x1={6} y1={y} x2={divider} y2={y} stroke={NEUTRAL} strokeOpacity={0.22} />
-      ))}
-      <rect x={9} y={26} width={13} height={7} rx={1.5} fill={ACCENT} />
-      <rect x={9} y={44} width={10} height={7} rx={1.5} fill={NEUTRAL} fillOpacity={0.22} />
-      {[0, 1, 2, 3].map((i) => {
-        const y = 16 + i * rowHeight;
-        return (
-          <g key={`a-${i}`}>
-            <rect
-              x={divider + 5}
-              y={y + 3}
-              width={9}
-              height={rowHeight - 7}
-              rx={1.5}
-              fill={i === 0 ? ACCENT : NEUTRAL}
-              fillOpacity={i === 0 ? 1 : 0.18}
-            />
-            <rect
-              x={divider + 18}
-              y={y + rowHeight / 2 - 2.5}
-              width={i === 0 ? 28 : 32}
-              height={5}
-              rx={2.5}
-              fill={i === 0 ? ACCENT : NEUTRAL}
-              fillOpacity={i === 0 ? 1 : 0.22}
-            />
-          </g>
-        );
-      })}
-    </Thumb>
-  );
-}
-
 export const VIEW_THUMBNAILS: Record<DashboardViewKind, ReactNode> = {
   month: <MonthThumb />,
   week: <WeekHThumb />,
@@ -331,5 +284,4 @@ export const VIEW_THUMBNAILS: Record<DashboardViewKind, ReactNode> = {
   weekgrid: <WeekGridThumb />,
   schedule: <DayThumb />,
   agenda: <AgendaThumb />,
-  dual: <DualThumb />,
 };

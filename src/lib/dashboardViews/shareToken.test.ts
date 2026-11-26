@@ -47,6 +47,12 @@ describe("dashboard view share token", () => {
     expect(normalizeSharePayload({ ...payload(), q: undefined })?.q).toBe("");
   });
 
+  it("resolves a retired kind to its replacement", () => {
+    // Tokens are stateless and cannot be revoked, so a link minted while
+    // Month & Agenda existed must still open — as a Month view.
+    expect(normalizeSharePayload({ ...payload(), k: "dual" })?.k).toBe("month");
+  });
+
   it("produces a URL-safe token", () => {
     const token = encoded();
     expect(token).toMatch(/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);

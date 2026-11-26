@@ -19,7 +19,6 @@
  *       gridWeekRowZoom?: number    //   Week (Grid) slot-height zoom (slotZoom.ts)
  *       weekMatrixZoom?: number     //   Week (D) day-column zoom (slotZoom.ts)
  *       monthZoom?: number          //   Month grid zoom (monthZoom.ts)
- *       dualSplit?: number          //   Dual Pane month/agenda split (dualSplit.ts)
  *     }
  *   }
  *
@@ -37,7 +36,6 @@
 
 import { clampGridWeekColZoom, clampZoom } from "./slotZoom";
 import { clampMonthZoom } from "./monthZoom";
-import { clampDualSplit } from "./dualSplit";
 
 export const UI_STATE_COOKIE = "cloudy2.ui";
 
@@ -46,8 +44,7 @@ export const UI_STATE_COOKIE = "cloudy2.ui";
  * zoom (slotZoom.ts); the Week (Grid) remembers its two axes separately as
  * `gridWeekColZoom` (day-column width) and `gridWeekRowZoom` (hour-slot height);
  * `weekMatrixZoom` is the Week (D) day-column zoom; `monthZoom` is the Month
- * grid's fit-width multiplier (monthZoom.ts); `dualSplit` is the Dual Pane
- * month/agenda width split (dualSplit.ts).
+ * grid's fit-width multiplier (monthZoom.ts).
  */
 export interface DashboardNavState {
   date?: string;
@@ -57,7 +54,6 @@ export interface DashboardNavState {
   gridWeekRowZoom?: number;
   weekMatrixZoom?: number;
   monthZoom?: number;
-  dualSplit?: number;
 }
 
 export interface UiState {
@@ -100,7 +96,6 @@ export function normalizeUiState(value: unknown): UiState | null {
     const gridWeekRowZoom = clampZoom(dashboard.gridWeekRowZoom);
     const weekMatrixZoom = clampGridWeekColZoom(dashboard.weekMatrixZoom);
     const monthZoom = clampMonthZoom(dashboard.monthZoom);
-    const dualSplit = clampDualSplit(dashboard.dualSplit);
     if (date !== undefined) section.date = date;
     if (month !== undefined) section.month = month;
     if (zoom !== null) section.zoom = zoom;
@@ -108,7 +103,8 @@ export function normalizeUiState(value: unknown): UiState | null {
     if (gridWeekRowZoom !== null) section.gridWeekRowZoom = gridWeekRowZoom;
     if (weekMatrixZoom !== null) section.weekMatrixZoom = weekMatrixZoom;
     if (monthZoom !== null) section.monthZoom = monthZoom;
-    if (dualSplit !== null) section.dualSplit = dualSplit;
+    // `dualSplit` (retired Month & Agenda view) is deliberately not copied: a
+    // pre-retirement cookie carrying it is dropped on the next write.
     if (Object.keys(section).length > 0) {
       state.dashboard = section;
     }
@@ -141,7 +137,7 @@ function fromBase64Url(value: string): string {
 // are unchanged: a major mismatch in EITHER direction drops the cookie, a
 // newer minor decodes as-is (forward-compatible), an older minor runs the
 // migration chain before normalization.
-const COOKIE_VERSION: readonly [number, number] = [3, 6];
+const COOKIE_VERSION: readonly [number, number] = [3, 7];
 
 /**
  * Minor migrations within the CURRENT major, keyed by the minor they upgrade
@@ -159,7 +155,9 @@ const COOKIE_VERSION: readonly [number, number] = [3, 6];
  * migration drops that key so the new default re-seeds, and keeps any
  * explicitly remembered non-default level. v3.6 adds the Week (D) day-column
  * zoom (`weekMatrixZoom`) — a pass-through (a missing key = the view's fit
- * default).
+ * default). v3.7 retires the Month & Agenda split (`dualSplit`): the key is no
+ * longer read, so a pre-retirement cookie simply loses it on the next write —
+ * a pass-through, no migration needed.
  */
 const MINOR_MIGRATIONS: Record<number, (value: Record<string, unknown>) => Record<string, unknown>> =
   {
@@ -175,6 +173,7 @@ const MINOR_MIGRATIONS: Record<number, (value: Record<string, unknown>) => Recor
       return value;
     },
     5: (value) => value,
+    6: (value) => value,
   };
 
 function parseCookieVersion(raw: unknown): [number, number] | null {

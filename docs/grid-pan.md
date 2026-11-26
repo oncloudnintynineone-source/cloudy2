@@ -69,7 +69,7 @@ The buttons are fixed to the viewport and their anchor — the grid's visible-sl
 center plus the 8px edge insets (clamped to `[0, innerHeight]`) — is measured
 with `layoutRect` (`src/lib/ui/layoutRect.ts`), which returns **transform-free**
 layout geometry rather than `getBoundingClientRect`. That matters because the
-Week (D) and Month & Agenda anchors live inside the dashboard's transiently
+Week (D) anchors live inside the dashboard's transiently
 transformed grid-slide wrapper: the visual rect captured mid-slide shifted the
 `right` inset (left or right, by the slide direction), leaving the controls
 displaced until a resize. The anchor is measured when the view loads and
@@ -82,10 +82,10 @@ the calendar's visible-area center while the page scrolls and never leave the
 screen. The left/right controls are clamped to
 the **anchor's own midpoint** (not the viewport's) so a narrow grid can't push
 them off-screen or onto each other; full-width grids have their midpoint at the
-viewport center, so this only changes behavior for the Month & Agenda view's
-Month pane, which lives in the left portion of the viewport — clamping to the
-viewport center would freeze its zoom/pan cluster mid-screen once the pane's
-right edge crossed it (the pane's own right edge is where it belongs).
+viewport center, so this only changes behavior for a grid narrower than the
+viewport — clamping to the viewport center would freeze its zoom/pan cluster
+mid-screen once the grid's right edge crossed it (the grid's own right edge is
+where it belongs).
 
 Three earlier approaches were tried and rejected:
 

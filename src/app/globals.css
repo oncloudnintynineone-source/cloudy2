@@ -2032,22 +2032,6 @@ html.c2-low-end::view-transition-group(*) {
 }
 
 /*
-  Month & Agenda page pad (DashboardView applies it instead of `.fab-page-pad`
-  on the dual tab). Below `lg` the dual is the document-scrolling standalone
-  Month view, so it keeps the same FAB clearance as `.fab-page-pad`. At `lg` the
-  two panes are viewport-bounded and fill to the bottom, so the page bottom
-  padding is dropped AND Main's own bottom padding is reclaimed with a matching
-  negative margin (symmetric with the Stack's negative top margin) — the taller
-  bounded container then still totals exactly `100dvh` (no document scroll) and
-  its bottom edge lands on the viewport bottom. See DualPaneView's height recipe.
-*/
-.dual-page-pad {
-  padding-bottom: calc(
-    var(--app-floating-bottom-offset-immersive) + 65px + var(--c2-bottom-chrome-height, 0px)
-  );
-}
-
-/*
   Week (Grid) page pad (DashboardView applies it instead of `.fab-page-pad` on
   the weekgrid tab). The grid is viewport-bounded and scrolls internally, and
   the mobile FABs may overlay it, so the page reserves no FAB clearance below
@@ -3162,14 +3146,6 @@ html.c2-low-end::view-transition-group(*) {
     padding-bottom: var(--mantine-spacing-xl);
   }
 
-  /* Month & Agenda at lg: flush to the viewport bottom. Zero the page bottom
-     padding and pull Main's own bottom padding back with a negative margin so
-     the bounded panes can extend all the way down (see `.dual-page-pad` above). */
-  .dual-page-pad {
-    padding-bottom: 0;
-    margin-bottom: calc(-1 * var(--app-shell-padding));
-  }
-
   /* Week (Grid) at lg: flush to the viewport bottom. Zero the page bottom
      padding and pull Main's own bottom padding back with a negative margin so
      the behind-the-chrome grid extends all the way down (see `.weekgrid-page-pad`
@@ -3281,19 +3257,6 @@ html.c2-low-end::view-transition-group(*) {
 .c2-my-event > * {
   outline: calc(0.0625rem * var(--mantine-scale)) solid var(--mantine-color-accent-6);
   outline-offset: 0;
-}
-
-/* Month & Agenda view: the month pane's chips are pass-through, so a tap
-   selects the day cell beneath it in the agenda pane instead of opening the
-   event. Mantine puts `pointer-events: all` on the inner chip element, so
-   disabling the event root alone leaves the chip capturing the tap; this
-   class is applied to the root by DualPaneView's renderEvent, and the `> *`
-   rule disables the inner chip too (equal specificity, but globals.css loads
-   after the schedule styles). */
-.c2-inert-event,
-.c2-inert-event > * {
-  pointer-events: none;
-  cursor: default;
 }
 
 /* Agenda: the user's rows get an amber left bar + light tint, and their

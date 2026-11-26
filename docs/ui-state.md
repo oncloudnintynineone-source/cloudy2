@@ -12,7 +12,7 @@ Where does the app remember things? Two scopes with one hard rule:
   `date`/`month` anchor, the zooms — the Day/Week (H) hour-slot `zoom`, the
   Week (Grid) column/row `gridWeekColZoom`/`gridWeekRowZoom`, the Week (D)
   day-column `weekMatrixZoom`, and the Month
-  grid's fit-width `monthZoom` — and the Month & Agenda split (`dualSplit`).
+  grid's fit-width `monthZoom`.
 
 This document covers the split, the two Postgres tables and their lazy seeding,
 the tab-resolution order the dashboard follows, the reduced cookie and
@@ -172,8 +172,7 @@ flowchart LR
  "gridWeekColZoom": 1.5, // Week (Grid) column-width zoom (slotZoom.ts)
  "gridWeekRowZoom": 0.75, // Week (Grid) slot-height zoom (slotZoom.ts)
  "weekMatrixZoom": 1.5, // Week (D) day-column zoom (slotZoom.ts)
- "monthZoom": 1.5, // Month-grid zoom, fit-width multiplier (monthZoom.ts)
- "dualSplit": 0.6 // Month & Agenda month/agenda width split (dualSplit.ts)
+ "monthZoom": 1.5 // Month-grid zoom, fit-width multiplier (monthZoom.ts)
   }
 }
 ```
@@ -194,11 +193,12 @@ old majors wholesale on first read (see §1.5.2).
 - Within the current major, a **newer minor** decodes as-is (forward
   compatible, unknown fields dropped by `normalizeUiState`); an **older
   minor** runs the pure `MINOR_MIGRATIONS` chain first. v3.1 added
-  `monthZoom`, v3.2 added `dualSplit`, v3.3 added `gridWeekZoom`, and v3.4
-  split that into the independent `gridWeekColZoom`/`gridWeekRowZoom` — those
-  steps are pass-throughs (an older cookie simply lacks the key and the
-  consumer falls back to its default (fit zoom / 60-40 split); the dropped
-  `gridWeekZoom` is ignored). **v3.5 is the first real migration**: the Week
+  `monthZoom`, v3.2 added `dualSplit` (retired in v3.7 with the Month & Agenda
+  view), v3.3 added `gridWeekZoom`, and v3.4 split that into the independent
+  `gridWeekColZoom`/`gridWeekRowZoom` — those steps are pass-throughs (an
+  older cookie simply lacks the key and the consumer falls back to its default
+  (fit zoom); the dropped `gridWeekZoom` and the retired `dualSplit` are
+  ignored). **v3.5 is the first real migration**: the Week
   (Grid) column default moved from fit (`1`) to 2× fit (`2`,
   `GRID_WEEK_COL_ZOOM_DEFAULT` in slotZoom.ts), and the persist effect writes
   the current level on every mount, so v3.4 devices sitting at exactly `1`
@@ -206,7 +206,8 @@ old majors wholesale on first read (see §1.5.2).
   indistinguishable) — the migration drops that key so the new default
   re-seeds, and keeps any explicitly remembered non-default level. v3.6 added
   the Week (D) `weekMatrixZoom` — another pass-through (missing key = the fit
-  default).
+  default), and v3.7 dropped `dualSplit` — also a pass-through
+  (`normalizeUiState` discards the key).
 - The cookie is tiny (scalars + short id lists nowhere near the ~4 KiB browser
   cap), so the old overflow-trimming machinery is gone.
 
@@ -220,10 +221,9 @@ default.**
   `date` anchors the **day views only** (`view !== "month"`); in Month view the
   remembered `month` (else current) drives the read. `zoom` (Day/Week (H)),
   `gridWeekColZoom`/`gridWeekRowZoom` (Week (Grid)), `weekMatrixZoom` (Week (D)),
-  `monthZoom` (Month grid)
-  and `dualSplit` (Month & Agenda) are read from the raw
-  cookie and snapped via `clampGridWeekColZoom`/`clampZoom`/`clampMonthZoom`/
-  `clampDualSplit` before first paint (no width jump on relaunch).
+  `monthZoom` (Month grid) are read from the raw
+  cookie and snapped via `clampGridWeekColZoom`/`clampZoom`/`clampMonthZoom`
+  before first paint (no width jump on relaunch).
   The **active tab is not cookie state** — it resolves from `?view=` else the
   first tab (§1.3).
 - **`?event=` / `?edit=` deep links** (Google "Edit:" notes, Pinned Events,
@@ -241,7 +241,7 @@ default.**
 | ------ | ----- | ---------------- |
 | `useRememberedPage(pathname)` | `AppShellShell` — every authenticated page | `{ lastPage: pathname }` (incl. `/settings` sub-tabs) |
 | sidebar toggle effect | `AppShellShell` | `{ sidebarCollapsed }` on mount + every toggle |
-| `usePersistDashboardNav({ date?, month, zoom, gridWeekColZoom, gridWeekRowZoom, weekMatrixZoom, monthZoom, dualSplit })` | `DashboardView` | the dashboard    section; `date` is stored only when the URL pins one (day views) or for Month & Agenda, `month`/`zoom`/`gridWeekColZoom`/`gridWeekRowZoom`/`weekMatrixZoom`/`monthZoom`/`dualSplit` always |
+| `usePersistDashboardNav({ date?, month, zoom, gridWeekColZoom, gridWeekRowZoom, weekMatrixZoom, monthZoom })` | `DashboardView` | the dashboard    section; `date` is stored only when the URL pins one (day views), `month`/`zoom`/`gridWeekColZoom`/`gridWeekRowZoom`/`weekMatrixZoom`/`monthZoom` always |
 
 Server-side writes happen through server actions (the client never writes
 Postgres directly): tab CRUD + per-tab filters via `src/lib/dashboardViews`,
@@ -275,7 +275,6 @@ they are not cleared on sign-out.)
 | `src/lib/ui/uiState.ts` | cookie codec (`encodeUiState`/`decodeUiState`), `normalizeUiState`, `mergeUiState`, `resolveLaunchTarget` + route whitelists — unit-tested |
 | `src/lib/ui/slotZoom.ts` | `clampZoom`/`clampGridWeekColZoom` snapping (imported by the cookie normalizer; the latter also floors the Week (D) `weekMatrixZoom`) |
 | `src/lib/ui/monthZoom.ts` | `clampMonthZoom` snapping (imported by the cookie normalizer) |
-| `src/lib/ui/dualSplit.ts` | `clampDualSplit`/`stepDualSplit` split-ratio math (imported by the cookie normalizer) |
 
 I/O-bound (not unit-tested): the `db` calls in `src/lib/userPrefs` /
 `src/lib/dashboardViews` (incl. the transactional seed), the `cookies()` reads
@@ -299,7 +298,6 @@ in the pages/layout, and the writer hooks.
 | `src/components/AppShellShell.tsx` | `useRememberedPage`, sidebar toggle persist |
 | `src/components/UserMenu.tsx` | Sign-out → `clearUiState` |
 | `src/lib/ui/uiState.ts` / `uiStateClient.ts` | Cookie model/codec + client writers |
-| `src/lib/ui/dualSplit.ts` | Month & Agenda split-ratio levels + clamping (pure) |
 | `src/app/(protected)/dashboard/DashboardView.tsx` | Tab strip (+ Add-view button / Manage-views gear), `usePersistDashboardNav`, `switchTab` |
 
 Related docs:

@@ -15,8 +15,8 @@
 
 import { getDashboardViews } from "@/lib/dashboardViews/queries";
 import {
-  isDashboardViewKind,
   resolveActiveTab,
+  resolveViewKind,
   type DashboardViewKind,
 } from "@/lib/dashboardViews/views";
 import { listEventTypes } from "@/lib/eventTypes/queries";
@@ -138,8 +138,9 @@ export async function deepLinkViewKind(
   view: string | null,
   requestedKind: string | null | undefined,
 ): Promise<DashboardViewKind> {
-  if (isDashboardViewKind(requestedKind)) {
-    return requestedKind;
+  const resolved = resolveViewKind(requestedKind);
+  if (resolved) {
+    return resolved;
   }
   const tabs = await getDashboardViews(userId);
   const tab = tabs.length > 0 ? resolveActiveTab(view, null, tabs) : undefined;

@@ -38,8 +38,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
   schedule for double-bookings over a 1 / 6 / 12-month look-ahead (default 1 month),
   surfaced by a live count pill on
   its nav entry; an on-demand set of user-created
-  dashboard **Views (tabs)** over the six renderer kinds (Month / Week (H) / Week (D) / Day /
-  Agenda / Month & Agenda; each tab has its own name, order and Cal/Users/Types/Event-name filters, stored server-side) over
+  dashboard **Views (tabs)** over the six renderer kinds (Month / Week (H) / Week (D) /
+  Week (Grid) / Day / Agenda; each tab has its own name, order and Cal/Users/Types/Event-name filters, stored server-side) over
   a layered calendar cache; parade-state page with local attendance mode; contacts page;
   PWA installability with offline & instant open (SWR document + RSC, precached offline.html);
   mobile-first UI with a desktop layout at `lg`; remembered UI state across relaunch;
@@ -3146,6 +3146,18 @@ size="compact"`), and renames **Duplicate Event** / **Copy to Other Google
   Migration `0073`. Docs: `neon-usage.md` §1.2.1, `events-cache.md` §1.4.2–1.4.3,
   `event-history.md` §1.4.2, `pwa-offline.md` §1.18, `loading-transitions.md` §1.13.2,
   `dashboard-views.md` §1.6, `AGENTS.md` (dashboard bullet).
+- 1.426 **Calendar view review → Month & Agenda retired**: a review of every renderer kind
+  across screen sizes found the split view the weakest — below `lg` its Agenda half never
+  rendered (the day modal already covered it), so it was a sixth renderer for a niche
+  pairing. Decision: **retire `dual`**. Existing tabs, share tokens and `?view=dual` params
+  coerce to **Month** via `resolveViewKind` + `LEGACY_VIEW_KINDS`
+  (`src/lib/dashboardViews/views.ts`) — `view_type` is plain text, so no schema migration
+  (optional tidy-up SQL in `dashboard-views.md` §1.9). `DualPaneView.tsx` +
+  `src/lib/ui/dualSplit.ts` deleted; cookie v3.7 drops `dualSplit` (pass-through migration).
+  Two more decisions from the review: the Agenda window becomes **14 days forward** from the
+  anchor (chevrons/swipe still step one day), and tap-empty-to-create stays **Week (D)-only**
+  (held). Remaining findings + the review register: `ui-ux-improvements.md` §1.14. Docs:
+  `dashboard-views.md` §1.9, `ui-state.md` §1.5, `user-guide.md` §1.3, `AGENTS.md`.
 
 ## 1.4 Open items & next steps
 

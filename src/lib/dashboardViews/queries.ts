@@ -6,9 +6,9 @@ import { userDashboardViews, userPreferences, type UserDashboardView } from "@/d
 import { isUuid } from "@/lib/uuid";
 import {
   DASHBOARD_VIEW_KIND_LABELS,
-  isDashboardViewKind,
   normalizeFilterOverride,
   normalizeTextFilter,
+  resolveViewKind,
   type DashboardViewTab,
 } from "./views";
 
@@ -52,7 +52,10 @@ export async function ensureDefaultDashboardView(userId: string): Promise<void> 
 
 /** Map a raw row onto the view DTO (filters parsed, garbage dropped). */
 export function toDashboardViewTab(row: UserDashboardView): DashboardViewTab {
-  const kind = isDashboardViewKind(row.viewType) ? row.viewType : "month";
+  // A retired kind resolves to its replacement (`dual` → `month`), so a tab
+  // created before the retirement keeps working without a data migration;
+  // genuine garbage still falls back to Month.
+  const kind = resolveViewKind(row.viewType) ?? "month";
   return {
     id: row.id,
     kind,

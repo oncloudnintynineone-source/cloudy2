@@ -238,9 +238,6 @@ export interface DashboardSnapshotRecord {
  * - Week (H) / Week (D) / Week (Grid): the months the week touches, from the
  *   account's week-start day (1-2).
  * - Day / Agenda: the single containing month.
- * - Dual Pane: the 6-week grid's months (`monthGridMonths`), exactly like
- *   Month — it is day-anchored, and its Month pane always shows the agenda
- *   day's month, so the grid's months already cover the agenda day.
  *
  * Pure and client-safe (reuses the `datetime.ts` helpers), so the server
  * (`buildDashboardData`) and the client (`DashboardScreen`) compute the same
@@ -252,7 +249,7 @@ export function requiredMonths(
   date: string,
   weekStartsOn: WeekStart = "monday",
 ): string[] {
-  if (kind === "month" || kind === "dual") {
+  if (kind === "month") {
     return monthGridMonths(month, weekStartsOn);
   }
   if (kind === "week" || kind === "weekv2" || kind === "weekgrid") {

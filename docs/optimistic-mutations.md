@@ -74,7 +74,7 @@ flowchart LR
  U --> Merge
  R --> Merge
  Merge --> Views["viewEvents<br/>(every view memo reads this)"]
- Views --> Grids["Month / Week (H) / Week (D) / Week (Grid) / Day / Agenda / Month &amp; Agenda"]
+ Views --> Grids["Month / Week (H) / Week (D) / Week (Grid) / Day / Agenda"]
 ```
 
 An **op** (`OptimisticOp` in `src/lib/events/optimistic.ts`) is one pending mutation:

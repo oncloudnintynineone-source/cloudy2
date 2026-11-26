@@ -41,6 +41,8 @@ export const AUDIT_ACTIONS = {
   settingsUpdate: "settings.update",
   auditPurge: "audit.purge",
   cachePurge: "cache.purge",
+  metricsSnapshot: "metrics.snapshot",
+  metricsPurge: "metrics.purge",
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
