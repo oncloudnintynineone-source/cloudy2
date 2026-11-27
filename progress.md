@@ -18,8 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.425 (Neon egress: compressed cache payloads · lazy
-  dashboard tabs · organizer index)** is shipped.
+- All work through changelog **1.427 (lazy tab data loading · no not-loaded fade)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -3158,6 +3157,19 @@ size="compact"`), and renames **Duplicate Event** / **Copy to Other Google
   anchor (chevrons/swipe still step one day), and tap-empty-to-create stays **Week (D)-only**
   (held). Remaining findings + the review register: `ui-ux-improvements.md` §1.14. Docs:
   `dashboard-views.md` §1.9, `ui-state.md` §1.5, `user-guide.md` §1.3, `AGENTS.md`.
+- 1.427 **Lazy tab data loading · no not-loaded fade**: a dashboard tab no longer fetches
+  its data on hover/focus/press. `prefetchTab` now only warms the tab's renderer chunk and
+  `router.prefetch`es its route URL; the per-tab `/api/dashboard/load` intent read (and its
+  `prefetchTargetForTab` helper) is gone, so **a tab's data is fetched only when it is
+  tapped** — the active tab's period/adjacent-month warm is unchanged, as is the
+  `scope: "all"` preload rollback. Because lazy tabs are now the normal state, the
+  `not-loaded` tab state and `c2-tab-not-loaded` fade are removed: `tabLoadStates` returns
+  only `fresh`/`loading`, and every tab surface (desktop strip, mobile view menu, compact
+  desktop view trigger, All-views menu) renders solid with only the active read's amber
+  spinner. Tests: `snapshot.test.ts` + `prefetch.test.ts` updated. Docs:
+  `loading-transitions.md` §1.13.2/§1.15.1/§1.16/§1.17, `dashboard-views.md`,
+  `pwa-offline.md` §1.18, `events-cache.md`, `neon-usage.md` §1.2.1,
+  `ui-ux-improvements.md`, `AGENTS.md`.
 
 ## 1.4 Open items & next steps
 

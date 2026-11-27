@@ -1,12 +1,6 @@
 import { addDays, shiftMonth } from "@/lib/events/datetime";
 import type { DashboardViewKind } from "@/lib/dashboardViews/views";
 
-export interface DashboardPrefetchTarget {
-  view: string;
-  month: string;
-  date: string | null;
-}
-
 export interface DashboardPeriodAnchor {
   kind: DashboardViewKind;
   month: string;
@@ -35,16 +29,4 @@ export function prefetchTargetForPeriod(
   }
   const date = addDays(anchor.date, dir);
   return { month: date.slice(0, 7), date };
-}
-
-export function prefetchTargetForTab(
-  tab: { id: string },
-  updates: Record<string, string | null>,
-  current: { month: string; date: string },
-): DashboardPrefetchTarget {
-  const updateMonth = typeof updates.month === "string" ? updates.month : null;
-  const updateDate = typeof updates.date === "string" ? updates.date : null;
-  const date = updateDate ?? (updates.date === null ? null : current.date);
-  const month = updateMonth ?? (date ? date.slice(0, 7) : current.month);
-  return { view: tab.id, month, date };
 }

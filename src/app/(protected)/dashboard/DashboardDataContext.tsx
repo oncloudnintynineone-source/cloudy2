@@ -63,6 +63,10 @@ export interface DashboardDataValue {
    * lands. A no-op when the tab is unknown to the held record.
    */
   applyViewTab: (tab: DashboardViewTab) => void;
+  /**
+   * Warm the **active** tab's target period on hover/focus/press. A non-active
+   * tab's data is never pre-fetched — it loads only when the user taps it.
+   */
   prefetchContext: (target: { view: string; month: string; date: string | null }) => void;
 }
 
@@ -80,9 +84,10 @@ export const DashboardDataProvider = DashboardDataContext.Provider;
 
 /**
  * Per-tab load state, keyed by tab id, for the tab strip's text treatment
- * (loaded = solid, loading = a sweeping amber bar, not-loaded = faded). Split
- * from the data context so the frequent preload ticks only re-render the small
- * tab-strip child that reads it.
+ * (fresh = solid, loading = a sweeping amber spinner). Split from the data
+ * context so a loading tick only re-renders the small tab-strip child that
+ * reads it. There is no not-loaded state: a tab whose data has never been
+ * fetched reads solid.
  */
 const DashboardTabStatusContext = createContext<Record<string, TabLoadState> | null>(null);
 

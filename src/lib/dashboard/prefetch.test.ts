@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { dashboardBootSignature, prefetchTargetForPeriod, prefetchTargetForTab } from "./prefetch";
+import { dashboardBootSignature, prefetchTargetForPeriod } from "./prefetch";
 
 describe("prefetchTargetForPeriod", () => {
   it("steps a month anchor by whole months", () => {
@@ -22,45 +22,6 @@ describe("prefetchTargetForPeriod", () => {
     expect(
       prefetchTargetForPeriod({ kind: "agenda", month: "2026-01", date: "2026-01-01" }, -1),
     ).toEqual({ month: "2025-12", date: "2025-12-31" });
-  });
-});
-
-describe("prefetchTargetForTab", () => {
-  it("uses the tab's planned period when the switch supplies one", () => {
-    expect(
-      prefetchTargetForTab(
-        { id: "v1" },
-        { view: "v1", month: "2026-03", date: null },
-        {
-          month: "2026-01",
-          date: "2026-01-15",
-        },
-      ),
-    ).toEqual({ view: "v1", month: "2026-03", date: null });
-
-    expect(
-      prefetchTargetForTab(
-        { id: "v1" },
-        { view: "v1", month: null, date: "2026-04-02" },
-        {
-          month: "2026-01",
-          date: "2026-01-15",
-        },
-      ),
-    ).toEqual({ view: "v1", month: "2026-04", date: "2026-04-02" });
-  });
-
-  it("falls back to the current period for a same-kind tab switch", () => {
-    expect(
-      prefetchTargetForTab(
-        { id: "v1" },
-        { view: "v1" },
-        {
-          month: "2026-01",
-          date: "2026-01-15",
-        },
-      ),
-    ).toEqual({ view: "v1", month: "2026-01", date: "2026-01-15" });
   });
 });
 

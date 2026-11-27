@@ -77,8 +77,8 @@ fewer of them and fewer bytes in each:
    their next refresh (30-min TTL), so the change needs no backfill.
 2. **Lazy dashboard tabs.** The client no longer warms *every* tab at the anchor on launch
    (that union read shipped all of their calendars × months — the largest single source).
-   Only the active tab's previous/next month is warmed; other tabs load on tap or on intent
-   (hover/focus/press), so a tab the user never opens ships nothing. Rollback:
+   Only the active tab's previous/next month is warmed; other tabs load only on tap
+   (never on hover/focus/press), so a tab the user never opens ships nothing. Rollback:
    `scope: "all"` on `/api/dashboard/preload`.
 3. **Organizer pre-filter.** `google_event_cache_creators` records which users organized
    something in each `(calendar, month)` payload, so My Events' ±6/±12 windows fetch only

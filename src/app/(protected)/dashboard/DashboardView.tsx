@@ -205,7 +205,7 @@ import { ViewTypePicker } from "./ViewTypePicker";
 import { VIEW_TAB_META } from "./viewMeta";
 import { MonthWeekdayStrip } from "./MonthWeekdayStrip";
 import { useDashboardData, useDashboardTabStatus } from "./DashboardDataContext";
-import { prefetchTargetForPeriod, prefetchTargetForTab } from "@/lib/dashboard/prefetch";
+import { prefetchTargetForPeriod } from "@/lib/dashboard/prefetch";
 import { mark } from "@/lib/perf/marks";
 
 // The event wizard is the heaviest client component in the app (its own form,
@@ -871,14 +871,15 @@ const DashboardTab = memo(function DashboardTab({
 }: {
   tab: DashboardViewTab;
   icon: ReactNode;
-  /** Warm the tab's renderer chunk and its target URL on hover/focus/press. */
-  onIntent: (immediate?: boolean) => void;
+  /** Warm the tab's renderer chunk and prefetch its target URL on hover/focus/press. */
+  onIntent: () => void;
 }) {
   const tabStatus = useDashboardTabStatus();
   // fresh = solid; loading = a small amber spinner in the tab's top-right corner
-  // (the active tab's own read, or a background preload); not-loaded = static
-  // text fade. The spinner is absolutely positioned, so the tab is its
-  // positioning context (and clips it to the tab's rounded edge).
+  // (the active tab's own read). There is no not-loaded treatment: a tab's data
+  // is fetched only when it is tapped, so an unloaded tab reads as a normal tab
+  // instead of a greyed-out one. The spinner is absolutely positioned, so the
+  // tab is its positioning context (and clips it to the tab's rounded edge).
   const status = tabStatus[tab.id] ?? "fresh";
   return (
     <Tabs.Tab
@@ -888,28 +889,22 @@ const DashboardTab = memo(function DashboardTab({
       style={{ position: "relative", overflow: "hidden" }}
       onPointerEnter={() => {
         warmViewChunk(tab.kind);
-        onIntent(false);
+        onIntent();
       }}
       onFocus={() => {
         warmViewChunk(tab.kind);
-        onIntent(true);
+        onIntent();
       }}
       onPointerDown={() => {
         warmViewChunk(tab.kind);
-        onIntent(true);
+        onIntent();
       }}
       onTouchStart={() => {
         warmViewChunk(tab.kind);
-        onIntent(true);
+        onIntent();
       }}
     >
-      <Group
-        gap="xs"
-        justify="center"
-        wrap="nowrap"
-        className={status === "not-loaded" ? "c2-tab-not-loaded" : undefined}
-        style={{ minWidth: 0 }}
-      >
+      <Group gap="xs" justify="center" wrap="nowrap" style={{ minWidth: 0 }}>
         {icon}
         <Text
           fw={600}
@@ -934,12 +929,11 @@ const DashboardTab = memo(function DashboardTab({
 /**
  * One row of the mobile view-selector menu (the pill's four-squares dropdown).
  * Mirrors `DashboardTab`'s per-view load state — fresh = solid, loading = a
- * small amber spinner in the row's right slot (alongside the active check),
- * not-loaded = the shared `c2-tab-not-loaded` fade on icon + label — so the
- * mobile menu carries the same §1.13.2 status affordance the desktop strip
- * paints. Extracted (not read inline in `DashboardViewImpl`) so it consumes
- * the tab-status context itself: background-preload ticks re-render only the
- * open menu rows, never the whole view.
+ * small amber spinner in the row's right slot (alongside the active check).
+ * There is no not-loaded fade: a tab's data is fetched only when it is tapped.
+ * Extracted (not read inline in `DashboardViewImpl`) so it consumes the
+ * tab-status context itself: a loading tick re-renders only the open menu rows,
+ * never the whole view.
  */
 function DashboardViewMenuItem({
   tab,
@@ -950,16 +944,15 @@ function DashboardViewMenuItem({
   tab: DashboardViewTab;
   active: boolean;
   onSwitch: (tab: Pick<DashboardViewTab, "id" | "kind">) => void;
-  /** Warm the tab's renderer chunk and its target URL on hover/focus/press. */
-  onIntent: (immediate?: boolean) => void;
+  /** Warm the tab's renderer chunk and prefetch its target URL on hover/focus/press. */
+  onIntent: () => void;
 }) {
   const tabStatus = useDashboardTabStatus();
   const status = tabStatus[tab.id] ?? "fresh";
   const meta = VIEW_TAB_META[tab.kind];
-  const faded = status === "not-loaded" ? "c2-tab-not-loaded" : undefined;
   return (
     <Menu.Item
-      leftSection={<span className={faded}>{meta.icon}</span>}
+      leftSection={meta.icon}
       rightSection={
         status === "loading" || active ? (
           <Group gap={4} wrap="nowrap">
@@ -976,29 +969,22 @@ function DashboardViewMenuItem({
       onClick={() => onSwitch(tab)}
       onPointerEnter={() => {
         warmViewChunk(tab.kind);
-        onIntent(false);
+        onIntent();
       }}
       onFocus={() => {
         warmViewChunk(tab.kind);
-        onIntent(true);
+        onIntent();
       }}
       onPointerDown={() => {
         warmViewChunk(tab.kind);
-        onIntent(true);
+        onIntent();
       }}
       onTouchStart={() => {
         warmViewChunk(tab.kind);
-        onIntent(true);
+        onIntent();
       }}
     >
-      <Text
-        size="sm"
-        fw={active ? 700 : 500}
-        truncate
-        title={tab.name}
-        className={faded}
-        style={{ maxWidth: 160 }}
-      >
+      <Text size="sm" fw={active ? 700 : 500} truncate title={tab.name} style={{ maxWidth: 160 }}>
         {tab.name}
       </Text>
     </Menu.Item>
@@ -1045,7 +1031,6 @@ const CompactViewButton = forwardRef<
   { tabId: string; kind: DashboardViewKind; name: string } & ButtonProps
 >(function CompactViewButton({ tabId, kind, name, className, ...rest }, ref) {
   const status = useDashboardTabStatus()[tabId] ?? "fresh";
-  const faded = status === "not-loaded" ? "c2-tab-not-loaded" : undefined;
   const icon = VIEW_TAB_META[kind].icon;
   return (
     <Button
@@ -1057,7 +1042,7 @@ const CompactViewButton = forwardRef<
       radius={10}
       className={`c2-compact-control${className ? ` ${className}` : ""}`}
       __vars={{ "--button-height": "36px" }}
-      leftSection={<span className={faded}>{icon}</span>}
+      leftSection={icon}
       rightSection={
         <Group gap={4} wrap="nowrap">
           {status === "loading" && (
@@ -1071,7 +1056,7 @@ const CompactViewButton = forwardRef<
       aria-busy={status === "loading" || undefined}
       style={{ flex: "0 1 auto", minWidth: 0, maxWidth: 168 }}
     >
-      <Text size="sm" fw={600} className={faded} truncate style={{ maxWidth: 110 }}>
+      <Text size="sm" fw={600} truncate style={{ maxWidth: 110 }}>
         {name}
       </Text>
     </Button>
@@ -2965,14 +2950,14 @@ function DashboardViewImpl({
     [prefetchContext],
   );
 
-  // Warm a tab's target URL on intent (hover/focus/press), not on every date
-  // change. The old effect prefetched every tab on every month/day step, so a
-  // month scroll issued a burst of RSC renders; the data itself is already warm
-  // from the preload, and this only speeds up the tap's route commit.
-  // `buildParams` strips one-shot params, so a deep-link URL still produces
-  // clean prefetch targets. Best-effort.
+  // Warm a tab's target URL on intent (hover/focus/press); the tab's **data** is
+  // fetched only when it is tapped. The old intent warm also issued a
+  // `/api/dashboard/load` for the tab, which meant merely hovering a view
+  // downloaded a calendar nobody asked to see; that read is gone (the active
+  // tab's period intent warm below is unaffected). `buildParams` strips one-shot
+  // params, so a deep-link URL still produces clean prefetch targets. Best-effort.
   const prefetchTab = useCallback(
-    (tab: Pick<DashboardViewTab, "id" | "kind">, immediate = false) => {
+    (tab: Pick<DashboardViewTab, "id" | "kind">) => {
       if (typeof navigator !== "undefined" && navigator.onLine === false) return;
       const { updates } = planDashboardSwitch(
         tab,
@@ -2980,22 +2965,8 @@ function DashboardViewImpl({
         { activeView, tabs },
       );
       router.prefetch(buildHref(updates));
-      prefetchContextOnIntent(
-        prefetchTargetForTab(tab, updates, { month: shownMonth, date: shownDate }),
-        immediate,
-      );
     },
-    [
-      router,
-      buildHref,
-      view,
-      shownDate,
-      today,
-      activeView,
-      tabs,
-      shownMonth,
-      prefetchContextOnIntent,
-    ],
+    [router, buildHref, view, shownDate, today, activeView, tabs],
   );
 
   const prefetchPeriod = useCallback(
@@ -4184,7 +4155,7 @@ function DashboardViewImpl({
           tab={tab}
           active={tab.id === shownTabId}
           onSwitch={switchTab}
-          onIntent={(immediate) => prefetchTab(tab, immediate)}
+          onIntent={() => prefetchTab(tab)}
         />
       ))}
       {canManageViews && (
@@ -4794,7 +4765,7 @@ function DashboardViewImpl({
                         key={tab.id}
                         tab={tab}
                         icon={meta.icon}
-                        onIntent={(immediate) => prefetchTab(tab, immediate)}
+                        onIntent={() => prefetchTab(tab)}
                       />
                     );
                   })}
@@ -4878,19 +4849,19 @@ function DashboardViewImpl({
                         onClick={() => switchTab(tab)}
                         onPointerEnter={() => {
                           warmViewChunk(tab.kind);
-                          prefetchTab(tab, false);
+                          prefetchTab(tab);
                         }}
                         onFocus={() => {
                           warmViewChunk(tab.kind);
-                          prefetchTab(tab, true);
+                          prefetchTab(tab);
                         }}
                         onPointerDown={() => {
                           warmViewChunk(tab.kind);
-                          prefetchTab(tab, true);
+                          prefetchTab(tab);
                         }}
                         onTouchStart={() => {
                           warmViewChunk(tab.kind);
-                          prefetchTab(tab, true);
+                          prefetchTab(tab);
                         }}
                       >
                         <Text

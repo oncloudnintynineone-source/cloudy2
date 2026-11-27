@@ -512,10 +512,10 @@ dashboard calls `/api/dashboard/preload` (`src/lib/dashboard/data.ts`), which re
 **active tab's** previous and next month (`PRELOAD_MONTHS_BEHIND` / `PRELOAD_MONTHS_AHEAD = 1`)
 with **one** `readCalendarRange` scoped to that tab's calendars, so a month navigation in
 either direction paints from the device cache with no round-trip. Other tabs are **not**
-preloaded: a tab loads on tap through its own `/api/dashboard/load`, or on intent
-(hover/focus/press, one deduped speculative request), so a tab the user never reaches for
-ships no payload (the old union pass over every tab's calendars × months was the largest
-source of Neon egress — [`neon-usage.md`](neon-usage.md)). The `scope: "all"` preload input
+preloaded and are never fetched on intent: a tab's `/api/dashboard/load` runs only when it
+is tapped, so a tab the user never opens ships no payload (the old union pass over every
+tab's calendars × months was the largest source of Neon egress —
+[`neon-usage.md`](neon-usage.md)). The `scope: "all"` preload input
 restores that eager pass as an explicit rollback. This never forces a Google refresh and
 never uses `after()` — it is a foreground read the client awaits in the background — so it
 warms only what the active context has already fetched plus any genuinely cold
@@ -646,9 +646,11 @@ module, but they keep the render's total query count low):
 - `getDashboardViews` reads a user's tabs **before** running the transactional default-tab
   seed (`ensureDefaultDashboardView`), so the seed — an INSERT + `SELECT … FOR UPDATE` +
   COUNT — only runs for an account that has no tabs yet, not on every dashboard read.
-- The dashboard's **intent prefetch** calls the same `/api/dashboard/load` only after a
-  tab/period hover, focus, or press. It is abortable, deduped by request key, and shares
-  this cache exactly like the active read; it never forces a Google refresh.
+- The dashboard's **period intent prefetch** calls the same `/api/dashboard/load` only
+  after the active tab's period chevron/Today hover, focus, or press. It is abortable,
+  deduped by request key, and shares this cache exactly like the active read; it never
+  forces a Google refresh. A non-active tab is never pre-fetched — its data loads only
+  when it is tapped.
 - The pinned-events **selection** (a global, user-independent value) is stored in the
   durable `pinned_event_cache` singleton (`src/lib/events/pinnedCache.ts`), so the header
   ticker's + panel's mount/refocus/panel-close/CRUD refreshes read one row instead of

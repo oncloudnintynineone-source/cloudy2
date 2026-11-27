@@ -108,8 +108,8 @@ doc content here.
   revalidates and swaps in place — mutations call the provider's `revalidate()`, never
   `router.refresh()`. An inline boot script in `page.tsx` starts the first
   `/api/dashboard/load` before hydration (adopted only on a matching user/URL signature
-  within 15 s), and tab/period **intent prefetch** warms the target context on
-  hover/focus/press (one deduped speculative request, adopted by the tap). These reads
+  within 15 s), and the active tab's **period intent prefetch** warms its target
+  period on hover/focus/press (one deduped speculative request, adopted by the step). These reads
   are route handlers, **not server actions**, on purpose:
   Next serializes server actions client-side, so a background warm-up would otherwise
   delay the user's next save/read; the load is also abortable and debounced. After the
@@ -119,12 +119,13 @@ doc content here.
   active tab's calendars, projected by `projectRangeEvents` and reassembled by
   `assembleDashboardSnapshot`) so month navigation (either direction) paints from the
   warm cache with no round-trip and cross-slides with real data
-  (`docs/loading-transitions.md` §1.14.1). **Other tabs are not preloaded**: a tab
-  loads on tap (its own `/api/dashboard/load`, with the tab's spinner + grid skeleton) or
-  on **intent** (hover/focus/press, one deduped speculative request). A tab the user never
-  reaches for ships no payload — the strip-wide pass that warmed every tab at the anchor
-  was the single largest source of Neon egress. `scope: "all"` on the preload route is
-  the explicit rollback. The step also sets an
+  (`docs/loading-transitions.md` §1.14.1). **Other tabs are loaded only on tap**:
+  a tab fetches its own `/api/dashboard/load` when selected (the tab's spinner + grid
+  skeleton); hover/focus/press warms only its renderer chunk and prefetches its route
+  URL, never its data. A tab the user never opens ships no payload — the strip-wide
+  pass that warmed every tab at the anchor was the single largest source of Neon
+  egress. `scope: "all"` on the preload route is the explicit rollback. Lazy tabs
+  render **solid**: `tabStatus` has only fresh/loading, with no not-loaded grey. The step also sets an
   optimistic **period preview** (like the tab preview) **only when the target context is
   already warm** (`previewPeriodIfWarm`), so a warm target paints in the same commit as the
   slide — no skeleton; cold steps show the skeleton regardless. The real cross-slide is
@@ -638,7 +639,8 @@ none` so taps pass through to the clipped tile, and it hides on a side once
   do (`revalidate({ report: false })` for a filter apply).
   **Cold-start readiness** reuses the bar's slot (amber legs, then a brief green
   `.c2-ready-bar`); each dashboard **tab** also shows its own view's load state
-  (fresh solid / loading spinner top-right / not-loaded faded) via `tabStatus`. Design:
+  (fresh solid / loading spinner top-right — lazy tabs are solid, never greyed) via
+  `tabStatus`. Design:
   [docs/loading-transitions.md](docs/loading-transitions.md) §1.13/§1.13.1/§1.13.2.
 - **Admin CRUD and dialog scaffolding is shared, not hand-rolled:** settings tables/forms use
   `useEntityEditor` + `LazyModal`, `submitCrudForm` + `FormFooterActions`, and `ConfirmModal`

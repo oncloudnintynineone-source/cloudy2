@@ -327,17 +327,15 @@ export function dashboardRequestKey(params: { viewId: string; months: string[] }
  * Per-tab load state for the tab strip's treatment. The strip shows each view's
  * own load progress instead of a single shared "busy" flag:
  *
- * - `fresh` — a warm snapshot for the tab's key exists (any age), so a tap
- *   paints it instantly and a stale one revalidates silently in place. Rendered
- *   solid. The active tab is always `fresh` (you're looking at its data) unless
- *   a read for it is in flight.
- * - `loading` — a read for this tab's key is in flight (the active/on-tap read
- *   or the background preload). Rendered with a sweeping amber loading bar.
- * - `not-loaded` — no warm copy and no fetch. Rendered faded, static.
+ * - `fresh` — no read is in flight for this tab. Rendered solid. This includes
+ *   a tab whose data has never been loaded: tabs are fetched only on tap, and an
+ *   unloaded tab deliberately reads as a normal tab (no greyed-out state).
+ * - `loading` — a read for this tab's key is in flight (the active/on-tap read).
+ *   Rendered with a sweeping amber loading bar.
  *
  * Pure and client-safe so the mapping is unit-testable.
  */
-export type TabLoadState = "fresh" | "loading" | "not-loaded";
+export type TabLoadState = "fresh" | "loading";
 
 export function tabLoadStates(params: {
   tabs: readonly Pick<DashboardViewTab, "id" | "kind">[];
@@ -345,12 +343,8 @@ export function tabLoadStates(params: {
   date: string;
   /** The account's week start, so the request keys match the server's. */
   weekStartsOn: WeekStart;
-  /** Keys with a warm snapshot of any age. */
-  warmKeys: ReadonlySet<string>;
   /** Keys with an in-flight read (active/on-tap). */
   loadingKeys: ReadonlySet<string>;
-  /** The tab currently displayed; it is always fresh unless loading. */
-  activeTabId: string | null;
 }): Record<string, TabLoadState> {
   const states: Record<string, TabLoadState> = {};
   for (const tab of params.tabs) {
@@ -358,15 +352,7 @@ export function tabLoadStates(params: {
       viewId: tab.id,
       months: requiredMonths(tab.kind, params.month, params.date, params.weekStartsOn),
     });
-    let state: TabLoadState;
-    if (params.loadingKeys.has(key)) {
-      state = "loading";
-    } else if (tab.id === params.activeTabId || params.warmKeys.has(key)) {
-      state = "fresh";
-    } else {
-      state = "not-loaded";
-    }
-    states[tab.id] = state;
+    states[tab.id] = params.loadingKeys.has(key) ? "loading" : "fresh";
   }
   return states;
 }

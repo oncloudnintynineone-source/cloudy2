@@ -1184,22 +1184,11 @@ html.c2-low-end::view-transition-group(*) {
 
 /* Per-view tab load state (docs/loading-transitions.md §1.13.2): each dashboard
    tab's icon + label reflects its own view's load progress, decoupled from the
-   active view's skeleton. Fresh = solid (no class); not-loaded = slightly
-   faded; loading = a small amber spinner in the tab's top-right corner. The tab
+   active view's skeleton. Fresh = solid; loading = a small amber spinner in the
+   tab's top-right corner. A tab whose data has never been fetched is fresh too —
+   tab data loads only on tap, so there is no not-loaded/greyed state. The tab
    itself must be `position: relative; overflow: hidden` so the spinner clips to
    it. */
-.c2-tab-not-loaded {
-  opacity: 0.5;
-  /* Fade between fresh and not-loaded instead of snapping (the desktop tab
-     strip and the mobile view-selector menu rows share this class). */
-  transition: opacity var(--c2-dur-micro) var(--c2-ease-out);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .c2-tab-not-loaded {
-    transition: none;
-  }
-}
 
 .c2-tab-spinner {
   position: absolute;

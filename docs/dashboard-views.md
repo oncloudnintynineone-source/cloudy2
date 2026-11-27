@@ -142,7 +142,7 @@ string maps to the first tab of that kind.
   filters…** button closes the modal, switches to that view and opens its filter
   dialog (the dashboard's one per-view filter UI — see §1.2). Filters resolve
   server-side per tab, so the dialog opens once the target tab is the active view
-  (a preloaded tab resolves immediately). The old **pin/unpin** affordance
+  (the tab's own read resolves it). The old **pin/unpin** affordance
   and its star UI are gone — ordering is fully user-controlled. Tabs themselves
   are **content-sized** — each shrink-wraps its label (so the active underline
   hugs the text), they never stretch to fill the row, and a long set overflows
@@ -163,7 +163,7 @@ string maps to the first tab of that kind.
   view's kind icon would clash with the adjacent date-picker calendar).
    Tapping it opens a `Menu` whose dropdown is exactly the desktop All-views
    list (every tab, kind icon + name, active row ticked — and each row mirrors
-   the desktop tab's per-view load state: not-loaded faded, loading shows a
+   the desktop tab's per-view load state: fresh solid, loading shows a
    small amber spinner beside the tick; `DashboardViewMenuItem`,
    [loading-transitions.md](loading-transitions.md) §1.13.2) followed by a
    divider and **Add view** / **Manage views** entries (the latter two only for
@@ -185,7 +185,7 @@ string maps to the first tab of that kind.
      40px tall, 12px radius, not a pill): the active view's kind icon + name +
      chevron at the left (opening the same `DashboardViewMenuItem` dropdown — tab
      list, then Add-view / Manage-views; it carries the active tab's load state,
-     the amber spinner and the shared `c2-tab-not-loaded` fade, so §1.13.2 stays
+     the amber spinner, so §1.13.2 stays
      visible without the strip; a passive `Text` name instead when the account has
      one tab and cannot manage views), then a divider, the period label with the
      **grouped `[‹][›]` pair immediately after it** (never split around the label),
@@ -245,7 +245,7 @@ string maps to the first tab of that kind.
   `slideViewTransition` (`src/lib/ui/viewTransition.ts`) in the step handlers
   and is documented in [`loading-transitions.md`](loading-transitions.md)
   §1.14.1. The preload warms the previous and next month of the **active tab** only
-  (other tabs load on tap or on intent), and the step publishes an
+  (other tabs load only on tap), and the step publishes an
   optimistic period preview, so a warm target paints the **real** next period in
   the same commit — no skeleton flash. Only genuinely cold targets slide the
   skeleton in (the skeleton now matches the grid's header/row geometry).
@@ -741,9 +741,9 @@ directly ([`events-cache.md`](events-cache.md)):
 - Tabs are **not** preloaded as a strip. After the active context is fresh,
   `DashboardScreen` calls `/api/dashboard/preload` once per active tab + anchor,
   which reads only that tab's previous/next month in one pass (see
-  [`pwa-offline.md`](pwa-offline.md) §1.18). A tab fetches on tap (its own
-  `/api/dashboard/load`) or on intent (hover/focus/press), so a tab the user
-  never reaches for ships no payload — the old all-tab union read was the
+  [`pwa-offline.md`](pwa-offline.md) §1.18). A tab's `/api/dashboard/load` runs only
+  when it is tapped — never on hover/focus/press — so a tab the user
+  never opens ships no payload. The old all-tab union read was the
   largest source of Neon egress ([`neon-usage.md`](neon-usage.md)).
 - **Tab switches are optimistic, decoupled from the router.** A tap sets a
   `previewView` in `DashboardDataContext`; `DashboardScreen` resolves the

@@ -803,30 +803,26 @@ leave the amber bar pulsing forever.
 ## 1.13.2 Per-view tab load indicator
 
 The dashboard's tab strip used to read as static while a tapped view's grid
-waited behind the skeleton, and every background tab was indistinguishable from
-a loaded one. Each tab now shows **its own view's** load state on its icon +
-label, decoupled from the active view's skeleton (`DashboardView.tsx`, styled by
-`.c2-tab-spinner` / `.c2-tab-not-loaded` in `globals.css`):
+waited behind the skeleton. Each tab now shows **its own view's** load state on
+its icon + label, decoupled from the active view's skeleton (`DashboardView.tsx`,
+styled by `.c2-tab-spinner` in `globals.css`):
 
-- **fresh** — a warm snapshot for the tab's key exists (any age), so a tap paints
-  it instantly (a stale one revalidates silently in place). Solid, as before. The
-  active tab is always fresh (you're looking at its data) unless a read for it is
-  in flight.
-- **loading** — a read for that key is in flight (the active read, an on-tap
-  priority read, or the background preload). A small amber spinner sits in the
-  tab's top-right corner. Loading text stays solid — the spinner is the signal.
-- **not-loaded** — neither. Slightly faded, static.
+- **fresh** — no read is in flight for this tab. Rendered solid. This includes a
+  tab whose data has never been fetched: tabs load only on tap, and a lazy tab
+  deliberately reads as a normal tab (there is no greyed-out “not loaded” state).
+- **loading** — a read for that key is in flight (the active/on-tap read). A small
+  amber spinner sits in the tab's top-right corner. Loading text stays solid — the
+  spinner is the signal.
 
-**State model.** `DashboardScreen` computes `tabStatus` from the warm-snapshot
-map (`warmRecords`) and two in-flight flags, keyed by each tab's request key
-(`dashboardRequestKey` + `requiredMonths`); the pure, unit-tested `tabLoadStates`
-(`snapshot.ts`) maps keys → states. It rides the existing `DashboardDataContext`
-(no new props) and the tab strip renders the spinner on the tab itself. Loading
-tabs carry `aria-busy`. Below `lg` the strip row is dropped, but the mobile
-view-selector menu mirrors the same states per row (`DashboardViewMenuItem` —
-fade on icon + label, amber spinner in the row's right slot beside the active
-check, `aria-busy`), consuming the status context itself so preload ticks
-re-render only the open menu rows, not the whole view.
+**State model.** `DashboardScreen` computes `tabStatus` from the active read's
+in-flight flag and each tab's request key (`dashboardRequestKey` + `requiredMonths`);
+the pure, unit-tested `tabLoadStates` (`snapshot.ts`) maps keys → `fresh`/`loading`.
+It rides the `DashboardTabStatusContext` (no new props) and the tab strip renders the
+spinner on the tab itself. Loading tabs carry `aria-busy`. Below `lg` the strip row is
+dropped, but the mobile view-selector menu mirrors the same states per row
+(`DashboardViewMenuItem` — the amber spinner in the row's right slot beside the active
+check, `aria-busy`), consuming the status context itself so a loading tick re-renders
+only the open menu rows, not the whole view.
 
 **The mobile name line carries the active view's spinner.** The menu is only
 open on demand, so a _passive_ load signal is still needed: the thin pinned
@@ -838,28 +834,27 @@ snapshot with the skeleton suppressed (`cached`), and the authoritative read —
 seconds long when the Google cache is cold, e.g. right after Settings → Purge
 Calendar Cache — lands as a silent pop-in of new chips.
 
-**Flicker control.** Both flags pass through the shared `useLoadingIndicator`
-(`src/lib/loading/loadingIndicator.ts`, the activity bar's show-delay/min-hold
-timer machine):
+**Flicker control.** The active read flag passes through the shared
+`useLoadingIndicator` (`src/lib/loading/loadingIndicator.ts`, the activity bar's
+show-delay/min-hold timer machine):
 
 - **Active tab** — the active read (`busy`) shows the spinner immediately
   (`delayMs: 0`) and holds it a minimum of **1 s**, so a fast read can't flash.
-  There is no strip-wide background pass any more: a cold tab's own tap-driven
-  read lights its spinner the same way (the tab strip shows `not-loaded` until
-  then), and an intent warm that lands first means no spinner at all.
+  There is no strip-wide background pass and no tab data prefetch: a cold tab's
+  own tap-driven read lights its spinner the same way.
 
 Freshness is deliberately **not** surfaced as a badge: an earlier iteration put a
 small amber dot on warm-but-old / background-preloading tabs, but a corner dot
 reads as an unread notification and confused users. Warm copies of any age render
 solid; a tap revalidates them silently.
 
-**Loading strategy (lazy tabs).** Tabs other than the active one are no longer
-preloaded: a not-yet-loaded tab renders the static `not-loaded` fade
-(`c2-tab-not-loaded`) and fetches when the user reaches for it. Hover/focus/press
-starts the intent warm (`prefetchContext`, one deduped speculative request), so a
-desktop tap usually adopts an in-flight or landed record and paints solid; a tap
-with no prior intent fires the normal priority read for that tab, whose spinner
-shows immediately and holds for 1 s. This replaced the strip-wide
+**Loading strategy (lazy tabs).** Tabs other than the active one are not
+preloaded and are **never fetched on intent**. A tab's own `/api/dashboard/load`
+runs only when it is tapped, so a tab the user never opens ships no payload. A tap
+with no warm record fires that priority read, whose spinner shows immediately and
+holds for 1 s; a tap on a warm record paints it at once and revalidates silently
+if stale. Hover/focus/press still warms the renderer chunk and `router.prefetch`es
+the tab's URL, but never its data. This replaced the strip-wide
 `/api/dashboard/preload` union pass, which shipped every tab's calendars × months
 on every launch (the largest Neon egress source — [`neon-usage.md`](neon-usage.md));
 `scope: "all"` on the preload route restores it. The active tab's own
@@ -879,9 +874,8 @@ a safety net for a transition that never resolves.
 the global activity bar (§1.13), the tab itself carries the signal:
 `DashboardScreen` shows the active tab's spinner whenever a read for its context
 is in flight (`busy`) — a cold navigation, a post-mutation refresh, or a filter
-apply (`revalidate({ report: false })`, treated as a view load) — and shows the
-background tabs' spinners while the preload pass runs. A filter apply therefore
-has two cues: the dialog's Apply button spins through the server write
+apply (`revalidate({ report: false })`, treated as a view load). A filter apply
+therefore has two cues: the dialog's Apply button spins through the server write
 (`FilterModal`), then the active tab's spinner turns through the follow-up read.
 
 ## 1.14 Route-change page transition
@@ -1130,8 +1124,8 @@ wide-window build on the critical path; the always-fresh guarantee survives the
 warm payload because `useLiveRouteRefresh` forces one live re-read when the
 painted payload is older than `LIVE_ROUTE_MAX_AGE_MS` (paint-then-swap,
 `src/lib/loading/liveRefreshRules.ts`). The tab **data** warm is now the active
-tab's previous/next month only (§1.11/§1.13.2); other tabs load on tap or on
-intent, which is what keeps a launch from shipping every tab's calendars ×
+tab's previous/next month only (§1.11/§1.13.2); other tabs load only on tap,
+which is what keeps a launch from shipping every tab's calendars ×
 months (docs/neon-usage.md). The Double Booking
 scan itself is not re-fetched by the pass — its month cache is already warmed by
 the shell's nav-badge read (see the row above); the pass only adds its route
@@ -1260,7 +1254,7 @@ re-render the whole dashboard view.
 | `src/lib/async.ts`                                               | `mapWithConcurrency` + `withTimeout` (bounds the cold-start legs and the first dashboard read) — §1.13.1                                                                                                                                                                                                                      |
 | `src/lib/ui/coldStart.ts`                                        | Pure readiness reducer (`coldStartReducer`), route allowlist + `coldStartRouteRequiresContent`, timing constants (MIN/MAX/dwell/check) — §1.13.1                                                                                                                                                                              |
 | `src/components/ColdStartReady.tsx`                              | `ColdStartReadyProvider` + `useColdStartReady`/`useColdStartContent` + `ColdStartReadyBar` (amber → green once-per-launch) — §1.13.1                                                                                                                                                                                          |
-| `src/lib/dashboard/snapshot.ts`                                  | Pure snapshot/request-key + IndexedDB-cache policy helpers incl. `tabLoadStates` (per-tab fresh/loading/not-loaded) — §1.13.2                                                                                                                                                                                                 |
+| `src/lib/dashboard/snapshot.ts`                                  | Pure snapshot/request-key + IndexedDB-cache policy helpers incl. `tabLoadStates` (per-tab fresh/loading) — §1.13.2                                                                                                                                                                                                 |
 | `src/lib/dashboard/navigation.ts`                                | Dashboard navigation decision: URL + held record → displayed tab/period, coverage/`isNavigating`, warm-record choice, fetch classification (`resolveDashboardNavigation`, `planDashboardSwitch`, `classifyDashboardFetch`, `gridMonthsCovered`); composes the snapshot + view vocabulary — §1.10                              |
 | `src/lib/dashboardViews/views.ts`                                | Pure view vocabulary + `resolveActiveTab` (tab resolution) — §1.10                                                                                                                                                                                                                                                            |
 | `src/components/EventHistoryModal.tsx`                           | Preview-first paint + background revalidate (reference implementation) — §1.18                                                                                                                                                                                                                                                |
@@ -1339,10 +1333,8 @@ tier (§1.15). None change layout logic — removing any of them is always safe.
 - **Attendance toggle icon swap** (`c2-icon-swap`): the Parade pill's toggle
   icon is keyed by the mode, so it remounts and replays a fade + scale-in while
   the circle's tint cross-fades (above).
-- **Per-view status fade** (`.c2-tab-not-loaded` + `.c2-fade-in`): the desktop
-  tab strip and the mobile view-selector menu rows fade between fresh and
-  not-loaded, and the amber load spinner fades in, instead of snapping
-  (§1.13.2).
+- **Load-spinner fade** (`.c2-fade-in`): the amber load spinner fades in instead
+  of snapping (§1.13.2).
 - **Rail-edge dissolve** (`.c2-rail-edge`): the bottom-nav rail's gradient fade
   - chevron dissolves when the rail reaches that extreme instead of snapping
     out of the layout (still `pointer-events: none`).

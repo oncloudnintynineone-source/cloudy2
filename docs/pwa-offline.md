@@ -643,7 +643,7 @@ sequenceDiagram
     (`selectSnapshotsToEvict`), which bounds disk, the cold-start hydration parse
     and the IndexedDB quota (write failures are swallowed, so an unbounded store
     would silently stop caching); 30 covers the warmed contexts for a typical
-    account (the active tab's previous/current/next month, intent-warmed tabs,
+    account (the active tab's previous/current/next month,
     and the tab-switch adjacent-only set, with LRU headroom). Switching back to a previously loaded context
     paints it instantly from the map and revalidates only when the cached record is
     older than `WARM_SNAPSHOT_FRESH_MS` (60s, aligned with the server events-cache
@@ -665,11 +665,10 @@ sequenceDiagram
   **Every other tab is deliberately left cold.** The earlier design warmed *every
   tab at the anchor* in one union read, which shipped all of their calendars ×
   months on every launch — the single largest source of Neon egress
-  (docs/neon-usage.md). A tab now loads when the user reaches for it: its own
-  `/api/dashboard/load` on tap (the tab's corner spinner + grid skeleton, via
-  `tabStatus`'s `not-loaded` state) or the intent warm on hover/focus/press
-  (§ below), whose one deduped speculative request usually lands before the tap.
-  `scope: "all"` on the preload route restores the eager strip pass as an
+  (docs/neon-usage.md). A tab now loads only when it is tapped: its own
+  `/api/dashboard/load` runs on tap (the tab's spinner + grid skeleton). Hover/focus/
+  press warms only the renderer chunk and `router.prefetch`es its URL — never its data.
+  A lazy tab renders solid: there is no `not-loaded` fade. `scope: "all"` on the preload route restores the eager strip pass as an
   explicit rollback; the read never forces a Google refresh — it warms what the
   active context already fetched, so only genuinely cold `(calendar, month)`
   combinations are fetched. A mutation / force refresh bumps a generation ref,
@@ -683,15 +682,15 @@ sequenceDiagram
   (`buildDashboardPreload` then does just that tab's adjacent-anchor read) and
   writes those records into the same warm map/IndexedDB. It no-ops when those
   keys are already warm.
-- **Intent prefetch.** Once a record is held, a tab hover/focus/press or a
-  period-chevron hover warms the target context through the existing
+- **Period intent prefetch.** Once a record is held, a period-chevron (or Today)
+  hover/focus/press warms the **active tab's** target period through the existing
   `/api/dashboard/load` (120 ms hover delay; immediate on press/focus). A
   single speculative request runs at a time, is deduped by request key, never
   replaces the displayed record, and writes only to the warm map + IndexedDB.
-  A tap adopts the in-flight promise instead of issuing a duplicate; revalidate
-  / force refresh bump the prefetch generation and abort it. This is what makes a
-  tab tap usually paint without a skeleton, and it replaces the old idle all-tab
-  preload: only tabs the user actually reaches for are ever fetched.
+  A step adopts the in-flight promise instead of issuing a duplicate; revalidate
+  / force refresh bump the prefetch generation and abort it. A **tab** hover does
+  not start any data read — a tab's data is fetched only by its tap's own
+  priority read, so a tab the user never opens is never fetched.
 - **In-place, never interrupting.** A revalidation of the _current_ context
   never shows the grid skeleton (`isNavigating` is false). A context-changing
   fetch shows the skeleton only when the target isn't served from the warm cache;

@@ -233,8 +233,8 @@ export function DashboardScreen({
   }, [record?.data.activeView.kind]);
   // Warm-up bookkeeping: a generation counter bumped by any mutation/force
   // refresh so an in-flight adjacent-period warm can't repopulate the warm cache
-  // after it was cleared. Tabs themselves are warmed on intent or on tap
-  // (`prefetchContext`), never speculatively for the whole strip.
+  // after it was cleared. A tab never fetches its data speculatively; it loads
+  // only on tap, and the active tab's periods warm through the adjacent preload.
   const preloadGenerationRef = useRef(0);
 
   // Optimistic active tab: set on tap (via the data context) so the displayed
@@ -555,9 +555,10 @@ export function DashboardScreen({
   // Tabs are deliberately NOT preloaded as a strip (docs/pwa-offline.md §1.18):
   // warming every tab at the anchor shipped the union of all their calendars ×
   // months on every launch, which is exactly the Neon egress this app has to
-  // stay under (docs/neon-usage.md). A tab now loads when the user reaches for
-  // it — `prefetchContext` on hover/focus/press, or the tap's own read — and the
-  // per-tab `tabStatus` already renders the not-loaded/loading states.
+  // stay under (docs/neon-usage.md). A tab now loads only when it is tapped (its
+  // own `/api/dashboard/load`); hovering it warms only its renderer chunk and
+  // route URL, never its data. Lazy tabs read solid — `tabStatus` has no
+  // not-loaded state, only the active read's spinner.
 
   // Hydrate the warm cache and paint a stored context as soon as it is read: the
   // cached context for the anchor the load names (URL params, then the device
@@ -731,10 +732,10 @@ export function DashboardScreen({
   // Warm the active tab's neighbouring periods after the context is fresh and
   // idle, so a month step paints from the device cache instead of sliding a
   // skeleton in (docs/loading-transitions.md §1.14.1). Only the active tab is
-  // warmed — every other tab loads on demand or on intent, so the strip never
-  // ships the union of every tab's calendars × months (docs/neon-usage.md).
-  // The full pass is deliberately gone; `scope: "all"` on the preload route is
-  // the explicit rollback.
+  // warmed — every other tab loads only on tap, so the strip never ships the
+  // union of every tab's calendars × months (docs/neon-usage.md). The full pass
+  // is deliberately gone; `scope: "all"` on the preload route is the explicit
+  // rollback.
   const adjacentWarmRef = useRef<string | null>(null);
   // The displayed (URL-first) tab/period — never the held record's, which lags a
   // tab switch to a warm tab (the record isn't swapped in that case).
@@ -895,41 +896,32 @@ export function DashboardScreen({
   );
 
   // Per-tab loading status (docs/loading-transitions.md §1.13.2): fresh (solid)
-  // / loading (a sweeping amber bar) / not-loaded (static fade). Only the active
-  // tab's own read lights a bar — a tab the user has not reached for stays
-  // `not-loaded` until its intent warm or its tap fetches it, which is the
-  // lazy-tab default (no strip-wide background pass).
+  // / loading (a sweeping amber bar). Only the active tab's own read lights a
+  // bar; a tab the user has not tapped is never fetched and reads solid — there
+  // is deliberately no "not-loaded" grey (lazy tabs are the normal state).
   const activeLoading = useLoadingIndicator(busy, { delayMs: 0, minHoldMs: 1000 });
 
   // Per-tab status for the tab strip (docs/loading-transitions.md §1.13.2).
-  // The active tab is always treated as fresh unless a read for it is in flight.
+  // The active tab is the only one that can be loading; every other tab is
+  // `fresh` (solid) whether or not its data has ever been fetched.
   const tabStatus = useMemo(() => {
     if (!record) return {};
     const tabs = record.data.tabs;
-    const activeId = navigation.activeView?.id ?? null;
-    const keyForTab = (tab: (typeof tabs)[number]) =>
-      dashboardRequestKey({
-        viewId: tab.id,
-        months: requiredMonths(
-          tab.kind,
-          record.context.month,
-          record.context.date,
-          record.data.weekStartsOn,
-        ),
-      });
-
-    // Warm keys from the map (the current record's key included): a warm copy of
-    // any age paints the tab solid; a stale one revalidates silently on tap.
-    const warmKeys = new Set<string>(warmRecords.keys());
-    warmKeys.add(record.context.requestKey);
-
-    // A read for the active tab's context (nav / filter / revalidate) lights its
-    // bar. Keyed on the held record's anchor (the helper's basis), so a
-    // cross-month read still flags the active tab.
+    const activeId = navigation.activeView?.id ?? record.data.activeView.id;
     const loadingKeys = new Set<string>();
     if (activeLoading) {
       const activeTab = tabs.find((tab) => tab.id === activeId) ?? record.data.activeView;
-      loadingKeys.add(keyForTab(activeTab));
+      loadingKeys.add(
+        dashboardRequestKey({
+          viewId: activeTab.id,
+          months: requiredMonths(
+            activeTab.kind,
+            record.context.month,
+            record.context.date,
+            record.data.weekStartsOn,
+          ),
+        }),
+      );
     }
 
     return tabLoadStates({
@@ -937,11 +929,9 @@ export function DashboardScreen({
       month: record.context.month,
       date: record.context.date,
       weekStartsOn: record.data.weekStartsOn,
-      warmKeys,
       loadingKeys,
-      activeTabId: activeId,
     });
-  }, [record, warmRecords, activeLoading, navigation]);
+  }, [record, activeLoading, navigation.activeView?.id]);
 
   const context = useMemo(
     () => ({
