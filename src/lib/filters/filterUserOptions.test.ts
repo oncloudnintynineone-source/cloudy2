@@ -73,4 +73,44 @@ describe("filterUserOptionIds", () => {
     });
     expect(ids).toEqual(["a1"]);
   });
+
+  it("keeps an applied pick that the row set no longer covers", () => {
+    const ids = filterUserOptionIds({
+      users: USERS,
+      rowUserIds: ["a1", "a2"],
+      currentUserId: "na",
+      keepUserIds: ["b1"],
+    });
+    expect(ids).toEqual(["a1", "a2", "b1", "na"]);
+  });
+
+  it("keeps an applied inactive pick (it would otherwise be unremovable)", () => {
+    const ids = filterUserOptionIds({
+      users: USERS,
+      rowUserIds: ["a1"],
+      currentUserId: "a1",
+      keepUserIds: ["off"],
+    });
+    expect(ids).toEqual(["a1", "off"]);
+  });
+
+  it("never duplicates an applied pick already in the row set", () => {
+    const ids = filterUserOptionIds({
+      users: USERS,
+      rowUserIds: ["a1", "a2"],
+      currentUserId: "admin",
+      keepUserIds: ["a2", "a1"],
+    });
+    expect(ids).toEqual(["a1", "a2"]);
+  });
+
+  it("drops ids that are not in the roster at all", () => {
+    const ids = filterUserOptionIds({
+      users: USERS,
+      rowUserIds: ["a1", "ghost"],
+      currentUserId: "admin",
+      keepUserIds: ["gone"],
+    });
+    expect(ids).toEqual(["a1"]);
+  });
 });

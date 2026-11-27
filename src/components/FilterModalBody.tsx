@@ -63,7 +63,12 @@ function allOptionValues(group: FilterGroup): string[] {
 }
 
 function toApplyGroup(group: FilterGroup): FilterApplyGroup {
-  return { label: group.label, optionCount: group.options.length, variant: group.variant };
+  return {
+    label: group.label,
+    optionCount: group.options.length,
+    variant: group.variant,
+    optionValues: group.options.map((option) => option.value),
+  };
 }
 
 /**

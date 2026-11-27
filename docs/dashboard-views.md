@@ -586,7 +586,9 @@ audit-log/user-table callers keep all groups expanded). All groups share **one
 header recipe** (`FilterGroupHeader` in `FilterModalBody.tsx`): label + a state
 chip (pure `groupFilterState`: `All` / `None` / `"N of M"`, amber while a filter
 is active — grid groups treat "all selected" as no filter, search groups treat
-empty _and_ all-selected as no filter) + Show/Hide + the group-level
+empty _and_ all-selected as no filter, where "all-selected" is a **set**
+comparison against the group's option ids, so a stored id that is no longer an
+option is never read as "everything") + Show/Hide + the group-level
 **All / None** pair (search groups label the second action **Clear**,
 because empty means "no filter"). Grouped lists keep their per-group counts, but
 the All/None action spans the whole group — there is no separate All/None per
@@ -622,6 +624,15 @@ user. Filter scoping is **per tab**: each tab stores its own Calendars/Users/Eve
 Types/Event-name selection, and clearing one tab's filters never touches the
 others.
 
+The Users group's **option list is the whole active roster** (plus the acting
+user and any pick already applied), deliberately **independent of the Calendars
+filter**. An option list that followed the calendar selection made the same
+`users` filter mean different things as the calendars changed: people of a
+deselected department vanished from the picker, an applied pick could lose its
+chip while still filtering, and "every listed user selected" could be normalised
+to *no filter* and silently turn the filter off. Keeping the universe fixed means
+the only way to reach "all users" is to actually select every active user.
+
 An optional **Event name** text field (rendered above the groups; the dashboard
 is its only caller) is a case-insensitive **substring** match over the event's
 typed name (`payload.rawTitle`) and its rendered title (`title`, after the view's
@@ -641,6 +652,11 @@ Filter storage & resolution:
   An event matches a selected user when it is tagged on them **or** on a
   department they are an active member of (`eventMatchesUserFilter`, with the
   dept→active-member map from the roster), mirroring the clash occupancy model.
+- The **Users option list** (`filterUsers` in the snapshot) is the active roster +
+  the acting user + the tab's applied picks (`filterUserOptionIds` with
+  `keepUserIds`, `src/lib/filters/filterUserOptions.ts`). It is not scoped by the
+  Calendars filter, and an applied pick therefore always has a chip and a badge —
+  a stored filter can never be invisible or unremovable in the dialog.
 - A tab's filter state lives **on the tab row** (`user_dashboard_views.cal_filter`
   / `users_filter` / `types_filter`, each JSON array or SQL `NULL`; plus
   `text_filter`, a nullable text substring). `NULL`
@@ -657,7 +673,8 @@ Filter storage & resolution:
   **Reset filters** button (then Apply) restores the role defaults (`NULL`); a group or
   section **None** stores the explicit empty array (an empty grid), which is the
   only path that resolves to "no events" (search groups instead treat both empty
-  and fully selected as "no filter"). Applying is covered end-to-end: the
+  and fully selected as "no filter" — fully selected meaning the selection is
+  exactly the group's listed options, by set). Applying is covered end-to-end: the
   dialog's **Apply** button spins through the server write, then the active tab's
   loading bar sweeps through the follow-up read
   ([`loading-transitions.md`](loading-transitions.md) §1.13.2).

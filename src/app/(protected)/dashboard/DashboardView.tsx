@@ -467,6 +467,14 @@ export interface DashboardViewProps extends DashboardSnapshot {
    * target is still absent does the "not in your current view" advisory appear.
    */
   deepLinkSettled: boolean;
+  /**
+   * The tab whose data this render actually carries (`DashboardSnapshot.activeView`
+   * before `DashboardScreen` overrides it with the URL-first tab). During an
+   * uncovered tab switch the two differ: the chrome already names the target tab
+   * while events/filters are still the previous tab's. The filter dialog must not
+   * open then — it would edit the new tab with the old tab's selections.
+   */
+  dataViewId: string;
 }
 
 interface FormState {
@@ -1121,6 +1129,7 @@ function DashboardViewImpl({
   initialDetailEventId,
   deepLinkEvent,
   deepLinkSettled,
+  dataViewId,
   scheduleUsers,
   allActiveUsers,
   inviteeDepartments,
@@ -1630,11 +1639,17 @@ function DashboardViewImpl({
   }
   const [filterEverOpened, setFilterEverOpened] = useState(false);
   const [filterOpened, { open: openFilterBase, close: closeFilter }] = useDisclosure(false);
+  // The data on screen must belong to the tab the chrome names. A tab switch
+  // whose data hasn't landed yet still renders the previous tab's
+  // events/filters, so opening the dialog then would show (and then persist) the
+  // wrong tab's selections — hold the dialog until the read has caught up.
+  const filterDataReady = dataViewId === activeView.id;
   const openFilter = useCallback(() => {
+    if (!filterDataReady) return;
     setFilterEverOpened(true);
     preloadFilterModal();
     openFilterBase();
-  }, [openFilterBase]);
+  }, [filterDataReady, openFilterBase]);
   // Where the filter trigger sat on screen; the dialog grows out of / shrinks
   // back into it (see src/lib/motion/origin.ts).
   const [filterOriginRect, setFilterOriginRect] = useState<Rect | null>(null);
@@ -3512,13 +3527,19 @@ function DashboardViewImpl({
   }
 
   useEffect(() => {
-    if (pendingFilterViewId !== null && activeView.id === pendingFilterViewId) {
+    // Wait for the target tab's own data — not just its definition — so the
+    // dialog opens on the filters it will actually edit (see `filterDataReady`).
+    if (
+      pendingFilterViewId !== null &&
+      activeView.id === pendingFilterViewId &&
+      filterDataReady
+    ) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setPendingFilterViewId(null);
       setFilterOriginRect(null);
       openFilter();
     }
-  }, [pendingFilterViewId, activeView.id, openFilter]);
+  }, [pendingFilterViewId, activeView.id, filterDataReady, openFilter]);
 
   // ---- On-demand view (tab) CRUD ------------------------------------------
   // The strip's "+" opens the quick "Add view" dialog below. The Manage-views

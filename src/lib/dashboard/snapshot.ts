@@ -127,7 +127,11 @@ export interface DashboardSnapshot {
     departmentParentId: string | null;
     displayName: string;
   }[];
-  /** Filter dialog user options: users of the selected departments + self. */
+  /**
+   * Filter dialog user options: the active roster + self + the tab's applied
+   * picks (deliberately independent of the Calendars filter, so narrowing the
+   * calendars can never change what the Users filter means).
+   */
   filterUsers: {
     id: string;
     name: string;

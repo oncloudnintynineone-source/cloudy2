@@ -1111,6 +1111,7 @@ export function DashboardScreen({
         <DashboardView
           {...shown.data}
           activeView={navigation.activeView ?? shown.data.activeView}
+          dataViewId={shown.data.activeView.id}
           month={navigation.month}
           date={navigation.date}
           initialZoom={initialZoom}

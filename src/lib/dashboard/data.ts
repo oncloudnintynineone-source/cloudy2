@@ -147,8 +147,11 @@ interface DashboardConfig {
   resolveSelectedFilters: (tab: DashboardViewTab) => ResolvedTabFilters;
   /** The resource rows a tab's selected calendars produce. */
   scheduleUsersFor: (selectedCalendars: string[]) => DashboardSnapshot["scheduleUsers"];
-  /** The Users-filter options for a tab's selected calendars (+ self). */
-  filterUsersFor: (selectedCalendars: string[]) => DashboardSnapshot["filterUsers"];
+  /**
+   * The Users-filter options: the active roster (independent of the tab's
+   * Calendars filter) + self + the tab's currently applied picks.
+   */
+  filterUsersFor: (selectedUserIds: string[]) => DashboardSnapshot["filterUsers"];
   /** The title recipe assigned to a tab's kind (falls back to the master). */
   viewRecipeFor: (kind: DashboardViewKind) => DashboardSnapshot["viewEventTitleRecipe"];
   /** The display-title options for a tab's kind. */
@@ -308,14 +311,18 @@ async function resolveDashboardConfig(session: Session): Promise<DashboardConfig
     ),
   }));
 
-  const filterUsersFor = (selectedCalendars: string[]) => {
-    const rowUserIds = activeUsers
-      .filter((user) => user.department && selectedCalendars.includes(user.department.id))
-      .map((user) => user.id);
+  // Filter-dialog user options. Deliberately the whole active roster, not just
+  // the selected calendars' users: an option list that shrinks with the
+  // Calendars filter silently changes what the Users filter means (a pick drops
+  // out of the list, or "all listed users selected" is normalised to no filter),
+  // which read as the filter turning itself off. The applied picks are kept so a
+  // stored pick can never become an invisible, unremovable option.
+  const filterUsersFor = (selectedUserIds: string[]) => {
     const filterUserIds = filterUserOptionIds({
       users: allUsers,
-      rowUserIds,
+      rowUserIds: activeUsers.map((user) => user.id),
       currentUserId: session.user.id,
+      keepUserIds: selectedUserIds,
     });
     return allUsers
       .filter((user) => filterUserIds.includes(user.id))
@@ -501,7 +508,7 @@ function projectTab(
     selectedText: filters.text,
     viewEventTitleRecipe: config.viewRecipeFor(tab.kind),
     scheduleUsers: config.scheduleUsersFor(filters.cal),
-    filterUsers: config.filterUsersFor(filters.cal),
+    filterUsers: config.filterUsersFor(filters.users),
   };
   const context: DashboardSnapshotContext = {
     month: period.month,

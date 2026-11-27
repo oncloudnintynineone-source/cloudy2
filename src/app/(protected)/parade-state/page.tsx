@@ -135,6 +135,7 @@ export default async function ParadeStatePage({ searchParams }: ParadeStatePageP
     users: allUsers,
     rowUserIds: scopedRowUsers.map((user) => user.id),
     currentUserId: session.user.id,
+    keepUserIds: selectedUsers,
   });
   const filterUsers = allUsers
     .filter((user) => filterUserIds.includes(user.id))

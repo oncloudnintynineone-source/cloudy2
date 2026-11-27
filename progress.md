@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.428 (month agenda modal single scrollport)** is shipped.
+- All work through changelog **1.429 (dashboard Users filter option set)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -3180,6 +3180,27 @@ size="compact"`), and renames **Duplicate Event** / **Copy to Other Google
   cap, and a short viewport flex-shrinks the list instead of double-scrolling. Swipe/tap,
   slide-in and grow-from-cell transitions unchanged. Docs: `desktop-responsive.md` §1.7,
   `dashboard-views.md` §1.5.
+
+- 1.429 **Dashboard Users filter: stable option set (bugfix)**: the filter dialog's
+  Users group listed only the **selected calendars'** users, while an applied
+  `users` filter resolved against the whole roster. Changing Calendars therefore
+  changed what the Users filter meant: people of a deselected department dropped
+  out of the picker, an applied pick could keep filtering with no chip to remove
+  (the header fell back to "All users"), and "every listed user selected" was
+  normalised to *no filter* — silently turning the filter off. The option list is
+  now the **active roster + the acting user + the tab's applied picks**
+  (`filterUsersFor` in `src/lib/dashboard/data.ts`, `keepUserIds` on
+  `filterUserOptionIds`), independent of the Calendars filter, so a pick can never
+  become invisible and only selecting every active user means "no filter". The
+  search-group "all selected" test is now a **set** comparison against the group's
+  option ids (`optionValues` in `resolveFilterApply.ts`, passed by `FilterModalBody`
+  via `toApplyGroup`), so a stale id can never read as "All" and an orphan count
+  can no longer clamp to "N of N". Parade State keeps its calendar-scoped roster
+  but gains `keepUserIds` for the same invisible-chip fix. The filter dialog also
+  refuses to open while a tab switch's data hasn't landed (`dataViewId` prop on
+  `DashboardView`), so it can no longer edit the new tab with the previous tab's
+  selections. Tests: 10 new/changed cases in `filterUserOptions.test.ts` +
+  `resolveFilterApply.test.ts`. Docs: `dashboard-views.md` §1.2.
 
 ## 1.4 Open items & next steps
 

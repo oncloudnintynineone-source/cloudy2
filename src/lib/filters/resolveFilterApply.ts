@@ -4,15 +4,41 @@ export interface FilterApplyGroup {
   optionCount: number;
   /** "grid" (default) checkbox cards vs "search" dropdown (empty = no filter). */
   variant?: "grid" | "search";
+  /**
+   * The selectable option ids, when the caller has them. Makes the
+   * "everything selected = no filter" test a **set** comparison, so a stored id
+   * that is no longer an option (the option list shrank under an applied
+   * selection) can never be mistaken for "all selected" and silently dropped.
+   */
+  optionValues?: readonly string[];
+}
+
+function matchesOptionSet(
+  selected: readonly string[],
+  optionValues: readonly string[],
+): boolean {
+  if (selected.length !== optionValues.length) {
+    return false;
+  }
+  const options = new Set(optionValues);
+  return selected.every((value) => options.has(value));
 }
 
 /** True when a group's selection means "no filter" (variant-dependent). */
 export function isGroupUnfiltered(
-  group: Pick<FilterApplyGroup, "variant" | "optionCount">,
+  group: Pick<FilterApplyGroup, "variant" | "optionCount" | "optionValues">,
   selected: readonly string[],
 ): boolean {
   if (group.variant === "search") {
-    return selected.length === 0 || selected.length === group.optionCount;
+    if (selected.length === 0) {
+      return true;
+    }
+  } else if (selected.length === 0 && group.optionCount > 0) {
+    // A grid with nothing ticked is a genuine "None", not "no filter".
+    return false;
+  }
+  if (group.optionValues) {
+    return matchesOptionSet(selected, group.optionValues);
   }
   return selected.length === group.optionCount;
 }
@@ -35,12 +61,20 @@ export interface GroupFilterState {
  * same words. Built on {@link isGroupUnfiltered}, so the variant-dependent
  * meaning of "no filter" (grid: everything ticked; search: nothing ticked) can
  * never drift from what Apply actually stores.
+ *
+ * With `optionValues` present the count only includes ids the dialog can
+ * actually show, and a selection naming something outside the option list is
+ * never reported as "All" — it reads as a real filter (or "None" when nothing
+ * visible is left) so the header/chips can't promise something Apply won't do.
  */
 export function groupFilterState(
-  group: Pick<FilterApplyGroup, "variant" | "optionCount">,
+  group: Pick<FilterApplyGroup, "variant" | "optionCount" | "optionValues">,
   selected: readonly string[],
 ): GroupFilterState {
-  const count = Math.min(selected.length, group.optionCount);
+  const visible = group.optionValues
+    ? selected.filter((value) => group.optionValues?.includes(value))
+    : selected;
+  const count = Math.min(visible.length, group.optionCount);
   if (isGroupUnfiltered(group, selected)) {
     return { kind: "all", label: "All", active: false, count };
   }

@@ -100,6 +100,73 @@ describe("resolveFilterApply", () => {
   });
 });
 
+describe("option-set awareness (optionValues)", () => {
+  const usersGroup: FilterApplyGroup = {
+    label: "Users",
+    optionCount: 3,
+    variant: "search",
+    optionValues: ["u1", "u2", "u3"],
+  };
+  const calendarsGroup: FilterApplyGroup = {
+    label: "Calendars",
+    optionCount: 3,
+    optionValues: [CAL_A, CAL_B, CAL_C],
+  };
+
+  it("search: exactly the listed options is still no filter", () => {
+    expect(isGroupUnfiltered(usersGroup, ["u1", "u2", "u3"])).toBe(true);
+    expect(groupFilterState(usersGroup, ["u1", "u2", "u3"]).kind).toBe("all");
+  });
+
+  it("search: a selection that also names an unlisted id is NOT 'all'", () => {
+    // Regression: the option list can shrink under an applied pick (a deactivated
+    // user, a filtered-out option list). The old count-only test read that as
+    // "everything selected" and silently dropped the filter on Apply.
+    expect(isGroupUnfiltered(usersGroup, ["u1", "u2", "u3", "gone"])).toBe(false);
+    expect(
+      resolveFilterApply(
+        [usersGroup],
+        { Users: ["u1", "u2", "u3", "gone"] },
+        { Users: ["u1", "u2", "u3", "gone"] },
+        new Set(),
+        false,
+      ),
+    ).toEqual({ Users: ["u1", "u2", "u3", "gone"] });
+  });
+
+  it("search: an orphaned pick keeps the group active with a visible count", () => {
+    expect(groupFilterState(usersGroup, ["u1", "u2", "gone"])).toEqual({
+      kind: "some",
+      label: "2 of 3",
+      active: true,
+      count: 2,
+    });
+  });
+
+  it("search: a selection with nothing listed reads as None, never All", () => {
+    expect(groupFilterState(usersGroup, ["gone"])).toEqual({
+      kind: "none",
+      label: "None",
+      active: true,
+      count: 0,
+    });
+  });
+
+  it("grid: the set comparison replaces the count test when options are known", () => {
+    expect(isGroupUnfiltered(calendarsGroup, [CAL_A, CAL_B, CAL_C])).toBe(true);
+    expect(isGroupUnfiltered(calendarsGroup, [CAL_A, CAL_B])).toBe(false);
+    // A full-count selection naming an id outside the option set is not "all".
+    expect(isGroupUnfiltered(calendarsGroup, [CAL_A, CAL_B, "gone"])).toBe(false);
+    expect(groupFilterState(calendarsGroup, [CAL_A, CAL_B, "gone"]).label).toBe("2 of 3");
+  });
+
+  it("describeFilterGroups agrees with the set-aware state", () => {
+    expect(describeFilterGroups([usersGroup], { Users: ["u1", "u2", "gone"] })).toEqual([
+      "2 users",
+    ]);
+  });
+});
+
 describe("groupFilterState", () => {
   it("grid: a full selection reads as All and is not an active filter", () => {
     expect(groupFilterState(groups[0], [CAL_A, CAL_B, CAL_C])).toEqual({
