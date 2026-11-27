@@ -10903,6 +10903,14 @@ could not be exercised live; instead a temporary mock route rendered the real cl
 components and was screenshot-verified at 360/390/768/1280 in both schemes (no
 horizontal overflow; badge/text contrast measured ≥4.5:1), then removed.
 
+**Copy trim (1.430.1).** Removed the page-head group/member counts (subtitle is the
+window only), the "Your groups are marked" hint and the advisory footnote. The group
+card's `Needs X% · N active members · P breach periods` line and separate `Today: …`
+line were replaced by one `{todayPct}% now · needs {requiredPct}%` badge (red below the
+requirement, green otherwise, full accessible name) over the existing in-country meter;
+`awayTodayCount` / `episodeCount` were dropped from `KahGroupRow` and the view builder.
+The skeleton mirrors the trimmed card. Docs: `kah.md` §1.7, `ui-ux-improvements.md` D23.
+
 ## Compact desktop chrome tier is viewport-stable (1.431)
 
 **Bug.** In the Month view the compact-desktop chrome tier (`isCompactDesktop`) was

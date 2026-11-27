@@ -58,9 +58,7 @@ export function KahStatusView({ initial, currentUserId }: KahStatusViewProps) {
   )}`;
   // Civil "today" for the worst-day / away-span labels (Today / Tomorrow / Sep 14).
   const todayKey = formatInstantToNaive(new Date()).slice(0, 10);
-  const uniqueMembers = new Set(groups.flatMap((group) => group.members.map((m) => m.userId))).size;
   const breachingGroups = groups.filter((group) => group.state !== "clear").length;
-  const hasOwnGroups = groups.some((group) => group.isMember);
   const statusSummary = (["active", "upcoming", "resolved"] as const)
     .map((status) => {
       const count = episodes.filter((episode) => episode.status === status).length;
@@ -109,8 +107,6 @@ export function KahStatusView({ initial, currentUserId }: KahStatusViewProps) {
     <Stack gap="md" pb="xl" className={CONTENT_ENTER_CLASS}>
       <KahStatusHead
         windowLabel={windowLabel}
-        groupCount={groups.length}
-        memberCount={uniqueMembers}
         rangeMonths={rangeMonths}
         onRangeChange={handleRangeChange}
         disabled={pending}
@@ -176,16 +172,9 @@ export function KahStatusView({ initial, currentUserId }: KahStatusViewProps) {
             </Group>
 
             <Stack gap="sm">
-              <Group justify="space-between" align="baseline" gap="xs" wrap="wrap">
-                <Text component="h2" fz="sm" fw={600} c="dimmed">
-                  Groups
-                </Text>
-                {hasOwnGroups ? (
-                  <Text fz="xs" c="dimmed">
-                    Your groups are marked
-                  </Text>
-                ) : null}
-              </Group>
+              <Text component="h2" fz="sm" fw={600} c="dimmed">
+                Groups
+              </Text>
               <Box className="c2-kah-groups">
                 {groups.map((group) => (
                   <KahGroupCard
@@ -219,11 +208,6 @@ export function KahStatusView({ initial, currentUserId }: KahStatusViewProps) {
                 ))}
               </Stack>
             ) : null}
-
-            <Text fz="xs" c="dimmed">
-              KAH breaches are advisory — they never block event creation. Tap an event to see its
-              details.
-            </Text>
           </Stack>
         )}
       </CrossfadeSwap>

@@ -83,13 +83,9 @@ export interface KahGroupRow {
   totalMembers: number;
   /** Floored in-country share today. */
   todayPct: number;
-  /** Members tagged away on an overseas event overlapping today. */
-  awayTodayCount: number;
   members: KahGroupMemberRow[];
   /** Active (includes today) wins over upcoming; otherwise the group is clear. */
   state: KahGroupState;
-  /** Breach periods (maximal runs of breached days) in the window. */
-  episodeCount: number;
   /** Lowest floored in-country % across the window's breach periods. */
   worstPct: number | null;
   /** First day that hit `worstPct`, or null when the group never breached. */

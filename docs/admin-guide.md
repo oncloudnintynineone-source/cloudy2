@@ -201,11 +201,12 @@ app never blocks an event.
 - Members also get the read-only **KAH Status** page automatically, and **admins
   always see it too**; every member sees **every** KAH group (their own marked).
   The page opens on a **6-month** look-ahead (or 1 year) and leads with a card per
-  group — required %, today's in-country reading, worst dip and the **full roster**
-  with each member's away stretches (away now / in country, next trip) — followed by
-  the collapsible breach periods, which name who was away and the overseas events
-  that took them away; tap an event for its read-only details in place. A signed-in
-  non-member who opens the URL gets the normal not-found.
+  group — a single current/minimum percentage badge (`40% now · needs 60%`) over the
+  in-country meter, the worst dip and the **full roster** with each member's away
+  stretches (away now / in country, next trip) — followed by the collapsible breach
+  periods, which name who was away and the overseas events that took them away; tap
+  an event for its read-only details in place. A signed-in non-member who opens the
+  URL gets the normal not-found.
 
 Design: [`kah.md`](kah.md).
 

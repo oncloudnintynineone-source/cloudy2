@@ -19,10 +19,7 @@ export function KahStatusSkeleton() {
         <LoadingStatus label="Loading KAH status" />
         <Skeleton height={14} width="55%" radius="sm" />
         <Stack gap="sm">
-          <Group justify="space-between" align="baseline">
-            <Skeleton height={14} width={72} radius="sm" />
-            <Skeleton height={12} width={128} radius="sm" />
-          </Group>
+          <Skeleton height={14} width={72} radius="sm" />
           <Box className="c2-kah-groups">
             {Array.from({ length: 2 }).map((_, i) => (
               <Paper key={i} withBorder radius="md" p="md">
@@ -31,10 +28,9 @@ export function KahStatusSkeleton() {
                     <Skeleton height={32} width={32} radius="xl" />
                     <Stack gap={6} style={{ flexGrow: 1, minWidth: 0 }}>
                       <Skeleton height={16} width="55%" />
-                      <Skeleton height={12} width="70%" />
                     </Stack>
                   </Group>
-                  <Skeleton height={14} width="45%" />
+                  <Skeleton height={20} width={132} radius="xl" />
                   <Skeleton height={6} width="100%" radius="xl" />
                   <Stack gap={10}>
                     {Array.from({ length: 4 }).map((_, row) => (

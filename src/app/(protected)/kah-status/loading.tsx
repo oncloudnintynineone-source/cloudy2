@@ -15,7 +15,7 @@ export default function KahStatusLoading() {
         <Box py="md">
           <div className="c2-report-head">
             <div className="c2-report-title">
-              <PageHeaderSkeleton titleWidth="24%" subtitleWidth="45%" />
+              <PageHeaderSkeleton titleWidth="24%" subtitleWidth="30%" />
             </div>
             <div className="c2-report-controls">
               <div className="c2-report-range">

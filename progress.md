@@ -18,7 +18,8 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.430 (KAH Status overhaul)** is shipped.
+- All work through changelog **1.431 (compact desktop chrome tier)** is shipped,
+  including the **1.430.1** KAH copy-trim follow-up.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -3229,6 +3230,14 @@ size="compact"`), and renames **Duplicate Event** / **Copy to Other Google
   is unchanged — it stays the fitted-row legibility solve, so a six-row month on a short
   laptop shows one chip by geometry, not by a year rollover. Docs:
   `dashboard-views.md` §1.1/§1.8.1, `desktop-responsive.md` §1.4, `AGENTS.md`.
+
+- 1.430.1 **KAH Status copy trim**: removed the head's group/member counts (subtitle is
+  the window only), the "Your groups are marked" hint and the advisory footnote. The
+  group card's `Needs X% · N active members · P breach periods` line and separate
+  `Today: …` line collapsed into one `{current}% now · needs {minimum}%` badge (red
+  below the requirement) over the existing in-country meter; `awayTodayCount` /
+  `episodeCount` were dropped from `KahGroupRow` and the view builder, and the
+  skeleton mirrors the trimmed card. Docs: `kah.md` §1.7, `ui-ux-improvements.md` D23.
 
 ## 1.4 Open items & next steps
 

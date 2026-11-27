@@ -1128,18 +1128,21 @@ the shortest window forced a control change on every visit.
 
 **Fix.** Gate the page to KAH members/admins (non-members get the branded 404), list **every**
 group with the viewer's own marked, default to **6 months** (6 months / 1 year only), and
-lead with group cards: state pill, required %, today's in-country reading + meter, worst dip,
-and the full roster with each member's merged away stretches. Keep the shared `ClashCard`
-periods below for the away union + causing events.
+lead with group cards: state pill, a current/minimum percentage badge over the in-country
+meter, worst dip, and the full roster with each member's merged away stretches. Keep the
+shared `ClashCard` periods below for the away union + causing events.
 
 **Effort.** M. **Respect.** No change to the notify-only breach math, the email path or the
 schema; every read stays on the month cache; the badge window follows the page default
-(6 months) as documented; the advisory footnote and in-place `EventDetail` stay.
+(6 months) as documented; the in-place `EventDetail` stays.
 
 **Status.** Shipped **1.430** (2026-11-27): all of the above, plus a shared `KahStatusBadge`
 that pins light-variant status text to a readable scheme token (yellow/green measured under
 the 4.5:1 floor otherwise). Screenshot-verified at 360/390/768/1280 in both schemes against a
-mock harness (no local DB was available in the dev environment). [`kah.md`](kah.md) §1.7.
+mock harness (no local DB was available in the dev environment). Copy trimmed at **1.430.1**:
+the head's group/member counts, the "Your groups are marked" hint and the advisory footnote
+are gone, and the requirement/member-count line plus the separate "today" line collapsed into
+the one percentage badge. [`kah.md`](kah.md) §1.7.
 
 ## 1.8 Workflow level
 
@@ -1288,7 +1291,7 @@ land here.
 | D20 | 1.419 (2026-11-24)                                     | Both wizard empty states are shared `EmptyState`s: the type step is role-aware (admins get **Open Event Types** → `/settings/event-types`, staff are pointed at their admin), the invitees step names the admin path without navigating away from the draft.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | D22 | 1.420 (2026-11-24)                                     | Details-modal action row is a sticky frosted footer: the four action branches render inside `.c2-detail-footer` (sticky bottom, top border, riding the shared `.c2-glass-surface` so long details blur behind it as they scroll under; flush bleed via body `paddingBottom: 0` + negative inline margins), Register / Open-in-calendar move to `lg` (44px), and `RichRemarks` collapses to 6 lines + 2 preview cards behind a measured **Show more** toggle. [`event-lifecycle.md`](event-lifecycle.md) §1.12.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | dual | 1.426 (2026-11-26)                                    | **Month & Agenda view retired** (calendar review §1.14): below `lg` the Agenda half never rendered (the day modal already covered it) — a sixth renderer for a niche pairing. `dual` is out of the kind vocabulary; existing tabs, share tokens and `?view=dual` params coerce to Month via `resolveViewKind` (`src/lib/dashboardViews/views.ts`); `DualPaneView` / `dualSplit` deleted, cookie v3.7 drops the key. [`dashboard-views.md`](dashboard-views.md) §1.9, [`ui-state.md`](ui-state.md) §1.5.2. |
-| D23 | 1.430 (2026-11-27)                                    | KAH Status is member-visible across **every** group (own groups marked; non-members 404), defaults to **6 months** (6 months / 1 year only), and leads with group cards — state pill, required %, today's in-country meter, worst dip, full roster with each member's merged away stretches — followed by the shared `ClashCard` breach periods (away union + causing events). `KahStatusBadge` keeps light-variant status text above 4.5:1 in both schemes. [`kah.md`](kah.md) §1.7. |
+| D23 | 1.430 (2026-11-27)                                    | KAH Status is member-visible across **every** group (own groups marked; non-members 404), defaults to **6 months** (6 months / 1 year only), and leads with group cards — state pill, a single current/minimum percentage badge over the in-country meter, worst dip, full roster with each member's merged away stretches — followed by the shared `ClashCard` breach periods (away union + causing events). Head counts, the "Your groups are marked" hint and the advisory footnote were trimmed at **1.430.1**. `KahStatusBadge` keeps light-variant status text above 4.5:1 in both schemes. [`kah.md`](kah.md) §1.7. |
 
 ## 1.11 Implementation guardrails
 

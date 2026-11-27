@@ -251,7 +251,7 @@ flowchart LR
   recipe** — a `c2-glass-surface` block pinned under the app header while the cards
   scroll beneath it, title-left / control-right from the 40em band and stacked below
   (`.c2-report-head` in `globals.css`, shared with Double Booking; `loading.tsx`
-  mirrors it). The subtitle carries the window, group count and unique member count.
+  mirrors it). The subtitle carries the window only (no group/member counts).
 - Above the content sits a `role="status"` **summary line** — "2 breach periods
   across 2 groups in the next 6 months — 1 active, 1 upcoming" — or the clear case
   ("No KAH breaches in the next 6 months — all 4 groups stay in country.") with a
@@ -266,9 +266,11 @@ flowchart LR
     state pill: **Breaching now** (an episode includes today), **Breach upcoming**
     (an episode starts after today), or **All clear** (no breached day in the
     window);
-  - `Needs {x}% · {n} active members · {p} breach periods`;
-  - today's reading — `Today: 80% in country · 1 away`, with `(below 60%)` and a red
-    meter when under the requirement (the meter is decorative; the number is text);
+  - one **current/minimum percentage badge** — `40% now · needs 60%`, red when the
+    current in-country share is below the requirement, with an accessible name that
+    spells both numbers out — over a thin in-country meter (the meter is decorative;
+    the badge carries the numbers). There is no separate requirement/member-count line
+    and no separate "today" text line;
   - the **worst dip** in the window and, for an upcoming breach, the day it starts
     (`Worst: 40% on Sun 29 Nov · next Thu 10 Dec`);
   - **the full active roster**, one row per member: name (with **You**), a
@@ -303,8 +305,7 @@ flowchart LR
 - With **zero KAH groups** (admin only) the page shows the shared actionable
   `EmptyState` (green check + **Manage KAH groups**). Groups with no breached day
   stay visible as cards — there is no page-filling clear-state that hides the
-  rosters. A quiet footnote closes the list — breaches are advisory and never
-  block event creation.
+  rosters.
 - Every calendar read goes through the existing month cache (60s fresh / 30min
   SWR), NEVER raw `listEvents` — same freshness/consistency as the dashboard, no
   forced blocking refresh.
