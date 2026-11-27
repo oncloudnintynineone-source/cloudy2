@@ -343,9 +343,11 @@ the per-event row (`ClashEventRow`) live in `src/components/clashCards.tsx`. The
 card's polite live-region announcement is scoped to the always-visible summary
 row (never the expandable detail), so a fresh scan announces just the concise
 headings; expansion is a user action and is never re-announced. The KAH Status
-page's breach cards reuse `ClashCard` / `ClashEventRow` (and the shared
-`conflictWindowNaive` / `shapeClashDetail` helpers) so a breach reads the same way
-as a double booking — see [`kah.md`](kah.md) §1.7.
+page no longer uses `ClashCard`: each group card's breach preview reuses the
+shared `ClashMonthStrip` (with KAH-specific accessible wording and a wrapping
+modifier) and its period rows reuse `ClashEventRow`; the month strip's cells and
+the in-place detail still use the shared `conflictWindowNaive` / `shapeClashDetail`
+helpers — see [`kah.md`](kah.md) §1.7.
 
 ### 1.8.1 Strip granularity
 

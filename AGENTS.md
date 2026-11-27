@@ -415,10 +415,12 @@ the floating fullscreen button — never over the canvas
   periods across **every** KAH group on any day from today through the end of the month
   **6 months ahead** (the page's default look-ahead, which the badge is fixed to);
   the `/kah-status` page is gated to KAH members and admins, and **every member sees
-  every group** (own groups marked): each group card carries its full roster with
-  today's away/in-country state and each member's upcoming away stretches, and the
-  collapsible `ClashCard` periods below name the away union + the overseas events
-  behind them, opening the shared read-only `EventDetail` in place.
+  every group** (own groups marked): each group card carries its current/minimum
+  percentage, its full roster with today's away/in-country state and each member's
+  upcoming away stretches, and its **own breach section** — a shared
+  `ClashMonthStrip` month preview over the window plus flat collapsible period rows
+  whose causing events open the shared read-only `EventDetail` (the old page-level
+  amber `ClashCard` list is gone; the desktop group grid uses equal-height rows).
   Design: [docs/kah.md](docs/kah.md).
 - **Daily parade-state email (Settings → Parade State Email):** admins pick roster
   recipients, a **send time** (UTC+8 `HH:mm` cutoff) + **send days** (ISO weekdays,

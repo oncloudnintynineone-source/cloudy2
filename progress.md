@@ -19,7 +19,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 ## 1.1 Status
 
 - All work through changelog **1.431 (compact desktop chrome tier)** is shipped,
-  including the **1.430.1** KAH copy-trim follow-up.
+  including the **1.430.1** KAH copy-trim and **1.430.2** breach-integration follow-ups.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -3238,6 +3238,17 @@ size="compact"`), and renames **Duplicate Event** / **Copy to Other Google
   below the requirement) over the existing in-country meter; `awayTodayCount` /
   `episodeCount` were dropped from `KahGroupRow` and the view builder, and the
   skeleton mirrors the trimmed card. Docs: `kah.md` §1.7, `ui-ux-improvements.md` D23.
+
+- 1.430.2 **KAH Status: breaches integrated into each group card**: the page-level
+  "Breach periods" section and the amber `ClashCard` are gone. Each card now carries
+  its own breach preview — the shared `ClashMonthStrip` month strip over the window
+  with breach days marked (busy months scroll to and focus the matching period row) —
+  plus flat collapsible period rows (status, period, down-to %, away chips; expanding
+  shows the causing events). `KahGroupRow` now carries `episodes` + `breachDayKeys`
+  (top-level `episodes` removed; `breachDaysByGroup` is a pure, tested helper), the
+  desktop group grid uses `align-items: stretch` so rows are equal height and the
+  vertical gaps even, and the skeleton mirrors the integrated card. Docs: `kah.md`
+  §1.7, `user-clashes.md` §1.8, `ui-ux-improvements.md` D23.
 
 ## 1.4 Open items & next steps
 

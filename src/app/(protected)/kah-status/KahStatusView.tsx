@@ -15,10 +15,8 @@ import { formatInstantToNaive } from "@/lib/events/datetime";
 import { kahRangeLabel, type KahRangeMonths, type KahStatusViewData } from "@/lib/kah/range";
 import { getKahStatusView } from "@/lib/kah/statusActions";
 
-import { KahBreachPeriodCard } from "./KahBreachPeriodCard";
 import { KahEventDetailModal } from "./KahEventDetailModal";
 import { KahGroupCard } from "./KahGroupCard";
-import { KahStatusBadge } from "./KahStatusBadge";
 import { KahStatusHead } from "./KahStatusHead";
 import { KahStatusSkeleton } from "./KahStatusSkeleton";
 import { useKahEventDetail } from "./useKahEventDetail";
@@ -35,9 +33,9 @@ function plural(count: number, singular: string): string {
 
 /**
  * The KAH Status page: every KAH group (the viewer's own groups marked) with its
- * full roster and away calendar, followed by the breach periods across the
- * selected forward look-ahead (6 months by default, or 1 year). Read-only and
- * advisory — see docs/kah.md §1.7.
+ * current status, its own breach preview + period rows, and its full roster and
+ * away calendar, over the selected forward look-ahead (6 months by default, or
+ * 1 year). Read-only and advisory — see docs/kah.md §1.7.
  */
 export function KahStatusView({ initial, currentUserId }: KahStatusViewProps) {
   // The look-ahead is a per-view choice only — never persisted. The server
@@ -50,7 +48,10 @@ export function KahStatusView({ initial, currentUserId }: KahStatusViewProps) {
   // toast that vanishes with no way back.
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const { windowStart, windowEnd, isAdmin, groups, episodes } = data;
+  const { windowStart, windowEnd, isAdmin, groups } = data;
+  // The page summary is derived from the groups; each card renders its own
+  // breach preview + period rows (no separate page-level breach section).
+  const episodes = groups.flatMap((group) => group.episodes);
   const detail = useKahEventDetail();
 
   const windowLabel = `${dayjs(windowStart).format("MMM D, YYYY")} – ${dayjs(windowEnd).format(
@@ -156,7 +157,7 @@ export function KahStatusView({ initial, currentUserId }: KahStatusViewProps) {
         ) : (
           <Stack gap="lg">
             {/* The result summary — also the live announcement a range change
-                makes (the period cards keep `live={false}`). */}
+                makes (the in-card period rows are not live regions). */}
             <Group gap={8} align="flex-start" wrap="nowrap" role="status" aria-live="polite">
               {episodes.length === 0 ? (
                 <IconCircleCheck
@@ -182,32 +183,14 @@ export function KahStatusView({ initial, currentUserId }: KahStatusViewProps) {
                     group={group}
                     currentUserId={currentUserId}
                     todayKey={todayKey}
+                    windowStart={windowStart}
+                    windowEnd={windowEnd}
+                    rangeLabel={rangeLabel}
+                    onOpen={(entry, rect) => void detail.openDetail(entry, rect)}
                   />
                 ))}
               </Box>
             </Stack>
-
-            {episodes.length > 0 ? (
-              <Stack gap="sm">
-                <Group gap="xs" align="baseline" wrap="wrap">
-                  <Text component="h2" fz="sm" fw={600} c="dimmed">
-                    Breach periods
-                  </Text>
-                  <KahStatusBadge size="xs" color="orange">
-                    {plural(episodes.length, "period")}
-                  </KahStatusBadge>
-                </Group>
-                {episodes.map((episode) => (
-                  <KahBreachPeriodCard
-                    key={`${episode.groupId}:${episode.startDate}`}
-                    episode={episode}
-                    currentUserId={currentUserId}
-                    todayKey={todayKey}
-                    onOpen={(entry, rect) => void detail.openDetail(entry, rect)}
-                  />
-                ))}
-              </Stack>
-            ) : null}
           </Stack>
         )}
       </CrossfadeSwap>

@@ -85,6 +85,32 @@ export function awaySpansByMember(
   return collected;
 }
 
+/** The minimal per-day group-status shape the breach-day collector needs. */
+export interface BreachDayStatusLike {
+  readonly date: string;
+  readonly statuses: readonly { readonly groupId: string; readonly breached: boolean }[];
+}
+
+/**
+ * Every breached day per group across a contiguous day scan, chronological —
+ * the marked days behind each group card's month preview timeline. Pure; only
+ * breached days are collected (clear days never mark a cell).
+ */
+export function breachDaysByGroup(perDay: readonly BreachDayStatusLike[]): Map<string, string[]> {
+  const byGroup = new Map<string, string[]>();
+  for (const day of perDay) {
+    for (const status of day.statuses) {
+      if (!status.breached) {
+        continue;
+      }
+      const days = byGroup.get(status.groupId) ?? [];
+      days.push(day.date);
+      byGroup.set(status.groupId, days);
+    }
+  }
+  return byGroup;
+}
+
 /**
  * The group's standing over the scanned window: an active period (one that
  * includes today) outranks an upcoming one; no period at all means clear.

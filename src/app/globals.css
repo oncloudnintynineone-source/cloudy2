@@ -3722,18 +3722,59 @@ html.c2-low-end::view-transition-group(*) {
 /* KAH Status group cards (docs/kah.md §1.7): a deliberate two-column grid from
    the 40em desktop band on — rosters need width, so this is not the auto-filling
    `.card-grid` (which would add a narrow third column on wide screens). One
-   column on phones. */
+   column on phones. `stretch` (the grid default) gives every card in a row the
+   row's height, so the gaps between rows are uniform even when rosters differ;
+   the earlier `align-items: start` left a short card with a visibly larger gap
+   beneath it. */
 .c2-kah-groups {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--mantine-spacing-sm);
-  align-items: start;
+  align-items: stretch;
 }
 
 @media (min-width: 40em) {
   .c2-kah-groups {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+
+/* The breach section inside a group card: a divider + flat disclosure rows (no
+   nested amber clash card). The month preview strip above the rows uses the
+   shared `.c2-clash-strip*` classes with a KAH wrapping modifier (see below). */
+.c2-kah-breaches {
+  border-top: 1px solid var(--mantine-color-default-border);
+  padding-top: var(--mantine-spacing-sm);
+}
+
+.c2-kah-period {
+  border-top: 1px solid var(--mantine-color-default-border);
+}
+
+.c2-kah-period:first-child {
+  border-top: 0;
+}
+
+.c2-kah-period-head {
+  display: block;
+  width: 100%;
+  min-height: calc(2.75rem * var(--mantine-scale));
+  padding-block: calc(var(--mantine-spacing-xs) * 0.75);
+  border-radius: var(--mantine-radius-sm);
+  text-align: left;
+}
+
+.c2-kah-period-head:hover {
+  background: var(--mantine-color-default-hover);
+}
+
+.c2-kah-period-head:focus-visible {
+  outline: 2px solid var(--mantine-color-brand-5);
+  outline-offset: 1px;
+}
+
+.c2-kah-period-body {
+  padding-bottom: var(--mantine-spacing-xs);
 }
 
 /* The roster inside a group card: hairline rows, no list markers, no card-in-card
@@ -4282,6 +4323,23 @@ html.c2-low-end::view-transition-group(*) {
   width: auto;
   min-width: calc(3rem * var(--mantine-scale));
   padding-inline: calc(0.5rem * var(--mantine-scale));
+}
+
+/* KAH's in-card breach preview: the same month cells, but wrapped inside the
+   card instead of scrolling horizontally (a nested horizontal scroller inside a
+   vertical page is awkward on touch). Cells keep a 44px tap height; the tighter
+   minimum width fits six-to-seven months on a phone and wraps twelve. Placed
+   after the shared strip rules so the wrap/overflow overrides win. */
+.c2-kah-timeline {
+  flex-wrap: wrap;
+  overflow-x: visible;
+}
+
+.c2-kah-timeline .c2-clash-strip-cell {
+  min-height: calc(2.75rem * var(--mantine-scale));
+  min-width: calc(2.5rem * var(--mantine-scale));
+  padding-inline: calc(0.375rem * var(--mantine-scale));
+  justify-content: center;
 }
 
 /* Day sections are scroll targets for the strip; the clearance is the sticky

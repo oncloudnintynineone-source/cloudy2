@@ -5,8 +5,11 @@ import { IconAlertTriangle, IconCircleCheck, IconClockExclamation } from "@table
 
 import { groupStateLabel } from "@/lib/kah/display";
 import { clashDayLabel } from "@/lib/events/clashDisplay";
+import type { EventClashEntry } from "@/lib/events/clashActions";
+import type { Rect } from "@/lib/motion/origin";
 import type { KahGroupRow } from "@/lib/kah/range";
 
+import { KahGroupBreaches } from "./KahGroupBreaches";
 import { KahGroupRoster } from "./KahGroupRoster";
 import { KahStatusBadge } from "./KahStatusBadge";
 
@@ -18,18 +21,27 @@ const STATE_THEME = {
 
 /**
  * One KAH group: its standing for the scanned window, a single current/minimum
- * percentage badge with the in-country meter, the worst dip so far, and the
- * **full roster** with each member's away calendar. This is the page's primary
- * surface — the breach periods below it only name who was away for each run.
+ * percentage badge with the in-country meter, the worst dip, the group's own
+ * breach preview + period rows (when it has any), and the **full roster** with
+ * each member's away calendar. This card is the page's primary surface — there
+ * is no separate page-level breach section.
  */
 export function KahGroupCard({
   group,
   currentUserId,
   todayKey,
+  windowStart,
+  windowEnd,
+  rangeLabel,
+  onOpen,
 }: {
   group: KahGroupRow;
   currentUserId: string;
   todayKey: string;
+  windowStart: string;
+  windowEnd: string;
+  rangeLabel: string;
+  onOpen: (entry: EventClashEntry, rect: Rect) => void;
 }) {
   const state = STATE_THEME[group.state];
   const StateIcon = state.icon;
@@ -89,6 +101,16 @@ export function KahGroupCard({
               : ""}
           </Text>
         ) : null}
+
+        <KahGroupBreaches
+          group={group}
+          windowStart={windowStart}
+          windowEnd={windowEnd}
+          rangeLabel={rangeLabel}
+          todayKey={todayKey}
+          currentUserId={currentUserId}
+          onOpen={onOpen}
+        />
 
         <KahGroupRoster
           groupName={group.name}

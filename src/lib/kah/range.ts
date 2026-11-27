@@ -92,6 +92,11 @@ export interface KahGroupRow {
   worstDate: string | null;
   /** Earliest active/upcoming breach period start, or null when clear. */
   nextBreachDate: string | null;
+  /** This group's breach periods, active → upcoming (oldest run first). */
+  episodes: KahEpisodeRow[];
+  /** Every breached day in the window (`YYYY-MM-DD`, chronological) — the
+   *  in-card month timeline's marked days. */
+  breachDayKeys: string[];
   /** The signed-in viewer belongs to this group. */
   isMember: boolean;
 }
@@ -131,8 +136,7 @@ export interface KahStatusViewData {
   rangeMonths: KahRangeMonths;
   /** The real admin role — every member sees all groups, so this is not a view flag. */
   isAdmin: boolean;
-  /** Every KAH group in the window, sorted active → upcoming → clear, then name. */
+  /** Every KAH group in the window, sorted active → upcoming → clear, then name.
+   *  Each group owns its breach periods (the card renders them in place). */
   groups: KahGroupRow[];
-  /** Every breach period in the window, active → upcoming, oldest run first. */
-  episodes: KahEpisodeRow[];
 }

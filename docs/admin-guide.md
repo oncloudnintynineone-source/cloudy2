@@ -202,11 +202,12 @@ app never blocks an event.
   always see it too**; every member sees **every** KAH group (their own marked).
   The page opens on a **6-month** look-ahead (or 1 year) and leads with a card per
   group — a single current/minimum percentage badge (`40% now · needs 60%`) over the
-  in-country meter, the worst dip and the **full roster** with each member's away
-  stretches (away now / in country, next trip) — followed by the collapsible breach
-  periods, which name who was away and the overseas events that took them away; tap
-  an event for its read-only details in place. A signed-in non-member who opens the
-  URL gets the normal not-found.
+  in-country meter, the worst dip, the group's own **breach preview** (a month
+  timeline with breach days marked) and flat expandable breach rows (who was away +
+  the overseas events behind the run; tap an event for its read-only details in
+  place) — and the **full roster** with each member's away stretches (away now / in
+  country, next trip) underneath. A signed-in non-member who opens the URL gets the
+  normal not-found.
 
 Design: [`kah.md`](kah.md).
 

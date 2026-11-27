@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import { addOneDay, parseNaiveToInstant } from "@/lib/events/datetime";
 
-import { awaySpansByMember, groupBreachState, groupNextBreachDate, groupWorst } from "./groups";
+import {
+  awaySpansByMember,
+  breachDaysByGroup,
+  groupBreachState,
+  groupNextBreachDate,
+  groupWorst,
+} from "./groups";
 
 /** Build an event-like window from naive UTC+8 bounds (`YYYY-MM-DD HH:mm:ss`). */
 function event(
@@ -164,5 +170,54 @@ describe("groupNextBreachDate", () => {
 
   it("returns null when clear", () => {
     expect(groupNextBreachDate([])).toBeNull();
+  });
+});
+
+describe("breachDaysByGroup", () => {
+  it("collects only breached days, chronological, keyed by group", () => {
+    const perDay = [
+      {
+        date: "2026-09-28",
+        statuses: [
+          { groupId: "g1", breached: true },
+          { groupId: "g2", breached: false },
+        ],
+      },
+      {
+        date: "2026-09-29",
+        statuses: [
+          { groupId: "g1", breached: true },
+          { groupId: "g2", breached: true },
+        ],
+      },
+      {
+        date: "2026-09-30",
+        statuses: [
+          { groupId: "g1", breached: false },
+          { groupId: "g2", breached: true },
+        ],
+      },
+      {
+        date: "2026-10-01",
+        statuses: [
+          { groupId: "g1", breached: true },
+          { groupId: "g2", breached: false },
+        ],
+      },
+    ];
+    const byGroup = breachDaysByGroup(perDay);
+    expect(byGroup.get("g1")).toEqual(["2026-09-28", "2026-09-29", "2026-10-01"]);
+    expect(byGroup.get("g2")).toEqual(["2026-09-29", "2026-09-30"]);
+  });
+
+  it("omits groups with no breached day", () => {
+    const byGroup = breachDaysByGroup([
+      { date: "2026-09-28", statuses: [{ groupId: "g1", breached: false }] },
+    ]);
+    expect(byGroup.size).toBe(0);
+  });
+
+  it("handles an empty scan", () => {
+    expect(breachDaysByGroup([]).size).toBe(0);
   });
 });

@@ -10911,6 +10911,24 @@ requirement, green otherwise, full accessible name) over the existing in-country
 `awayTodayCount` / `episodeCount` were dropped from `KahGroupRow` and the view builder.
 The skeleton mirrors the trimmed card. Docs: `kah.md` §1.7, `ui-ux-improvements.md` D23.
 
+**Breach integration (1.430.2).** Removed the page-level "Breach periods" section and
+the amber `ClashCard` presentation. Each group card now owns its breaches: the shared
+`ClashMonthStrip` month preview over the window (cells built from every breached day;
+busy months scroll to and focus the matching period row, reduced-motion aware) plus
+flat collapsible rows (status, period, `down to X%`, away chips; expanding lists the
+causing `ClashEventRow`s, still opening the in-place read-only detail). `KahGroupRow`
+gained `episodes` + `breachDayKeys` and the top-level `KahStatusViewData.episodes` was
+removed; `breachDaysByGroup` is a new pure helper with unit tests. `ClashMonthStrip`
+gained optional `label` / `unit` / `className` props (Double Booking unchanged) and a
+KAH modifier wraps the cells inside the card. The desktop grid now uses
+`align-items: stretch` so cards in a row share the row height — the uneven vertical
+gaps between rows are gone. `KahStatusView` derives the summary from
+`groups.flatMap(g => g.episodes)`. No schema or query change. Verified with a mock
+harness: equal row heights (680/680 and 239/239 at 1280, 12px gaps), no horizontal
+overflow at 320/390, busy-cell jump focuses the period row, expansion shows the event
+row, and no page-level breach section remains. Docs: `kah.md` §1.7/§1.8,
+`user-clashes.md` §1.8, `ui-ux-improvements.md` D23, `AGENTS.md`.
+
 ## Compact desktop chrome tier is viewport-stable (1.431)
 
 **Bug.** In the Month view the compact-desktop chrome tier (`isCompactDesktop`) was

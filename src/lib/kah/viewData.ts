@@ -6,10 +6,11 @@ import {
 } from "@/lib/events/datetime";
 import type { EventClashEntry } from "@/lib/events/clashActions";
 import {
+  awaySpansByMember,
+  breachDaysByGroup,
   groupBreachState,
   groupNextBreachDate,
   groupWorst,
-  awaySpansByMember,
 } from "@/lib/kah/groups";
 import {
   kahForwardWindow,
@@ -122,6 +123,9 @@ export async function buildKahStatusViewData(input: {
     statuses: kahStatusForWindow(groups, new Set(day.awayIds)),
   }));
   const episodes = kahBreachEpisodes(perDay, today);
+  // Every breached day per group — the marked days behind each card's month
+  // preview timeline.
+  const breachDayKeysByGroup = breachDaysByGroup(perDay);
 
   // Resolve every group member's display name once (the cards list the full
   // roster, away members highlighted).
@@ -189,6 +193,8 @@ export async function buildKahStatusViewData(input: {
       worstPct: worst?.pct ?? null,
       worstDate: worst?.date ?? null,
       nextBreachDate: groupNextBreachDate(groupEpisodes),
+      episodes: groupEpisodes,
+      breachDayKeys: breachDayKeysByGroup.get(group.id) ?? [],
       isMember: viewerGroupIds.has(group.id),
     };
   });
@@ -206,6 +212,5 @@ export async function buildKahStatusViewData(input: {
     rangeMonths: input.rangeMonths,
     isAdmin,
     groups: groupRows,
-    episodes: episodeRows,
   };
 }

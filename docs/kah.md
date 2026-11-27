@@ -227,12 +227,13 @@ flowchart LR
  B --> D["busyDaysInRange → per-day<br/>kahStatusForWindow (pure)"]
  G --> E["kahBreachEpisodes(perDay, today) (pure)"]
  D --> E
- G --> R["group cards: today's in-country %,<br/>worst dip, full roster"]
+ D --> T["breachDaysByGroup(perDay) (pure) —<br/>the month timeline's marked days"]
+ G --> R["group cards: current %, worst dip,<br/>breach timeline + period rows, full roster"]
+ E --> R
+ T --> R
  B --> S["awaySpansByMember (pure) —<br/>merged per-member trips inside the window"]
  S --> R
- E --> S2["period rows: away union +<br/>causing events (deduped)"]
- R --> V["KahStatusView"]
- S2 --> V
+ R --> V["KahStatusView — cards only;<br/>no page-level breach section"]
 ```
 
 - The page scans a **forward-only window** from today through the last day of the
@@ -255,13 +256,15 @@ flowchart LR
 - Above the content sits a `role="status"` **summary line** — "2 breach periods
   across 2 groups in the next 6 months — 1 active, 1 upcoming" — or the clear case
   ("No KAH breaches in the next 6 months — all 4 groups stay in country.") with a
-  green check. It is the single live region: the cards keep `live={false}`, so a
-  range change is announced exactly once. A failed range change keeps the last
-  good window on screen and shows the inline error + **Retry** strip (the Double
-  Booking recipe) instead of a toast that vanishes with no way back.
-- **Groups come first.** Every KAH group is a card in a deliberate two-column grid
-  from the 40em band on (one column on phones), ordered attention-first — active
-  breaches, then upcoming, then all-clear, alphabetical inside each band:
+  green check. It is the single live region: the in-card period rows are not live
+  regions, so a range change is announced exactly once. A failed range change keeps
+  the last good window on screen and shows the inline error + **Retry** strip (the
+  Double Booking recipe) instead of a toast that vanishes with no way back.
+- **Groups come first — and they are the whole report.** Every KAH group is a card
+  in a deliberate two-column grid from the 40em band on (one column on phones);
+  cards in a row share the row height (`align-items: stretch`), so the vertical
+  gaps stay even when rosters differ. Cards are ordered attention-first —
+  active breaches, then upcoming, then all-clear, alphabetical inside each band:
   - the group name (`h3`), a **Your group** badge when the viewer is a member, and a
     state pill: **Breaching now** (an episode includes today), **Breach upcoming**
     (an episode starts after today), or **All clear** (no breached day in the
@@ -273,6 +276,26 @@ flowchart LR
     and no separate "today" text line;
   - the **worst dip** in the window and, for an upcoming breach, the day it starts
     (`Worst: 40% on Sun 29 Nov · next Thu 10 Dec`);
+  - **the group's breach section** (only for a group with a breached day): a
+    **Breaches** subheading with the period count, then a **month preview timeline**
+    built from the shared `ClashMonthStrip` over the scanned window — one cell per
+    month, busy cells carry that month's breach-day count, and the strip wraps
+    inside the card instead of scrolling. Tapping a busy month scrolls to and
+    focuses the period row containing that month's first breach day (the Double
+    Booking strip interaction; reduced motion gets an instant jump). One flat
+    disclosure row per breach period follows:
+    - the row shows the status badge (**Active** / **Upcoming**), the period and run
+      length, `down to X%`, and `X away · Y in country · worst <day>`;
+    - the **away union** is always visible as chips, capped through the shared
+      `capBadgeItems` recipe (the viewer's own chip is pinned first and can never
+      be hidden behind the cap);
+    - expanding lists the **overseas events that took those members away** during
+      the run (one row per logical event — cross-calendar copies collapse via
+      `dedupeOverseasEventsByGroupId`), each opening the read-only **in-place
+      `EventDetail`** through `getKahBreachEventDetail`. That action is gated to
+      admins and KAH members and may resolve any listed group's event (members see
+      all groups); it still verifies the requested copy against the enriched
+      overseas read for its own window.
   - **the full active roster**, one row per member: name (with **You**), a
     present-tense badge — **Away now** (tagged on an overseas event overlapping
     today) or **In country** — and the nearest away stretch (`Away now · until Sep
@@ -280,28 +303,16 @@ flowchart LR
     member (`awaySpansByMember`: overlapping **and** adjacent runs joined) and
     clipped to the scanned window. A group with no active members says so instead of
     showing an empty percentage.
-- **Breach periods** follow the group cards as the shared collapsible
-  `ClashCard` / `ClashEventRow` (the Double Booking interaction):
-  - the heading reads "{Group} — down to 40% in country (needs 60%)" and the
-    sub-line the period and run length;
-  - the always-visible summary carries the status badge, the counts
-    (`3 away · 2 in country · worst Sun 29 Nov`) and the **away union** as chips,
-    capped through the shared `capBadgeItems` recipe (the viewer's own chip is
-    pinned first and can never disappear behind the cap). The group's full roster
-    lives on its card above, so a period only names who was away for that run;
-  - expanding lists the **overseas events that took those members away** during the
-    run (one row per logical event — cross-calendar copies collapse via
-    `dedupeOverseasEventsByGroupId`), each opening the read-only
-    **in-place `EventDetail`** through `getKahBreachEventDetail`. That action is
-    gated to admins and KAH members and may resolve any listed group's event
-    (members see all groups); it still verifies the requested copy against the
-    enriched overseas read for its own window.
 - Each period is **Active** (red — includes today) or **Upcoming** (amber — starts
   after today). `Resolved` cannot occur with a forward-only window. Runs touching
   the scanned window's edge are shown clipped — a run already broken at the
   window's start reads **"Ongoing"**, and one still broken at the window's end
   shows its end date with a **"+"** ("… – Oct 31+") — they may extend beyond the
   window.
+- There is **no page-level breach section and no `ClashCard` on this page**: the
+  forecast lives inside each group's card. The old amber period cards are replaced
+  by the flat rows above; the shared `ClashEventRow` is still reused for the
+  causing events.
 - With **zero KAH groups** (admin only) the page shows the shared actionable
   `EmptyState` (green check + **Manage KAH groups**). Groups with no breached day
   stay visible as cards — there is no page-filling clear-state that hides the
@@ -345,16 +356,21 @@ flowchart LR
   helpers and shared view types live in `src/lib/kah/range.ts`
   (`DEFAULT_KAH_RANGE_MONTHS`, `KAH_RANGE_MONTHS`, `kahForwardWindow`,
   `parseKahRange`, `kahRangeLabel`, `KahGroupRow`, `KahGroupMemberRow`,
-  `KahAwaySpan`, `KahEpisodeRow`, `KahStatusViewData`). The per-member away spans
-  and the group state/worst/next helpers are pure and in
-  `src/lib/kah/groups.ts` (`awaySpansByMember`, `groupBreachState`, `groupWorst`,
-  `groupNextBreachDate`); the display copy (period labels, away-span sentences) is
-  in `src/lib/kah/display.ts`. `src/lib/kah/viewData.ts`
+  `KahAwaySpan`, `KahEpisodeRow`, `KahStatusViewData`). A group row carries its
+  own `episodes` and `breachDayKeys` (there is no page-level episode list). The
+  per-member away spans, the breach-day collector and the group state/worst/next
+  helpers are pure and in `src/lib/kah/groups.ts` (`awaySpansByMember`,
+  `breachDaysByGroup`, `groupBreachState`, `groupWorst`, `groupNextBreachDate`);
+  the display copy (period labels, away-span sentences) is in
+  `src/lib/kah/display.ts`. `src/lib/kah/viewData.ts`
   (`buildKahStatusViewData`) owns the page's read + shaping, reused by the page's
-  initial render and the `getKahStatusView` range-change action. The in-place
-  detail shaping (`shapeClashDetail`) and the inclusive window helper
-  (`conflictWindowNaive`) are shared with the clash reports
-  (`src/lib/events/clashDetail.ts`, `src/lib/events/clashDisplay.ts`).
+  initial render and the `getKahStatusView` range-change action. The in-card month
+  timeline is the shared `ClashMonthStrip` ([`user-clashes.md`](user-clashes.md)
+  §1.8) with KAH-specific accessible wording and a wrapping modifier; the causing
+  events reuse `ClashEventRow`. The in-place detail shaping (`shapeClashDetail`)
+  and the inclusive window helper (`conflictWindowNaive`) are shared with the
+  clash reports (`src/lib/events/clashDetail.ts`,
+  `src/lib/events/clashDisplay.ts`).
 
 ## 1.8 Files
 
@@ -370,12 +386,13 @@ flowchart LR
 | `src/lib/kah/range.ts` | Pure, client-safe look-ahead helpers + shared view types: `DEFAULT_KAH_RANGE_MONTHS` (6), `KAH_RANGE_MONTHS` (6/12, KAH-specific), `isKahRangeMonths` / `parseKahRange`, `kahForwardWindow`, `kahRangeLabel`, `KahAwaySpan`, `KahGroupMemberRow`, `KahGroupRow`, `KahEpisodeRow`, `KahStatusViewData` |
 | `src/lib/kah/groups.ts` | Pure per-member away calendar (`awaySpansByMember`: clipped + merged trips) and group summary helpers (`groupBreachState`, `groupWorst`, `groupNextBreachDate`) |
 | `src/lib/kah/display.ts` | Pure display copy: `periodLabel`, `groupStateLabel`, `awaySpanLabel`, `awaySpanSummary` |
-| `src/lib/kah/viewData.ts` | `buildKahStatusViewData` — the page's forward-window read + group-card/breach-period shaping (all groups for every member), shared by the initial render and the range-change action |
+| `src/lib/kah/viewData.ts` | `buildKahStatusViewData` — the page's forward-window read + group-card shaping (all groups for every member; each group row carries its episodes and breach-day keys), shared by the initial render and the range-change action |
 | `src/lib/kah/actions.ts` | Audited group CRUD server actions |
 | `src/lib/kah/statusActions.ts` | Read-only server actions: `checkKahBreaches` (nav badge over every group), `getKahStatusView` (page look-ahead change), `getKahBreachEventDetail` (in-place detail) — all gated to admins and KAH members |
 | `src/lib/kah/notify.ts` | `dispatchKahBreachCheck` — check, audit, email (imports reads from `status.ts`) |
 | `src/lib/events/clashDetail.ts` | Shared `shapeClashDetail` — the in-place detail payload for Double Booking, the wizard advisory, and KAH |
-| `src/app/(protected)/kah-status/{page,loading,KahStatusView,KahStatusHead,KahGroupCard,KahGroupRoster,KahBreachPeriodCard,KahStatusBadge,KahEventDetailModal,KahStatusSkeleton,useKahEventDetail}.tsx/.ts` | Read-only status page: forward-only group overview + breach forecast over a selectable look-ahead (default 6 months; 1 year), per-view only; every KAH group with its roster, today's in-country %, worst dip and member away stretches; then collapsible breach periods with the away union + causing events; gated to members/admins (non-members 404), inline error + Retry, zero-group `EmptyState` |
+| `src/app/(protected)/kah-status/{page,loading,KahStatusView,KahStatusHead,KahGroupCard,KahGroupBreaches,KahBreachPeriodRow,KahGroupRoster,KahStatusBadge,KahEventDetailModal,KahStatusSkeleton,useKahEventDetail}.tsx/.ts` | Read-only status page: forward-only group overview + forecast over a selectable look-ahead (default 6 months; 1 year), per-view only; every KAH group with its current %, worst dip, in-card month breach timeline + flat collapsible period rows (away union, causing events), and full roster; gated to members/admins (non-members 404), inline error + Retry, zero-group `EmptyState` |
+| `src/components/clashTimeline.tsx` | `ClashMonthStrip` (shared with Double Booking) — the KAH card's breach preview passes KAH-specific accessible wording and the wrapping `c2-kah-timeline` modifier |
 | `src/components/TimeRangeSelect.tsx` | The **Look ahead** control (shared with My Events "Range") — the app-wide range pill, [`desktop-responsive.md`](desktop-responsive.md) §1.11 |
 | `src/components/AppShellShell.tsx` | Conditional KAH Status nav entry (members: `hasKahGroup`; admins: always) |
 | `src/lib/email/send.ts` | Transport selection: Workspace delegation → SMTP → warn |

@@ -298,27 +298,38 @@ export function ClashDayStrip({
  * one cell per calendar month, for a look-ahead longer than
  * `CLASH_MONTH_STRIP_MIN_DAYS` days (6 or 12 months would otherwise render 180–365
  * boxes in a row). A month with clashes is tappable and scrolls to its first
- * clash day; a clear month is inert. See docs/user-clashes.md §1.8.
+ * clash day; a clear month is inert. Shared by Double Booking and each KAH group
+ * card's breach preview (which overrides the accessible wording and lets the
+ * strip wrap instead of scrolling). See docs/user-clashes.md §1.8.
  */
 export function ClashMonthStrip({
   cells,
   rangeLabel,
   onJump,
+  label,
+  unit = { one: "double booking", other: "double bookings" },
+  className,
 }: {
   cells: ClashMonthCell[];
   /** What the strip covers, e.g. `6 months` — the accessible name. */
   rangeLabel: string;
   onJump: (dayKey: string) => void;
+  /** Whole-strip accessible name; defaults to the Double Booking wording. */
+  label?: string;
+  /** Wording for one counted item (used in each cell's accessible name). */
+  unit?: { one: string; other: string };
+  /** Extra class on the strip root (KAH wraps it inside a group card). */
+  className?: string;
 }) {
   return (
     <div
-      className="c2-clash-strip c2-clash-strip--month"
-      aria-label={`Double bookings over the next ${rangeLabel}`}
+      className={`c2-clash-strip c2-clash-strip--month${className ? ` ${className}` : ""}`}
+      aria-label={label ?? `Double bookings over the next ${rangeLabel}`}
     >
       {cells.map((cell) => {
         const busy = cell.jumpDayKey !== null;
-        const label = `${cell.label} ${cell.year}${
-          busy ? `, ${cell.count} double booking${cell.count === 1 ? "" : "s"}` : ", clear"
+        const cellLabel = `${cell.label} ${cell.year}${
+          busy ? `, ${cell.count} ${cell.count === 1 ? unit.one : unit.other}` : ", clear"
         }`;
         return (
           <button
@@ -329,7 +340,7 @@ export function ClashMonthStrip({
             }`}
             onClick={() => cell.jumpDayKey && onJump(cell.jumpDayKey)}
             disabled={!busy}
-            aria-label={label}
+            aria-label={cellLabel}
           >
             <span className="c2-clash-strip-dow" aria-hidden>
               {String(cell.year).slice(2)}
