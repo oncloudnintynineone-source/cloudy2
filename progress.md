@@ -3215,6 +3215,21 @@ size="compact"`), and renames **Duplicate Event** / **Copy to Other Google
   `KahStatusBadge` pins light-variant status text above 4.5:1 in both schemes. Docs:
   `kah.md` §1.7, `event-history.md` §1.4.3, `ui-ux-improvements.md` D23.
 
+- 1.431 **Compact desktop chrome tier is viewport-stable (bugfix)**: the short-viewport
+  trigger projected the *displayed month's* 4–6 week rows, so February 2027 (the only
+  four-row month between 2024 and 2032) projected a third chip and rendered the **full
+  desktop chrome** on its own, then reverted in March — the whole tier (tab strip ↔
+  navigator squircle, chip font, CTA sizing, `topChromeHeight`) flipped while paging
+  months. The projection now lives in the pure, unit-tested
+  `compactDesktopForHeight` (`src/lib/ui/dashboardChrome.ts`, with
+  `WIDE_DESKTOP_CHROME_RESERVE_PX` / `MAX_MONTH_GRID_ROWS` / `COMPACT_CHROME_CHIP_CEILING`)
+  and always assumes the **tightest six-row month**, so the tier is a pure function of
+  the viewport height: monotone (never un-compacts a viewport that compacts today),
+  immune to the optimistic/skeleton month and to tab switches. The per-cell chip count
+  is unchanged — it stays the fitted-row legibility solve, so a six-row month on a short
+  laptop shows one chip by geometry, not by a year rollover. Docs:
+  `dashboard-views.md` §1.1/§1.8.1, `desktop-responsive.md` §1.4, `AGENTS.md`.
+
 ## 1.4 Open items & next steps
 
 1. **`ADMIN_INITIAL_PASSWORD` + `ADMIN_PIN`** must be set on Vercel Preview, in the

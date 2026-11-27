@@ -10903,6 +10903,49 @@ could not be exercised live; instead a temporary mock route rendered the real cl
 components and was screenshot-verified at 360/390/768/1280 in both schemes (no
 horizontal overflow; badge/text contrast measured ≥4.5:1), then removed.
 
+## Compact desktop chrome tier is viewport-stable (1.431)
+
+**Bug.** In the Month view the compact-desktop chrome tier (`isCompactDesktop`) was
+decided from the *displayed month's* natural week rows. The projection ran
+`monthFitChipCount(viewportHeight − 160, monthGridRows(shownMonth))`, and compacting
+begins when that projection is ≤ 2, so the threshold was `H < 160 + 116·rows`: below 624
+for a 4-row month, 740 for 5, 856 for 6. February 2027 is the **only** four-row month
+between 2024 and 2032 (28 days starting on a Monday), so on a ~630–740px inner height
+it projected a third chip, un-compacted, and rendered the full desktop chrome — tab
+strip instead of the navigator squircle, 14px chips instead of 12px, 36px CTAs — on its
+own, then reverted in March. Every 5/6-row month around it stayed compact. The same
+render also fed the optimistic month, so a pending adjacent-month step or a tab switch
+could flip the chrome before the grid changed.
+
+**Fix.** The decision moved to the pure, unit-tested
+`src/lib/ui/dashboardChrome.ts`: `WIDE_DESKTOP_CHROME_RESERVE_PX` (moved out of
+`DashboardView`), `MAX_MONTH_GRID_ROWS = 6` (the real worst case, asserted against
+`monthGridRows` for every month 2024–2032 × both week starts so the constant cannot
+drift), `COMPACT_CHROME_CHIP_CEILING = 2`, and
+`compactDesktopForHeight(viewportHeight)` — which always projects the **tightest**
+six-row month, never the month on screen. `DashboardView` now computes
+`isDesktop && (isNarrowDesktop || compactDesktopForHeight(viewportSize.height))`; the
+640–799px band trigger is unchanged and `monthFitRows` still feeds the fill and chip
+count. The rule is monotone (the tightest month also projects the fewest chips, so the
+change can only add the compact saving, never remove it) and immune to the live compact
+height (no feedback loop) and to the month (no flip while paging).
+
+**Not a bug.** The per-cell chip count is unchanged: it is the fitted-row legibility
+solve (`monthFitChipCount`'s 21px slot floor, above the library's 9px `autoSize` tier),
+so a four-row month shows four chips and a six-row month one chip on a short laptop.
+The months that read as "1 chip per cell" are therefore the 6-row ones (2026-03,
+2026-08, 2026-11, 2027-05, 2027-08 under the Monday start), not a year rollover.
+
+**Verification.** `vitest run` green (168 files / 2179 tests, incl. the new
+`dashboardChrome.test.ts` — 7 cases covering the worst-case constant, monotonicity, the
+856px boundary, null/invalid viewports and the Feb-2027 regression), `tsc --noEmit`
+green, `eslint` green on the touched files. No browser/DevTools tooling was available in
+this session, so the visual pass (1366×768 and 1280×800 inner heights, paging
+2026-11 → 2026-12 → 2027-02 → 2027-03 → 2027-05 → 2027-08 with both week starts) is
+handed to the dev preview check. Docs: `dashboard-views.md` §1.1/§1.8.1,
+`desktop-responsive.md` §1.4 + tier table, `AGENTS.md`. No schema, server, URL or cookie
+change.
+
 
 
 

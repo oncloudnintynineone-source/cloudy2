@@ -152,6 +152,7 @@ import {
 import { gridWeekAllDayLayout, type GridWeekAllDayLayout } from "@/lib/events/gridWeek";
 import { announce } from "@/lib/ui/announcer";
 import { useChromeHide } from "@/lib/ui/chromeHide";
+import { compactDesktopForHeight } from "@/lib/ui/dashboardChrome";
 import { useGridPan } from "@/lib/ui/gridPan";
 import { useImmersiveMode } from "@/lib/ui/immersiveMode";
 import { useIsOffline } from "@/lib/ui/onlineStatus";
@@ -1081,19 +1082,6 @@ const CHIP_FLOOR = 56;
 const CHIP_DISCARD_MIN = 92;
 const CHIP_TEXT_MIN = 160;
 const CHIP_DETAIL_MIN = 220;
-
-/**
- * Vertical budget the wide desktop layout spends above the fit-to-height month
- * column: the 56px app header plus the two-row sticky chrome (tab strip + nav
- * row, ~104px). Used only to project the day-cell chip capacity that the *wide*
- * chrome would give, so the compact tier is chosen from the viewport height
- * without the live chrome height feeding back into the decision (which would
- * oscillate: compacting gains a row slot, which un-compacts, which loses it).
- *
- * Deliberately rounds up: a banner or safe-area inset makes the real box
- * shorter than this, so the tier engages a touch earlier - the requested bias.
- */
-const WIDE_DESKTOP_CHROME_RESERVE_PX = 160;
 
 function DashboardViewImpl({
   month,
@@ -2159,14 +2147,13 @@ function DashboardViewImpl({
   // wide desktop's tab strip + date-nav row. It applies in the 640-799px band (no
   // horizontal room) AND on any desktop viewport where the *wide* layout's month
   // day cell would fit at most two event chips - the "the day only shows two
-  // events" cue on short laptops. The projection uses the fixed wide-chrome
-  // budget, never the live compact height, so the decision cannot oscillate.
-  const projectedWideDayChips = monthFitChipCount(
-    viewportSize.height - WIDE_DESKTOP_CHROME_RESERVE_PX,
-    monthFitRows,
-  );
-  const compactForHeight = projectedWideDayChips !== null && projectedWideDayChips <= 2;
-  const isCompactDesktop = isDesktop && (isNarrowDesktop || compactForHeight);
+  // events" cue on short laptops. The projection (`compactDesktopForHeight`) is a
+  // pure function of the viewport height: it always assumes the tightest 6-row
+  // month and a fixed wide-chrome budget, never the month on screen and never the
+  // live compact height, so paging months can't flip the chrome and the decision
+  // can't feedback-loop into itself (see `src/lib/ui/dashboardChrome.ts`).
+  const isCompactDesktop =
+    isDesktop && (isNarrowDesktop || compactDesktopForHeight(viewportSize.height));
   const monthFitStyle = useMemo<CSSProperties | undefined>(() => {
     if (!monthFitActive || monthFitHeight <= 0) {
       return undefined;

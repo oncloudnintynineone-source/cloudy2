@@ -265,7 +265,10 @@ doc content here.
     row; at `lg`+ one box (tabs + nav row) pins top, and in the compact desktop
     tier that box is a **single row** (`isCompactDesktop`): the narrow 640–799px
     band, or any viewport whose wide-layout month day cell would fit only two event
-    chips (projected with `monthFitChipCount` over a fixed wide-chrome budget). The
+    chips (projected with `monthFitChipCount` over a fixed wide-chrome budget **for
+    the tightest 6-row month** — `compactDesktopForHeight` in
+    `src/lib/ui/dashboardChrome.ts`, never the month on screen, so the tier cannot
+    flip as the user pages months). The
     tab strip folds into a **navigator squircle** (`.c2-compact-cluster`, 40px tall,
     12px radius — not a pill) on the left — view trigger · period label + grouped
     `[‹][›]` pair · filter/date, divided into sections — and the primary

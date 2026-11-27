@@ -205,10 +205,17 @@ string maps to the first tab of that kind.
     fit **at most two event chips**. This is projected with the tested
     `monthFitChipCount` (`src/lib/ui/monthZoom.ts`) over
     `viewportHeight − WIDE_DESKTOP_CHROME_RESERVE_PX` (160px = the 56px header plus
-    the wide two-row chrome) and the current month's row count. Using the fixed wide
-    budget — never the live compact height — keeps the decision stable (compacting
-    would otherwise gain a chip slot and immediately un-compact). At this width there
-    is horizontal room, so the labelled New-event / Quick-links buttons stay.
+    the wide two-row chrome) **and the tightest possible month shape — six week
+    rows (`MAX_MONTH_GRID_ROWS`), never the month on screen** — via the pure
+    `compactDesktopForHeight` (`src/lib/ui/dashboardChrome.ts`, unit-tested). Using
+    the fixed wide budget — never the live compact height — keeps the decision from
+    oscillating with its own height; using the *worst-case* month keeps it from
+    changing as the user pages months. Both matter: a month-derived projection made
+    February 2027 (the only four-row month between 2024 and 2032) un-compact and
+    threw the full desktop chrome into a run of five/six-row compact months. Because
+    the tightest month also projects the fewest chips, the rule is monotone — it can
+    only add the compact saving, never take it away. At this width there is
+    horizontal room, so the labelled New-event / Quick-links buttons stay.
 
   In both cases the box's block padding tightens (4px top/bottom plus the 40px
   slab) — ~45px of chrome saved per screen. At 800px+ with enough height the
@@ -1288,7 +1295,11 @@ that floor is the point where the library's `autoSize` chips would otherwise
 drop their text from 12px to 9px (`@container (max-height: 18px)`, chip box =
 slot − 2px), and it also keeps the full-desktop month-chip text — forced to
 the day number's 14px, see §1.4 — unclipped (the compact/semi-desktop tiers
-keep the library's 12px text). Overflow goes to the
+keep the library's 12px text). The count is therefore a function of the month's
+**shape** as well as the viewport: a four-row month has the tallest day cells
+(four chips), a six-row month the shortest (one chip on a short laptop) — that
+is the fit working as intended, not a regression, and the *chrome* tier above
+never changes with it. Overflow goes to the
 existing `+N more` trigger (which rides the day's fixed bottom inset, so it
 never collides with the chips) and `sortMineFirst` keeps the user's events at
 the head of the visible set. The fill floor is one whole chip slot (76px row),

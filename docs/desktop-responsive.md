@@ -190,7 +190,7 @@ gated on `isDesktop`):
 
 | Element                                                                                                 | Mobile                                                              | At `lg`                                                                                                                                                                                                                                                                                                                        |
 | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Sticky chrome rows (view tabs + date-nav)                                                               | thin name strip + floating bottom pill                              | two rows at `lg`+; **one row** in the compact desktop tier (`isCompactDesktop`): the narrow 640-799px band, or any desktop viewport whose wide-layout month day cell would fit at most two event chips — the tab strip folds into a view trigger, and New event / Quick links go icon-only only in the narrow band — see below |
+| Sticky chrome rows (view tabs + date-nav)                                                               | thin name strip + floating bottom pill                              | two rows at `lg`+; **one row** in the compact desktop tier (`isCompactDesktop`): the narrow 640-799px band, or any desktop viewport whose wide-layout month day cell would fit at most two event chips — projected for the tightest six-row month, so paging months can never flip it — the tab strip folds into a view trigger, and New event / Quick links go icon-only only in the narrow band — see below |
 | Schedule views' resource/group label widths (`--resources-day-view-*` / `--resources-week-view-*` vars) | `3rem` / `1.5rem`                                                   | `6rem` / `3.5rem` — shortnames get room to stop ellipsizing                                                                                                                                                                                                                                                                    |
 | Week (H) timeline slot width (`--resources-week-view-slot-width`)                                       | Mantine default (`calc(3.75rem * var(--mantine-scale))`, 60px/hour) | `calc(4.5rem * var(--mantine-scale))` (72px/hour)                                                                                                                                                                                                                                                                              |
 | Day timeline slot width (`--resources-day-view-slot-width`)                                             | Mantine default (`calc(5rem * var(--mantine-scale))`, 80px/hour)    | same — both slot widths are then multiplied by the shared **timeline zoom** level (0.25–6, default 1; see [`dashboard-views.md`](dashboard-views.md#17-timeline-and-column-zoom-day-week-h-week-d-and-week-grid))                                                                                                              |
@@ -234,8 +234,13 @@ New event / Quick links also run icon-only to fit the ~544px content width the
 month day cell would fit **at most two event chips**. That capacity is projected
 with the tested `monthFitChipCount` (`src/lib/ui/monthZoom.ts`) over
 `viewportHeight − WIDE_DESKTOP_CHROME_RESERVE_PX` (160px = 56px header + the
-wide two-row chrome) and the current month's row count; the fixed wide budget
-(never the live compact height) keeps the decision stable. On a wide-but-short
+wide two-row chrome) and the **tightest month shape — six week rows, never the
+month on screen** — through the pure `compactDesktopForHeight`
+(`src/lib/ui/dashboardChrome.ts`). The fixed wide budget (never the live compact
+height) keeps the decision from oscillating with its own height; the worst-case
+month keeps it from changing as months are paged (a month-derived projection made
+February 2027 — the only four-row month between 2024 and 2032 — render the full
+desktop chrome alone, then revert). On a wide-but-short
 screen the labels stay (there is horizontal room). Either way a full row of
 chrome (~45px) is saved. With enough height at 800px+ the two-row chrome
 returns unchanged, and below `lg` the mobile recipe is untouched. **Below `lg`
