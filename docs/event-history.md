@@ -355,9 +355,11 @@ in-place refetch (§1.4), so it shows the list skeleton, never this card.
 
 ### 1.4.3 Shared range vocabulary
 
-Every date-range control in the app picks from the same three widths — **1 month,
-6 months, 1 year** — so one dropdown's meaning never changes between pages. The
-vocabulary lives in `src/lib/dateRange/monthRange.ts` (client-safe, pure,
+Every date-range control in the app picks from the same widths — **1 month,
+6 months, 1 year** — with one deliberate exception: **KAH Status** offers only
+**6 months (default) / 1 year**, because its forward scan answers a reporting-season
+question rather than a "what is on this month?" one (see [`kah.md`](kah.md) §1.7).
+The vocabulary lives in `src/lib/dateRange/monthRange.ts` (client-safe, pure,
 unit-tested): `RANGE_MONTHS`, `RangeMonths`, `isRangeMonths`, `parseRangeMonths`,
 `rangeMonthsLabel`, and the two window shapes — `forwardWindow(today, months)`
 (today → last day of the month N months out) for look-aheads, and
@@ -369,7 +371,7 @@ Each page keeps a thin wrapper that fixes its own style, default, and copy:
 | Page | Wrapper | Style | Default |
 | ---- | ------- | ----- | ------- |
 | My Events | `src/lib/events/myEventsRange.ts` | symmetric | ±1 month |
-| KAH Status | `src/lib/kah/range.ts` | forward | 1 month |
+| KAH Status | `src/lib/kah/range.ts` | forward | 6 months |
 | Double Booking | `src/lib/events/clashRange.ts` | forward | 1 month |
 
 Only My Events puts the range in the URL (`?range=`), because its list is the
@@ -378,10 +380,12 @@ choice that never becomes a shareable route. Dropping the old ±3 option means a
 older `?range=3` link resolves to the default — silently, which is what a
 narrower vocabulary should do.
 
-The default is **one month** everywhere: the wider windows were rarely chosen and
-made the common question ("what's on my calendar / where am I double-booked this
-month?") require a deliberate narrowing first. Where a month is genuinely too
-narrow to answer it, the Double Booking strip switches to one cell per month
+The default is **one month** for My Events and Double Booking: the wider windows
+were rarely chosen and made the common question ("what's on my calendar / where
+am I double-booked this month?") require a deliberate narrowing first. KAH Status
+defaults to **six months** — its wider forecast is the point — and a stored
+`1` from the old vocabulary coerces to that default. Where a month is genuinely
+too narrow to answer it, the Double Booking strip switches to one cell per month
 ([`user-clashes.md`](user-clashes.md) §1.3.1).
 
 ## 1.5 Authorization & privacy

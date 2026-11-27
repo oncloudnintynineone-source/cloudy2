@@ -198,11 +198,14 @@ app never blocks an event.
 - **Breach Email Templates** (same tab): admin-editable subject/body with live
   preview; tokens `{event}` `{actor}` `{window}` `{breaches}`. The body must keep
   `{breaches}`.
-- Members also get the read-only **KAH Status** page automatically; **admins always
-  see it too**, listing every group's breach periods (past & next 3 months,
-  resolved/active/upcoming). Each breach is a collapsible card showing the group's
-  full roster (who is away vs in country) and the overseas events that took those
-  members away — tap an event for its read-only details in place.
+- Members also get the read-only **KAH Status** page automatically, and **admins
+  always see it too**; every member sees **every** KAH group (their own marked).
+  The page opens on a **6-month** look-ahead (or 1 year) and leads with a card per
+  group — required %, today's in-country reading, worst dip and the **full roster**
+  with each member's away stretches (away now / in country, next trip) — followed by
+  the collapsible breach periods, which name who was away and the overseas events
+  that took them away; tap an event for its read-only details in place. A signed-in
+  non-member who opens the URL gets the normal not-found.
 
 Design: [`kah.md`](kah.md).
 

@@ -102,7 +102,8 @@ src/
  dashboard/ # Calendar page (month/day/week views, wizard, details)
  parade-state/ # Parade state + attendance mode
  contacts/ # Contact list + VCF export
- kah-status/ # Read-only KAH breach history & forecast, ±3 months (member's own groups; admins: all)
+ kah-status/ # Read-only KAH group overview + breach forecast, 6 months / 1 year
+ # (every group for KAH members and admins; own groups marked)
  double-booking/ # Double Booking scan (30-day own-department clash report)
   settings/ # Admin hub: users, departments, event-types, templates,
   # webhooks, quick-links, kah-groups, parade-email, banner,

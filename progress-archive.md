@@ -10863,6 +10863,46 @@ remains documented.
 
 **Verification.** `pnpm lint`, `pnpm typecheck`, `pnpm test` green (159 files / 1992 tests).
 
+## KAH Status overhaul (1.430)
+
+**Goal.** Make `/kah-status` useful to every KAH member (not only admins) and put the
+grouping and its people first.
+
+**Access & range.** The page is gated to admins and members of at least one KAH group
+(non-members get `notFound()`; the nav entry logic is unchanged). Every member now sees
+**every** KAH group — own groups marked — because the page lists all groups, the nav
+badge counts all groups too. KAH keeps its own look-ahead vocabulary: 6 months by
+default, or 1 year (`DEFAULT_KAH_RANGE_MONTHS = 6`, `KAH_RANGE_MONTHS = [6, 12]`); the
+app-wide 1/6/12 vocabulary still backs My Events and Double Booking, so KAH has its own
+`isKahRangeMonths` / `parseKahRange` and a stale `1` coerces to 6. The three read-only
+actions (`checkKahBreaches`, `getKahStatusView`, `getKahBreachEventDetail`) share the
+same gate; the detail action now allows any KAH-relevant event (members see all groups)
+while still verifying the copy against the enriched overseas read for its window.
+
+**View data.** `buildKahStatusViewData` always reads all groups and the viewer's group
+ids, keeps the single enriched month-cache read, and derives per group: today's status,
+episode count, breach state (active > upcoming > clear), worst dip/date, next breach
+date, and the roster with merged away stretches. New pure modules:
+`src/lib/kah/groups.ts` (`awaySpansByMember` clipping + merging overlap/adjacency,
+`groupBreachState`, `groupWorst`, `groupNextBreachDate`) and `src/lib/kah/display.ts`
+(period labels, away-span sentences), both unit-tested. Episodes now carry only the
+away union (`awayMembers`) instead of a duplicated full roster.
+
+**UI.** Sticky report head (window + group/member counts), one live summary line, then
+"Groups" cards (state glyph/pill, required %, today's in-country reading + meter, worst
+dip, full roster with away/in-country badges and next trip) and then "Breach periods"
+as the shared `ClashCard` (away chips capped with `capBadgeItems`, causing events
+opening the in-place read-only detail). Deliberate two-column grid from 40em; hairline
+roster rows; zero active members handled explicitly. `KahStatusBadge` fixes
+Mantine's light-variant text contrast (yellow ~2.7:1, green ~3.8:1 measured) by using
+the scheme-aware text token while keeping the tinted semantic fill.
+
+**Verification.** `pnpm lint` / `pnpm typecheck` / `pnpm test` green (167 files / 2172
+tests), `pnpm build` green. No local DB/`.env.local` existed, so the protected route
+could not be exercised live; instead a temporary mock route rendered the real client
+components and was screenshot-verified at 360/390/768/1280 in both schemes (no
+horizontal overflow; badge/text contrast measured ≥4.5:1), then removed.
+
 
 
 

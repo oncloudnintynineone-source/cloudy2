@@ -1113,6 +1113,34 @@ appears (and on the xs→md resize and font reflows), `clipped` resets per event
 ≥ 420-character fallback guarantees the toggle on notes that cannot possibly fit (see
 [`registration-events.md`](registration-events.md) for the dropped per-occurrence caveat).
 
+### 1.7.20 D23 — the KAH Status page answered the wrong question for its audience
+
+**Evidence.** Verified at 1.429: `/kah-status` only ever loaded the viewer's own groups
+(`buildKahStatusViewData` chose `kahGroupsForUser` for non-admins) and opened on a
+**1-month** look-ahead; the page's only content was breach cards, so a roster existed only
+inside a breach period and a group with no breach appeared as a bare name in an "All clear"
+list. A KAH member asking about a colleague's group could not see it at all, and there was
+no at-a-glance "who is away when" view over a reporting season.
+
+**Impact.** Two members holding the same schedule saw different KAH pages; the grouping and
+its people — the reason the constraint exists — were buried inside an exception report; and
+the shortest window forced a control change on every visit.
+
+**Fix.** Gate the page to KAH members/admins (non-members get the branded 404), list **every**
+group with the viewer's own marked, default to **6 months** (6 months / 1 year only), and
+lead with group cards: state pill, required %, today's in-country reading + meter, worst dip,
+and the full roster with each member's merged away stretches. Keep the shared `ClashCard`
+periods below for the away union + causing events.
+
+**Effort.** M. **Respect.** No change to the notify-only breach math, the email path or the
+schema; every read stays on the month cache; the badge window follows the page default
+(6 months) as documented; the advisory footnote and in-place `EventDetail` stay.
+
+**Status.** Shipped **1.430** (2026-11-27): all of the above, plus a shared `KahStatusBadge`
+that pins light-variant status text to a readable scheme token (yellow/green measured under
+the 4.5:1 floor otherwise). Screenshot-verified at 360/390/768/1280 in both schemes against a
+mock harness (no local DB was available in the dev environment). [`kah.md`](kah.md) §1.7.
+
 ## 1.8 Workflow level
 
 These are feature-shaped gaps that surface as UX pain. Most need their own spec before any UI is
@@ -1213,7 +1241,7 @@ flowchart TD
 
 | Tier                   | Items           | Why here                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | ---------------------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **1 — days, low risk** | B1, B4          | Missing-affordance and correctness fixes. Each is local, reversible, needs no schema or data change, and closes a gap the codebase already knows about (B1). A1/A2/A4, C1/C6 and D5/D6 left this tier shipped (§1.10.1), as did A7 — added and shipped at 1.403 — and A8/A9, added and shipped at 1.412. D8, added and shipped at 1.414, D9/D10, added and shipped at 1.415, and C7/D11/D12/D13, added and shipped at 1.416, never entered the tier table; nor did D14, added and shipped at 1.417, or C8, added and shipped at 1.418, nor D15–D20, added and shipped at 1.419, nor D22, added and shipped at 1.420. |
+| **1 — days, low risk** | B1, B4          | Missing-affordance and correctness fixes. Each is local, reversible, needs no schema or data change, and closes a gap the codebase already knows about (B1). A1/A2/A4, C1/C6 and D5/D6 left this tier shipped (§1.10.1), as did A7 — added and shipped at 1.403 — and A8/A9, added and shipped at 1.412. D8, added and shipped at 1.414, D9/D10, added and shipped at 1.415, and C7/D11/D12/D13, added and shipped at 1.416, never entered the tier table; nor did D14, added and shipped at 1.417, or C8, added and shipped at 1.418, nor D15–D20, added and shipped at 1.419, nor D22, added and shipped at 1.420, nor D23, added and shipped at 1.430. |
 | **2 — a sprint**       | B3, B5, D21     | Keyboard parity, the legibility floor, and the wizard draft surviving a reload. D2 shipped ahead of the tier (§1.10.1) **without** its shortcut section — fold that section in when B5 lands, per the original "B5 before D2" note. C2/C3/C4/C5 left this tier shipped (§1.10.1).                                                                                                                                                                                                                                                                                                                                    |
 | **3 — design-gated**   | E3, E6-hint     | Advisory and messaging that must be designed against the clashes engine and attendance docs rather than bolted on.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | **4 — feature work**   | E1, E4, E6-sync | Each needs its own spec, schema, and subsystem doc.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
@@ -1260,6 +1288,7 @@ land here.
 | D20 | 1.419 (2026-11-24)                                     | Both wizard empty states are shared `EmptyState`s: the type step is role-aware (admins get **Open Event Types** → `/settings/event-types`, staff are pointed at their admin), the invitees step names the admin path without navigating away from the draft.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | D22 | 1.420 (2026-11-24)                                     | Details-modal action row is a sticky frosted footer: the four action branches render inside `.c2-detail-footer` (sticky bottom, top border, riding the shared `.c2-glass-surface` so long details blur behind it as they scroll under; flush bleed via body `paddingBottom: 0` + negative inline margins), Register / Open-in-calendar move to `lg` (44px), and `RichRemarks` collapses to 6 lines + 2 preview cards behind a measured **Show more** toggle. [`event-lifecycle.md`](event-lifecycle.md) §1.12.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | dual | 1.426 (2026-11-26)                                    | **Month & Agenda view retired** (calendar review §1.14): below `lg` the Agenda half never rendered (the day modal already covered it) — a sixth renderer for a niche pairing. `dual` is out of the kind vocabulary; existing tabs, share tokens and `?view=dual` params coerce to Month via `resolveViewKind` (`src/lib/dashboardViews/views.ts`); `DualPaneView` / `dualSplit` deleted, cookie v3.7 drops the key. [`dashboard-views.md`](dashboard-views.md) §1.9, [`ui-state.md`](ui-state.md) §1.5.2. |
+| D23 | 1.430 (2026-11-27)                                    | KAH Status is member-visible across **every** group (own groups marked; non-members 404), defaults to **6 months** (6 months / 1 year only), and leads with group cards — state pill, required %, today's in-country meter, worst dip, full roster with each member's merged away stretches — followed by the shared `ClashCard` breach periods (away union + causing events). `KahStatusBadge` keeps light-variant status text above 4.5:1 in both schemes. [`kah.md`](kah.md) §1.7. |
 
 ## 1.11 Implementation guardrails
 

@@ -86,8 +86,12 @@ export const GUIDE_SECTIONS: readonly GuideSection[] = [
     id: "kah-status",
     route: "/kah-status",
     title: "KAH Status",
-    summary: "KAH constraint advisories for the coming weeks.",
-    points: ["Advisory only — breaches are reported, never blocked."],
+    summary: "Every KAH group's roster and breach forecast — your own groups are marked.",
+    points: [
+      "Each group card lists its members, who is away now and their upcoming trips.",
+      "Breach periods below the groups name who was away and the overseas events behind them.",
+      "Advisory only — breaches are reported, never blocked.",
+    ],
   },
   {
     id: "settings",
@@ -104,10 +108,7 @@ export const GUIDE_SECTIONS: readonly GuideSection[] = [
  * the general block's id when nothing matches — the sheet always has a
  * "current page" to highlight.
  */
-export function guideSectionIdForPath(
-  sections: readonly GuideSection[],
-  pathname: string,
-): string {
+export function guideSectionIdForPath(sections: readonly GuideSection[], pathname: string): string {
   let best: GuideSection | null = null;
   for (const section of sections) {
     if (!section.route) continue;
@@ -117,7 +118,7 @@ export function guideSectionIdForPath(
       best = section;
     }
   }
-  return best?.id ?? (sections.find((s) => !s.route)?.id ?? sections[0]?.id ?? "");
+  return best?.id ?? sections.find((s) => !s.route)?.id ?? sections[0]?.id ?? "";
 }
 
 /**

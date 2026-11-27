@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.429 (dashboard Users filter option set)** is shipped.
+- All work through changelog **1.430 (KAH Status overhaul)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -44,9 +44,11 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
   mobile-first UI with a desktop layout at `lg`; remembered UI state across relaunch;
   audit-log viewer with retention + CSV export; admin-managed quick-links menu
   launched from an amber `IconLink` FAB (mobile) / nav-row chip (desktop) on the
-  Calendar page; user-facing KAH Status page (read-only breach history &
-  forecast over a 1 / 6 / 12-month look-ahead (default 1 month): resolved/active/upcoming breach periods,
-  member's own groups; admins: all); Web Push notifications to users newly added
+  Calendar page; user-facing KAH Status page (read-only, gated to KAH members and
+  admins; every member sees every group, own groups marked; 6-month default /
+  1-year look-ahead; group cards with the full roster, today's in-country reading
+  and each member's away stretches, then the breach periods with the away union +
+  causing events); Web Push notifications to users newly added
   as participants to an event (create/update only, per-device permission + an
   account-wide pause switch in Profile → Notifications).
 - Google integration is real for Calendar and Gmail-send once configured (service
@@ -3201,6 +3203,17 @@ size="compact"`), and renames **Duplicate Event** / **Copy to Other Google
   `DashboardView`), so it can no longer edit the new tab with the previous tab's
   selections. Tests: 10 new/changed cases in `filterUserOptions.test.ts` +
   `resolveFilterApply.test.ts`. Docs: `dashboard-views.md` §1.2.
+
+- 1.430 **KAH Status overhaul**: `/kah-status` is gated to KAH members and admins
+  (non-members 404) and **every member sees every group** (own groups marked), not
+  only their own. The page now leads with group cards — state pill, required %,
+  today's in-country reading + meter, worst dip, and the **full roster** with each
+  member's merged away stretches (`awaySpansByMember`) — followed by the collapsible
+  `ClashCard` breach periods (away union + causing events). Look-ahead is
+  **6 months by default / 1 year** (KAH's own set; My Events and Double Booking keep
+  1/6/12), and the nav badge counts every group over that 6-month default.
+  `KahStatusBadge` pins light-variant status text above 4.5:1 in both schemes. Docs:
+  `kah.md` §1.7, `event-history.md` §1.4.3, `ui-ux-improvements.md` D23.
 
 ## 1.4 Open items & next steps
 

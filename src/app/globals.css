@@ -3719,6 +3719,46 @@ html.c2-low-end::view-transition-group(*) {
   }
 }
 
+/* KAH Status group cards (docs/kah.md §1.7): a deliberate two-column grid from
+   the 40em desktop band on — rosters need width, so this is not the auto-filling
+   `.card-grid` (which would add a narrow third column on wide screens). One
+   column on phones. */
+.c2-kah-groups {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--mantine-spacing-sm);
+  align-items: start;
+}
+
+@media (min-width: 40em) {
+  .c2-kah-groups {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* The roster inside a group card: hairline rows, no list markers, no card-in-card
+   borders. Rows are non-interactive, so they carry no hover/tap treatment. */
+.c2-kah-roster {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--mantine-color-default-border);
+}
+
+.c2-kah-member {
+  padding-block: 0.5rem;
+  border-bottom: 1px solid var(--mantine-color-default-border);
+}
+
+.c2-kah-member:last-child {
+  border-bottom: 0;
+}
+
+.c2-kah-member-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 /* Shared month-range control (`src/components/TimeRangeSelect.tsx`): the pill
    trigger behind My Events "Range" and the KAH Status / Double Booking
    "Look ahead" menus. Same input-look language as the wizard's time trigger

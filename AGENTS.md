@@ -408,12 +408,14 @@ the floating fullscreen button — never over the canvas
 - **KAH constraints are notify-only.** After every successful create/update (never delete),
   `dispatchKahBreachCheck()` (`src/lib/kah/notify.ts`) runs inside `after()` — best-effort,
   it can never fail or delay the mutation. The KAH Status nav entry carries an amber
-  **breach count** badge (`checkKahBreaches`, `src/lib/kah/statusActions.ts`) — groups
-  breaching on any day from today through the end of next month (the page's default
-  look-ahead, which the badge is fixed to), counted once each; and the
-  `/kah-status` page renders each breach as a collapsible `ClashCard` (group roster with
-  away/in-country state + the overseas events behind it, opening the shared read-only
-  `EventDetail` in place).
+  **breach count** badge (`checkKahBreaches`, `src/lib/kah/statusActions.ts`) — breach
+  periods across **every** KAH group on any day from today through the end of the month
+  **6 months ahead** (the page's default look-ahead, which the badge is fixed to);
+  the `/kah-status` page is gated to KAH members and admins, and **every member sees
+  every group** (own groups marked): each group card carries its full roster with
+  today's away/in-country state and each member's upcoming away stretches, and the
+  collapsible `ClashCard` periods below name the away union + the overseas events
+  behind them, opening the shared read-only `EventDetail` in place.
   Design: [docs/kah.md](docs/kah.md).
 - **Daily parade-state email (Settings → Parade State Email):** admins pick roster
   recipients, a **send time** (UTC+8 `HH:mm` cutoff) + **send days** (ISO weekdays,

@@ -9,14 +9,19 @@
  */
 
 import type { MantineColor } from "@mantine/core";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db";
 import { calendars, kahGroupMembers, kahGroups, users } from "@/db/schema";
 import { listEventTypes } from "@/lib/eventTypes/queries";
 import { effectiveEventWindow } from "@/lib/events/clashes";
 import { conflictWindowNaive } from "@/lib/events/clashDisplay";
-import { addOneDay, formatInstantToNaive, monthsInRange, parseNaiveToInstant } from "@/lib/events/datetime";
+import {
+  addOneDay,
+  formatInstantToNaive,
+  monthsInRange,
+  parseNaiveToInstant,
+} from "@/lib/events/datetime";
 import { effectiveCalendarColor, effectiveEventTypeColor } from "@/lib/events/eventColors";
 import { normalizeOriginalStartTime } from "@/lib/events/occurrence";
 import {
@@ -88,9 +93,9 @@ export function kahStatusForWindow(
 }
 
 /**
- * Every group as the check sees it: each group with only the members still
- * active on the roster. Deactivated users stop counting against the
- * percentage even when still listed as members.
+ * Every group as the check sees it (name order): each group with only the
+ * members still active on the roster. Deactivated users stop counting against
+ * the percentage even when still listed as members.
  */
 export async function listKahGroupChecks(): Promise<KahGroupCheck[]> {
   const [groupRows, memberRows] = await Promise.all([
@@ -100,7 +105,8 @@ export async function listKahGroupChecks(): Promise<KahGroupCheck[]> {
         name: kahGroups.name,
         minPercentage: kahGroups.minPercentage,
       })
-      .from(kahGroups),
+      .from(kahGroups)
+      .orderBy(asc(kahGroups.name)),
     db
       .select({ groupId: kahGroupMembers.groupId, userId: users.id })
       .from(kahGroupMembers)
@@ -119,22 +125,18 @@ export async function listKahGroupChecks(): Promise<KahGroupCheck[]> {
 }
 
 /**
- * The groups a user belongs to, with active members resolved the same way as
- * `listKahGroupChecks` (only the subset the user is in).
+ * The ids of every KAH group a user is listed in (active membership only, the
+ * same membership rows the checks read). Non-UUID identities belong to none.
  */
-export async function kahGroupsForUser(userId: string): Promise<KahGroupCheck[]> {
-  // Non-UUID identities (the synthetic bootstrap admin) are not roster rows,
-  // hence belong to no KAH group — skip the uuid-typed query entirely.
+export async function kahGroupIdsForUser(userId: string): Promise<Set<string>> {
   if (!isUuid(userId)) {
-    return [];
+    return new Set();
   }
-  const all = await listKahGroupChecks();
-  const userGroupRows = await db
+  const rows = await db
     .select({ groupId: kahGroupMembers.groupId })
     .from(kahGroupMembers)
     .where(eq(kahGroupMembers.userId, userId));
-  const userGroupIds = new Set(userGroupRows.map((row) => row.groupId));
-  return all.filter((group) => userGroupIds.has(group.id));
+  return new Set(rows.map((row) => row.groupId));
 }
 
 /** Whether a user is listed as a member of at least one KAH group. */
@@ -284,7 +286,8 @@ export async function overseasEventEntriesInRange(
         if (!eventTakesMembersOverseas(item.description)) {
           continue;
         }
-        const timeOption = parseEventTimeOption(item.description) ?? (item.allDay ? "full" : "range");
+        const timeOption =
+          parseEventTimeOption(item.description) ?? (item.allDay ? "full" : "range");
         const startAmPm = parseEventStartAmPm(item.description);
         const endAmPm = parseEventEndAmPm(item.description);
         // The event's real occupancy on the UTC+8 wall clock: all-day events

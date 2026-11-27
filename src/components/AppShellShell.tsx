@@ -720,6 +720,8 @@ export function AppShellShell({
   const bannerActive = bannerConfig !== null;
   // Whether the signed-in non-admin user belongs to at least one KAH group —
   // reveals the KAH Status nav entry once the streamed probe resolves true.
+  // (Being a member is also the page's access rule: every member sees every
+  // group there, not just their own.)
   const [kahGroup, setKahGroup] = useState(false);
 
   const shellChrome: ShellChromeValue = useMemo(
@@ -885,12 +887,12 @@ export function AppShellShell({
     };
   }, [refreshDoubleBooking]);
 
-  // The KAH Status nav badge: the number of the viewer's groups breaching on
-  // at least one day from today through the status page's default look-ahead
-  // (one month; admins: all groups, matching their status page; members: their
-  // own) — the same forward-looking advisory shape as the Double Booking badge.
-  // Same best-effort lifecycle as the Double Booking badge, and only fetched for
-  // users who can see the KAH entry at all (`showKah`).
+  // The KAH Status nav badge: the number of breach periods **all** KAH groups
+  // have on at least one day from today through the status page's default
+  // look-ahead (six months) — the page lists every group for every member, so
+  // the badge counts every group too. Same forward-looking advisory shape as
+  // the Double Booking badge. Same best-effort lifecycle as that badge, and only
+  // fetched for users who can see the KAH entry at all (`showKah`).
   const showKah = role === "admin" || kahGroup;
   const [kahCount, setKahCount] = useState<number | null>(null);
   const kahDebounceRef = useRef<number | null>(null);
