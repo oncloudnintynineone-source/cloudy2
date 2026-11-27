@@ -2189,11 +2189,7 @@ function DashboardViewImpl({
   // is still in flight (`shownTabId` leading `activeView.id`), so a
   // Month↔anchored switch — which also resets the date — slides only once.
   const slidePeriodKey =
-    shownView === "agenda"
-      ? null
-      : shownView === "month"
-        ? shownMonth
-        : shownDate;
+    shownView === "agenda" ? null : shownView === "month" ? shownMonth : shownDate;
   const prevSlideRef = useRef({ viewId: activeView.id, periodKey: slidePeriodKey });
   useLayoutEffect(() => {
     const prev = prevSlideRef.current;
@@ -2703,10 +2699,7 @@ function DashboardViewImpl({
   // the user's events first (each block time-sorted) and they claim the top
   // rows of every day.
   const monthEvents = useMemo(
-    () =>
-      view === "month"
-        ? sortMineFirst(viewEvents, myEventIds)
-        : EMPTY_MONTH_EVENTS,
+    () => (view === "month" ? sortMineFirst(viewEvents, myEventIds) : EMPTY_MONTH_EVENTS),
     [view, viewEvents, myEventIds],
   );
 
@@ -4295,10 +4288,7 @@ function DashboardViewImpl({
       disabled={!googleConfigured || offline}
       {...warmOnIntent(warmWizardChunk)}
       onClick={(e) =>
-        openCreate(
-          isAgenda ? headerDate : today,
-          e.currentTarget.getBoundingClientRect(),
-        )
+        openCreate(isAgenda ? headerDate : today, e.currentTarget.getBoundingClientRect())
       }
     >
       <IconPlus size={20} />
@@ -4313,10 +4303,7 @@ function DashboardViewImpl({
       disabled={!googleConfigured || offline}
       {...warmOnIntent(warmWizardChunk)}
       onClick={(e) =>
-        openCreate(
-          isAgenda ? headerDate : today,
-          e.currentTarget.getBoundingClientRect(),
-        )
+        openCreate(isAgenda ? headerDate : today, e.currentTarget.getBoundingClientRect())
       }
     >
       New event
@@ -4632,11 +4619,7 @@ function DashboardViewImpl({
     // matches the skeleton during a tab switch.
     <Stack
       className={
-        shownIsGridWeek
-          ? "weekgrid-page-pad"
-          : monthFitActive
-            ? "month-page-pad"
-            : "fab-page-pad"
+        shownIsGridWeek ? "weekgrid-page-pad" : monthFitActive ? "month-page-pad" : "fab-page-pad"
       }
       gap="sm"
       style={
@@ -5850,6 +5833,27 @@ function DashboardViewImpl({
         centered
         size={isNarrow ? "xs" : isDesktop ? "md" : "sm"}
         transitionProps={agendaTransitionProps}
+        // One scrollport, not two. Mantine makes the dialog's content
+        // (`[data-modal-content]`) an `overflow-y: auto` box capped at 90dvh;
+        // the day list inside it is a second scroller. Capping that inner list
+        // at 84dvh left header + button + padding overflowing the outer box on
+        // virtually every desktop height, so both boxes scrolled and chained
+        // into each other. Instead the dialog is a fixed flex column: the
+        // header and the "New event" footer keep their height, the body takes
+        // the remainder, and only the list scrolls. `minHeight: 0` on the body
+        // and list is what lets the flex column shrink below their content
+        // instead of overflowing.
+        styles={{
+          content: { display: "flex", flexDirection: "column", overflow: "hidden" },
+          header: { flexShrink: 0 },
+          body: {
+            display: "flex",
+            flexDirection: "column",
+            flex: "1 1 auto",
+            minHeight: 0,
+            overflow: "hidden",
+          },
+        }}
       >
         {agendaViewDate && (
           <>
@@ -5858,10 +5862,14 @@ function DashboardViewImpl({
               style={{
                 touchAction: "pan-y",
                 overflowY: "auto",
-                // Desktop uses most of the screen (Mantine clamps a centered
-                // modal's content to 90dvh, so 84dvh never overflows); phones
-                // stay at 56dvh because the floating chrome owns the bottom.
-                maxHeight: isDesktop ? "84dvh" : "56dvh",
+                // The only scroller: desktop fills the dialog (the flex math
+                // above bounds it), phones keep the 56dvh cap because the
+                // floating chrome owns the bottom. On a very short viewport the
+                // flex column shrinks it below the cap rather than scrolling
+                // the dialog.
+                flex: "1 1 auto",
+                minHeight: 0,
+                maxHeight: isDesktop ? undefined : "56dvh",
                 overscrollBehavior: "contain",
               }}
               onPointerDown={resetSwipeSuppression}
@@ -5908,6 +5916,8 @@ function DashboardViewImpl({
               mt="sm"
               leftSection={<IconPlus size={20} />}
               disabled={!googleConfigured || offline}
+              // Never squeezed by the scrolling list above it.
+              style={{ flexShrink: 0 }}
               onClick={(e) => {
                 // Close the agenda and grow the event form out of the button,
                 // prefilled with the day being viewed.
@@ -6013,13 +6023,7 @@ function DashboardViewImpl({
         // the gaps stay equal instead of collapsing to the bottom edge.
         yOffset="16px"
         size={
-          isNarrow
-            ? "xs"
-            : isDesktopWide
-              ? WIZARD_MODAL_WIDTH_PX.wide
-              : isDesktop
-                ? "md"
-                : "sm"
+          isNarrow ? "xs" : isDesktopWide ? WIZARD_MODAL_WIDTH_PX.wide : isDesktop ? "md" : "sm"
         }
         // While minimized, the mounted modal root must drop out of the floating
         // control layer so the docked draft bar remains visible with the month
@@ -6433,10 +6437,7 @@ function DashboardViewImpl({
                 h={56}
                 {...warmOnIntent(warmWizardChunk)}
                 onClick={(e) =>
-                  openCreate(
-                    isAgenda ? headerDate : today,
-                    e.currentTarget.getBoundingClientRect(),
-                  )
+                  openCreate(isAgenda ? headerDate : today, e.currentTarget.getBoundingClientRect())
                 }
                 disabled={!googleConfigured || offline}
                 style={{ flexShrink: 0, pointerEvents: "auto" }}

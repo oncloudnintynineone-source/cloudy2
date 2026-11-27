@@ -33,14 +33,14 @@ grid's fit-to-width zoom.
 
 The renderer kinds (`DASHBOARD_VIEW_KINDS`, `src/lib/dashboardViews/views.ts`):
 
-| Kind | Label | Renderer |
-| ---------- | -------- | ---------------------------------------------------------------------------------------- |
-| `month` | Month | Mantine calendar month grid (natural 4–6 weeks — see [`events-cache.md`](events-cache.md)) |
-| `week` | Week (H) | Mantine Schedule, hour columns per resource row |
-| `weekv2` | Week (D) | custom week matrix (§1.3) |
-| `weekgrid` | Week (Grid) | Mantine Schedule `WeekView`, conventional 7-day grid (time on the vertical axis; §1.7) |
-| `schedule` | Day | Mantine Schedule, single day per resource row |
-| `agenda` | Agenda | list view |
+| Kind       | Label       | Renderer                                                                                   |
+| ---------- | ----------- | ------------------------------------------------------------------------------------------ |
+| `month`    | Month       | Mantine calendar month grid (natural 4–6 weeks — see [`events-cache.md`](events-cache.md)) |
+| `week`     | Week (H)    | Mantine Schedule, hour columns per resource row                                            |
+| `weekv2`   | Week (D)    | custom week matrix (§1.3)                                                                  |
+| `weekgrid` | Week (Grid) | Mantine Schedule `WeekView`, conventional 7-day grid (time on the vertical axis; §1.7)     |
+| `schedule` | Day         | Mantine Schedule, single day per resource row                                              |
+| `agenda`   | Agenda      | list view                                                                                  |
 
 Retired kinds never appear here: `LEGACY_VIEW_KINDS` maps each retired kind to
 its replacement (`dual` → `month`) and `resolveViewKind` coerces stored rows,
@@ -74,7 +74,7 @@ string maps to the first tab of that kind.
   double-insert), then re-reads. The read-first order keeps the common path
   free of the seed transaction.
 - **Add view** has two entry points, both opening the same quick **Add-view
-   dialog** (the shared **seven-kind picker** `ViewTypePicker.tsx` rendered in
+  dialog** (the shared **seven-kind picker** `ViewTypePicker.tsx` rendered in
   its **thumbnail-grid** variant — one wireframe SVG preview per kind, from
   `viewThumbnails.tsx` — plus a name; the default name follows the chosen kind
   until edited; the dialog anchors initial focus to a visually hidden top
@@ -87,9 +87,9 @@ string maps to the first tab of that kind.
   - the **Manage-views modal**'s compact **Add view** button at the top, so
     creation is reachable from the always-pinned gear too (and, on mobile, from
     the view menu's **Add view** entry).
-  Creating appends the tab and navigates to it; the new id is unknown to the
-  held tab list (the request key `viewId|months` is definition-blind), so the
-  switch forces a server re-read and the tab appears without a Force refresh.
+    Creating appends the tab and navigates to it; the new id is unknown to the
+    held tab list (the request key `viewId|months` is definition-blind), so the
+    switch forces a server re-read and the tab appears without a Force refresh.
 - **Manage views** (a settings **gear** to the RIGHT of the strip, outside the
   horizontal scroll area — so the scroll set ends before it; tooltip "Manage
   views"; desktop `lg`+ only, on mobile it is the view menu's **Manage views**
@@ -99,54 +99,54 @@ string maps to the first tab of that kind.
   **kind icon + name**, with a dimmed **kind label** underneath **only when
   the name is custom** (a default-named tab already reads as its kind, so the
   label would just repeat the name). The active tab is marked with a thin
-   **accent left border** on the row (quiet — no badge). Every row is a **single
-   line at all widths**: the **reorder** controls lead on the left, the kind
-   icon + name fill the middle (truncating), and the **⋮ menu** is right-aligned
-   on the row's right edge.
-   - **Reorder** (left): the shared `useReorderRows` control follows the locked
-     `reorderDrag` mode (**drag only**), so each row leads with its drag handle;
-     dropping commits `reorderDashboardViews` (one batched
-     `UPDATE … FROM (VALUES …)` for the whole strip) — see [`reorder.md`](reorder.md);
-   - **⋮ menu** (right, a subtle `IconDotsVertical` `ActionIcon` on the row's
-     right edge) opens a small dropdown headed by the row's name (truncated)
-     holding the row's three actions — **Share**, **Edit** and **Delete** —
-     replacing the previously inline share/edit/delete icons:
-     - **Share** opens the per-view **Share** dialog (generate + copy the
-       `/share/<token>` link — see §1.10);
-     - **Edit** opens a single **Edit view** dialog with the name and the
-       seven-kind picker — one place for both, replacing the old separate
-       inline rename field and Change-type modal. The tab keeps its id, strip
-       order and stored filters; a name that is still the old kind's default
-       label follows to the new kind's default (a custom name is kept; the rule
-       is applied server-side by `changeDashboardViewKind`, and a custom name
-       typed in the dialog is applied after the kind so it always wins).
-       Changing the **active** tab's type re-navigates to the same id under its
-       new kind, so the tab-switch period rules below apply (Month → anchored
-       starts today; anchored → Month keeps the month) — and because the request
-       key (`viewId|months`) is definition-blind, the same id would otherwise
-       look already covered, so the switch also forces a server re-read with the
-       target period (the grid reloads in place instead of waiting for a Force
-       refresh); editing an inactive tab just refreshes the list. This dialog's
-       picker uses the same **thumbnail-grid** variant as the Add-view dialog —
-       choosing a type is the same decision in both places (the row being
-       edited's own kind is shown dimmed with "(current)"). The edit is applied
-       **optimistically**: the action returns the updated tab and `applyViewTab`
-       patches the held snapshot, so the strip and this list repaint in the same
-       frame, then the usual re-read reconciles against the server;
-     - **Delete** (red; **disabled for the last tab** — it can't be deleted)
-       deletes behind a nested `size="sm"` confirm; deleting the active tab
-       navigates to the first remaining and forces a re-read, so the deleted row
-       can't linger behind a data-equivalent local swap.
-   The Edit dialog also carries the per-view
-  **Filters** entry point: an **Edit
-  filters…** button closes the modal, switches to that view and opens its filter
-  dialog (the dashboard's one per-view filter UI — see §1.2). Filters resolve
-  server-side per tab, so the dialog opens once the target tab is the active view
-  (the tab's own read resolves it). The old **pin/unpin** affordance
-  and its star UI are gone — ordering is fully user-controlled. Tabs themselves
-  are **content-sized** — each shrink-wraps its label (so the active underline
-  hugs the text), they never stretch to fill the row, and a long set overflows
-  into natural horizontal scrolling.
+  **accent left border** on the row (quiet — no badge). Every row is a **single
+  line at all widths**: the **reorder** controls lead on the left, the kind
+  icon + name fill the middle (truncating), and the **⋮ menu** is right-aligned
+  on the row's right edge.
+  - **Reorder** (left): the shared `useReorderRows` control follows the locked
+    `reorderDrag` mode (**drag only**), so each row leads with its drag handle;
+    dropping commits `reorderDashboardViews` (one batched
+    `UPDATE … FROM (VALUES …)` for the whole strip) — see [`reorder.md`](reorder.md);
+  - **⋮ menu** (right, a subtle `IconDotsVertical` `ActionIcon` on the row's
+    right edge) opens a small dropdown headed by the row's name (truncated)
+    holding the row's three actions — **Share**, **Edit** and **Delete** —
+    replacing the previously inline share/edit/delete icons:
+    - **Share** opens the per-view **Share** dialog (generate + copy the
+      `/share/<token>` link — see §1.10);
+    - **Edit** opens a single **Edit view** dialog with the name and the
+      seven-kind picker — one place for both, replacing the old separate
+      inline rename field and Change-type modal. The tab keeps its id, strip
+      order and stored filters; a name that is still the old kind's default
+      label follows to the new kind's default (a custom name is kept; the rule
+      is applied server-side by `changeDashboardViewKind`, and a custom name
+      typed in the dialog is applied after the kind so it always wins).
+      Changing the **active** tab's type re-navigates to the same id under its
+      new kind, so the tab-switch period rules below apply (Month → anchored
+      starts today; anchored → Month keeps the month) — and because the request
+      key (`viewId|months`) is definition-blind, the same id would otherwise
+      look already covered, so the switch also forces a server re-read with the
+      target period (the grid reloads in place instead of waiting for a Force
+      refresh); editing an inactive tab just refreshes the list. This dialog's
+      picker uses the same **thumbnail-grid** variant as the Add-view dialog —
+      choosing a type is the same decision in both places (the row being
+      edited's own kind is shown dimmed with "(current)"). The edit is applied
+      **optimistically**: the action returns the updated tab and `applyViewTab`
+      patches the held snapshot, so the strip and this list repaint in the same
+      frame, then the usual re-read reconciles against the server;
+    - **Delete** (red; **disabled for the last tab** — it can't be deleted)
+      deletes behind a nested `size="sm"` confirm; deleting the active tab
+      navigates to the first remaining and forces a re-read, so the deleted row
+      can't linger behind a data-equivalent local swap.
+      The Edit dialog also carries the per-view
+      **Filters** entry point: an **Edit
+      filters…** button closes the modal, switches to that view and opens its filter
+      dialog (the dashboard's one per-view filter UI — see §1.2). Filters resolve
+      server-side per tab, so the dialog opens once the target tab is the active view
+      (the tab's own read resolves it). The old **pin/unpin** affordance
+      and its star UI are gone — ordering is fully user-controlled. Tabs themselves
+      are **content-sized** — each shrink-wraps its label (so the active underline
+      hugs the text), they never stretch to fill the row, and a long set overflows
+      into natural horizontal scrolling.
 - **All-views jump list** (a chevron button between the Add-view button and the
   Manage-views gear, only when the account has more than one tab): for users with many tabs
   the overflowed strip is a long horizontal scroll to reach a specific view, so
@@ -161,64 +161,65 @@ string maps to the first tab of that kind.
   four-squares `IconLayoutGrid` deliberately distinct from the FAB cluster's
   step chevrons, the filter funnel and the calendar-date icon (the active
   view's kind icon would clash with the adjacent date-picker calendar).
-   Tapping it opens a `Menu` whose dropdown is exactly the desktop All-views
-   list (every tab, kind icon + name, active row ticked — and each row mirrors
-   the desktop tab's per-view load state: fresh solid, loading shows a
-   small amber spinner beside the tick; `DashboardViewMenuItem`,
-   [loading-transitions.md](loading-transitions.md) §1.13.2) followed by a
-   divider and **Add view** / **Manage views** entries (the latter two only for
-   accounts that own stored views). It is icon-only: the active view's name
-   rides the button's accessible name (`Calendar view: <name>`) and its
-   tooltip, the period label stays the pill's static read-out — the name
-   itself is shown on its own line (see below). The dropdown opens **upward**
-   (`position="top-end"`): the pill floats inset 16px at the bottom below
-    `lg` (see the floating-control-pill bullet below). At `lg` and up this pill button
-    is hidden; there the view menu lives in the sticky chrome box — the strip row when
-    the wide two-row chrome is active, or the compact tier's single-row trigger (see
-    the next bullet).
- - **Compact desktop view trigger (640–799px band, and short wide viewports).**
-   Vertical space is the scarce dimension at foldable/small-laptop widths and on
-   short laptop screens, so the sticky chrome box runs as a **single row** there
-   (`isCompactDesktop`): the tab strip is dropped and the row is laid out as **two
-   groups**, not a flat run of pills.
-   - **Navigator slab** (`.c2-compact-cluster`, a **squircle** hairline surface —
-     40px tall, 12px radius, not a pill): the active view's kind icon + name +
-     chevron at the left (opening the same `DashboardViewMenuItem` dropdown — tab
-     list, then Add-view / Manage-views; it carries the active tab's load state,
-     the amber spinner, so §1.13.2 stays
-     visible without the strip; a passive `Text` name instead when the account has
-     one tab and cannot manage views), then a divider, the period label with the
-     **grouped `[‹][›]` pair immediately after it** (never split around the label),
-     another divider, and the filter/date controls. Those 36px controls are ghost
-     (`.c2-compact-control`) with a nested 10px radius inside the slab, so only the
-     slab carries the surface.
-   - **Action group** (outside the slab, right-aligned, same 40px height/12px
-     squircle): **New event** and **Quick links**, fully saturated
-     (`c2-glass-fab--brand-solid` / `--accent-solid`) on every layout — never the
-     frosted tint; icon-only squircles in the 640–799px band.
+  Tapping it opens a `Menu` whose dropdown is exactly the desktop All-views
+  list (every tab, kind icon + name, active row ticked — and each row mirrors
+  the desktop tab's per-view load state: fresh solid, loading shows a
+  small amber spinner beside the tick; `DashboardViewMenuItem`,
+  [loading-transitions.md](loading-transitions.md) §1.13.2) followed by a
+  divider and **Add view** / **Manage views** entries (the latter two only for
+  accounts that own stored views). It is icon-only: the active view's name
+  rides the button's accessible name (`Calendar view: <name>`) and its
+  tooltip, the period label stays the pill's static read-out — the name
+  itself is shown on its own line (see below). The dropdown opens **upward**
+  (`position="top-end"`): the pill floats inset 16px at the bottom below
+  `lg` (see the floating-control-pill bullet below). At `lg` and up this pill button
+  is hidden; there the view menu lives in the sticky chrome box — the strip row when
+  the wide two-row chrome is active, or the compact tier's single-row trigger (see
+  the next bullet).
+- **Compact desktop view trigger (640–799px band, and short wide viewports).**
+  Vertical space is the scarce dimension at foldable/small-laptop widths and on
+  short laptop screens, so the sticky chrome box runs as a **single row** there
+  (`isCompactDesktop`): the tab strip is dropped and the row is laid out as **two
+  groups**, not a flat run of pills.
+  - **Navigator slab** (`.c2-compact-cluster`, a **squircle** hairline surface —
+    40px tall, 12px radius, not a pill): the active view's kind icon + name +
+    chevron at the left (opening the same `DashboardViewMenuItem` dropdown — tab
+    list, then Add-view / Manage-views; it carries the active tab's load state,
+    the amber spinner, so §1.13.2 stays
+    visible without the strip; a passive `Text` name instead when the account has
+    one tab and cannot manage views), then a divider, the period label with the
+    **grouped `[‹][›]` pair immediately after it** (never split around the label),
+    another divider, and the filter/date controls. Those 36px controls are ghost
+    (`.c2-compact-control`) with a nested 10px radius inside the slab, so only the
+    slab carries the surface.
+  - **Action group** (outside the slab, right-aligned, same 40px height/12px
+    squircle): **New event** and **Quick links**, fully saturated
+    (`c2-glass-fab--brand-solid` / `--accent-solid`) on every layout — never the
+    frosted tint; icon-only squircles in the 640–799px band.
 
-   The tier has **two triggers**:
-   - `isNarrowDesktop` (`isDesktop && !isDesktopWide`, 640–799px): the sidebar is
-     already the 64px icon rail, so **New event** and **Quick links** render icon-only
-     to fit the ~544px content width left.
-   - **Short wide viewport:** any desktop where the wide-layout month day cell would
-     fit **at most two event chips**. This is projected with the tested
-     `monthFitChipCount` (`src/lib/ui/monthZoom.ts`) over
-     `viewportHeight − WIDE_DESKTOP_CHROME_RESERVE_PX` (160px = the 56px header plus
-     the wide two-row chrome) and the current month's row count. Using the fixed wide
-     budget — never the live compact height — keeps the decision stable (compacting
-     would otherwise gain a chip slot and immediately un-compact). At this width there
-     is horizontal room, so the labelled New-event / Quick-links buttons stay.
+  The tier has **two triggers**:
+  - `isNarrowDesktop` (`isDesktop && !isDesktopWide`, 640–799px): the sidebar is
+    already the 64px icon rail, so **New event** and **Quick links** render icon-only
+    to fit the ~544px content width left.
+  - **Short wide viewport:** any desktop where the wide-layout month day cell would
+    fit **at most two event chips**. This is projected with the tested
+    `monthFitChipCount` (`src/lib/ui/monthZoom.ts`) over
+    `viewportHeight − WIDE_DESKTOP_CHROME_RESERVE_PX` (160px = the 56px header plus
+    the wide two-row chrome) and the current month's row count. Using the fixed wide
+    budget — never the live compact height — keeps the decision stable (compacting
+    would otherwise gain a chip slot and immediately un-compact). At this width there
+    is horizontal room, so the labelled New-event / Quick-links buttons stay.
 
-   In both cases the box's block padding tightens (4px top/bottom plus the 40px
-   slab) — ~45px of chrome saved per screen. At 800px+ with enough height the
-   two-row strip returns unchanged, and `topChromeHeight` (measured on the box by a
-   `ResizeObserver` plus a viewport-resize re-read, feeding every pinned grid strip)
-   simply reflects the shorter box, so nothing else needs to know about the tier.
+  In both cases the box's block padding tightens (4px top/bottom plus the 40px
+  slab) — ~45px of chrome saved per screen. At 800px+ with enough height the
+  two-row strip returns unchanged, and `topChromeHeight` (measured on the box by a
+  `ResizeObserver` plus a viewport-resize re-read, feeding every pinned grid strip)
+  simply reflects the shorter box, so nothing else needs to know about the tier.
+
 - **Mobile view indicator (below `lg`).** Because the strip row is dropped under
-  `lg`, the active view would otherwise be *announced* (the view-menu trigger's
+  `lg`, the active view would otherwise be _announced_ (the view-menu trigger's
   accessible name, plus the live region's `"<view> view, <period>"`) but never
-  *shown* — so on a phone nothing on screen said which view you were in. A
+  _shown_ — so on a phone nothing on screen said which view you were in. A
   **thin dimmed text line** (`size="xs"`, `fw={500}`, `c="dimmed"`, `ta="center"`,
   `lineClamp={1}`) naming the active view therefore owns the **top sticky strip
   below `lg`**: the chrome box that holds the tab strip + nav row at `lg`+
@@ -231,11 +232,11 @@ string maps to the first tab of that kind.
   (`DASHBOARD_VIEW_KIND_LABELS`), from the same optimistic chrome the trigger
   and the announcement use — so it moves the instant a tab is tapped, ahead of
   the grid's data. It is **passive**: not a control, so it adds no focusable
-   element and its `title` is only a hover fallback for a truncated name. Its
-   measured height is `topChromeHeight` below `lg`: the pinned grid strips dock
-   under it and the viewport-height grids subtract it (the bottom pill/FAB rows
-   only overlay the bottom edge — see the floating-control-pill bullet). It
-   deliberately does **not** surface per-tab load state (see
+  element and its `title` is only a hover fallback for a truncated name. Its
+  measured height is `topChromeHeight` below `lg`: the pinned grid strips dock
+  under it and the viewport-height grids subtract it (the bottom pill/FAB rows
+  only overlay the bottom edge — see the floating-control-pill bullet). It
+  deliberately does **not** surface per-tab load state (see
   [`loading-transitions.md`](loading-transitions.md) §1.13.2, a `lg`-only
   affordance).
 - **Period cross-slide.** A period step (month/week/day chevrons, Today, the
@@ -263,7 +264,7 @@ string maps to the first tab of that kind.
   overlap impossible (the pill used to be absolutely centred in the row's empty
   middle, which reached the chevrons as soon as the row fell below ~700px); it
   rides the sticky chrome, staying pinned and following immersive mode for
-  free. Below `720px` of row — too tight for a labelled pill *and* a readable
+  free. Below `720px` of row — too tight for a labelled pill _and_ a readable
   period label — the `.c2-nav-row` container query in `globals.css` drops the
   pill to a 36px icon circle (the label span is what hides, so the
   `aria-label`/`title` carry the name); measuring the row rather than the
@@ -272,7 +273,7 @@ string maps to the first tab of that kind.
   circle **stacked under the floating fullscreen button** in that top-right
   cluster (`FullscreenToggle`'s `below` slot). The period rule: Month compares
   the shown month, the week kinds the whole
-  shown week (Monday/Sunday per `weekStartsOn` — a week merely *containing*
+  shown week (Monday/Sunday per `weekStartsOn` — a week merely _containing_
   today is on today), and Day / Agenda the anchored day (Agenda its
   viewed day). Pure `isOffToday` (`src/lib/ui/todayAffordance.ts`, unit-tested)
   reads the same optimistic `shown*` state the period label renders, so control
@@ -306,43 +307,43 @@ string maps to the first tab of that kind.
   `lg`+ the shell header's "Search events" button is the trigger; both open
   the shell-owned modal through
   `SearchPanelContext`, §1.9 of [`event-search.md`](event-search.md))
-   (the fullscreen button is `FullscreenButton`, the same inline toggle the
-   floating lg-only `FullscreenToggle` uses); above it floats the
-   **FAB row** — pinned **edge-to-edge** so it has a measurable width, with the **Today** circle (A1 — 56px frosted, left of the step pill while today is off-screen; the row's right anchor means nothing else moves) and the
-   `[< | >]` **period-step
-   pill** (`.c2-period-pill`, sized by its 56px chevron circles), then the
-    **Quick-links circle button** (`c2-glass-fab--accent`, amber —
-    shown only when the org has links) and the **New-event circle button**
-    (`c2-glass-btn` + `c2-glass-fab--brand` — the same brand-blue tint as the lg
-    nav-row button — + `c2-glass-btn--bordered`, the grey hairline ring matching
-    the pill containers) parked on the **right**. Every control is a **56px
-    circle** (the step pill hugs its chevron circles, so the whole row is one
-    height). When the event wizard is **minimized**, the draft docks as a chip on the
-    row's **left** (`EventDraftChip`, §1.4.3 of
-    [`event-lifecycle.md`](event-lifecycle.md)) — the only `flex: 1` item, so it takes
-     exactly the space the fixed controls leave. On phones too narrow for even the
-     44px icon chip the **New-event circle gives way** to it (the chip already carries
-     the create/resume action), so the row never clips off the edge. The row sits at
+  (the fullscreen button is `FullscreenButton`, the same inline toggle the
+  floating lg-only `FullscreenToggle` uses); above it floats the
+  **FAB row** — pinned **edge-to-edge** so it has a measurable width, with the **Today** circle (A1 — 56px frosted, left of the step pill while today is off-screen; the row's right anchor means nothing else moves) and the
+  `[< | >]` **period-step
+  pill** (`.c2-period-pill`, sized by its 56px chevron circles), then the
+  **Quick-links circle button** (`c2-glass-fab--accent`, amber —
+  shown only when the org has links) and the **New-event circle button**
+  (`c2-glass-btn` + `c2-glass-fab--brand` — the same brand-blue tint as the lg
+  nav-row button — + `c2-glass-btn--bordered`, the grey hairline ring matching
+  the pill containers) parked on the **right**. Every control is a **56px
+  circle** (the step pill hugs its chevron circles, so the whole row is one
+  height). When the event wizard is **minimized**, the draft docks as a chip on the
+  row's **left** (`EventDraftChip`, §1.4.3 of
+  [`event-lifecycle.md`](event-lifecycle.md)) — the only `flex: 1` item, so it takes
+  exactly the space the fixed controls leave. On phones too narrow for even the
+  44px icon chip the **New-event circle gives way** to it (the chip already carries
+  the create/resume action), so the row never clips off the edge. The row sits at
 
-   `bottom: calc(--app-floating-bottom-offset + pillH + 12px)`. All ride the
-   same frosted treatment (`c2-glass-surface`) with pill/circle radius +
-   hairline edge, so grid content scrolls *under* them (the row wrapper is
-   `pointer-events: none` and only the controls re-enable it, so the empty stretch of
-   the edge-to-edge row never swallows taps on the grid). Neither the pill nor the
-   FAB row plays a mount entrance: both are named view-transition groups
-   (`c2-control-pill`, `c2-fab-step` / `c2-fab-link` / `c2-fab-create`) held above
-   the page groups so a route transition can't paint the outgoing page over them
-   — see [`loading-transitions.md`](loading-transitions.md) §1.14. The grid
+  `bottom: calc(--app-floating-bottom-offset + pillH + 12px)`. All ride the
+  same frosted treatment (`c2-glass-surface`) with pill/circle radius +
+  hairline edge, so grid content scrolls _under_ them (the row wrapper is
+  `pointer-events: none` and only the controls re-enable it, so the empty stretch of
+  the edge-to-edge row never swallows taps on the grid). Neither the pill nor the
+  FAB row plays a mount entrance: both are named view-transition groups
+  (`c2-control-pill`, `c2-fab-step` / `c2-fab-link` / `c2-fab-create`) held above
+  the page groups so a route transition can't paint the outgoing page over them
+  — see [`loading-transitions.md`](loading-transitions.md) §1.14. The grid
   starts under the top strip: the pinned strips (Week (H) day strip / hour
   rulers, Month weekday strip, Week (D) day header) dock under the name strip
   (`chromeOffset` = measured `topChromeHeight`), and the viewport-bounded
-   grids (Week (Grid), skeletons) run flush to the bottom nav — the floating
-    rows overlay the bottom edge. The document-scrolling page pads
-    (`.fab-page-pad`) add the inline
-    `--c2-bottom-chrome-height` var (measured pill + FAB row, net of the FAB
-    diameter the formula already adds — the docked draft chip rides inside the FAB
-    row, so it needs no extra clearance) so the last row
-    clears the whole stack.
+  grids (Week (Grid), skeletons) run flush to the bottom nav — the floating
+  rows overlay the bottom edge. The document-scrolling page pads
+  (`.fab-page-pad`) add the inline
+  `--c2-bottom-chrome-height` var (measured pill + FAB row, net of the FAB
+  diameter the formula already adds — the docked draft chip rides inside the FAB
+  row, so it needs no extra clearance) so the last row
+  clears the whole stack.
 
   **Pill layout: static label, panning control strip (`.c2-pill-row`).** The
   pill's content is a wrapping flex row, rendered by the shared
@@ -356,7 +357,7 @@ string maps to the first tab of that kind.
   **horizontally scrollable strip** (`.c2-pill-actions` → `.c2-pill-scroll`,
   scrollbar hidden, `overscroll-behavior-x: contain`) that pans under a finger.
   The strip's flex-basis is `--c2-pill-actions-min` — `pillActionsMin(circleSize,
-  minActions)` (`src/lib/ui/controlPill.ts`, unit-tested): three 36px circles +
+minActions)` (`src/lib/ui/controlPill.ts`, unit-tested): three 36px circles +
   two gaps (128px) on the calendar/Parade pills, three 44px circles (152px) on the
   list pills, fewer when a page has fewer controls — and because flex
   **line-breaking reads the hypothetical main
@@ -389,95 +390,96 @@ string maps to the first tab of that kind.
   zoom/pan clusters clamp their visible slice to the FAB row's top edge
   (`bottomBarrierRef` on `GridNavControls`); the floating `FullscreenToggle`
   anchors below the top strip **at `lg`+ only** (`visibleFrom="lg"`) — below `lg`
-   the control pill's inline `FullscreenButton` is the fullscreen path. At `lg`+
-   everything is unchanged: one chrome box pinned top
-   (tab strip + nav row incl. chevrons, New event and Quick links), FABs and
-   pill hidden.
+  the control pill's inline `FullscreenButton` is the fullscreen path. At `lg`+
+  everything is unchanged: one chrome box pinned top
+  (tab strip + nav row incl. chevrons, New event and Quick links), FABs and
+  pill hidden.
+
 - **Floating chrome auto-hide (below `lg`, calendar page only).** While the user
   is **touching the calendar pane** (even without any scrolling) or **scrolling
   it** in
-   either direction (document scroll, the dashboard's month/week/day horizontal
-   pan, Week (Grid) hour rows), the floating rows — the
-   dashboard's control pill + FAB row (a docked minimized-draft chip rides its
-   FAB row) — fade out and sink away so the
-   canvas owns the whole viewport. They
-   slide back **only once the interaction has fully stopped**: the last
-   finger/pointer has lifted **AND** the scrolling has settled — so the chrome
-   stays hidden through the scroll, the momentum, and any hold-still, and does
-   **not** reappear merely because scrolling stopped while a finger is still
-   down. Settling is a `scrollend` on the scroller — caught on the pane for the
-   internal ScrollArea viewports (it bubbles) and on the `document` capture
-   phase for document scrolling — with a 150 ms debounce after the last
-   `scroll` event as the fallback where `scrollend` doesn't exist.
-   The floating rows pass taps through their label/padding/gap areas
-   (`pointer-events: none`), so a press that lands *over* the chrome reaches the
-   pane beneath; the pane handler hit-tests the press point against every
-   `.c2-chrome-hide-able` rect and ignores it, so tapping the chrome (visible
-   controls or its tap-through areas) never flashes it away. Only a **user
-   gesture** may *start* a hide: a pane touch/press or a wheel scroll. A
-   `scroll` with no pane press or wheel behind it is a programmatic side effect
-   (a dialog's scroll lock, a focus `scrollIntoView`, a grid scroll reset after
-   a period change) and is ignored while the chrome is visible — it cannot
-   flash it. Once hidden, every scroll still counts, so momentum keeps the
-   chrome hidden until it settles.
-    The visibility transition is the pure, unit-tested `advanceChromeHide` state
-    machine in `src/lib/ui/chromeHide.ts`; `useChromeHide` only
-    wires the DOM events into it: a `touchstart` + `pointerdown` capture on the
-    pane (the triggers, after the chrome-rect hit test), the touch/pointer
-    **contact** listeners on `document`,
-    `scroll` capture on the pane + `window`, a pane `wheel` trigger, and the two
-    `scrollend` sites; a
-     context switch (the dashboard's `shownTabId` tab switch or a wizard
-     minimize/restore — its `resetKey` is `${shownTabId}:${formMinimized}`, so
-     minimizing always puts the chrome and the docked draft chip back) forces the
-     chrome back via a `reset` event.
-   ```mermaid
-   stateDiagram-v2
-     [*] --> Visible
-     Visible --> Hidden : pane touch/press / wheel scroll
-     Hidden --> Hidden : a finger or pointer still down / scroll unsettled
-      Hidden --> Visible : last finger/pointer lifted AND scroll settled
-      Hidden --> Visible : context switch (reset)
-   ```
-    "**The pane**" is the page's content element: the dashboard's `weekBoxRef`
-    content box (every grid + the pinned day/hour strips) — the only pane this
-    hook is mounted against today. The floating rows are
-     `Affix`-portaled to `<body>` and the pan/zoom + fullscreen clusters are
-     **siblings** of the box, so the pane-scoped **trigger** can never
-     self-fire: tapping a pill button (or the zoom cluster) keeps the chrome up,
-     and the chrome-rect hit test extends that to the pill/FAB-row areas that
-     pass taps through to the pane.
-    **Contact tracking, by contrast,
-   is screen-wide** (on `document`): once hidden, the chrome stays hidden while
-   *any* finger/pointer is down, even if it slides off the pane onto the bottom
-    nav. Contact is tracked per input type because the two event systems disagree
-    about when a touch gesture ends: **touch** uses `TouchEvent.touches.length`
-    (authoritative finger count, updated on `touchstart`/`touchend` **and**
-    `touchcancel` — a canceled touch is removed from `touches` and never gets a
-    `touchend`, e.g. when the modal overlay a tap started on is removed
-    mid-gesture, so ignoring `touchcancel` would strand the count above zero and
-    the chrome could never reveal again; this was the minimized-draft chip's
-    "flashes then disappears" bug) — the
-    pointer-events `pointercancel` fires when the browser takes over a touch to
-    drive a native scroll *while the finger is still down* (and no `pointerup`
-    follows), so it must **not** read as a release.
-    **Mouse/pen** use the `pointerdown`/`pointerup` pair (a non-touch
-    `pointercancel` is a genuine release). The counts are clamped at zero so a
-    stray release and a multi-touch gesture both settle correctly. Motion:
-    `--c2-dur-quick` / `--c2-ease-out`
-   opacity + a `--c2-dist-sm` sink (`.c2-chrome-hide-able` / `.c2-chrome-hidden`
-   in `globals.css`, the "target state carries the transition" recipe),
-   instant under `prefers-reduced-motion`. The hidden state drops
-   `pointer-events` on the row **and** its buttons (overriding the pill's
-   tap-through rule) so a hidden pill never catches stray taps. The rows are
-   `Affix`-fixed, so hiding causes **no reflow** (the measured
-   `--c2-bottom-chrome-height` pads are unchanged). Desktop (`lg`+) is
-   untouched; the behavior is always on (no feature flag). The scope is the
-   **calendar page alone**: Parade State (pill + attendance mode bar), Contacts
-   and the settings list pages no longer mount `useChromeHide` at all — their
-   pill is the only path to that page's search and actions, so it stays put
-   under a scrolling finger (the pill's tap-through surface still keeps its
-   gaps from swallowing list taps).
+  either direction (document scroll, the dashboard's month/week/day horizontal
+  pan, Week (Grid) hour rows), the floating rows — the
+  dashboard's control pill + FAB row (a docked minimized-draft chip rides its
+  FAB row) — fade out and sink away so the
+  canvas owns the whole viewport. They
+  slide back **only once the interaction has fully stopped**: the last
+  finger/pointer has lifted **AND** the scrolling has settled — so the chrome
+  stays hidden through the scroll, the momentum, and any hold-still, and does
+  **not** reappear merely because scrolling stopped while a finger is still
+  down. Settling is a `scrollend` on the scroller — caught on the pane for the
+  internal ScrollArea viewports (it bubbles) and on the `document` capture
+  phase for document scrolling — with a 150 ms debounce after the last
+  `scroll` event as the fallback where `scrollend` doesn't exist.
+  The floating rows pass taps through their label/padding/gap areas
+  (`pointer-events: none`), so a press that lands _over_ the chrome reaches the
+  pane beneath; the pane handler hit-tests the press point against every
+  `.c2-chrome-hide-able` rect and ignores it, so tapping the chrome (visible
+  controls or its tap-through areas) never flashes it away. Only a **user
+  gesture** may _start_ a hide: a pane touch/press or a wheel scroll. A
+  `scroll` with no pane press or wheel behind it is a programmatic side effect
+  (a dialog's scroll lock, a focus `scrollIntoView`, a grid scroll reset after
+  a period change) and is ignored while the chrome is visible — it cannot
+  flash it. Once hidden, every scroll still counts, so momentum keeps the
+  chrome hidden until it settles.
+  The visibility transition is the pure, unit-tested `advanceChromeHide` state
+  machine in `src/lib/ui/chromeHide.ts`; `useChromeHide` only
+  wires the DOM events into it: a `touchstart` + `pointerdown` capture on the
+  pane (the triggers, after the chrome-rect hit test), the touch/pointer
+  **contact** listeners on `document`,
+  `scroll` capture on the pane + `window`, a pane `wheel` trigger, and the two
+  `scrollend` sites; a
+  context switch (the dashboard's `shownTabId` tab switch or a wizard
+  minimize/restore — its `resetKey` is `${shownTabId}:${formMinimized}`, so
+  minimizing always puts the chrome and the docked draft chip back) forces the
+  chrome back via a `reset` event.
+  ```mermaid
+  stateDiagram-v2
+    [*] --> Visible
+    Visible --> Hidden : pane touch/press / wheel scroll
+    Hidden --> Hidden : a finger or pointer still down / scroll unsettled
+     Hidden --> Visible : last finger/pointer lifted AND scroll settled
+     Hidden --> Visible : context switch (reset)
+  ```
+  "**The pane**" is the page's content element: the dashboard's `weekBoxRef`
+  content box (every grid + the pinned day/hour strips) — the only pane this
+  hook is mounted against today. The floating rows are
+  `Affix`-portaled to `<body>` and the pan/zoom + fullscreen clusters are
+  **siblings** of the box, so the pane-scoped **trigger** can never
+  self-fire: tapping a pill button (or the zoom cluster) keeps the chrome up,
+  and the chrome-rect hit test extends that to the pill/FAB-row areas that
+  pass taps through to the pane.
+  **Contact tracking, by contrast,
+  is screen-wide** (on `document`): once hidden, the chrome stays hidden while
+  _any_ finger/pointer is down, even if it slides off the pane onto the bottom
+  nav. Contact is tracked per input type because the two event systems disagree
+  about when a touch gesture ends: **touch** uses `TouchEvent.touches.length`
+  (authoritative finger count, updated on `touchstart`/`touchend` **and**
+  `touchcancel` — a canceled touch is removed from `touches` and never gets a
+  `touchend`, e.g. when the modal overlay a tap started on is removed
+  mid-gesture, so ignoring `touchcancel` would strand the count above zero and
+  the chrome could never reveal again; this was the minimized-draft chip's
+  "flashes then disappears" bug) — the
+  pointer-events `pointercancel` fires when the browser takes over a touch to
+  drive a native scroll _while the finger is still down_ (and no `pointerup`
+  follows), so it must **not** read as a release.
+  **Mouse/pen** use the `pointerdown`/`pointerup` pair (a non-touch
+  `pointercancel` is a genuine release). The counts are clamped at zero so a
+  stray release and a multi-touch gesture both settle correctly. Motion:
+  `--c2-dur-quick` / `--c2-ease-out`
+  opacity + a `--c2-dist-sm` sink (`.c2-chrome-hide-able` / `.c2-chrome-hidden`
+  in `globals.css`, the "target state carries the transition" recipe),
+  instant under `prefers-reduced-motion`. The hidden state drops
+  `pointer-events` on the row **and** its buttons (overriding the pill's
+  tap-through rule) so a hidden pill never catches stray taps. The rows are
+  `Affix`-fixed, so hiding causes **no reflow** (the measured
+  `--c2-bottom-chrome-height` pads are unchanged). Desktop (`lg`+) is
+  untouched; the behavior is always on (no feature flag). The scope is the
+  **calendar page alone**: Parade State (pill + attendance mode bar), Contacts
+  and the settings list pages no longer mount `useChromeHide` at all — their
+  pill is the only path to that page's search and actions, so it stays put
+  under a scrolling finger (the pill's tap-through surface still keeps its
+  gaps from swallowing list taps).
 - **Bottom control pill reuse (Parade State / Contacts / settings lists).** Below
   `lg` these pages shed their sticky top chrome and render the same
   `ControlPill` + `.c2-control-pill`
@@ -502,37 +504,36 @@ string maps to the first tab of that kind.
   via `size`, since `h`/`pl`/`pr` land on the label wrapper and desync the
   field from the pill's padding) + sort circle + filter circle + a brand-blue **download
   circle** (the export FAB's action moved into the pill, `c2-glass-btn
-   c2-glass-fab--brand`) in it, and `SettingsListChrome` (Users / Departments /
-   Event Types) the same field + optional filter + action circles — the field
-   never surrenders `--c2-pill-field-min`, so the circles pan (and on a 320px
-   phone wrap to a second row) instead of squeezing the search box — with a
-   **keyboard lift** (`.c2-pill-lift`, a
-   `bottom` transition on the Affix root): while the OS keyboard is up the pill
-   floats to its **measured** top edge + a 16px gap (`useKeyboardInset`,
-   `src/lib/ui/keyboardInset.ts` — a settled `visualViewport` measurement, so it
-   lands just above the keys whatever the keyboard height is, instead of a
-   guessed `vh` fraction that overshoots), and drops back the moment the
-   keyboard closes — even when the field keeps focus (swipe-down dismiss never
-   fires `blur`). Parade rides the same keyboard lift while its roster-search field
-   is open (C3). Each page **measures** the pill with `useElementHeight`
+ c2-glass-fab--brand`) in it, and `SettingsListChrome` (Users / Departments /
+  Event Types) the same field + optional filter + action circles — the field
+  never surrenders `--c2-pill-field-min`, so the circles pan (and on a 320px
+  phone wrap to a second row) instead of squeezing the search box — with a
+  **keyboard lift** (`.c2-pill-lift`, a
+  `bottom` transition on the Affix root): while the OS keyboard is up the pill
+  floats to its **measured** top edge + a 16px gap (`useKeyboardInset`,
+  `src/lib/ui/keyboardInset.ts` — a settled `visualViewport` measurement, so it
+  lands just above the keys whatever the keyboard height is, instead of a
+  guessed `vh` fraction that overshoots), and drops back the moment the
+  keyboard closes — even when the field keeps focus (swipe-down dismiss never
+  fires `blur`). Parade rides the same keyboard lift while its roster-search field
+  is open (C3). Each page **measures** the pill with `useElementHeight`
   (`src/lib/ui/elementSize.ts` — a callback ref, so the observer arms when the
-  `Affix` portal mounts, reading `offsetHeight` so a `display: none` pill reports
-  0) and publishes it: Parade and Contacts set
+  `Affix` portal mounts, reading `offsetHeight` so a `display: none` pill reports 0) and publishes it: Parade and Contacts set
   `--c2-bottom-chrome-height` (pill + gap) under `fab-page-pad` — Parade also
   floats the attendance bar one measured pill-height + 12px above the pill, and
   the class's hardcoded 65px FAB reserve now clears that floating bar. Contacts
   has no floating bar above its pill, so its var subtracts
-   the class's hardcoded 65px FAB diameter and carries just pill + gap; the
-   settings pages publish `--c2-settings-pill-height` for
-   `.settings-pill-page-pad`, whose 58px CSS default keeps the pre-measurement
-   frame honest. At `lg`+
-   their top chrome rows are unchanged. **None of these pages rides the
-   floating-chrome auto-hide above** — that is the calendar page alone: their
-   pill (and Parade's attendance bar) stay put while the list scrolls, because
-   that pill is the only path to the page's search and actions.
+  the class's hardcoded 65px FAB diameter and carries just pill + gap; the
+  settings pages publish `--c2-settings-pill-height` for
+  `.settings-pill-page-pad`, whose 58px CSS default keeps the pre-measurement
+  frame honest. At `lg`+
+  their top chrome rows are unchanged. **None of these pages rides the
+  floating-chrome auto-hide above** — that is the calendar page alone: their
+  pill (and Parade's attendance bar) stay put while the list scrolls, because
+  that pill is the only path to the page's search and actions.
 - **App-wide frosted glass (locked `subtle`).** Beyond the mobile cluster,
   the surfaces that overlap page content are translucent: the
-  bottom nav, the settings tab strip, the desktop sidebar,   the dashboard sticky
+  bottom nav, the settings tab strip, the desktop sidebar, the dashboard sticky
   chrome (view tabs + date nav + the mobile view-indicator line) and its inline
   buttons, the pinned horizontal
   grid headers (Week (H) day strip / hour ruler, Month weekday strip, Week (D)
@@ -571,12 +572,12 @@ management hidden.
 ## 1.2 Filters
 
 Filtering has **one primary affordance**: a dedicated filter button (funnel icon + active-group-count badge, `FilterButton`) in the nav row
-  opens `FilterModal` (`src/components/FilterModal.tsx`). The nav row's date controls are the period label, the ‹ › steppers
-  and the **Select date** circle (the **Today** jump floats in the toolbar row at `lg`+ — compact tier: under the fullscreen button — / on the FAB row below `lg` — see the Today-jump bullet in §1.1); the dashboard chrome carries **no Guide "?"** of its own (the profile menu is the only entry to the sheet, at every width); Force refresh
-  is a header button, view management lives on the strip's right settings
-  button, and fullscreen is the shared `FullscreenButton` (floating top-right at `lg`+, inline in the mobile control pill below). Dashboards'
-  "Myself" quick action lives inside the filter modal
-  beside the Users group; "Reset filters" clears (role defaults).
+opens `FilterModal` (`src/components/FilterModal.tsx`). The nav row's date controls are the period label, the ‹ › steppers
+and the **Select date** circle (the **Today** jump floats in the toolbar row at `lg`+ — compact tier: under the fullscreen button — / on the FAB row below `lg` — see the Today-jump bullet in §1.1); the dashboard chrome carries **no Guide "?"** of its own (the profile menu is the only entry to the sheet, at every width); Force refresh
+is a header button, view management lives on the strip's right settings
+button, and fullscreen is the shared `FullscreenButton` (floating top-right at `lg`+, inline in the mobile control pill below). Dashboards'
+"Myself" quick action lives inside the filter modal
+beside the Users group; "Reset filters" clears (role defaults).
 
 The modal promotes the filters most people reach — **Calendars** (selectable
 badge grid) and **Users** (badge-dialog picker, `variant: "search"`) — and tucks
@@ -585,7 +586,7 @@ audit-log/user-table callers keep all groups expanded). All groups share **one
 header recipe** (`FilterGroupHeader` in `FilterModalBody.tsx`): label + a state
 chip (pure `groupFilterState`: `All` / `None` / `"N of M"`, amber while a filter
 is active — grid groups treat "all selected" as no filter, search groups treat
-empty *and* all-selected as no filter) + Show/Hide + the group-level
+empty _and_ all-selected as no filter) + Show/Hide + the group-level
 **All / None** pair (search groups label the second action **Clear**,
 because empty means "no filter"). Grouped lists keep their per-group counts, but
 the All/None action spans the whole group — there is no separate All/None per
@@ -629,7 +630,7 @@ It is staged in the same draft as the groups and persisted/applied through the
 same Apply/Clear path, and it is applied **server-side while projecting the tab**
 (`filterEventsByText` in `src/lib/events/textFilter.ts`, after
 `resolveDisplayTitles`), so preloaded tabs and cold starts resolve it identically.
-Matching deliberately covers the typed name *and* the composed title: a name that
+Matching deliberately covers the typed name _and_ the composed title: a name that
 the recipe wraps ("[AM] Logistics — HQ") still matches its plain text.
 
 Filter storage & resolution:
@@ -765,7 +766,7 @@ directly ([`events-cache.md`](events-cache.md)):
 - **Event-chip text alignment & mobile padding.** Every grid chip's title is
   **vertically centered at all widths**. The `ScheduleEvent` inner box is
   switched to column-flex centering (`display: flex; flex-direction: column;
-  justify-content: center`) so a single-line title no longer hugs the top of the
+justify-content: center`) so a single-line title no longer hugs the top of the
   fixed-height cell — the library defaults to `display: block; line-height: 1`,
   which pools all the leftover height below the text. Column direction keeps the
   title a full-width block item, preserving the `nowrap` chips'
@@ -814,7 +815,7 @@ Per-view mechanics (all client-side — no cache or server impact):
   marker span (amber dot + semibold shortname). Structural CSS `:has()` rules
   in `globals.css` — the label cell is the only element containing the marker
   directly, and the row the only element containing it through a direct child
- — tint exactly those two elements (label cell: accent-1 + inset accent-6
+  — tint exactly those two elements (label cell: accent-1 + inset accent-6
   bar; row: accent-0). Mantine rows/slots are transparent by default, so the
   row background shows through and events sit above it. The Week (D) matrix
   additionally tints its day cells uniformly (the row tint wins over the
@@ -840,6 +841,13 @@ Per-view mechanics (all client-side — no cache or server impact):
   synthesized click a mouse drag emits on release can't open the row it ended over; the
   wrappers clear it on every `pointerdown`, so a touch swipe (which emits no trailing
   click) can never swallow the next event tap.
+- **Agenda day modal — one scrollport.** The modal is a fixed flex column
+  (`styles.content`/`styles.header`/`styles.body` on its `MotionModal`): the dated
+  header and the "New event" footer keep their height, and the day list
+  (`overflow-y: auto`, `flex: 1 1 auto`, `minHeight: 0`) is the **only** scroller.
+  Desktop lets the list fill the dialog instead of an `84dvh` cap; phones keep the
+  `56dvh` cap so the floating chrome still owns the bottom. A short viewport
+  flex-shrinks the list rather than making the dialog's content scroll a second time.
 
 Colors: the brand amber `accent` family (secondary `#FBC02D`) — distinct from
 the event-type colors and the blue `brand` accents used for today/primary. The
@@ -1031,11 +1039,11 @@ the Day / Week (H) column widths):
   scrollport that never scrolls. Once scrolled (the library sets `data-scrolled`
   on the day header), a globals.css rule
   (`c2-weekgrid-head[data-scrolled] + c2-weekgrid-allday`) puts a 1px bottom line
-  + drop shadow under the all-day row so events visibly pass beneath the block.
-  That bound is also why `startScrollTime` (open at the current time) and the
-  row-zoom re-anchor — both read the viewport's `scrollTop` — work here. Unlike
-  Month / Day / Week (H) / Week (D), which page-scroll with pinned strips
-  rendered outside their scrollers.
+  - drop shadow under the all-day row so events visibly pass beneath the block.
+    That bound is also why `startScrollTime` (open at the current time) and the
+    row-zoom re-anchor — both read the viewport's `scrollTop` — work here. Unlike
+    Month / Day / Week (H) / Week (D), which page-scroll with pinned strips
+    rendered outside their scrollers.
 - The cluster anchors to the grid's **visible-slice center** like every other
   view — the right pan arrow slot's center lands on it — with the columns pair
   above and the rows pair below; the arrow slot (and its dividers) is reserved
@@ -1103,15 +1111,15 @@ The rest of this section describes the shared horizontal mechanism.
   one-shot advance callback), never the whole dashboard. `zoom` is in that effect's
   dependency list, so both strips re-measure on every zoom change.
   - **Ruler height is explicit** (`1.15rem`): every ruler cell is absolutely positioned,
- so without a set height the sticky strip would collapse to 0px and hide the hour
- markers.
+    so without a set height the sticky strip would collapse to 0px and hide the hour
+    markers.
   - **Day labels are anchored, not column-fixed.** A day column (24 slots) is far wider
- than the viewport, so a label fixed at a column's left edge is only visible near
- that edge and "scrolls away" while panning. Instead each label's `left` is clamped
- against the per-frame `--c2-scroll-x` (published alongside the wrapper transform):
- the leftmost visible day's label stays pinned at the strip's left edge while its
- column pans through the viewport, handing off at the day boundary — so a date label
- is always visible during a horizontal pan, on any viewport width.
+    than the viewport, so a label fixed at a column's left edge is only visible near
+    that edge and "scrolls away" while panning. Instead each label's `left` is clamped
+    against the per-frame `--c2-scroll-x` (published alongside the wrapper transform):
+    the leftmost visible day's label stays pinned at the strip's left edge while its
+    column pans through the viewport, handing off at the day boundary — so a date label
+    is always visible during a horizontal pan, on any viewport width.
 - **Persistence**: the level is remembered per device in the `cloudy2.ui` cookie as
   `dashboard.zoom` — not URL-backed (zooming never navigates), so it is read from the
   raw cookie and seeded into the client state before first paint (no width jump on
@@ -1155,7 +1163,7 @@ in the strip's sticky-left cell.
   event shares the strip, a half-day `00:00–12:00` / `12:00–24:00` event stays
   on the timed grid, out-of-week events are dropped) and its `sortEvents` +
   greedy `assignEventRows` lane assignment, returning `{ laneCount, hidden,
-  hiddenIds }`. Because the assignment is replicated exactly, `hidden` matches
+hiddenIds }`. Because the assignment is replicated exactly, `hidden` matches
   precisely what the library clips.
 - **Grid suppression** (`renderGridWeekEvent`, the Week (Grid) `renderEvent`):
   the Month renderer's amber/purple highlight classes, plus a `display: none`
@@ -1299,8 +1307,8 @@ leisure. The `dualSplit` cookie key was dropped with cookie v3.7
 ## 1.10 Sharing views
 
 A view can be shared as a **self-contained hyperlink** — no `dashboard_view_shares`
-   table exists. Manage views exposes **Share** in each row's **⋮ menu** (and the
-   Edit-view dialog has a **Share view…** button for the saved definition). The link is
+table exists. Manage views exposes **Share** in each row's **⋮ menu** (and the
+Edit-view dialog has a **Share view…** button for the saved definition). The link is
 `<origin>/share/<token>`; opening it verifies the token, sends a signed-out
 visitor through login (returning straight to the share dialog) and sends a
 signed-in user to `/dashboard?share=<token>`, where the import dialog previews
@@ -1319,7 +1327,7 @@ flowchart LR
 ```
 
 - **Payload.** `{ v: 1, n: name, k: kind, c: calendarIds, u: userIds,
-  t: eventTypeNames, b: sharerName }`. The owner's effective filters are
+t: eventTypeNames, b: sharerName }`. The owner's effective filters are
   resolved **before encoding** (`resolveTabFilters`), so a `null` role-default
   filter becomes the owner's concrete calendar list rather than the recipient's
   default.
@@ -1346,38 +1354,38 @@ flowchart LR
 
 ## 1.11 File index & related docs
 
-| File | Role |
-| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/lib/dashboardViews/views.ts` | Kind vocabulary + labels, tab DTO, filter-override normalizers, `resolveActiveTab`, `resolveTabFilters`, `MAX_VIEWS_PER_USER` (pure) |
-| `src/lib/dashboard/navigation.ts` | Dashboard navigation decision (URL → displayed tab/period/coverage + fetch classification), incl. the period-follows-kind URL rule (`planDashboardSwitch`) shared by the tab tap and the tab-URL prefetch (pure) |
-| `src/lib/dashboardViews/queries.ts` | Tab reads + the mutex-guarded default "Month" seed |
-| `src/lib/dashboardViews/actions.ts` | Tab CRUD: `create/rename/delete/reorderDashboardViews`, `saveDashboardViewFilters` |
-| `src/lib/dashboardViews/mutate.ts` | Shared tab insertion (default seed, cap, dense strip order) used by create and shared-view import |
-| `src/lib/dashboardViews/shareToken.ts` | Self-contained share-token codec: Brotli + base64url + HMAC-SHA256, payload validation |
-| `src/lib/dashboardViews/shareActions.ts` | Share-link create, preview inspect, and add-copy actions |
-| `src/app/share/[token]/page.tsx` | Public share landing route (verify → login or dashboard with `?share=`) |
-| `src/app/(protected)/dashboard/ShareViewDialog.tsx` | Sharer dialog: generate/copy the `/share/<token>` link |
-| `src/app/(protected)/dashboard/ShareImportDialog.tsx` | Recipient preview + Add-view dialog |
-| `src/lib/userPrefs/queries.ts` + `actions.ts` | `user_preferences` row: parade filters (incl. `saveParadeFilters`) |
-| `src/app/(protected)/dashboard/DashboardView.tsx`  | Tab strip (+ trailing Add-view button, right-side Manage-views gear and All-views jump popover), optimistic tab switch + period rules + tab-URL prefetch, filter state, schedule zoom + month zoom state & widths |
-| `src/app/(protected)/dashboard/DashboardScreen.tsx` | Snapshot/warm-cache/preload owner; resolves the displayed context from `previewView ?? ?view=` so warm tab switches paint without waiting on the RSC |
-| `src/app/(protected)/dashboard/EditViewsModal.tsx` | Manage-views dialog: Add-view button + single-line card rows (drag handle reorder left, name middle, per-row **⋮ menu** right with Share/Edit/Delete; Edit dialog for name+type+filters, nested delete confirm) |
-| `src/app/(protected)/dashboard/ViewTypePicker.tsx` | Shared six-kind picker (Month/Week (H)/Week (D)/Week (Grid)/Day/Agenda): a **thumbnail grid** in the Add-view dialog and the Edit-view dialog's type chooser, a compact text list for other uses |
-| `src/app/(protected)/dashboard/MonthWeekdayStrip.tsx` | Pinned weekday-initials strip for the Month view |
-| `src/app/(protected)/dashboard/viewMeta.tsx` | Kind → icon/label/thumbnail map shared by the strip, the type picker, the Manage-views rows |
-| `src/app/(protected)/dashboard/viewThumbnails.tsx` | Hand-drawn SVG wireframe previews (120×80, `currentColor` strokes + amber event chips) for each of the six kinds |
-| `src/components/reorderUpDown.tsx` | Shared touch-friendly manage-row recipe: ~40px ↑/↓ chevron pair (`ReorderUpDown`) + row-action sizes |
-| `src/app/(protected)/dashboard/page.tsx` | Resolves tabs + active tab (`?view=` → remembered → first), validates per-tab filters |
-| `src/app/(protected)/dashboard/WeekMatrixView.tsx` | Week (D) matrix renderer |
-| `src/lib/events/weekMatrix.ts` | Pure Week (D) lane binning (`coveredDays`, `buildWeekLanes`) |
-| `src/lib/events/gridWeek.ts` | Pure Week (Grid) all-day lane binning (`gridWeekAllDayLayout`) for the `+N more` overflow (§1.7.1) |
-| `src/lib/events/mineFirst.ts` | Pure "mine first" sort for the month view's greedy row assignment |
-| `src/lib/events/schedule.ts` | Resource rows (`buildScheduleResources`, `userFilter`) |
-| `src/lib/ui/slotZoom.ts` | Pure zoom levels + slot-width math (`clampZoom`, `stepZoom`, `weekSlotWidth`, `daySlotWidth`) |
-| `src/lib/ui/monthZoom.ts` | Pure Month fit-width zoom levels + stepping (`clampMonthZoom`, `stepMonthZoom`) + the fit-height fill + chip-count math (`monthFillEvents`, `monthFitChipCount`, §1.8.1) |
-| `src/components/GridNavControls.tsx` | Day/Week (H) + Month right-edge cluster: zoom +/− + right pan, plus left-edge pan |
-| `src/components/FilterButton.tsx` | Dedicated filter button (icon + active-group badge) replacing the kebab's filter menu |
-| `src/components/FilterModal.tsx` | Filters dialog (unified group headers + state chips, badge grids, labeled rows + folder chips with yellow dotted/solid outline, removable summary chips, "Showing:" line, Reset filters, collapsible groups) |
+| File                                                  | Role                                                                                                                                                                                                              |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/lib/dashboardViews/views.ts`                     | Kind vocabulary + labels, tab DTO, filter-override normalizers, `resolveActiveTab`, `resolveTabFilters`, `MAX_VIEWS_PER_USER` (pure)                                                                              |
+| `src/lib/dashboard/navigation.ts`                     | Dashboard navigation decision (URL → displayed tab/period/coverage + fetch classification), incl. the period-follows-kind URL rule (`planDashboardSwitch`) shared by the tab tap and the tab-URL prefetch (pure)  |
+| `src/lib/dashboardViews/queries.ts`                   | Tab reads + the mutex-guarded default "Month" seed                                                                                                                                                                |
+| `src/lib/dashboardViews/actions.ts`                   | Tab CRUD: `create/rename/delete/reorderDashboardViews`, `saveDashboardViewFilters`                                                                                                                                |
+| `src/lib/dashboardViews/mutate.ts`                    | Shared tab insertion (default seed, cap, dense strip order) used by create and shared-view import                                                                                                                 |
+| `src/lib/dashboardViews/shareToken.ts`                | Self-contained share-token codec: Brotli + base64url + HMAC-SHA256, payload validation                                                                                                                            |
+| `src/lib/dashboardViews/shareActions.ts`              | Share-link create, preview inspect, and add-copy actions                                                                                                                                                          |
+| `src/app/share/[token]/page.tsx`                      | Public share landing route (verify → login or dashboard with `?share=`)                                                                                                                                           |
+| `src/app/(protected)/dashboard/ShareViewDialog.tsx`   | Sharer dialog: generate/copy the `/share/<token>` link                                                                                                                                                            |
+| `src/app/(protected)/dashboard/ShareImportDialog.tsx` | Recipient preview + Add-view dialog                                                                                                                                                                               |
+| `src/lib/userPrefs/queries.ts` + `actions.ts`         | `user_preferences` row: parade filters (incl. `saveParadeFilters`)                                                                                                                                                |
+| `src/app/(protected)/dashboard/DashboardView.tsx`     | Tab strip (+ trailing Add-view button, right-side Manage-views gear and All-views jump popover), optimistic tab switch + period rules + tab-URL prefetch, filter state, schedule zoom + month zoom state & widths |
+| `src/app/(protected)/dashboard/DashboardScreen.tsx`   | Snapshot/warm-cache/preload owner; resolves the displayed context from `previewView ?? ?view=` so warm tab switches paint without waiting on the RSC                                                              |
+| `src/app/(protected)/dashboard/EditViewsModal.tsx`    | Manage-views dialog: Add-view button + single-line card rows (drag handle reorder left, name middle, per-row **⋮ menu** right with Share/Edit/Delete; Edit dialog for name+type+filters, nested delete confirm)   |
+| `src/app/(protected)/dashboard/ViewTypePicker.tsx`    | Shared six-kind picker (Month/Week (H)/Week (D)/Week (Grid)/Day/Agenda): a **thumbnail grid** in the Add-view dialog and the Edit-view dialog's type chooser, a compact text list for other uses                  |
+| `src/app/(protected)/dashboard/MonthWeekdayStrip.tsx` | Pinned weekday-initials strip for the Month view                                                                                                                                                                  |
+| `src/app/(protected)/dashboard/viewMeta.tsx`          | Kind → icon/label/thumbnail map shared by the strip, the type picker, the Manage-views rows                                                                                                                       |
+| `src/app/(protected)/dashboard/viewThumbnails.tsx`    | Hand-drawn SVG wireframe previews (120×80, `currentColor` strokes + amber event chips) for each of the six kinds                                                                                                  |
+| `src/components/reorderUpDown.tsx`                    | Shared touch-friendly manage-row recipe: ~40px ↑/↓ chevron pair (`ReorderUpDown`) + row-action sizes                                                                                                              |
+| `src/app/(protected)/dashboard/page.tsx`              | Resolves tabs + active tab (`?view=` → remembered → first), validates per-tab filters                                                                                                                             |
+| `src/app/(protected)/dashboard/WeekMatrixView.tsx`    | Week (D) matrix renderer                                                                                                                                                                                          |
+| `src/lib/events/weekMatrix.ts`                        | Pure Week (D) lane binning (`coveredDays`, `buildWeekLanes`)                                                                                                                                                      |
+| `src/lib/events/gridWeek.ts`                          | Pure Week (Grid) all-day lane binning (`gridWeekAllDayLayout`) for the `+N more` overflow (§1.7.1)                                                                                                                |
+| `src/lib/events/mineFirst.ts`                         | Pure "mine first" sort for the month view's greedy row assignment                                                                                                                                                 |
+| `src/lib/events/schedule.ts`                          | Resource rows (`buildScheduleResources`, `userFilter`)                                                                                                                                                            |
+| `src/lib/ui/slotZoom.ts`                              | Pure zoom levels + slot-width math (`clampZoom`, `stepZoom`, `weekSlotWidth`, `daySlotWidth`)                                                                                                                     |
+| `src/lib/ui/monthZoom.ts`                             | Pure Month fit-width zoom levels + stepping (`clampMonthZoom`, `stepMonthZoom`) + the fit-height fill + chip-count math (`monthFillEvents`, `monthFitChipCount`, §1.8.1)                                          |
+| `src/components/GridNavControls.tsx`                  | Day/Week (H) + Month right-edge cluster: zoom +/− + right pan, plus left-edge pan                                                                                                                                 |
+| `src/components/FilterButton.tsx`                     | Dedicated filter button (icon + active-group badge) replacing the kebab's filter menu                                                                                                                             |
+| `src/components/FilterModal.tsx`                      | Filters dialog (unified group headers + state chips, badge grids, labeled rows + folder chips with yellow dotted/solid outline, removable summary chips, "Showing:" line, Reset filters, collapsible groups)      |
 
 Related docs:
 

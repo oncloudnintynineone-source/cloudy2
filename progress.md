@@ -18,7 +18,7 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.427 (lazy tab data loading · no not-loaded fade)** is shipped.
+- All work through changelog **1.428 (month agenda modal single scrollport)** is shipped.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -3170,6 +3170,16 @@ size="compact"`), and renames **Duplicate Event** / **Copy to Other Google
   `loading-transitions.md` §1.13.2/§1.15.1/§1.16/§1.17, `dashboard-views.md`,
   `pwa-offline.md` §1.18, `events-cache.md`, `neon-usage.md` §1.2.1,
   `ui-ux-improvements.md`, `AGENTS.md`.
+- 1.428 **Month day-agenda modal: one scrollport**: tapping a Month day cell opened a dialog
+  whose content scrolled **and** whose inner list scrolled (the list was capped at `84dvh`
+  while header + "New event" footer + padding pushed past Mantine's `90dvh` content clamp,
+  so both boxes scrolled and chained). The modal is now a fixed flex column
+  (`styles.content` / `styles.header` / `styles.body` on its `MotionModal`) with the day list
+  as the only scroller (`overflowY: auto`, `flex: 1 1 auto`, `minHeight: 0`); the dated header
+  and the "New event" button stay pinned, desktop fills the dialog, phones keep the `56dvh`
+  cap, and a short viewport flex-shrinks the list instead of double-scrolling. Swipe/tap,
+  slide-in and grow-from-cell transitions unchanged. Docs: `desktop-responsive.md` §1.7,
+  `dashboard-views.md` §1.5.
 
 ## 1.4 Open items & next steps
 
