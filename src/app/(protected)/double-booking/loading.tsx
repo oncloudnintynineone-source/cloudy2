@@ -14,10 +14,35 @@ export default function DoubleBookingLoading() {
     <PageContainer>
       <Stack gap="md" pb="xl">
         <LoadingStatus label="Loading Double Booking" />
-        {/* Mirrors the page's sticky header block, which carries the header
-            inside the same vertical gutter. */}
-        <Box py="md">
-          <PageHeaderSkeleton titleWidth="24%" subtitleWidth="45%" />
+        {/* Mirrors the page's sticky header block: title on the left, the
+            scan-target control + look-ahead pill on the right (the same
+            `.c2-report-chrome` box and report-head row), so a cold load paints
+            the head at its loaded height and never reflows on hydration. */}
+        <Box className="c2-report-chrome">
+          <div className="c2-report-head">
+            <div className="c2-report-title">
+              <PageHeaderSkeleton titleWidth="24%" subtitleWidth="45%" />
+            </div>
+            <div className="c2-report-controls">
+              {/* The picker skeleton rides the same band switch as the real
+                  control: one 44px pill on phones, the label row + chip stack
+                  from 40em on — so neither band reflows when the head lands. */}
+              <div className="c2-report-picker">
+                <div className="c2-report-picker-compact">
+                  <Skeleton height={44} width={150} radius="sm" />
+                </div>
+                <div className="c2-report-picker-stack">
+                  <Stack gap="xs">
+                    <Skeleton height={30} width={190} radius="sm" />
+                    <Skeleton height={36} width={150} radius="sm" />
+                  </Stack>
+                </div>
+              </div>
+              <div className="c2-report-range">
+                <Skeleton height={44} width={140} radius="sm" />
+              </div>
+            </div>
+          </div>
         </Box>
         {/* The scan card doubles as the wait overlay's positioning context —
             a cold clash scan can take seconds, more on a long look-ahead

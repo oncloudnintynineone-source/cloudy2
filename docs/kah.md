@@ -250,9 +250,17 @@ flowchart LR
   that began before today is shown clipped at today.
 - The head block (title + window subtitle + Look ahead) is the **shared sticky-chrome
   recipe** — a `c2-glass-surface` block pinned under the app header while the cards
-  scroll beneath it, title-left / control-right from the 40em band and stacked below
-  (`.c2-report-head` in `globals.css`, shared with Double Booking; `loading.tsx`
-  mirrors it). The subtitle carries the window only (no group/member counts).
+  scroll beneath it (`.c2-report-chrome` + `.c2-report-head` in `globals.css`, shared
+  with Double Booking; `loading.tsx` mirrors it). On phones the title block (two
+  lines: title, then the window subtitle) and the content-hugging Look ahead pill
+  share **one row**, and the wrapper's block padding drops to the compact `sm` — the
+  stacked title / full-width pill column it replaced pinned ~141px of chrome above
+  the cards, against ~78px now (the subtitle wraps to two lines on a 320px phone, or
+  when the 1-year label is long). From the 40em band on the row is title-left /
+  control-right with the page rhythm's `md` padding, and the title is top-aligned
+  beside the pill. The subtitle carries the window only (no group/member counts),
+  wraps rather than being clipped, and breaks evenly when it does wrap
+  (`text-wrap: balance`).
 - Above the content sits a `role="status"` **summary line** — "2 breach periods
   across 2 groups in the next 6 months — 1 active, 1 upcoming" — or the clear case
   ("No KAH breaches in the next 6 months — all 4 groups stay in country.") with a

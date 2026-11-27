@@ -7,7 +7,12 @@ import { notifications } from "@mantine/notifications";
 import { IconCalendarClock, IconCircleCheck, IconRefresh } from "@tabler/icons-react";
 
 import { CrossfadeSwap } from "@/components/CrossfadeSwap";
-import { PickerField, type PickerBadgeItem } from "@/components/PickerField";
+import {
+  PickerChip,
+  PickerField,
+  PickerTrigger,
+  type PickerBadgeItem,
+} from "@/components/PickerField";
 import { UserSelectModal } from "@/components/UserSelectModal";
 import { LoadingStatus } from "@/components/LoadingStatus";
 import { EmptyState } from "@/components/EmptyState";
@@ -265,24 +270,11 @@ export function DoubleBookingView({
 
   return (
     <Stack gap="md" pb="xl" className={CONTENT_ENTER_CLASS}>
-      {/* The pinned chrome: the head block (title + target picker, one flex
-          row at lg) stuck under the app header while the clash groups scroll
-          beneath it — the shared sticky-chrome recipe
-          (docs/dashboard-views.md, SettingsTabs). */}
-      <Box
-        className="c2-glass-surface"
-        style={{
-          position: "sticky",
-          top: "var(--app-shell-header-offset)",
-          zIndex: 9,
-          borderBottom: "1px solid var(--mantine-color-default-border)",
-          marginInline: "calc(-1 * var(--app-shell-padding))",
-          marginTop: "calc(-1 * var(--app-shell-padding))",
-          paddingInline: "var(--app-shell-padding)",
-          paddingTop: "var(--mantine-spacing-md)",
-          paddingBottom: "var(--mantine-spacing-md)",
-        }}
-      >
+      {/* The pinned chrome: the head block (title + target picker + look-ahead)
+          stuck under the app header while the clash groups scroll beneath it —
+          the shared sticky-chrome recipe (`.c2-report-chrome` +
+          `.c2-report-head`, `globals.css`; docs/user-clashes.md §1.8). */}
+      <Box className="c2-glass-surface c2-report-chrome">
         <div className="c2-report-head">
           <div className="c2-report-title">
             <PageHeader title="Double Booking" subtitle={subtitleFor(view)} />
@@ -290,22 +282,58 @@ export function DoubleBookingView({
           <div className="c2-report-controls">
             {users.length > 0 && (
               <div className="c2-report-picker">
-                <PickerField
-                  label="Check another person"
-                  items={selfScan ? [] : [targetSummaryItem]}
-                  // ✕ returns the scan to the user's own schedule — the same
-                  // state the page opens in.
-                  onRemove={() => setTargetUserId(currentUserId)}
-                  removeLabel={() => "Back to my schedule"}
-                  empty={
-                    selfScan ? (
-                      <Text size="xs" c="dimmed">
-                        Checking your own schedule
-                      </Text>
-                    ) : null
-                  }
-                  onOpen={() => setTargetPickerOpen(true)}
-                />
+                {/* Desktop/tablet: the labelled picker stack — "Check another
+                    person" + the Add/Edit trigger + the current target chip (or
+                    the self-scan line). Hidden below 40em in favour of the
+                    single compact control below; the band switch is pure CSS so
+                    there is no first-frame shift. */}
+                <div className="c2-report-picker-stack">
+                  <PickerField
+                    label="Check another person"
+                    items={selfScan ? [] : [targetSummaryItem]}
+                    // ✕ returns the scan to the user's own schedule — the same
+                    // state the page opens in.
+                    onRemove={() => setTargetUserId(currentUserId)}
+                    removeLabel={() => "Back to my schedule"}
+                    empty={
+                      selfScan ? (
+                        <Text size="xs" c="dimmed">
+                          Checking your own schedule
+                        </Text>
+                      ) : null
+                    }
+                    onOpen={() => setTargetPickerOpen(true)}
+                  />
+                </div>
+                {/* Phones: one compact control, because the stack above was the
+                    largest block in a chrome row that never scrolls away. The
+                    default self scan reads as an action ("Check someone" — the
+                    short label the phone row can afford beside the look-ahead
+                    pill); once a target is picked the chip names them, opens the
+                    dialog from its label (one tap to switch) and keeps the ✕
+                    (one tap back to your own schedule). */}
+                <div className="c2-report-picker-compact">
+                  {selfScan ? (
+                    <PickerTrigger
+                      count={0}
+                      addLabel="Check someone"
+                      size="sm"
+                      className="c2-report-compact-trigger"
+                      onOpen={() => setTargetPickerOpen(true)}
+                    />
+                  ) : (
+                    <PickerChip
+                      label={targetOption?.name ?? targetUserId}
+                      tt="none"
+                      selectLabel={`Check another person — currently ${
+                        targetOption?.name ?? "the selected person"
+                      }`}
+                      onSelect={() => setTargetPickerOpen(true)}
+                      onRemove={() => setTargetUserId(currentUserId)}
+                      removeLabel="Back to my schedule"
+                    />
+                  )}
+                </div>
               </div>
             )}
             <div className="c2-report-range">

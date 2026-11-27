@@ -3654,68 +3654,146 @@ html.c2-low-end::view-transition-group(*) {
   }
 }
 
-/* Shared report-page head (Double Booking + KAH Status;
-   docs/user-clashes.md §1.8, docs/kah.md §1.7): the title and the control
-   block stack on mobile and split into a title-left / controls-right row from
-   the 40em desktop band on. The row is top-aligned so the title stays
-   anchored to the top of the header block beside the taller controls. The
-   controls share one wrapping row: they split the width when they fit, wrap to
-   full-width rows when they don't, and hug their content at 40em+ — so the
-   sticky chrome never grows with the label text. */
+/* The report pages' sticky chrome wrapper (Double Booking, KAH Status, My
+   Events; docs/user-clashes.md §1.8, docs/kah.md §1.7): the frosted glass
+   surface pinned under the app header with a gutter bleed, which used to be
+   copy-pasted inline in all three views. The block padding is the compact `sm`
+   on phones — a page-rhythm `md` pad costs a third of a small screen on a bar
+   that never scrolls away — and the page rhythm from the 40em band on. */
+.c2-report-chrome {
+  position: sticky;
+  top: var(--app-shell-header-offset);
+  z-index: 9;
+  border-bottom: 1px solid var(--mantine-color-default-border);
+  margin-inline: calc(-1 * var(--app-shell-padding));
+  margin-top: calc(-1 * var(--app-shell-padding));
+  padding-inline: var(--app-shell-padding);
+  padding-block: var(--mantine-spacing-sm);
+}
+
+@media (min-width: 40em) {
+  .c2-report-chrome {
+    padding-block: var(--mantine-spacing-md);
+  }
+}
+
+/* Shared report-page head row (Double Booking + KAH Status;
+   docs/user-clashes.md §1.8, docs/kah.md §1.7): title block on the left, the
+   control group on the right — on ONE line wherever they fit. The old phone
+   layout stacked them (title row, then up to two full-width control rows),
+   which cost 140–200px of permanently pinned chrome above the results.
+   The title block has **zero flex basis** so line breaking is decided by its
+   floor (`min-width`, ~8rem — a legible page name), never by its longest line:
+   the block takes the line's leftover space and its subtitle wraps, so a phone
+   keeps the controls on the title's line instead of pushing them to a second
+   row over a 20px-wide difference. The floor is what then moves the controls to
+   their own line (right-anchored via `margin-left: auto`) when the two controls
+   plus a legible title genuinely cannot share it. */
 .c2-report-head {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
+  align-items: center;
   gap: var(--mantine-spacing-sm);
 }
 
 .c2-report-title {
-  min-width: 0;
+  flex: 1 1 0;
+  min-width: min(calc(8rem * var(--mantine-scale)), 100%);
+  /* A subtitle that wraps onto two lines (only the 320px tier) breaks evenly
+     instead of leaving a lonely "2026" on its own line. */
+  text-wrap: balance;
 }
 
 .c2-report-controls {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-start;
-  gap: var(--mantine-spacing-sm);
+  align-items: center;
+  gap: var(--mantine-spacing-xs);
+  flex: 0 1 auto;
+  margin-left: auto;
   min-width: 0;
 }
 
 /* The target control is content-sized (a "Select" button + optional
-   current-target chip) — not a full-width input — so it takes only the width
-   its chip needs and shares the row with the look-ahead menu. */
+   current-target chip on desktop, one compact control on phones) — not a
+   full-width input — so it takes only the width its chip needs and shares the
+   row with the look-ahead menu. */
 .c2-report-picker {
-  flex: 1 1 14rem;
+  flex: 0 0 auto;
   min-width: 0;
 }
 
 .c2-report-range {
-  flex: 1 1 10rem;
+  flex: 0 0 auto;
   min-width: 0;
+}
+
+/* The range pill fills its column on phones everywhere else (My Events' sticky
+   search bar); inside a report head it hugs its value so it can share the row
+   with the title. Scoped on purpose — `.c2-range-trigger` keeps its documented
+   full-width phone behaviour in every other context. */
+.c2-report-range .c2-range-trigger {
+  width: auto;
+}
+
+/* …and inside a report head the phone row also drops the pill's leading
+   calendar glyph: "6 months" + the chevron already read as the look-ahead menu,
+   and the ~26px it frees is what keeps Double Booking's two controls on one
+   line on a 320px phone. `40em`+ keeps the full pill. */
+.c2-report-range .c2-range-trigger-icon {
+  display: none;
+}
+
+@media (min-width: 40em) {
+  .c2-report-range .c2-range-trigger-icon {
+    display: block;
+  }
+}
+
+/* Double Booking's scan-target control exists twice — the labelled
+   `PickerField` stack (desktop: "Check another person" + the Add/Edit trigger +
+   the current-target chip) and a single compact control for phones — switched by
+   band in pure CSS so there is no `useMediaQuery` first-frame shift
+   (docs/user-clashes.md §1.8). The hidden copy is `display: none`, so it never
+   enters the focus order or the accessibility tree. */
+.c2-report-picker-compact {
+  display: block;
+}
+
+.c2-report-picker-stack {
+  display: none;
+}
+
+/* The phone's compact trigger is one of the head's 44px controls, like the
+   range pill beside it (docs/accessibility.md §1.9) — `PickerTrigger`'s own
+   `size="sm"` is 36px. */
+.c2-report-compact-trigger {
+  min-height: calc(2.75rem * var(--mantine-scale));
 }
 
 @media (min-width: 40em) {
   .c2-report-head {
-    flex-direction: row;
     justify-content: space-between;
     align-items: flex-start;
     gap: var(--mantine-spacing-md);
   }
 
-  .c2-report-title {
-    flex: 1 1 auto;
-  }
-
   .c2-report-controls {
-    flex: 0 1 auto;
     justify-content: flex-end;
+    gap: var(--mantine-spacing-sm);
+    margin-left: 0;
   }
 
   .c2-report-picker {
     flex: 0 1 auto;
   }
 
-  .c2-report-range {
-    flex: 0 0 auto;
+  .c2-report-picker-compact {
+    display: none;
+  }
+
+  .c2-report-picker-stack {
+    display: block;
   }
 }
 
@@ -4343,10 +4421,12 @@ html.c2-low-end::view-transition-group(*) {
 }
 
 /* Day sections are scroll targets for the strip; the clearance is the sticky
-   app header plus this page's own sticky head block (title + controls), which
-   is two rows tall below the 40em band and one row at it and above. */
+   app header plus this page's own sticky head block. Below the 40em band that
+   head is the compact row(s) of `.c2-report-chrome` (≈ 12px pad + one 44px
+   control row + 12px pad, plus a second row on the narrowest phones — 7.5rem
+   covers both), and one row from the 40em band on. */
 .c2-db-day {
-  scroll-margin-top: calc(var(--app-shell-header-offset, 0px) + 13rem);
+  scroll-margin-top: calc(var(--app-shell-header-offset, 0px) + 7.5rem);
 }
 
 @media (min-width: 40em) {

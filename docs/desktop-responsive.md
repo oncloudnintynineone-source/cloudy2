@@ -614,7 +614,12 @@ flowchart LR
   in the component: `--mantine-font-size-md` item text at 44px `minHeight` rows, and
   a trigger that is full-width below `40em` and content-sized (`min-width: 11rem`)
   above, so one control fits a stacked mobile header and a sticky desktop chrome row
-  without a per-page width override.
+  without a per-page width override. The one scoped exception is the report heads
+  (`.c2-report-range .c2-range-trigger`): there the phone row puts the title and the
+  pill side by side, so the pill hugs its value below `40em` too and drops its
+  leading calendar glyph (`.c2-report-range .c2-range-trigger-icon`) — the value plus
+  the chevron still name the menu, and the freed ~26px keeps Double Booking's two
+  controls on one line on a 320px phone. `40em`+ keeps the full pill.
 
 ## 1.12 Related docs
 

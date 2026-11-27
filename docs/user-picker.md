@@ -167,7 +167,9 @@ standalone as `PickerBadges` and one chip as `PickerChip`:
   label. Pure presentation — callers resolve their own id domains into items.
 - **`PickerTrigger`** is the shared trigger button: **Add** + `IconPlus` while nothing
   is picked, **Edit** + `IconPencil` afterwards; `triggerLabel` wins over the pair and
-  `addLabel`/`editLabel` customize it.
+  `addLabel`/`editLabel` customize it. `size` (default `xs`, the wizard's row scale) and
+  `className` let a chrome row resize it — the report heads' phone-sized control uses
+  `size="sm"` plus `.c2-report-compact-trigger` to reach the 44px tap floor.
 - **`PickerField`** composes the full affordance: an optional header (`label`, `count`
   suffix `(N)`, `description`) with the `PickerTrigger` pinned right, then
   `PickerBadges`.
@@ -183,7 +185,7 @@ separate role + Add commit:
 | Event wizard (Participants step) | `PickerField` | departments `accent`, explanatory description (participants can edit; a fresh create pre-selects the acting user; an event must keep ≥1 participant/department); chip ✕ removes one `user:`/`dept:` invitee via `removeInvitee` |
 | KAH group form | `PickerField` | `Members (N)` count, "No members selected." empty; chip ✕ removes a member; field error renders below |
 | Parade email form (Recipients) | `PickerField` | chip ✕ removes a recipient |
-| Double Booking scan target | `PickerField` | single `brand` chip "Name · Department"; ✕ returns the scan to the user's own schedule; self-scan shows the empty text instead |
+| Double Booking scan target | `PickerField` (stack) / `PickerTrigger` or `PickerChip` (phone) | single `brand` chip "Name · Department"; ✕ returns the scan to the user's own schedule; self-scan shows the empty text instead. Below the 40em band the field is a **chrome row**, so it renders once as the full stack (`40em`+) and once as a single compact control — `PickerTrigger addLabel="Check someone"` (44px via `.c2-report-compact-trigger`) or a name-only `PickerChip` whose label reopens the dialog and whose ✕ returns to self; the band switch is pure CSS ([`user-clashes.md`](user-clashes.md) §1.8) |
 | Department create/edit (Parent department) | `PickerField` | chip ✕ clears the parent to top level; empty text "No parent (top level)"; `triggerLabel="Select"` |
 | UserForm (Department) | `PickerField` | single chip; ✕ clears the department ("Remove department"); `triggerLabel="Select"` |
 | UserForm (Department to grant) | trigger `Button` | stages the department; role select + Add commit it — add-only by design, so its dialog keeps `confirmLabel="Add"` |

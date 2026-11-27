@@ -610,6 +610,60 @@ the sections.
 Owner, Participants/Registered (both branches) and Remarks; header→content is now 4px,
 section→section unchanged. §1.10.1.
 
+### 1.6.9 C9 — the report-page heads pinned a third of a phone screen
+
+**Evidence.** Verified at 1.431: `.c2-report-head` (`src/app/globals.css:3665-3720`) stacked
+below `40em` — the title block on its own row, then `.c2-report-controls` as two full-width
+columns (`.c2-report-picker` `flex: 1 1 14rem`, `.c2-report-range` `flex: 1 1 10rem`) — and
+`.c2-range-trigger` is `width: 100%` there. Add the wrapper's `md` block padding
+(`KahStatusHead.tsx:27-40`, `DoubleBookingView.tsx:272-284`) and Double Booking's three-part
+picker stack (`PickerField`: label row + trigger + chip), and the pinned head measured
+**141.5px** on `/kah-status` and **205.8px** on `/double-booking` at a 320–430px width
+(reproduced from the old rules and measured in a headless browser at 1.432). `.c2-db-day`
+then hardcoded 13rem of scroll clearance to match (`globals.css:4345-4356`).
+
+**Impact.** On a 390×844 phone the app header plus this pinned chrome left ~350px for the
+report itself, and every scroll re-paid it: the pages whose whole point is the result list
+opened with more chrome than result.
+
+**Fix.** One shared head recipe at every band. `.c2-report-chrome` owns the sticky frosted
+block with `sm` block padding below `40em` (the page rhythm above it). `.c2-report-head`
+becomes a wrapping row: title block on the left with **zero flex basis** and an ~8rem
+`min-width` floor (line breaking follows the floor, so the subtitle wraps instead of
+pushing the controls to a second row over a 20px difference — and a genuinely narrow line
+still wraps the controls, which stay right-anchored via `margin-left: auto`). Double
+Booking's scan-target control renders twice and band-switches in pure CSS: the labelled
+`PickerField` stack at `40em`+, and one compact control below it (`PickerTrigger` "Check
+someone", or a `PickerChip` naming the target — tap to switch person, ✕ back to your own
+schedule). Inside a report head the range pill hugs its value and drops its leading
+calendar glyph on phones (`.c2-report-range .c2-range-trigger-icon`), which is what keeps
+both controls on one line at 320px.
+
+**Measured 1.432** (headless Edge, same DOM/CSS, whole sticky block incl. padding):
+
+| Width | `/kah-status` before → after | `/double-booking` before → after |
+| ----- | ---------------------------- | -------------------------------- |
+| 320   | 141.5 → 99.2 (subtitle wraps) | 205.8 → 109.8                   |
+| 360   | 141.5 → 77.5                 | 205.8 → 109.8                    |
+| 375   | 141.5 → 77.5                 | 205.8 → 109.8                    |
+| 390   | 141.5 → 77.5                 | 205.8 → 109.8                    |
+| 430   | 141.5 → 77.5                 | 205.8 → 109.8 (69 with a target picked) |
+| 640+  | 141.5 → 85.5 (page rhythm)   | unchanged (one row, 89.8 / 109)  |
+
+**Effort.** S. **Respect.** No control or information is lost below `40em`; the `40em`+ head
+renders unchanged; the band switch stays pure CSS (no `useMediaQuery` first-frame shift) and
+the hidden copy is `display: none`, so it leaves the focus order and the a11y tree; the phone
+trigger keeps the 44px tap floor ([`accessibility.md`](accessibility.md) §1.9). My Events'
+two-row sticky control bar was reviewed and deliberately left alone — its 200px search field
+needs the phone width; it only adopts the shared class and tighter padding.
+
+**Status.** Shipped **1.432** (2026-11-27): `.c2-report-chrome` / reflowed `.c2-report-head`
+in `src/app/globals.css`, the two band-switched scan-target presentations in
+`DoubleBookingView.tsx`, `PickerTrigger`'s optional `size`/`className`, `.c2-db-day`
+clearance 13rem → 7.5rem, and mirrored loading skeletons. [`user-clashes.md`](user-clashes.md)
+§1.8, [`kah.md`](kah.md) §1.7, [`desktop-responsive.md`](desktop-responsive.md) §1.11.
+§1.10.1.
+
 ## 1.7 Feedback, guidance and trust
 
 ### 1.7.1 D2 — there is no in-app help anywhere
@@ -1248,7 +1302,7 @@ flowchart TD
 
 | Tier                   | Items           | Why here                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | ---------------------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **1 — days, low risk** | B1, B4          | Missing-affordance and correctness fixes. Each is local, reversible, needs no schema or data change, and closes a gap the codebase already knows about (B1). A1/A2/A4, C1/C6 and D5/D6 left this tier shipped (§1.10.1), as did A7 — added and shipped at 1.403 — and A8/A9, added and shipped at 1.412. D8, added and shipped at 1.414, D9/D10, added and shipped at 1.415, and C7/D11/D12/D13, added and shipped at 1.416, never entered the tier table; nor did D14, added and shipped at 1.417, or C8, added and shipped at 1.418, nor D15–D20, added and shipped at 1.419, nor D22, added and shipped at 1.420, nor D23, added and shipped at 1.430. |
+| **1 — days, low risk** | B1, B4          | Missing-affordance and correctness fixes. Each is local, reversible, needs no schema or data change, and closes a gap the codebase already knows about (B1). A1/A2/A4, C1/C6 and D5/D6 left this tier shipped (§1.10.1), as did A7 — added and shipped at 1.403 — and A8/A9, added and shipped at 1.412. D8, added and shipped at 1.414, D9/D10, added and shipped at 1.415, and C7/D11/D12/D13, added and shipped at 1.416, never entered the tier table; nor did D14, added and shipped at 1.417, or C8, added and shipped at 1.418, nor D15–D20, added and shipped at 1.419, nor D22, added and shipped at 1.420, nor D23, added and shipped at 1.430, nor C9, added and shipped at 1.432. |
 | **2 — a sprint**       | B3, B5, D21     | Keyboard parity, the legibility floor, and the wizard draft surviving a reload. D2 shipped ahead of the tier (§1.10.1) **without** its shortcut section — fold that section in when B5 lands, per the original "B5 before D2" note. C2/C3/C4/C5 left this tier shipped (§1.10.1).                                                                                                                                                                                                                                                                                                                                    |
 | **3 — design-gated**   | E3, E6-hint     | Advisory and messaging that must be designed against the clashes engine and attendance docs rather than bolted on.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | **4 — feature work**   | E1, E4, E6-sync | Each needs its own spec, schema, and subsystem doc.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
@@ -1296,6 +1350,7 @@ land here.
 | D22 | 1.420 (2026-11-24)                                     | Details-modal action row is a sticky frosted footer: the four action branches render inside `.c2-detail-footer` (sticky bottom, top border, riding the shared `.c2-glass-surface` so long details blur behind it as they scroll under; flush bleed via body `paddingBottom: 0` + negative inline margins), Register / Open-in-calendar move to `lg` (44px), and `RichRemarks` collapses to 6 lines + 2 preview cards behind a measured **Show more** toggle. [`event-lifecycle.md`](event-lifecycle.md) §1.12.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | dual | 1.426 (2026-11-26)                                    | **Month & Agenda view retired** (calendar review §1.14): below `lg` the Agenda half never rendered (the day modal already covered it) — a sixth renderer for a niche pairing. `dual` is out of the kind vocabulary; existing tabs, share tokens and `?view=dual` params coerce to Month via `resolveViewKind` (`src/lib/dashboardViews/views.ts`); `DualPaneView` / `dualSplit` deleted, cookie v3.7 drops the key. [`dashboard-views.md`](dashboard-views.md) §1.9, [`ui-state.md`](ui-state.md) §1.5.2. |
 | D23 | 1.430 (2026-11-27)                                    | KAH Status is member-visible across **every** group (own groups marked; non-members 404), defaults to **6 months** (6 months / 1 year only), and leads with group cards — state pill, a single current/minimum percentage badge over the in-country meter, worst dip, each card's own breach month timeline (shared `ClashMonthStrip`) + flat collapsible period rows, and the full roster with each member's merged away stretches; the page-level `ClashCard` section is gone and the desktop grid rows are equal height. Head counts, the "Your groups are marked" hint and the advisory footnote were trimmed at **1.430.1**; the in-card breach timeline/rows landed at **1.430.2**. `KahStatusBadge` keeps light-variant status text above 4.5:1 in both schemes. [`kah.md`](kah.md) §1.7. |
+| C9  | 1.432 (2026-11-27)                                    | Report-page heads no longer cost a third of a phone screen: `.c2-report-chrome` owns the sticky frosted wrapper (compact `sm` block padding below `40em`, the page rhythm above; My Events adopted it too) and `.c2-report-head` is one wrapping row — title block at zero flex basis with an ~8rem floor left, content-hugging controls right, the subtitle wrapping instead of clipping. Double Booking's scan target renders twice and band-switches in pure CSS: the labelled `PickerField` stack at `40em`+, one compact `PickerTrigger`/`PickerChip` control below it (tap to switch person, ✕ back to your own schedule, 44px floor), and the range pill drops its leading glyph inside a report head on phones. `.c2-db-day`'s clearance drops 13rem → 7.5rem. Measured whole-block heights: `/kah-status` 141.5 → 77.5px (99.2 at 320px), `/double-booking` 205.8 → 109.8px (69 when a target is picked at 430px); `40em`+ unchanged. [`user-clashes.md`](user-clashes.md) §1.8, [`kah.md`](kah.md) §1.7, [`desktop-responsive.md`](desktop-responsive.md) §1.11. |
 
 ## 1.11 Implementation guardrails
 
@@ -1359,18 +1414,18 @@ Every item above inherits these; they are the reason some obvious-looking fixes 
 | `src/app/(protected)/parade-state/ParadeStateView.tsx`               | C3, E6, the legend precedent                                                                                                                                                                                        |
 | `src/app/(protected)/my-events/MyEventsView.tsx`                     | C4                                                                                                                                                                                                                  |
 | `src/app/(protected)/settings/audit-log/AuditLogView.tsx`            | C5                                                                                                                                                                                                                  |
-| `src/app/(protected)/kah-status/KahStatusView.tsx`                   | D8, D10                                                                                                                                                                                                             |
+| `src/app/(protected)/kah-status/KahStatusView.tsx`                   | D8, D10, C9 — the sticky report head (`KahStatusHead.tsx`) and group cards                                                                                                                                          |
 | `src/lib/events/clashDisplay.ts` + `src/lib/events/clashTimeline.ts` | D9, D10 — the shared clash display core                                                                                                                                                                             |
-| `src/app/(protected)/double-booking/DoubleBookingView.tsx`           | D10 — episode filing + heading                                                                                                                                                                                      |
+| `src/app/(protected)/double-booking/DoubleBookingView.tsx`           | D10 — episode filing + heading; C9 — the band-switched scan-target control                                                                                                                                          |
 | `src/lib/kah/status.ts` + `src/lib/kah/range.ts`                     | D10 — `worstDate` on the breach episode                                                                                                                                                                             |
 | `src/components/PreferencesModal.tsx`                                | D5, and the future home of any held preference                                                                                                                                                                      |
 | `src/components/UserMenu.tsx`                                        | D2 host                                                                                                                                                                                                             |
-| `src/app/globals.css`                                                | B1, B3, and the page-zoom / pull-to-refresh rules behind B2 and D4                                                                                                                                                  |
+| `src/app/globals.css`                                                | B1, B3, C9 (the shared report-head row), and the page-zoom / pull-to-refresh rules behind B2 and D4                                                                                                                 |
 | `src/lib/theme.ts`                                                   | Schedule/Month hook classes for B1; breakpoints for every responsive change                                                                                                                                         |
 | [`accessibility.md`](accessibility.md)                               | §1.7 chip contrast (B1), §1.8 page-zoom policy (B2/B3)                                                                                                                                                              |
 | [`loading-transitions.md`](loading-transitions.md)                   | §1.2 non-goals that constrain every item                                                                                                                                                                            |
 | [`action-pill.md`](action-pill.md)                                   | D6 boundary                                                                                                                                                                                                         |
-| [`user-picker.md`](user-picker.md)                                   | §1.6 `PickerBadges` cap + chip-size rule (C6, C7)                                                                                                                                                                   |
+| [`user-picker.md`](user-picker.md)                                   | §1.6 `PickerBadges` cap + chip-size rule (C6, C7); the report-chrome compact trigger/chip (C9)                                                                                                                      |
 | [`event-clashes.md`](event-clashes.md)                               | E3 engine reuse                                                                                                                                                                                                     |
 
 ## 1.14 Calendar view review — 2026-11-26

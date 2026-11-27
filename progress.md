@@ -18,8 +18,9 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.431 (compact desktop chrome tier)** is shipped,
-  including the **1.430.1** KAH copy-trim and **1.430.2** breach-integration follow-ups.
+- All work through changelog **1.432 (compact mobile report heads)** is shipped,
+  including the **1.431** compact-desktop chrome fix and the **1.430.1** KAH copy-trim
+  and **1.430.2** breach-integration follow-ups.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -3249,6 +3250,29 @@ size="compact"`), and renames **Duplicate Event** / **Copy to Other Google
   desktop group grid uses `align-items: stretch` so rows are equal height and the
   vertical gaps even, and the skeleton mirrors the integrated card. Docs: `kah.md`
   §1.7, `user-clashes.md` §1.8, `ui-ux-improvements.md` D23.
+
+- 1.432 **Compact mobile report heads (KAH Status + Double Booking)**: the pinned head
+  above the report cards measured **141.5px** on `/kah-status` and **205.8px** on
+  `/double-booking` at phone widths — a fifth to a third of the viewport that never scrolls
+  away. One shared recipe now: `.c2-report-chrome` owns the sticky frosted wrapper (compact
+  `sm` block padding below `40em`, the page rhythm above; My Events adopts it too) and
+  `.c2-report-head` is a single wrapping row — title block at zero flex basis with an ~8rem
+  `min-width` floor on the left (line breaking follows the floor, so the subtitle wraps
+  instead of pushing the controls down; `text-wrap: balance` evens the 320px break) and
+  content-hugging controls right via `margin-left: auto`. Double Booking's scan-target
+  control renders twice and band-switches in pure CSS (no `useMediaQuery` first-frame shift;
+  the hidden copy is `display: none`, so it leaves the focus order and the a11y tree): the
+  labelled `PickerField` stack at `40em`+, and one compact control below it — `PickerTrigger`
+  labelled "Check someone" (44px tap floor) when self-scanning, or a name-only `PickerChip`
+  whose label reopens the dialog and whose ✕ returns to self, so the department can never
+  wrap the head. Inside a report head the range pill hugs its value and drops its leading
+  calendar glyph on phones (`.c2-report-range .c2-range-trigger-icon`), which is what keeps
+  both controls on one line at 320px. Both loading skeletons mirror the new head;
+  `.c2-db-day`'s scroll clearance drops 13rem → 7.5rem to match. `PickerTrigger` gains
+  optional `size`/`className`. Measured after: `/kah-status` 77.5px (99.2 at 320px),
+  `/double-booking` 109.8px (69 with a target picked at 430px); `40em`+ unchanged. Docs:
+  `user-clashes.md` §1.8, `kah.md` §1.7, `desktop-responsive.md` §1.11, `user-picker.md`
+  §1.6, `ui-ux-improvements.md` C9.
 
 ## 1.4 Open items & next steps
 

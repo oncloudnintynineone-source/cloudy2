@@ -334,21 +334,9 @@ export function MyEventsView(props: MyEventsViewProps) {
 
       {/* The pinned chrome: the title search + Range control stuck under the
           app header while the event cards scroll beneath it — the shared
-          sticky-chrome recipe (docs/dashboard-views.md, SettingsTabs). */}
-      <Box
-        className="c2-glass-surface"
-        style={{
-          position: "sticky",
-          top: "var(--app-shell-header-offset)",
-          zIndex: 9,
-          borderBottom: "1px solid var(--mantine-color-default-border)",
-          marginInline: "calc(-1 * var(--app-shell-padding))",
-          marginTop: "calc(-1 * var(--app-shell-padding))",
-          paddingInline: "var(--app-shell-padding)",
-          paddingTop: "var(--mantine-spacing-md)",
-          paddingBottom: "var(--mantine-spacing-md)",
-        }}
-      >
+          sticky-chrome recipe (`.c2-report-chrome`, `globals.css`; it also
+          carries the compact phone block padding). */}
+      <Box className="c2-glass-surface c2-report-chrome">
         <Group gap="sm" wrap="wrap">
           {/* Title search (C4): the dashboard event-name filter's semantics,
               applied server-side so paging stays honest; mirrored in `?q=`. */}

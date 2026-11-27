@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import type { ButtonProps } from "@mantine/core";
 import { ActionIcon, Badge, Button, Group, Stack, Text, UnstyledButton } from "@mantine/core";
 import { IconPencil, IconPlus, IconX } from "@tabler/icons-react";
 
@@ -249,6 +250,13 @@ export interface PickerTriggerProps {
   addLabel?: string;
   /** Label once something is picked (default "Edit"). */
   editLabel?: string;
+  /** Button size; default `"xs"` (the wizard's row scale). */
+  size?: ButtonProps["size"];
+  /**
+   * Extra classes on the trigger button — e.g. a chrome row raising it to the
+   * 44px tap floor (`.c2-report-compact-trigger`, `globals.css`).
+   */
+  className?: string;
 }
 
 /**
@@ -257,6 +265,11 @@ export interface PickerTriggerProps {
  * nothing is picked and **Edit** with a pencil afterwards. A trigger that keeps
  * reading "Select +" after people are already tagged is exactly what made users
  * believe the dialog could only add (docs/user-picker.md §1.7).
+ *
+ * `triggerLabel` overrides both default wordings without changing the icon
+ * (still `+` when empty, pencil when picked) — that is how the Double Booking
+ * head names the action itself ("Check another person") in its phone-sized
+ * chrome row.
  */
 export function PickerTrigger({
   count,
@@ -264,13 +277,16 @@ export function PickerTrigger({
   triggerLabel,
   addLabel,
   editLabel,
+  size = "xs",
+  className,
 }: PickerTriggerProps) {
   const picked = count > 0;
   return (
     <Button
       type="button"
-      size="xs"
+      size={size}
       variant="light"
+      className={className}
       leftSection={picked ? <IconPencil size={14} /> : <IconPlus size={14} />}
       onClick={onOpen}
     >

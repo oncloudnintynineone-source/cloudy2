@@ -221,23 +221,47 @@ half-day-aware occupancy window the timeline positions bars by (the stored
 - **`page.tsx`** — server component: `requireSession()`; loads and shapes the active
   roster (`id`, `name`, `shortname`, department) for the picker.
 - **`DoubleBookingView.tsx`** — client component. The header is the shared
-  report-page head row (`.c2-report-head` in `globals.css`, shared with KAH
-  Status — [`kah.md`](kah.md) §1.7): title + a short target-aware subtitle on
-  the left, and a **control group** (`.c2-report-controls`) on the right
+  report-page head row (`.c2-report-chrome` + `.c2-report-head` in `globals.css`,
+  shared with KAH Status — [`kah.md`](kah.md) §1.7): title + a short target-aware
+  subtitle on the left, and a **control group** (`.c2-report-controls`) on the right
   holding the target picker (`.c2-report-picker`) and the look-ahead menu
-  (`.c2-report-range`) — **stacked full column
-  width on mobile**, each control content-sized and right-aligned from the 40em desktop
-  band on (a pure-CSS switch, so there is no
-  `useMediaQuery` first-frame shift). On that row the title is **top-aligned** with
-  the controls, so it stays anchored to the top of the header block beside the taller
-  label + Select + chip stack. The control follows the event form's Invited
-  Attendees pattern: a "Check another person" label + a light **Select** button that
-  opens the `UserSelectModal` badge dialog (`single` mode; department sections,
-  shortname search), plus a chip for the current target (`Name · Department`) or a
-  dimmed "Checking your own schedule" when scanning self. Content states: skeleton +
-  `LoadingStatus` while loading (mirrors a result card); an error card with Retry; an
-  `EmptyState` for `no-department` / `no-active-user`; a single actionable
-  `EmptyState` (with an "Open calendar" link) for a clean scan.
+  (`.c2-report-range`). On phones the head is **one wrapping row**: the title block
+  takes the line's remaining width (it has zero flex basis and an ~8rem `min-width`
+  floor, so it never crushes below a legible page name and its subtitle wraps instead
+  of pushing the controls down), and the controls — content-hugging, right-anchored
+  via `margin-left: auto` — sit on that line or drop to their own right-aligned one
+  when the floor plus both controls cannot share it. With two controls that is the
+  normal case on a phone (KAH's single pill shares the title's line down to 320px).
+  The full-width stacked columns this replaced cost ~205px of permanently pinned
+  chrome above the results, against ~110px now.
+  `.c2-report-chrome` owns that pinned block (frosted glass, gutter bleed, compact
+  `sm` block padding below the 40em band and the page rhythm above it), and from
+  40em on the row is the familiar title-left / controls-right split, **top-aligned**
+  so the title stays anchored beside the taller control stack.
+  The **target control is rendered twice and band-switched in pure CSS** — no
+  `useMediaQuery` first-frame shift, and the hidden copy is `display: none`, so it
+  never enters the focus order or the accessibility tree:
+  - `40em`+ (`.c2-report-picker-stack`) — the event form's Invited Attendees
+    pattern: a "Check another person" label + the shared Add/Edit **trigger** that
+    opens the `UserSelectModal` badge dialog (`single` mode; department sections,
+    shortname search), plus a chip for the current target (`Name · Department`) or a
+    dimmed "Checking your own schedule" when scanning self.
+  - below `40em` (`.c2-report-picker-compact`) — **one** control, because that
+    label + trigger + chip stack was the largest block in a bar that never scrolls
+    away. Scanning self it is the trigger labelled **"Check someone"** — the short
+    wording the phone row can afford beside the look-ahead pill (`PickerTrigger`,
+    `size="sm"`, raised to the 44px tap floor by `.c2-report-compact-trigger`);
+    the desktop stack keeps the fuller "Check another person". With a target picked
+    it is a `PickerChip` naming that person — tap the label to reopen the dialog
+    (one tap to switch), tap the ✕ to return to your own schedule (one tap, the
+    state the page opens in). The department rides the dialog and the desktop chip,
+    not the phone chip, so a long one can never wrap the head. The look-ahead pill
+    also drops its leading calendar glyph inside a report head below `40em`
+    (`.c2-report-range .c2-range-trigger-icon`) — the ~26px it frees is what keeps
+    both controls on one line on a 320px phone.
+  Content states: skeleton + `LoadingStatus` while loading (mirrors a result card);
+  an error card with Retry; an `EmptyState` for `no-department` / `no-active-user`;
+  a single actionable `EmptyState` (with an "Open calendar" link) for a clean scan.
 - **Result layout — visual, time-first and day-grouped.** A real scan opens with one
   concise `role="status"` line naming its own window (`N double bookings in the next
   6 months`), then an **overview strip**: one cell per day from the scan range
