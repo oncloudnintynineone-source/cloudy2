@@ -4,9 +4,10 @@ import "@mantine/dates/styles.css";
 
 import { useEffect, useRef, useState } from "react";
 import { Alert, Button, Group, Progress, Stack, Switch, Text, TextInput } from "@mantine/core";
-import { DatePickerInput } from "@mantine/dates";
+import { MonthPickerInput } from "@mantine/dates";
 import { IconAlertTriangle, IconArrowsExchange, IconCircleCheck } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
+import dayjs from "dayjs";
 
 import { MotionModal } from "@/components/MotionModal";
 import { NoKeyboardSelect } from "@/components/NoKeyboardSelect";
@@ -14,7 +15,10 @@ import { postJson } from "@/lib/api/client";
 import type { EventType } from "@/db/schema";
 import {
   defaultMigrationRange,
+  migrationMonthBounds,
+  migrationMonthDays,
   validateMigrationRange,
+  MIGRATION_DEFAULT_FROM_MONTH,
   type MigrationCursor,
 } from "@/lib/eventTypes/migration";
 import { finalizeEventTypeMigration } from "@/lib/eventTypes/migrationActions";
@@ -23,6 +27,9 @@ import { notifyEventsChanged } from "@/lib/ui/eventChanges";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 
 const MIGRATE_URL = "/api/settings/event-types/migrate";
+
+/** The hardcoded default floor spoken the way the picker shows it. */
+const DEFAULT_FROM_LABEL = dayjs(`${MIGRATION_DEFAULT_FROM_MONTH}-01`).format("MMM YYYY");
 
 export interface EventTypeMigrationPrefill {
   fromName: string;
@@ -59,10 +66,11 @@ export function EventTypeMigrationModal({
   onFinished,
 }: EventTypeMigrationModalProps) {
   const defaultRange = defaultMigrationRange();
+  const monthBounds = migrationMonthBounds();
   const [fromName, setFromName] = useState(prefill?.fromName ?? "");
   const [toTypeId, setToTypeId] = useState(prefill?.toTypeId ?? types[0]?.id ?? "");
-  const [fromDate, setFromDate] = useState(defaultRange.fromDate);
-  const [toDate, setToDate] = useState(defaultRange.toDate);
+  const [fromMonth, setFromMonth] = useState(defaultRange.fromMonth);
+  const [toMonth, setToMonth] = useState(defaultRange.toMonth);
   const [updateTitles, setUpdateTitles] = useState(true);
   const [phase, setPhase] = useState<Phase>("idle");
   const [totals, setTotals] = useState<Totals>(EMPTY_TOTALS);
@@ -74,6 +82,10 @@ export function EventTypeMigrationModal({
   const cancelRef = useRef(false);
   const runningRef = useRef(false);
   const wasOpenedRef = useRef(false);
+
+  // The dialog selects whole months; everything below it (chunk route, cursor,
+  // audit row) keeps the day-granular window those months expand to.
+  const { fromDate, toDate } = migrationMonthDays(fromMonth, toMonth);
 
   const target = types.find((type) => type.id === toTypeId) ?? null;
   const rangeErrors = validateMigrationRange(fromDate, toDate);
@@ -91,8 +103,8 @@ export function EventTypeMigrationModal({
       const range = defaultMigrationRange();
       setFromName(prefill?.fromName ?? "");
       setToTypeId(prefill?.toTypeId ?? types[0]?.id ?? "");
-      setFromDate(range.fromDate);
-      setToDate(range.toDate);
+      setFromMonth(range.fromMonth);
+      setToMonth(range.toMonth);
       setUpdateTitles(true);
       setPhase("idle");
       setTotals(EMPTY_TOTALS);
@@ -290,34 +302,56 @@ export function EventTypeMigrationModal({
           required
         />
 
-        <Group grow align="flex-start">
-          <DatePickerInput
+        <Group gap="xs" align="flex-start" wrap="nowrap">
+          {/* Whole months, not days: the scan is a look-back over years of
+              records, so the useful unit is the month — and a picked month is
+              always migrated in full (`migrationMonthDays`). Each picker is
+              bounded by the other plus the hard bounds, so an impossible
+              window cannot be picked; the route re-checks it anyway. */}
+          <MonthPickerInput
             label="From"
-            description="Defaults to all history."
-            value={fromDate || null}
-            onChange={(value) => {
-              setFromDate(value ?? "");
-              resetProgress();
-            }}
-            minDate={new Date(1970, 0, 1)}
+            description={`Defaults to ${DEFAULT_FROM_LABEL}.`}
+            aria-label="From month"
+            // Mantine v9 speaks `YYYY-MM-DD`: the value is the first of the
+            // month and a pick comes back the same way, so the `YYYY-MM` key is
+            // simply its first 7 characters.
+            value={`${fromMonth}-01`}
+            valueFormat="MMM YYYY"
             clearable={false}
+            minDate={`${monthBounds.minMonth}-01`}
+            maxDate={`${toMonth}-01`}
+            popoverProps={{ returnFocus: true }}
+            style={{ flex: 1, minWidth: 0 }}
             disabled={running}
             error={rangeErrors.fromDate}
             attributes={{ input: { readOnly: true } }}
+            onChange={(value) => {
+              if (value) {
+                setFromMonth(value.slice(0, 7));
+                resetProgress();
+              }
+            }}
           />
-          <DatePickerInput
+          <MonthPickerInput
             label="To"
             description="Defaults to two years ahead."
-            value={toDate || null}
-            onChange={(value) => {
-              setToDate(value ?? "");
-              resetProgress();
-            }}
-            minDate={fromDate ? new Date(`${fromDate}T00:00:00`) : undefined}
+            aria-label="To month"
+            value={`${toMonth}-01`}
+            valueFormat="MMM YYYY"
             clearable={false}
+            minDate={`${fromMonth}-01`}
+            maxDate={`${monthBounds.maxMonth}-01`}
+            popoverProps={{ returnFocus: true }}
+            style={{ flex: 1, minWidth: 0 }}
             disabled={running}
             error={rangeErrors.toDate}
             attributes={{ input: { readOnly: true } }}
+            onChange={(value) => {
+              if (value) {
+                setToMonth(value.slice(0, 7));
+                resetProgress();
+              }
+            }}
           />
         </Group>
 
@@ -333,8 +367,9 @@ export function EventTypeMigrationModal({
         />
 
         <Alert color="gray" icon={<IconAlertTriangle size={16} />}>
-          Only events in this date range are scanned; anything outside it is left untouched and can
-          be migrated later. Shared calendar-view links keep their own copy of the old name.
+          Only events in these whole months are scanned; anything outside them is left untouched
+          and can be migrated later. Shared calendar-view links keep their own copy of the old
+          name.
         </Alert>
 
         {phase !== "idle" && (

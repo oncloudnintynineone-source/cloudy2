@@ -1166,12 +1166,20 @@ flowchart LR
 
 - **UI**: the Event Types toolbar has **Migrate events** (and a successful rename/shortname
   change opens the same dialog prefilled). The admin picks the **old name**, the
-  **target type**, a **From/To date range** (defaults: `2000-01-01` through two years
-  ahead), and whether to **update Google event titles**. Inputs lock while running;
-  a stopped run can resume from its stored cursor (changing any input starts over).
-- **Range**: only events in the selected range are touched — everything outside it is
-  left stale by design and can be migrated later. The hard bounds are `1970-01-01`
-  through `now + 20 years`.
+  **target type**, a **From/To month range** (`MonthPickerInput`s — the scan is a
+  look-back over years of records, so the useful unit is the month; defaults: the
+  hardcoded `2026-06` floor through the month two years ahead of today), and whether to
+  **update Google event titles**. Inputs lock while running; a stopped run can resume
+  from its stored cursor (changing any input starts over).
+- **Range**: only events in the selected **whole months** are touched — the selection
+  expands to the first day of `From` through the last civil day of `To`
+  (`migrationMonthDays`), so a picked month is always migrated in full, and everything
+  outside the window is left stale by design and can be migrated later. The pickers
+  bound each other and clamp to the hard bounds (`1970-01-01` … `now + 20 years`),
+  which the route re-checks; `2026-06` is only the **default** floor — widening `From`
+  back to `1970-01` still reaches older stale copies. Everything below the dialog
+  (chunk route body, cursor, year windows, audit row) keeps the day-granular
+  `fromDate`/`toDate` window those months expand to.
 - **Chunking**: the client drives bounded requests; each scans up to 8 Google pages
   (2500 events/page) and patches up to 200 copies with concurrency 3. The opaque cursor
   is `{yearIndex, calendarIndex, pageToken, skip}`. `skip` is an offset into page items,

@@ -18,9 +18,10 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.433 (UI/UX streamline passes + heading outline)** is shipped,
-  including the **1.432** compact mobile report heads, the **1.431** compact-desktop chrome
-  fix and the **1.430.1** KAH copy-trim and **1.430.2** breach-integration follow-ups.
+- All work through changelog **1.434 (month-granular event-type migration range)** is shipped,
+  including the **1.433** UI/UX streamline passes + heading outline, the **1.432** compact
+  mobile report heads, the **1.431** compact-desktop chrome fix and the **1.430.1** KAH
+  copy-trim and **1.430.2** breach-integration follow-ups.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -3311,6 +3312,17 @@ size="compact"`), and renames **Duplicate Event** / **Copy to Other Google
   §1.8, `user-picker.md` §1.6, `dashboard-views.md` §1.1, `desktop-responsive.md` §1.11,
   `event-history.md` §1.4, `accessibility.md` §1.10 (new) + §1.11, `ui-ux-improvements.md`
   A10/B7/C10–C12/D24 + C9 follow-up.
+
+- 1.434 **Event-type migration range is month-granular, defaulting to Jun 2026**: the
+  Migrate-events dialog's From/To are `MonthPickerInput`s (the same month vocabulary the
+  search modal settled on in 1.433) instead of day pickers, opening at the hardcoded
+  `MIGRATION_DEFAULT_FROM_MONTH` (`2026-06`) through the month two years ahead of today.
+  A picked month is always migrated whole: `migrationMonthDays` expands the window to the
+  1st → last civil day, so the chunk route, cursor, SGT year windows and audit row keep the
+  day-granular `fromDate`/`toDate` contract untouched. `migrationMonthBounds` clamps the
+  pickers to the existing hard bounds (`1970-01` … `now + 20y`) — Jun 2026 is only the
+  **default**, so older stale references stay reachable — and each picker bounds the other,
+  so a reversed window cannot be picked. Docs: `event-lifecycle.md` §1.10.1.
 
 ## 1.4 Open items & next steps
 

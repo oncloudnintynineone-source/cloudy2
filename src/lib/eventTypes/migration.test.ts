@@ -13,11 +13,14 @@ import {
   isDateOnly,
   isMigrationCursor,
   matchesMigrationSource,
+  migrationMonthBounds,
+  migrationMonthDays,
   migrationYears,
   replaceTypeNameInFilters,
   rewriteEventTypeNotes,
   selectMigrationBatch,
   validateMigrationRange,
+  MIGRATION_DEFAULT_FROM_MONTH,
 } from "./migration";
 
 const EDIT_URL = "https://app.example.com/dashboard?date=2026-01-02&event=evt-1&_eventCal=cal-1";
@@ -31,10 +34,53 @@ function v2Description(notes: Record<string, unknown>): string {
 }
 
 describe("defaultMigrationRange", () => {
-  it("defaults to all history through two years ahead", () => {
+  it("starts at the hardcoded Jun 2026 floor, two years after today's month", () => {
     expect(defaultMigrationRange(new Date("2026-11-12T00:00:00Z"))).toEqual({
-      fromDate: "2000-01-01",
-      toDate: "2028-12-31",
+      fromMonth: MIGRATION_DEFAULT_FROM_MONTH,
+      toMonth: "2028-11",
+    });
+  });
+
+  it("keeps the hardcoded floor whatever today is", () => {
+    expect(defaultMigrationRange(new Date("2027-01-05T00:00:00Z"))).toEqual({
+      fromMonth: "2026-06",
+      toMonth: "2029-01",
+    });
+  });
+});
+
+describe("migrationMonthDays", () => {
+  it("expands a month window to whole-month day bounds", () => {
+    expect(migrationMonthDays("2026-06", "2028-11")).toEqual({
+      fromDate: "2026-06-01",
+      toDate: "2028-11-30",
+    });
+  });
+
+  it("ends on the real last civil day, leap Februaries included", () => {
+    expect(migrationMonthDays("2028-02", "2028-02")).toEqual({
+      fromDate: "2028-02-01",
+      toDate: "2028-02-29",
+    });
+    expect(migrationMonthDays("2027-02", "2027-02")).toEqual({
+      fromDate: "2027-02-01",
+      toDate: "2027-02-28",
+    });
+  });
+
+  it("expands the default window to a range the day-level validator accepts", () => {
+    const now = new Date("2026-11-12T00:00:00Z");
+    const { fromMonth, toMonth } = defaultMigrationRange(now);
+    const days = migrationMonthDays(fromMonth, toMonth);
+    expect(validateMigrationRange(days.fromDate, days.toDate, now)).toEqual({});
+  });
+});
+
+describe("migrationMonthBounds", () => {
+  it("keeps the 1970-01 escape hatch and the +20-year ceiling", () => {
+    expect(migrationMonthBounds(new Date("2026-11-12T00:00:00Z"))).toEqual({
+      minMonth: "1970-01",
+      maxMonth: "2046-12",
     });
   });
 });

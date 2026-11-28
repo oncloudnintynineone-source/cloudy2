@@ -9,30 +9,75 @@
  * summaries rendered from them).
  */
 
-import { formatInstantToNaive, parseNaiveToInstant } from "@/lib/events/datetime";
+import {
+  formatInstantToNaive,
+  lastDayOfMonth,
+  parseNaiveToInstant,
+  shiftMonth,
+} from "@/lib/events/datetime";
 import { encodeEventNotes, encodeNotesBlock, parseEventNotes } from "@/lib/events/notes";
 
-/** Default scan floor: "all history" from the app's practical beginning. */
-export const MIGRATION_DEFAULT_FROM = "2000-01-01";
+/**
+ * Default scan floor (hardcoded): the app's practical beginning. Events older
+ * than this are not expected to carry a stale type name, so scanning earlier by
+ * default would only spend Google requests on empty years — the picker can
+ * still be widened back to {@link MIGRATION_MIN_MONTH}.
+ */
+export const MIGRATION_DEFAULT_FROM_MONTH = "2026-06";
 /** Earliest date the API/UI accept, so a typo can never scan the stone age. */
 export const MIGRATION_MIN_DATE = "1970-01-01";
+/** {@link MIGRATION_MIN_DATE} in the picker's `YYYY-MM` vocabulary. */
+export const MIGRATION_MIN_MONTH = "1970-01";
 /** Default forward window: future events already created with the old name. */
 export const MIGRATION_FUTURE_YEARS = 2;
 /** Latest date the API/UI accept (generous but bounded). */
 export const MIGRATION_MAX_FUTURE_YEARS = 20;
 
+/** Day-granular scan bounds — the contract the run, cursor and audit use. */
 export interface MigrationRange {
   fromDate: string;
   toDate: string;
 }
 
-/** The default range: all history through two years ahead. */
-export function defaultMigrationRange(now: Date = new Date()): MigrationRange {
+/** Month-granular selection (`YYYY-MM` keys) — what the dialog holds. */
+export interface MigrationMonths {
+  fromMonth: string;
+  toMonth: string;
+}
+
+/**
+ * The default window: the hardcoded Jun 2026 floor through the month
+ * `MIGRATION_FUTURE_YEARS` years ahead of today (app wall clock).
+ */
+export function defaultMigrationRange(now: Date = new Date()): MigrationMonths {
+  return {
+    fromMonth: MIGRATION_DEFAULT_FROM_MONTH,
+    toMonth: shiftMonth(formatInstantToNaive(now).slice(0, 7), MIGRATION_FUTURE_YEARS * 12),
+  };
+}
+
+/**
+ * The hard month bounds the pickers clamp to — the same floor and ceiling as
+ * {@link validateMigrationRange}, spoken in `YYYY-MM` so a month grid cannot
+ * offer a month the server would reject.
+ */
+export function migrationMonthBounds(
+  now: Date = new Date(),
+): { minMonth: string; maxMonth: string } {
   const year = Number(formatInstantToNaive(now).slice(0, 4));
   return {
-    fromDate: MIGRATION_DEFAULT_FROM,
-    toDate: `${year + MIGRATION_FUTURE_YEARS}-12-31`,
+    minMonth: MIGRATION_MIN_MONTH,
+    maxMonth: `${year + MIGRATION_MAX_FUTURE_YEARS}-12`,
   };
+}
+
+/**
+ * Expand a month selection into the whole-day window the scanner runs: the
+ * first day of `fromMonth` through the last civil day of `toMonth`, so a picked
+ * month is always scanned (and migrated) in full.
+ */
+export function migrationMonthDays(fromMonth: string, toMonth: string): MigrationRange {
+  return { fromDate: `${fromMonth}-01`, toDate: lastDayOfMonth(toMonth) };
 }
 
 /** True for a real calendar date in `YYYY-MM-DD` form. */
