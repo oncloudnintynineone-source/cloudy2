@@ -1,6 +1,6 @@
 "use client";
 
-import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActionIcon,
   Affix,
@@ -44,6 +44,8 @@ import {
   CONTACT_RAIL_PADDING_Y_PX,
   contactRailHeightPx,
   railIndexFromPoint,
+  railIndicatorTopPx,
+  RAIL_INDICATOR_HOLD_MS,
   railScrubEdgeDirection,
   RAIL_SCRUB_AUTOSCROLL_PX,
   RAIL_SCRUB_EDGE_PX,
@@ -101,6 +103,16 @@ interface RailScrubSession {
   frame: number;
   /** Detach the window listeners and stop the loop. */
   end: () => void;
+}
+
+/** The section the rail is currently on (highlight + floating indicator). */
+interface RailFocus {
+  /** Rail letter to light up — `contactInitial(section.label)`. */
+  railKey: string;
+  /** What the floating indicator prints: the letter on name sort (a section's
+   *  label *is* its letter there), the department name on department sort,
+   *  where several sections share an initial and the letter alone is ambiguous. */
+  label: string;
 }
 
 function CopyPhoneButton({ phone, name }: CopyPhoneButtonProps) {
@@ -161,14 +173,23 @@ function ContactRow({ user, nameTemplate }: { user: RosterUser; nameTemplate: st
               {NO_DEPARTMENT_LABEL}
             </Badge>
           )}
-          <Badge size="xs" variant={user.role === "admin" ? "light" : "outline"} color={user.role === "admin" ? "brand" : "gray"}>
+          <Badge
+            size="xs"
+            variant={user.role === "admin" ? "light" : "outline"}
+            color={user.role === "admin" ? "brand" : "gray"}
+          >
             {user.role === "admin" ? "Admin" : "User"}
           </Badge>
         </Group>
       </Box>
       <Group gap={6} wrap="nowrap">
         <CopyPhoneButton phone={user.phone} name={user.name} />
-        <Anchor href={`tel:${user.phone}`} underline="never" c="brand" aria-label={`Call ${user.name}`}>
+        <Anchor
+          href={`tel:${user.phone}`}
+          underline="never"
+          c="brand"
+          aria-label={`Call ${user.name}`}
+        >
           <ActionIcon size="lg" variant="filled" color="brand" component="span">
             <IconPhone size={18} />
           </ActionIcon>
@@ -219,25 +240,75 @@ export function ContactList({
   const sections = useMemo(() => buildContactSections(filtered, sort), [filtered, sort]);
   const rail = useMemo(() => buildContactRail(sections), [sections]);
   const showRail = rail.length >= RAIL_MIN_SECTIONS;
-  const [activeRailKey, setActiveRailKey] = useState<string | null>(null);
+  const [railFocus, setRailFocus] = useState<RailFocus | null>(null);
+  // The floating indicator is a peek, not a fixture: it fades out once nothing
+  // has poked it for `RAIL_INDICATOR_HOLD_MS`. The poke comes from a scroll
+  // listener that already runs per frame, and React bails when the value is
+  // unchanged, so showing costs nothing while the timer is the only real work.
+  const [indicatorVisible, setIndicatorVisible] = useState(false);
+  const indicatorTimerRef = useRef<number | null>(null);
 
-  // Keep the rail's highlight on the section under the activation line (the
-  // upper third of the viewport). Capture-phase `scroll` on `document`: the
-  // page may scroll on the window or on an inner container, and every scroll
-  // event reaches `document` during capture either way. The first measurement
-  // rides a frame so the effect body itself never sets state.
+  const pokeIndicator = useCallback(() => {
+    if (indicatorTimerRef.current !== null) {
+      window.clearTimeout(indicatorTimerRef.current);
+    }
+    indicatorTimerRef.current = window.setTimeout(() => {
+      indicatorTimerRef.current = null;
+      setIndicatorVisible(false);
+    }, RAIL_INDICATOR_HOLD_MS);
+    setIndicatorVisible(true);
+  }, []);
+
+  // The indicator's slot is the active letter's, so it rides the same state —
+  // one number, published as `--c2-rail-ind-top` on the rail wrapper.
+  const railFocusIndex = railFocus
+    ? Math.max(
+        0,
+        rail.findIndex((entry) => entry.key === railFocus.railKey),
+      )
+    : 0;
+
+  // Keep the rail's highlight (and the floating indicator) on the section under
+  // the activation line (the upper third of the viewport). Capture-phase
+  // `scroll` on `document`: the page may scroll on the window or on an inner
+  // container, and every scroll event reaches `document` during capture either
+  // way. The first measurement rides a frame so the effect body itself never
+  // sets state.
   useEffect(() => {
     if (!showRail) {
       return;
     }
+    // `undefined` = nothing measured since this listener was armed, so the
+    // first measure never counts as a section change.
+    let lastSectionKey: string | null | undefined;
+    let lastScrollY = window.scrollY;
     const measure = () => {
       const entries = sections.flatMap((section) => {
         const el = document.getElementById(`c2-contact-section-${section.key}`);
-        return el
-          ? [{ key: contactInitial(section.label), top: el.getBoundingClientRect().top }]
-          : [];
+        return el ? [{ key: section.key, top: el.getBoundingClientRect().top }] : [];
       });
-      setActiveRailKey(activeSectionKey(entries, Math.min(280, window.innerHeight * 0.35)));
+      const sectionKey = activeSectionKey(entries, Math.min(280, window.innerHeight * 0.35));
+      const section = sections.find((candidate) => candidate.key === sectionKey);
+      const next: RailFocus | null = section
+        ? { railKey: contactInitial(section.label), label: section.label }
+        : null;
+      // Identity matters: this runs on every scroll event, and a fresh object
+      // per frame would re-render every contact row. Returning `prev` makes
+      // React bail out while the section is unchanged.
+      setRailFocus((prev) =>
+        prev?.railKey === next?.railKey && prev?.label === next?.label ? prev : next,
+      );
+      // The indicator is a *scroll* affordance, so only a scroll that moved the
+      // document (or actually changed the section) pokes it: this capture
+      // listener also sees the bottom-nav rail's pan, a dialog's scroll and the
+      // rail's own internal scroll, none of which should summon it.
+      const scrolled = window.scrollY !== lastScrollY;
+      lastScrollY = window.scrollY;
+      const changed = lastSectionKey !== undefined && sectionKey !== lastSectionKey;
+      lastSectionKey = sectionKey;
+      if (scrolled || changed) {
+        pokeIndicator();
+      }
     };
     const frame = window.requestAnimationFrame(measure);
     document.addEventListener("scroll", measure, true);
@@ -247,7 +318,7 @@ export function ContactList({
       document.removeEventListener("scroll", measure, true);
       window.removeEventListener("resize", measure);
     };
-  }, [sections, showRail]);
+  }, [sections, showRail, pokeIndicator]);
 
   function changeSort(next: ContactSort) {
     if (next === sort) {
@@ -274,12 +345,43 @@ export function ContactList({
   // retargets `pointerup` onto the rail and kills the buttons' native
   // `click`, which is what taps and keyboard Enter/Space jump on.
   const railRef = useRef<HTMLDivElement | null>(null);
+  // The non-clipping sticky wrapper around the rail pill — it carries the
+  // indicator's CSS vars (see `.c2-contact-rail-wrap`).
+  const railWrapRef = useRef<HTMLDivElement | null>(null);
   const scrubSessionRef = useRef<RailScrubSession | null>(null);
   // A scrub's trailing `click` is pointer-generated (`detail > 0`) and must
   // not re-jump; keyboard clicks carry `detail === 0` and always jump.
   const railScrubbedRef = useRef(false);
-  // Route change mid-scrub: drop the window listeners with the component.
-  useEffect(() => () => scrubSessionRef.current?.end(), []);
+  // Route change mid-scrub: drop the window listeners with the component, and
+  // the indicator's pending fade with it (`end()` pokes, so clear after).
+  useEffect(
+    () => () => {
+      scrubSessionRef.current?.end();
+      if (indicatorTimerRef.current !== null) {
+        window.clearTimeout(indicatorTimerRef.current);
+      }
+    },
+    [],
+  );
+
+  // The rail scrolls itself when it is taller than the window (and while a scrub
+  // pointer is held at its edge), and the indicator has to follow that offset.
+  // It is subtracted in CSS, so it is published outside React: the edge
+  // auto-scroll writes `scrollTop` at 6px/frame, and a state write per frame
+  // would re-render every contact row.
+  useEffect(() => {
+    const railEl = railRef.current;
+    const wrapEl = railWrapRef.current;
+    if (!railEl || !wrapEl) {
+      return;
+    }
+    const sync = () => {
+      wrapEl.style.setProperty("--c2-rail-scroll", `${railEl.scrollTop}px`);
+    };
+    sync();
+    railEl.addEventListener("scroll", sync, { passive: true });
+    return () => railEl.removeEventListener("scroll", sync);
+  }, [rail.length, showRail]);
 
   /** Live viewport bands of the rail's letter buttons — correct even while
    *  the rail is internally scrolled (see `.c2-contact-rail`'s `max-height`). */
@@ -304,6 +406,9 @@ export function ContactList({
       return;
     }
     railScrubbedRef.current = false;
+    // The indicator is the point of the gesture: it appears on touch-down,
+    // before the finger has moved far enough to change a letter.
+    pokeIndicator();
     const pointerId = event.pointerId;
     const session: RailScrubSession = {
       lastIndex: startIndex,
@@ -337,7 +442,11 @@ export function ContactList({
       railScrubbedRef.current = true;
       const entry = rail[index];
       if (entry) {
-        setActiveRailKey(entry.key);
+        // The scrub lands on a rail letter, but the indicator prints the
+        // section it jumped to — the department name on department sort.
+        const section = sections.find((candidate) => candidate.key === entry.sectionKey);
+        setRailFocus({ railKey: entry.key, label: section?.label ?? entry.key });
+        pokeIndicator();
         document
           .getElementById(`c2-contact-section-${entry.sectionKey}`)
           ?.scrollIntoView({ behavior: "auto", block: "start" });
@@ -366,6 +475,8 @@ export function ContactList({
         session.frame = 0;
       }
       scrubSessionRef.current = null;
+      // Re-arm the fade on release so the letter stays readable after the lift.
+      pokeIndicator();
       if (session.scrubbed) {
         const entry = rail[session.lastIndex];
         if (entry) {
@@ -574,9 +685,7 @@ export function ContactList({
       className={`${CONTENT_ENTER_CLASS} fab-page-pad`}
       style={
         {
-          "--c2-bottom-chrome-height": isDesktop
-            ? "0px"
-            : `${pillHeightPx + 12 - FAB_SIZE}px`,
+          "--c2-bottom-chrome-height": isDesktop ? "0px" : `${pillHeightPx + 12 - FAB_SIZE}px`,
         } as CSSProperties
       }
     >
@@ -680,10 +789,12 @@ export function ContactList({
         // each card flow into `.c2-contact-rows` columns on wide screens, which
         // is what uses the extra width. The A–Z rail rides beside the cards as
         // a sticky surface: vertically centred in the viewport while the list
-        // scrolls (see `.c2-contact-rail`), lighting up the current section,
-        // with full tap targets per letter — and it scrubs: press, hold, and
-        // slide along it and the list follows the letter under the pointer
-        // (see `startRailScrub`).
+        // scrolls (see `.c2-contact-rail-wrap`), lighting up the current
+        // section, with full tap targets per letter — and it scrubs: press,
+        // hold, and slide along it and the list follows the letter under the
+        // pointer (see `startRailScrub`). While any of that is happening a
+        // frosted chip floats beside the rail naming what the scroll is over
+        // (see `.c2-contact-rail-indicator`).
         <Box style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
           <Stack gap="sm" style={{ flex: 1, minWidth: 0 }}>
             {sections.map((section) => (
@@ -721,77 +832,108 @@ export function ContactList({
             ))}
           </Stack>
           {showRail && (
+            // The rail is a sticky **wrapper** around the scrollable pill. The
+            // pill clips its own overflow (it scrolls when taller than the
+            // window), so the floating letter indicator lives on the wrapper —
+            // which is also the containing block whose `100%` is exactly the
+            // pill's visible height: that is the clamp keeping the chip on the
+            // rail when the active letter sits outside the pill's own scroll
+            // (see `.c2-contact-rail-indicator`).
             <Box
-              ref={railRef}
-              component="nav"
-              aria-label="Jump to contacts section"
-              className="c2-contact-rail"
-              onPointerDown={startRailScrub}
+              ref={railWrapRef}
+              className="c2-contact-rail-wrap"
               style={
                 {
                   position: "sticky",
                   // A stretched flex item cannot stick, so the rail keeps its
-                  // own height and `.c2-contact-rail` centres it in the
+                  // own height and `.c2-contact-rail-wrap` centres it in the
                   // viewport from the height declared below.
                   alignSelf: "flex-start",
+                  zIndex: 2,
+                  // CSS centres the sticky rail (`50dvh - height / 2`) from this
+                  // declared height instead of measuring it.
+                  "--c2-rail-h": `${contactRailHeightPx(rail.length)}px`,
+                  // The indicator's slot: the active letter's centre, measured
+                  // from the pill's border-box top. The pill's own scroll is
+                  // subtracted in CSS (`--c2-rail-scroll`, published
+                  // imperatively by the effect above).
+                  "--c2-rail-ind-top": `${railIndicatorTopPx(railFocusIndex)}px`,
+                } as CSSProperties
+              }
+            >
+              <Box
+                ref={railRef}
+                component="nav"
+                aria-label="Jump to contacts section"
+                className="c2-contact-rail"
+                onPointerDown={startRailScrub}
+                style={{
                   display: "flex",
                   flexDirection: "column",
                   alignItems: "center",
                   padding: `${CONTACT_RAIL_PADDING_Y_PX}px 3px`,
-                  zIndex: 2,
                   background: "var(--mantine-color-default)",
                   border: LIST_BORDER,
                   borderRadius: 999,
-                  // CSS centres the sticky rail (`50dvh - height / 2`) from this
-                  // declared height instead of measuring it.
-                  "--c2-rail-h": `${contactRailHeightPx(rail.length)}px`,
-                } as CSSProperties
-              }
-            >
-              {rail.map((entry) => {
-                const isActive = entry.key === activeRailKey;
-                return (
-                  <UnstyledButton
-                    key={entry.key}
-                    type="button"
-                    aria-label={`Jump to contacts section ${entry.key}`}
-                    aria-current={isActive ? "true" : undefined}
-                    title={entry.key}
-                    onClick={(clickEvent) => {
-                      // A scrub's trailing click (pointer-generated, `detail
-                      // > 0`) must not re-jump — the scrub already landed on
-                      // this section. Keyboard clicks carry `detail === 0`
-                      // and always jump.
-                      if (clickEvent.detail > 0 && railScrubbedRef.current) {
-                        return;
-                      }
-                      jumpToSection(entry.sectionKey, entry.key);
-                    }}
-                    style={{
-                      width: 26,
-                      minHeight: CONTACT_RAIL_ENTRY_HEIGHT_PX,
-                      // The rail scrolls when it is taller than the window
-                      // (`.c2-contact-rail`), so letters must keep their height
-                      // instead of flex-shrinking to fit it.
-                      flexShrink: 0,
-                      display: "grid",
-                      placeItems: "center",
-                      borderRadius: 6,
-                      fontSize: "11px",
-                      fontWeight: isActive ? 800 : 600,
-                      lineHeight: 1,
-                      color: isActive
-                        ? "var(--mantine-color-brand-4)"
-                        : "var(--mantine-color-dimmed)",
-                      background: isActive
-                        ? "var(--mantine-color-brand-light)"
-                        : "transparent",
-                    }}
-                  >
-                    {entry.key}
-                  </UnstyledButton>
-                );
-              })}
+                }}
+              >
+                {rail.map((entry) => {
+                  const isActive = entry.key === railFocus?.railKey;
+                  return (
+                    <UnstyledButton
+                      key={entry.key}
+                      type="button"
+                      aria-label={`Jump to contacts section ${entry.key}`}
+                      aria-current={isActive ? "true" : undefined}
+                      title={entry.key}
+                      onClick={(clickEvent) => {
+                        // A scrub's trailing click (pointer-generated, `detail
+                        // > 0`) must not re-jump — the scrub already landed on
+                        // this section. Keyboard clicks carry `detail === 0`
+                        // and always jump.
+                        if (clickEvent.detail > 0 && railScrubbedRef.current) {
+                          return;
+                        }
+                        jumpToSection(entry.sectionKey, entry.key);
+                      }}
+                      style={{
+                        width: 26,
+                        minHeight: CONTACT_RAIL_ENTRY_HEIGHT_PX,
+                        // The rail scrolls when it is taller than the window
+                        // (`.c2-contact-rail`), so letters must keep their height
+                        // instead of flex-shrinking to fit it.
+                        flexShrink: 0,
+                        display: "grid",
+                        placeItems: "center",
+                        borderRadius: 6,
+                        fontSize: "11px",
+                        fontWeight: isActive ? 800 : 600,
+                        lineHeight: 1,
+                        color: isActive
+                          ? "var(--mantine-color-brand-4)"
+                          : "var(--mantine-color-dimmed)",
+                        background: isActive ? "var(--mantine-color-brand-light)" : "transparent",
+                      }}
+                    >
+                      {entry.key}
+                    </UnstyledButton>
+                  );
+                })}
+              </Box>
+              {/* The floating letter indicator beside the rail: what the scroll is
+                currently over, in a frosted chip that slides to the active
+                letter's slot and fades out after `RAIL_INDICATOR_HOLD_MS` of
+                stillness. Decorative — the letter is already the rail button's
+                `aria-current`, and every jump and scrub end is announced. */}
+              {railFocus && (
+                <Box
+                  aria-hidden="true"
+                  className="c2-contact-rail-indicator"
+                  data-visible={indicatorVisible ? "true" : "false"}
+                >
+                  {railFocus.label}
+                </Box>
+              )}
             </Box>
           )}
         </Box>

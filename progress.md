@@ -18,8 +18,9 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.444 (filter-dialog field notes)** is shipped,
-  including the **1.443** change-report convention,
+- All work through changelog **1.445 (contacts rail floating indicator)** is shipped,
+  including the **1.444** filter-dialog field notes,
+  the **1.443** change-report convention,
   the **1.442** modal-skeleton reveal fix,
   the **1.441** content-width department chips,
   the **1.440** filter-dialog department labels, the **1.439** filter-dialog polish,
@@ -3544,6 +3545,36 @@ size="compact"`), and renames **Duplicate Event** / **Copy to Other Google
   levels; the Users table dialog has no aside at all and no empty row reserved when drilled in.
   Zero console errors. Docs: `dashboard-views.md` §1.2, `accessibility.md` §1.7/§1.9.2,
   `ui-ux-improvements.md` E7.
+
+- 1.445 **Contacts rail: floating section indicator beside the A–Z pill** — the quick scrollbar now
+  says what it is over. A frosted chip rides 8px left of the rail printing the **active section's
+  label**: the letter on name sort, the **department name** on department sort — the case that needs
+  it, because three departments sharing an initial collapse to one rail letter. It shows while
+  scrubbing the rail and while scrolling the list, then fades 700 ms after the last poke
+  (`RAIL_INDICATOR_HOLD_MS`), and it is `aria-hidden`: the letter already carries `aria-current` and
+  jumps/scrubs are already announced. The chip cannot live inside the rail — `overflow-y: auto`
+  clips both axes — so the rail moved into a non-clipping sticky wrapper (`.c2-contact-rail-wrap`,
+  which took over the centring `top` and the `lg`+ override) that is the chip's containing block; its
+  `100%` is the pill's *visible* height, so `top: clamp(14px, …, calc(100% - 14px))` keeps the chip
+  inside a collapsed pill for free on short viewports. The letter centre comes from a new pure
+  `railIndicatorTopPx(i)` (17, 37, … 517) and the rail's own scroll from `--c2-rail-scroll`,
+  published imperatively from a passive listener because the scrub edge-scroll writes `scrollTop`
+  6px/frame and must not round-trip through React state. The measure now keys on the **section**
+  (`{ railKey, label }`; `activeSectionKey` is key-agnostic and hands back whatever key it was given)
+  and bails on identity, so a scroll inside one section re-arms the fade without re-rendering the
+  list. Look is the app's floating-surface idiom: `--c2-glass-bg` + `--c2g-blur` +
+  `--mantine-shadow-md` + hairline edge, brand-bold text via `light-dark(brand-7, brand-2)`,
+  160 ms `--c2-ease-out` on opacity + `top`, `transition: none` under reduced motion (the override
+  names `[data-visible="true"]` too — that rule is one specificity step above a bare class).
+  **Browser-verified** in headless Edge over raw CDP (DevTools MCP is not configured here) at
+  390×844, 360×780 and 1280×900, light and dark: chip centre exactly on the active letter
+  (`centreDelta: 0`), 8px gap to the pill, inside the pill's box in every state — including 740×380
+  landscape, where the rail collapses to a 50px pill and the chip clamps to its bottom edge;
+  department sort prints `Legal Affairs` against a single `L`; a pointer-drag from C to M prints `M`
+  at M; hidden with `opacity: 0` 950 ms after the last poke; `color: rgb(13, 71, 161)` light /
+  `rgb(180, 201, 239)` dark; `transition: 0s` under emulated reduced motion; no rail and no chip
+  below the 4-section floor (the 6-contact dev roster is the no-rail case); zero console errors.
+  Docs: `ui-ux-improvements.md` C2.
 
 ## 1.4 Open items & next steps
 

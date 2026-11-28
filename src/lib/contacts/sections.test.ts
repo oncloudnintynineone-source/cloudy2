@@ -10,6 +10,7 @@ import {
   NO_DEPARTMENT_SECTION_KEY,
   NO_DEPARTMENT_SECTION_LABEL,
   railIndexFromPoint,
+  railIndicatorTopPx,
   railScrubEdgeDirection,
 } from "@/lib/contacts/sections";
 
@@ -158,6 +159,19 @@ describe("activeSectionKey", () => {
     ];
     expect(activeSectionKey(jittered, 200)).toBe("A");
   });
+
+  it("hands back whatever key the caller passes, so section keys work too", () => {
+    // Department sort: several departments share an initial, so the caller
+    // passes section keys (and derives the rail letter + label itself) — the
+    // floating indicator has to name the section, not the ambiguous letter.
+    const byDepartment = [
+      { key: "dept-design", top: -220 },
+      { key: "dept-logistics", top: 40 },
+      { key: "dept-learning", top: 260 },
+    ];
+    expect(activeSectionKey(byDepartment, 100)).toBe("dept-logistics");
+    expect(activeSectionKey(byDepartment, 300)).toBe("dept-learning");
+  });
 });
 
 describe("contactRailHeightPx", () => {
@@ -165,6 +179,28 @@ describe("contactRailHeightPx", () => {
     expect(contactRailHeightPx(0)).toBe(14);
     expect(contactRailHeightPx(4)).toBe(94);
     expect(contactRailHeightPx(26)).toBe(534);
+  });
+});
+
+describe("railIndicatorTopPx", () => {
+  it("is the letter slot's centre from the pill's border-box top", () => {
+    // border 1 + padding 6 + whole letter slots + half of the active slot.
+    expect(railIndicatorTopPx(0)).toBe(17);
+    expect(railIndicatorTopPx(1)).toBe(37);
+    expect(railIndicatorTopPx(25)).toBe(517);
+  });
+
+  it("keeps every slot's chip inside the pill it is drawn against", () => {
+    // The CSS clamp bounds are 14px (half the chip) in from each edge, so an
+    // unscrolled rail never needs clamping — the chip always sits on the pill.
+    for (const count of [4, 12, 26]) {
+      const height = contactRailHeightPx(count);
+      for (let index = 0; index < count; index += 1) {
+        const top = railIndicatorTopPx(index);
+        expect(top - 14).toBeGreaterThanOrEqual(0);
+        expect(top + 14).toBeLessThanOrEqual(height);
+      }
+    }
   });
 });
 

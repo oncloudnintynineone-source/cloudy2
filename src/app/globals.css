@@ -3023,16 +3023,21 @@ html.c2-low-end::view-transition-group(*) {
 }
 
 /* The rail column is a viewport-centred index (the phone-Contacts convention)
-   rather than a block pinned under the chrome (C2 follow-up): its sticky `top`
-   is the viewport centre minus half its own declared height (`--c2-rail-h`,
-   published by the component from `contactRailHeightPx`). Two clamps keep it
-   usable:
+   rather than a block pinned under the chrome (C2 follow-up). It is two boxes:
+   the sticky **wrapper** (`.c2-contact-rail-wrap`) and the scrollable letter
+   pill inside it (`.c2-contact-rail`). The split exists because the pill clips
+   its own overflow — the floating letter indicator has to live outside that
+   clip, and the wrapper is its containing block, which is what makes the
+   indicator's percentage clamp equal the pill's visible height for free.
+   The wrapper's sticky `top` is the viewport centre minus half the rail's own
+   declared height (`--c2-rail-h`, published by the component from
+   `contactRailHeightPx`). Two clamps keep it usable:
    - `max()` against the chrome offset, so a rail taller than the space below
      the sticky bar never slides under it (below `lg` only the app header sits
      above it; at `lg`+ the sticky search bar does too);
-   - `max-height` = that space doubled, so when it binds the rail stays
-     symmetric and scrolls its own tail instead of losing letters below the
-     viewport (the scrollbar is hidden — it is a tap + scrub surface).
+   - the pill's `max-height` = that space doubled, so when it binds the rail
+     stays symmetric and scrolls its own tail instead of losing letters below
+     the viewport (the scrollbar is hidden — it is a tap + scrub surface).
    No `translateY(-50%)`: at the un-stuck static position (page top) a transform
    would pull the rail up over the chrome.
    Press-and-hold scrubbing (the phone-Contacts index-bar gesture): dragging
@@ -3040,9 +3045,13 @@ html.c2-low-end::view-transition-group(*) {
    overflow is reached by holding the pointer at its edge (see
    `railScrubEdgeDirection`), so `touch-action: none` is safe — and a mouse
    scrub must not select the letters. */
-.c2-contact-rail {
+.c2-contact-rail-wrap {
   --c2-rail-top-min: calc(var(--app-shell-header-offset) + 8px);
+  position: sticky;
   top: max(var(--c2-rail-top-min), calc(50dvh - var(--c2-rail-h, 0px) / 2));
+}
+
+.c2-contact-rail {
   max-height: calc(100dvh - 2 * var(--c2-rail-top-min));
   overflow-y: auto;
   scrollbar-width: none;
@@ -3052,6 +3061,73 @@ html.c2-low-end::view-transition-group(*) {
 
 .c2-contact-rail::-webkit-scrollbar {
   display: none;
+}
+
+/* The floating letter indicator beside the A–Z rail: what the scroll is
+   currently over, printed in a chip wearing the app's floating-surface recipe
+   (frosted tint + blur, drop shadow, hairline edge, brand-bold text). It
+   appears while the rail is scrubbed or the list scrolls and fades out once the
+   list settles (`RAIL_INDICATOR_HOLD_MS`).
+   `--c2-rail-ind-top` is the active letter's centre from the pill's border-box
+   top (`railIndicatorTopPx`); `--c2-rail-scroll` is the pill's own scroll
+   offset, published imperatively because the scrub edge auto-scroll writes it
+   at 6px/frame. The clamp keeps the chip on the pill when the active letter
+   sits outside the pill's scrolled view — percentages here resolve against the
+   wrapper, whose box *is* the pill's visible height.
+   Fixed height so the 14px clamp half is the chip's real half (line-height
+   centres the single line, and `text-overflow` needs the block box);
+   `visibility` rather than `display` so the fade-out transition survives;
+   `pointer-events: none` so it never eats a tap on the letters. */
+.c2-contact-rail-indicator {
+  position: absolute;
+  right: calc(100% + 8px);
+  top: clamp(
+    14px,
+    calc(var(--c2-rail-ind-top, 0px) - var(--c2-rail-scroll, 0px)),
+    calc(100% - 14px)
+  );
+  transform: translateY(-50%);
+  height: 28px;
+  line-height: 26px;
+  padding: 0 10px;
+  max-width: min(46vw, 220px);
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: 999px;
+  background: var(--c2-glass-bg);
+  -webkit-backdrop-filter: var(--c2g-blur);
+  backdrop-filter: var(--c2g-blur);
+  box-shadow: var(--mantine-shadow-md);
+  color: light-dark(var(--mantine-color-brand-7), var(--mantine-color-brand-2));
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity var(--c2-dur-quick) var(--c2-ease-out),
+    top var(--c2-dur-quick) var(--c2-ease-out),
+    visibility 0s linear var(--c2-dur-quick);
+}
+
+.c2-contact-rail-indicator[data-visible="true"] {
+  opacity: 1;
+  visibility: visible;
+  transition:
+    opacity var(--c2-dur-quick) var(--c2-ease-out),
+    top var(--c2-dur-quick) var(--c2-ease-out);
+}
+
+/* The `[data-visible="true"]` rule above is one specificity step higher than a
+   bare class, so the override has to name it too — otherwise the chip keeps
+   animating while it is shown. */
+@media (prefers-reduced-motion: reduce) {
+  .c2-contact-rail-indicator,
+  .c2-contact-rail-indicator[data-visible="true"] {
+    transition: none;
+  }
 }
 
 /* Wide screens put the **rows inside** a group card into auto-filling columns
@@ -3123,7 +3199,7 @@ html.c2-low-end::view-transition-group(*) {
 }
 
 @media (min-width: 40em) {
-  .c2-contact-rail {
+  .c2-contact-rail-wrap {
     --c2-rail-top-min: calc(var(--app-shell-header-offset) + 84px);
   }
 }

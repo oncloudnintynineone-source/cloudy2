@@ -517,7 +517,13 @@ gridding unevenly sized groups reintroduces exactly the empty space a phone list
 **Follow-up 1.413:** the rail is a press-and-hold **scrubber** now — slide along it and the list
 follows the letter under the pointer (instant scroll per section, live-band mapping + edge
 auto-scroll in pure `railIndexFromPoint`/`railScrubEdgeDirection`, `touch-action: none` so drags
-never pan the page), while taps keep their smooth jump + announcement.
+never pan the page), while taps keep their smooth jump + announcement. **Follow-up 1.445:** the
+scrubber now **names** what it is over — a frosted chip floats 8px left of the pill, printing the
+active section's label (the **department name** on the department sort, where three departments can
+share one letter) while scrubbing or scrolling and fading 700 ms after the last poke. It is a child
+of the new non-clipping sticky wrapper `.c2-contact-rail-wrap` — the rail's own `overflow-y: auto`
+would clip it — so it clamps to the pill's *visible* box when a short viewport collapses the rail,
+and it is `aria-hidden` next to the letter's own `aria-current`.
 §1.10.1.
 
 ### 1.6.3 C3 — Parade State has no name search

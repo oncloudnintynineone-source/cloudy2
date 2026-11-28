@@ -114,8 +114,10 @@ const ROW_TIE_EPSILON_PX = 1;
  * The rail letter to highlight for the current scroll position: the last
  * section header already above `activationLine` (a viewport-relative y),
  * falling back to the first section when the list starts below it. Entries
- * must be in document order — the caller maps each section to its rail letter
- * (`contactInitial(section.label)`).
+ * must be in document order — the function is key-agnostic and hands back the
+ * `key` it was given, so the caller passes whatever identifies what it wants
+ * (the rail letter `contactInitial(section.label)`, or the `section.key` when
+ * it also needs the section itself for the floating indicator's label).
  *
  * Entries level with each other (equal offsets, within the slack) resolve to
  * the **first** of them, so the highlight never skips ahead to a later section
@@ -159,6 +161,24 @@ export function contactRailHeightPx(entryCount: number): number {
     entryCount * CONTACT_RAIL_ENTRY_HEIGHT_PX +
     CONTACT_RAIL_PADDING_Y_PX * 2 +
     CONTACT_RAIL_BORDER_PX * 2
+  );
+}
+
+/**
+ * The vertical centre of rail entry `index`, measured from the rail pill's
+ * **border-box top** (border + padding + whole letter slots + half a slot). The
+ * pill sits inside a non-clipping wrapper of the same box, so the floating
+ * letter indicator (`--c2-rail-ind-top`, see `.c2-contact-rail-indicator`) is
+ * positioned off this one number — the rail's own scroll offset is subtracted
+ * in CSS, never through React state, because the scrub edge auto-scroll runs at
+ * 6px/frame and a state write per frame would re-render the whole row list.
+ */
+export function railIndicatorTopPx(index: number): number {
+  return (
+    CONTACT_RAIL_BORDER_PX +
+    CONTACT_RAIL_PADDING_Y_PX +
+    index * CONTACT_RAIL_ENTRY_HEIGHT_PX +
+    CONTACT_RAIL_ENTRY_HEIGHT_PX / 2
   );
 }
 
@@ -239,3 +259,10 @@ export function railScrubEdgeDirection(
   }
   return 0;
 }
+
+/**
+ * How long the floating letter indicator beside the rail stays up after the
+ * last poke (a scrub move or a real list scroll). Long enough to read after the
+ * list settles, short enough that it never lingers as stale chrome.
+ */
+export const RAIL_INDICATOR_HOLD_MS = 700;
