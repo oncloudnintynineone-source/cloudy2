@@ -33,6 +33,18 @@ export function apiJson<T>(data: T): NextResponse {
   return NextResponse.json(data, { headers: API_NO_STORE });
 }
 
+/**
+ * A JSON response from an already-serialized body, with the same headers as
+ * {@link apiJson}. For routes that measure their own payload size for the
+ * resource ledger (`src/lib/metrics/running.ts`): they serialize once, count
+ * the bytes, and hand the string over — never serialize twice to measure.
+ */
+export function apiJsonBody(body: string): Response {
+  return new Response(body, {
+    headers: { "Content-Type": "application/json", ...API_NO_STORE },
+  });
+}
+
 /** JSON error response with the app's no-store header. */
 export function apiError(status: number, error: string): NextResponse {
   return NextResponse.json({ ok: false, error }, { status, headers: API_NO_STORE });

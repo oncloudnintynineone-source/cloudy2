@@ -74,7 +74,7 @@ export function ConfigForm({ initial }: { initial: MetricsFormValues }) {
 
         <TimeInput
           label="Snapshot time (Singapore time)"
-          description="The ledger closes a day on the first app activity at or after this time. There is no external scheduler, so a day nobody is online for closes on the next visit rather than being skipped."
+          description="The earliest time of day the ledger may close a day: the first app activity at or after this time closes the previous day. There is no external scheduler, so pick a time the app is actually open — a day nobody is online for closes on the next visit rather than being skipped."
           {...form.getInputProps("snapshotTime")}
         />
 

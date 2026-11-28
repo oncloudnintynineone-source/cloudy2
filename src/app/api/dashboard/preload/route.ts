@@ -1,5 +1,8 @@
+import { after } from "next/server";
+
+import { apiJsonBody, optionalString, withApiJson } from "@/lib/api/server";
+import { maybeFlushRunningCounters, recordRouteResponse } from "@/lib/metrics/running";
 import { preloadDashboardTabs } from "@/lib/dashboard/actions";
-import { apiJson, optionalString, withApiJson } from "@/lib/api/server";
 
 /**
  * Background tab preload (docs/pwa-offline.md §1.18). A route handler so the
@@ -11,9 +14,14 @@ import { apiJson, optionalString, withApiJson } from "@/lib/api/server";
  * downloaded speculatively, which is what keeps a launch from shipping the
  * union of every tab's calendars × months (docs/neon-usage.md). `scope: "all"`
  * restores the legacy eager pass as an explicit rollback.
+ *
+ * Like the load route, its responses are counted for the resource ledger —
+ * after the load pass, this is the traffic the egress estimate is built from.
  */
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+
+const ROUTE = "/api/dashboard/preload";
 
 interface PreloadBody {
   view?: unknown;
@@ -30,12 +38,23 @@ export async function POST(request: Request) {
   }
   const body = auth.body;
 
-  const result = await preloadDashboardTabs({
-    view: optionalString(body.view),
-    month: optionalString(body.month),
-    date: optionalString(body.date),
-    adjacentOnly: body.adjacentOnly === true,
-    scope: optionalString(body.scope) === "all" ? "all" : "active",
+  after(() => {
+    void maybeFlushRunningCounters();
   });
-  return apiJson(result);
+
+  try {
+    const result = await preloadDashboardTabs({
+      view: optionalString(body.view),
+      month: optionalString(body.month),
+      date: optionalString(body.date),
+      adjacentOnly: body.adjacentOnly === true,
+      scope: optionalString(body.scope) === "all" ? "all" : "active",
+    });
+    const payload = JSON.stringify(result);
+    recordRouteResponse(ROUTE, Buffer.byteLength(payload), true);
+    return apiJsonBody(payload);
+  } catch (error) {
+    recordRouteResponse(ROUTE, 0, false);
+    throw error;
+  }
 }

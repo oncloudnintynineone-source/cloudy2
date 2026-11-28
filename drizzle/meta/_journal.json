@@ -526,6 +526,13 @@
       "when": 1795604574916,
       "tag": "0074_nostalgic_malice",
       "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1795830620280,
+      "tag": "0075_lovely_proudstar",
+      "breakpoints": true
     }
   ]
 }

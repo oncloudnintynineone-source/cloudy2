@@ -18,8 +18,9 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.434 (month-granular event-type migration range)** is shipped,
-  including the **1.433** UI/UX streamline passes + heading outline, the **1.432** compact
+- All work through changelog **1.435 (Resource Usage ledger closes days; Egress has a
+  writer)** is shipped, including the **1.434** month-granular event-type migration
+  range, the **1.433** UI/UX streamline passes + heading outline, the **1.432** compact
   mobile report heads, the **1.431** compact-desktop chrome fix and the **1.430.1** KAH
   copy-trim and **1.430.2** breach-integration follow-ups.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
@@ -3323,6 +3324,23 @@ size="compact"`), and renames **Duplicate Event** / **Copy to Other Google
   pickers to the existing hard bounds (`1970-01` … `now + 20y`) — Jun 2026 is only the
   **default**, so older stale references stay reachable — and each picker bounds the other,
   so a reversed window cannot be picked. Docs: `event-lifecycle.md` §1.10.1.
+
+- 1.435 **Resource Usage ledger closes days — and Egress finally has data**: the lazy
+  snapshot pass closed *today* behind a 23:55 cutoff an office-hours app never reaches, so
+  the ledger stayed empty forever. A lazy pass now closes **completed days only**:
+  `pendingSnapshotDays` takes a `latestDay` (the pass caps at yesterday; the forced
+  "Snapshot now" still closes through today), the default cutoff moves to **00:05**
+  (migration `0075` re-points the column default and rewrites existing `23:55` rows), and
+  the settings copy explains the first-activity-at/after-cutoff semantics end to end. The
+  Egress bar had no writer at all: `src/lib/metrics/running.ts` buffers per-route request
+  / error counts and serialized response bytes on the dashboard read routes
+  (`/api/dashboard/load`, `/api/dashboard/preload`) and upserts them additively into
+  `metrics_running` at most once a minute; the snapshot folds those counters into
+  `metrics_day` when it closes the day. Also fixed: the protected shell crashed SSR on
+  every page (`window.innerWidth` in the `AppShellShell` render body — now measured
+  after mount), and the dev DB's migration ledger was missing the applied-but-unrecorded
+  `0074` row, which failed every `db:migrate` (repaired in place). Docs: `neon-usage.md`
+  §1.5 (new).
 
 ## 1.4 Open items & next steps
 

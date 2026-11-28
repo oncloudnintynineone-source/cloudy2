@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { METRICS_DEFAULT_SNAPSHOT_TIME } from "./config";
 import {
   daysBetween,
   metricsSnapshotDate,
@@ -17,6 +18,10 @@ function sg(date: string, time = "00:00:00"): Date {
   const [hh, mm, ss] = time.split(":").map(Number);
   return new Date(Date.UTC(y, m - 1, d, hh - 8, mm, ss ?? 0));
 }
+
+const DEFAULT_MINUTES =
+  Number(METRICS_DEFAULT_SNAPSHOT_TIME.slice(0, 2)) * 60 +
+  Number(METRICS_DEFAULT_SNAPSHOT_TIME.slice(3, 5));
 
 describe("metricsNow", () => {
   it("reads the UTC+8 wall clock, not the runtime zone", () => {
@@ -45,9 +50,9 @@ describe("parseSnapshotTime", () => {
   });
 
   it("falls back to the default on anything unusable", () => {
-    expect(parseSnapshotTime("24:00")).toBe(23 * 60 + 55);
-    expect(parseSnapshotTime("nope")).toBe(23 * 60 + 55);
-    expect(parseSnapshotTime("12:99")).toBe(23 * 60 + 55);
+    expect(parseSnapshotTime("24:00")).toBe(DEFAULT_MINUTES);
+    expect(parseSnapshotTime("nope")).toBe(DEFAULT_MINUTES);
+    expect(parseSnapshotTime("12:99")).toBe(DEFAULT_MINUTES);
   });
 });
 
@@ -116,6 +121,31 @@ describe("pendingSnapshotDays", () => {
   it("survives a clock that moved backwards", () => {
     expect(
       pendingSnapshotDays({ lastClosedDay: "2026-11-27", today: "2026-11-25" }),
+    ).toEqual([]);
+  });
+
+  it("closes only completed days when the pass caps at yesterday", () => {
+    // The lazy pass: today is in progress, so it must not be closed.
+    expect(
+      pendingSnapshotDays({
+        lastClosedDay: null,
+        today: "2026-11-25",
+        latestDay: "2026-11-24",
+      }),
+    ).toEqual(["2026-11-24"]);
+    expect(
+      pendingSnapshotDays({
+        lastClosedDay: "2026-11-22",
+        today: "2026-11-25",
+        latestDay: "2026-11-24",
+      }),
+    ).toEqual(["2026-11-23", "2026-11-24"]);
+    expect(
+      pendingSnapshotDays({
+        lastClosedDay: "2026-11-24",
+        today: "2026-11-25",
+        latestDay: "2026-11-24",
+      }),
     ).toEqual([]);
   });
 });

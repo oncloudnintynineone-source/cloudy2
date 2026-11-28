@@ -29,6 +29,7 @@ import {
   metricsSnapshotDate,
   metricsSnapshotWindowOpen,
   pendingSnapshotDays,
+  shiftDate,
   type MetricsSnapshotWindowReason,
 } from "./schedule";
 
@@ -131,8 +132,14 @@ export async function runMetricsSnapshot(
       return { ran: false, skipped: "disabled", days: [], results: [] };
     }
 
+    // The lazy pass closes completed days only (through yesterday): the day
+    // still in progress would be frozen at whatever fraction the cutoff saw,
+    // and an office-hours app never has activity near an end-of-day cutoff
+    // anyway. The forced button closes through today — pressing it means
+    // "close now, partial and all" (src/lib/metrics/schedule.ts).
     const lastClosedDay = await latestClosedDay();
-    const days = pendingSnapshotDays({ lastClosedDay, today });
+    const latestDay = input.force ? today : shiftDate(today, -1);
+    const days = pendingSnapshotDays({ lastClosedDay, today, latestDay });
     if (days.length === 0) {
       return { ran: false, skipped: "already-closed", days: [], results: [] };
     }

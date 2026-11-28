@@ -13,8 +13,14 @@
  * else about the ledger does.
  */
 
-/** Default daily snapshot cutoff (UTC+8 `HH:mm`), same shape as the parade email. */
-export const METRICS_DEFAULT_SNAPSHOT_TIME = "23:55";
+/**
+ * Default daily snapshot cutoff (UTC+8 `HH:mm`) — the earliest time of day the
+ * lazy close may run. Deliberately just after midnight: the close covers the
+ * day that has already ended, so the first morning visit does it. An
+ * end-of-day cutoff would never fire for an office-hours app (nobody has it
+ * open at 23:55), which is how the ledger once shipped "No data" forever.
+ */
+export const METRICS_DEFAULT_SNAPSHOT_TIME = "00:05";
 
 /** ISO weekdays (1=Mon … 7=Sun) a snapshot is taken on. Daily by default. */
 export const METRICS_DEFAULT_SNAPSHOT_DAYS = [1, 2, 3, 4, 5, 6, 7] as const;
@@ -49,6 +55,20 @@ export const METRICS_SNAPSHOT_RETRY_MS = 5 * 60 * 1000;
  * use is plenty, and every ping costs a settings read.
  */
 export const METRICS_TICK_THROTTLE_MS = 15 * 60 * 1000;
+
+/**
+ * Minimum interval between running-counter flushes per instance. Same cadence
+ * as the activity-minute writer, and it rides the same `after()` hook, so a
+ * flush never costs a database wake-up the app did not already pay for.
+ */
+export const METRICS_RUNNING_FLUSH_MS = 60 * 1000;
+
+/**
+ * Memory guard for the running-counter buffer: a route fan-out wider than this
+ * many distinct `(day, metric, label)` rows flushes immediately rather than
+ * growing the map.
+ */
+export const METRICS_RUNNING_BUFFER_MAX = 256;
 
 /** Days of ledger the page loads by default. */
 export const METRICS_LEDGER_DEFAULT_DAYS = 30;

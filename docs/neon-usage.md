@@ -2,9 +2,10 @@
 
 The events cache ([events-cache.md](events-cache.md)) exists to guard Google Calendar
 **burst-rate** and **latency**, not a daily Google quota. The resource that actually runs
-out is the **Neon free tier**. This document records the quota numbers and the two ways to
-verify the app's DB-side load: a daily usage script (consumption API) and query-level
-statistics (`pg_stat_statements`).
+out is the **Neon free tier**. This document records the quota numbers and the ways to
+verify the app's DB-side load: a daily usage script (consumption API), query-level
+statistics (`pg_stat_statements`), and the in-app Resource Usage ledger
+(Settings → Resource Usage).
 
 ## Table of contents
 
@@ -13,7 +14,8 @@ statistics (`pg_stat_statements`).
   - [1.2.1 What the egress reductions are](#121-what-the-egress-reductions-are)
 - [1.3 Daily usage via the consumption API](#13-daily-usage-via-the-consumption-api)
 - [1.4 Query-level stats via `pg_stat_statements`](#14-query-level-stats-via-pgstatstatements)
-- [1.5 Reading the numbers](#15-reading-the-numbers)
+- [1.5 The in-app Resource Usage ledger](#15-the-in-app-resource-usage-ledger)
+- [1.6 Reading the numbers](#16-reading-the-numbers)
 
 ## 1.1 Why Google Calendar isn't the constraint
 
@@ -165,7 +167,48 @@ Reset the counters when you ship a change so the next window reflects it:
 SELECT pg_stat_statements_reset();
 ```
 
-## 1.5 Reading the numbers
+## 1.5 The in-app Resource Usage ledger
+
+Settings → **Resource Usage** (`/settings/metrics`) keeps its own daily ledger
+(`metrics_day`) so the team can watch the three free-tier budgets without opening the Neon
+Console. It runs on the same lazy in-app tick as the parade-state email — **no external
+scheduler**: `useMetricsTick` in the shell → `POST /api/metrics/tick` → `after()` runs
+`maybeRunMetricsSnapshot` behind the pure `metricsSnapshotWindowOpen` gate and a
+once-per-day claim row (`metrics_claim`).
+
+**Schedule semantics.** The configured snapshot time (default **00:05**, UTC+8) is the
+*earliest* time of day a close may happen, not the moment it happens: the first app
+activity at or after that time closes the **previous day** (a lazy pass only ever closes
+completed days — closing "today" at 00:05 would write a day that is 5 minutes old). A day
+nobody was online for is closed late, not skipped: every counter is date-keyed, so the
+next visit backfills up to `METRICS_MAX_BACKFILL_DAYS` oldest-first. The admin button
+("Snapshot now") is the exception — it closes **through today** so the current day's
+figures are inspectable on demand. Picking the cutoff: it must be a time the app is
+actually open (the old 23:55 default meant an office-hours app never triggered a close).
+
+```mermaid
+flowchart LR
+  A["any authenticated page\n(useMetricsTick)"] --> B["POST /api/metrics/tick"]
+  B -->|"after()"| C{"window open?\nclock ≥ cutoff\n& today is a snapshot day"}
+  C -->|no| D["skip (not audited)"]
+  C -->|yes| E["claim yesterday\n(metrics_claim, once/day)"]
+  E --> F["collect + write metrics_day\n+ audit metrics.snapshot"]
+```
+
+**What each bar reads.** *Storage* is exact (`pg_database_size`) and fills with the first
+snapshot. *Compute* is estimated from `metrics_activity` minutes (app-open minutes per
+day); the month-end projection needs `METRICS_PROJECTION_MIN_DAYS` (3) closed days.
+*Egress* is estimated from the app's own responses: `recordRouteResponse`
+(`src/lib/metrics/running.ts`) buffers per-route request counts, error counts, and
+serialized response bytes on the dashboard read routes (`/api/dashboard/load`,
+`/api/dashboard/preload` — the payload-dominant reads), and `maybeFlushRunningCounters`
+upserts the buffer into `metrics_running` at most once a minute (or when it reaches 256
+rows), additively, keyed by `(day, metric, route=…)`. The snapshot folds those running
+counters into `metrics_day` when it closes the day. The **Egress calibration ratio** in
+the config multiplies the estimate so it can be anchored to Neon Console → Billing →
+Usage (start at 1; refine once a few closed days exist).
+
+## 1.6 Reading the numbers
 
 After the DB-load reductions, expect:
 

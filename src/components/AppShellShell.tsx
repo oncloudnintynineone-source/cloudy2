@@ -471,8 +471,8 @@ export function AppShellShell({
   useParadeEmailTick();
 
   // Same mechanism for the daily resource-usage snapshot (src/lib/metrics/):
-  // the ledger closes a day on the first activity at/after its cutoff, claimed
-  // once per day so concurrent devices are harmless.
+  // the first activity at/after the configured cutoff closes the previous day,
+  // claimed once per day so concurrent devices are harmless.
   useMetricsTick();
 
   // Self-heal this device's Web Push subscription on load / return-to-foreground:
@@ -1009,8 +1009,17 @@ export function AppShellShell({
   const railWidth = RAIL_TILE_WIDTHS[bottomNavVariant];
   // Overflow is decided from the fixed tile widths vs. the viewport (the
   // footer runs edge-to-edge on mobile); when everything fits, no fade or
-  // chevron is rendered.
-  const railOverflows = railItems.length * railWidth > window.innerWidth;
+  // chevron is rendered. The viewport only exists in the browser, so SSR
+  // renders the no-overflow state and the first client measurement corrects
+  // it (measure-after-mount, like the iOS viewport sync below).
+  const [viewportWidth, setViewportWidth] = useState(0);
+  useEffect(() => {
+    const measure = () => setViewportWidth(window.innerWidth);
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, []);
+  const railOverflows = viewportWidth > 0 && railItems.length * railWidth > viewportWidth;
 
   // --- iOS PWA viewport sync ---
   // On some iOS versions, 100dvh/vh resolves to the full screen height but the

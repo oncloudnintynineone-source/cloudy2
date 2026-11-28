@@ -7,6 +7,14 @@
  * `docs/parade-state-email.md` §1.4). Everything here is free of I/O and
  * unit-tested, so the lazy tick can bail out before it touches the database.
  *
+ * The lazy pass closes **completed days only** (yesterday and earlier): the
+ * cutoff is the earliest time of day the close may run, and the day it closes
+ * is the one that has already ended. This is deliberate — an office-hours app
+ * is never open at an end-of-day cutoff like 23:55, so a same-day close would
+ * never run at all, which is exactly how the ledger shipped "No data" forever.
+ * The admin's "Snapshot now" button is the exception: it force-closes through
+ * today, partial data and all, because that is what pressing a button means.
+ *
  * The schedule is defined on the UTC+8 wall clock, matching every other
  * time-of-day setting in the app.
  */
@@ -113,6 +121,12 @@ export interface PendingSnapshotDaysInput {
   lastClosedDay: string | null;
   /** Today (UTC+8). */
   today: string;
+  /**
+   * Latest day this pass may close (inclusive). The lazy pass passes
+   * yesterday — only completed days get closed automatically — while the
+   * forced button closes through today. Defaults to `today`.
+   */
+  latestDay?: string;
   /** Never back-fill more than this many days in one run. */
   maxBackfill?: number;
 }
@@ -127,14 +141,16 @@ export interface PendingSnapshotDaysInput {
  */
 export function pendingSnapshotDays(input: PendingSnapshotDaysInput): string[] {
   const maxBackfill = input.maxBackfill ?? 7;
+  const latest = input.latestDay ?? input.today;
   if (!input.lastClosedDay) {
-    return [input.today];
+    return [latest];
   }
-  const gap = daysBetween(input.lastClosedDay, input.today);
+  const gap = daysBetween(input.lastClosedDay, latest);
   if (gap <= 0) {
-    // Today is already closed (or the clock moved backwards) — nothing due.
+    // Everything through `latest` is already closed (or the clock moved
+    // backwards) — nothing due.
     return [];
   }
   const count = Math.min(gap, maxBackfill);
-  return Array.from({ length: count }, (_, index) => shiftDate(input.today, index - count + 1));
+  return Array.from({ length: count }, (_, index) => shiftDate(latest, index - count + 1));
 }

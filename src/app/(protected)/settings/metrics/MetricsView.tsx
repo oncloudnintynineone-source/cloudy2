@@ -123,14 +123,14 @@ export function MetricsView({
             </Text>
             <Text size="xs" c="dimmed">
               {summary.latestDay
-                ? `Last closed ${summary.latestDay} · snapshot runs daily at ${summary.snapshotTime}`
-                : `Nothing closed yet — the first snapshot runs at ${summary.snapshotTime}`}
+                ? `Last closed ${summary.latestDay} · the ledger closes each day at/after ${summary.snapshotTime}`
+                : `Nothing closed yet — the first close runs at/after ${summary.snapshotTime}`}
             </Text>
           </Group>
           {summary.days.length === 0 ? (
             <Text size="sm" c="dimmed">
-              No closed days yet. The first snapshot runs on the first app activity at or after{" "}
-              {summary.snapshotTime} today.
+              No closed days yet. The ledger closes the previous day on the first app activity at
+              or after {summary.snapshotTime} — the next ordinary visit closes it.
             </Text>
           ) : (
             <LedgerTable

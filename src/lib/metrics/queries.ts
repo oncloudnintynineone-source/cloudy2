@@ -208,7 +208,14 @@ async function loadLedgerSummary(days: number): Promise<LedgerSummary> {
     budgets,
     days: ledgerDays,
     details: buildDetails(dayRows, calibration),
-    sources: buildSources({ installed, claims, latestDay, today, enabled: settings.metricsEnabled }),
+    sources: buildSources({
+      installed,
+      claims,
+      latestDay,
+      today,
+      yesterday: shiftIsoDay(today, -1),
+      enabled: settings.metricsEnabled,
+    }),
     pill: {
       warn: shouldWarnOnPill(statuses),
       count: statuses.filter((status) => status === "watch" || status === "critical").length,
@@ -355,7 +362,7 @@ function buildBudgets(input: BuildBudgetsInput): BudgetBar[] {
       estimated: false,
       note:
         input.latestStorageBytes === null
-          ? "No snapshot yet — the first one runs at the configured time."
+          ? "No snapshot yet — the first one runs on the first app activity at or after the configured time."
           : "Measured with pg_database_size; exact on any plan.",
     },
     {
@@ -448,6 +455,7 @@ interface BuildSourcesInput {
   claims: { day: string; status: string; claimedAt: Date }[];
   latestDay: string | null;
   today: string;
+  yesterday: string;
   enabled: boolean;
 }
 
@@ -458,8 +466,12 @@ interface BuildSourcesInput {
  */
 function buildSources(input: BuildSourcesInput): SourceStatus[] {
   const latestClaim = input.claims[0];
-  const closedToday = input.claims.some(
-    (claim) => claim.day === input.today && claim.status === "done",
+  // The lazy pass closes the *previous* day, so a current ledger carries a
+  // done claim for yesterday (or today, from the button). Anything older means
+  // the window has not opened since.
+  const closedCurrent = input.claims.some(
+    (claim) =>
+      claim.status === "done" && (claim.day === input.today || claim.day === input.yesterday),
   );
 
   const sources: SourceStatus[] = [
@@ -480,12 +492,16 @@ function buildSources(input: BuildSourcesInput): SourceStatus[] {
     {
       key: "snapshot",
       label: "Daily snapshot",
-      state: !input.enabled ? "unavailable" : closedToday ? "ok" : "pending",
+      state: !input.enabled ? "unavailable" : closedCurrent ? "ok" : "pending",
       detail: !input.enabled
         ? "Collection is switched off in Settings."
         : latestClaim
-          ? `Last run ${String(latestClaim.day)} (${latestClaim.status}).${closedToday ? "" : " Today is not closed yet."}`
-          : "No snapshot has run yet — the first fires at the configured time.",
+          ? `Last run ${String(latestClaim.day)} (${latestClaim.status}).${
+              closedCurrent
+                ? ""
+                : " The next close runs on the first app activity at or after the configured time."
+            }`
+          : "No snapshot has run yet — the first closes the previous day on the first app activity at or after the configured time.",
     },
     {
       key: "neon",
