@@ -264,7 +264,7 @@ export function sectionRendersAsChip(
  * A group chip's accessible name. The chip **prints no count** (1.439 — the
  * panel row is the group name alone); the count still reaches assistive tech
  * here, and the state stays visible to the eye as the chip's fill plus the
- * group's own state word and the footer's `Showing:` line.
+ * group's own state word.
  */
 export function sectionChipAriaLabel(section: FilterPanelSection): string {
   return `${sectionChipText(section)}, ${section.selectedCount} of ${section.totalCount} selected`;
@@ -288,8 +288,8 @@ export type FilterPanelRun =
 
 /**
  * Split a panel's sections into render runs, preserving their order: consecutive
- * chip sections share one grid container (`sectionRendersAsChip`), while each
- * inline section keeps its own header + chip block.
+ * chip sections share one wrapping chip cloud (`sectionRendersAsChip`), while
+ * each inline section keeps its own header + chip block.
  */
 export function groupPanelRuns(sections: readonly FilterPanelSection[]): FilterPanelRun[] {
   const runs: FilterPanelRun[] = [];
@@ -330,29 +330,4 @@ export function sectionState(
   selected: readonly string[],
 ): ReturnType<typeof sectionSelectionState> {
   return sectionSelectionState(section.options, selected);
-}
-
-/**
- * The dialog's one statement of what Apply will do, e.g.
- * `All calendars · 3 of 12 users · Event name "parade"`. It is the group rows'
- * own subtitles joined, so the line and the rows cannot disagree — and it is
- * **state**, never an instruction (the app stopped narrating itself in 1.410).
- */
-export function effectiveSetLine(
-  groups: readonly FilterModelGroup[],
-  draft: Record<string, readonly string[]>,
-  text?: { label: string; value: string },
-  opts: { cleared?: boolean; touched?: ReadonlySet<string> } = {},
-): string {
-  const parts = groups.map((group) =>
-    groupRowState(group, draft[group.label] ?? [], {
-      cleared: opts.cleared,
-      touched: opts.touched?.has(group.label) ?? false,
-    }).subtitle,
-  );
-  const trimmed = text?.value.trim() ?? "";
-  if (trimmed !== "" && text) {
-    parts.push(`${text.label} "${trimmed}"`);
-  }
-  return parts.join(" · ");
 }

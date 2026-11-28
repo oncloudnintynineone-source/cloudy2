@@ -183,7 +183,6 @@ Targets: text ≥ 4.5:1 (WCAG 1.4.3), component boundary ≥ 3:1 (WCAG 1.4.11).
 | Guided step keyboard focus ring                                  | 1.45:1               | 6.52:1                            | brand-3 `outline-color`                                |
 | Guided step rail — connector (passed / ahead)                    | n/a (new rail)       | 6.52:1 / 4.67:1                   | brand-3 / gray-6 `::after`                             |
 | Filter sheet state words — **both schemes**                      | 1.66:1 amber / 3.33:1 dimmed (light); 4.09:1 dimmed (dark) | 5.79:1 / 8.18:1 (light); 10.7:1 / 8.79:1 (dark) | `.c2-filter-state` (accent-9 · gray-7 / accent-4 · dark-2) |
-| Filter sheet active row — inset bar (non-text)                   | 1.66:1 (light)       | 3.52:1 (light); 10.7:1 (dark)     | `.c2-filter-row[data-active]` accent-8 / accent-4      |
 
 Mechanics:
 
@@ -206,15 +205,16 @@ Mechanics:
   `.c2-wizard-step-caption` class; its light branch is exactly the old `dimmed`
   gray.
 - The **filter dialog's state words** (row subtitle, panel header, section
-  counts, the `Showing:` line) are the one case in this table where the light
+  counts) are the one case in this table where the light
   scheme was the worse offender: the dialog says a group's whole state in 12px
   text, and `c="accent"` resolves to the accent's *fill* shade — #FBC02D, a
   measured **1.66:1** on white — while `c="dimmed"` measured 3.33:1 light /
   4.09:1 dark. `.c2-filter-state` therefore takes the **text end of the same
   ramp** (accent-9 / gray-7 in light, accent-4 / dark-2 in dark) and is
-  scheme-scoped in both directions, unlike the badge rules above. The active
-  row's inset bar moved with it: as a graphic it needs 3:1, so it is accent-8
-  (3.52:1) in light and accent-4 in dark.
+  scheme-scoped in both directions, unlike the badge rules above. The row's
+  amber inset bar went in 1.444 for the same reason it was re-coloured: it was a
+  non-text cue beside a word that already said the state, so it was removed
+  rather than tuned.
 
 ```mermaid
 flowchart LR
@@ -349,7 +349,7 @@ What the exception costs is bought back elsewhere:
 - **State is in the accessible name**, not only in the fill: the chip is an
   `aria-pressed` button whose name carries `", selected"` (measured:
   `"User 1, selected"`), and the dialog says the same thing in words — section
-  `n of m` counts, the group's state word, the pinned `Showing: …` line.
+  `n of m` counts and the group's state word.
 - **Picked vs unpicked survives greyscale** — a fill plus a hairline against a
   tint — so the amber never carries the meaning alone.
 - **Keyboard parity**: Tab reaches every chip, Space/Enter toggle it, and focus

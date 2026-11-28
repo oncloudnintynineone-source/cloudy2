@@ -20,7 +20,6 @@ import { ChipPopover } from "@/components/ChipPopover";
 import { EmptyState } from "@/components/EmptyState";
 import { SelectableBadge } from "@/components/SelectableBadge";
 import {
-  effectiveSetLine,
   groupPanelRuns,
   groupRowState,
   isGroupSearchable,
@@ -84,11 +83,15 @@ function initialDraft(
  * One grammar for every group replaces the four the dialog used to mix (inline
  * badges, an Add/Edit trigger into a nested picker, folder chips opening
  * popovers, and a Show/Hide disclosure): **open the group, tap chips, Apply**.
- * What a selection *means* is always said in words — a section count, a state
- * word, and one footer line naming the effective result set — so a chip's amber
- * fill never has to carry a meaning on its own, and the 5-chip summary this
- * dialog used to cap its picks at (with an inert `+N` nobody could tap) is gone:
- * a panel lists every option, either inline or inside its section's chip.
+ * What a selection *means* is always said in words — a section count and a state
+ * word — so a chip's amber fill never has to carry a meaning on its own, and the
+ * 5-chip summary this dialog used to cap its picks at (with an inert `+N` nobody
+ * could tap) is gone: a panel lists every option, either inline or inside its
+ * section's chip.
+ *
+ * Everything that belongs to level 1 — the free-text filter and the group rows —
+ * is hidden together once a panel takes the dialog below `lg`, so drilling in
+ * gives the option list the whole sheet (1.444).
  *
  * `FilterGroupSection.collapsible` **is** honoured: a section the admin kept
  * collapsible hides its members behind a group chip (the same `ChipPopover` the
@@ -159,6 +162,11 @@ export function FilterModalBody({
   const prevOpenLabel = useRef<string | null>(null);
 
   const openGroup = openLabel !== null ? (groups.find((g) => g.label === openLabel) ?? null) : null;
+
+  // Below `lg` a panel replaces the group list, so it replaces everything that is
+  // level 1 — the free-text filter included: the option list gets the whole
+  // dialog instead of sharing its height with a field nobody needs mid-pick.
+  const showLevel1 = openGroup === null || isDesktop;
 
   // Entering a panel puts the caret on its Back button — never on a text field.
   // Focusing the search box here (what this did until 1.439) opened the phone
@@ -249,13 +257,6 @@ export function FilterModalBody({
     (textFilter !== undefined && textDraft.trim() !== "") ||
     groups.some((group) => !isGroupUnfiltered(toApplyGroup(group), draft[group.label] ?? []));
 
-  const resultLine = effectiveSetLine(
-    groups,
-    draft,
-    textFilter ? { label: textFilter.label, value: textDraft } : undefined,
-    { cleared, touched },
-  );
-
   const openSelected = openGroup ? (draft[openGroup.label] ?? []) : [];
   const openState = openGroup
     ? groupRowState(openGroup, openSelected, {
@@ -304,12 +305,13 @@ export function FilterModalBody({
       <Box
         className="c2-filter-sheet"
         data-detail={openGroup ? "open" : undefined}
-        data-aside={textInput ? "true" : undefined}
+        data-aside={showLevel1 && textInput !== null ? "true" : undefined}
       >
-        {/* The free-text filter is not a group, so it is not a row: it spans the
-            sheet above both levels and stays put while a panel is open. */}
-        {textInput}
-        {(openGroup === null || isDesktop) && (
+        {/* The free-text filter is not a group, so it is not a row: at `lg`+ it
+            spans the sheet above both levels, and below `lg` it is a level-1
+            control like the rows — gone once a panel opens. */}
+        {showLevel1 ? textInput : null}
+        {showLevel1 && (
           /* Level 1 — one row per group. The row's own subtitle is the group's
              summary, so there is no separate chip strip to cap, overflow, or
              explain. */
@@ -323,7 +325,6 @@ export function FilterModalBody({
                 <UnstyledButton
                   key={group.label}
                   className="c2-filter-row"
-                  data-active={state.active || undefined}
                   data-open={openLabel === group.label || undefined}
                   aria-expanded={openLabel === group.label}
                   aria-label={`${group.label}, ${state.subtitle}`}
@@ -399,33 +400,29 @@ export function FilterModalBody({
         )}
       </Box>
 
-      <Box>
-        {/* The dialog's one statement of what Apply will do — the group rows'
-            own subtitles, so the line and the rows cannot disagree. */}
-        <Text size="xs" className="c2-filter-result c2-filter-state">
-          Showing: {resultLine}
-        </Text>
-        <Group justify="space-between" mt={6} wrap="wrap">
-          {/* "Reset filters" restores the role defaults; a group's own "None" is a
-              different thing (an explicit empty selection) and keeps that name. */}
-          <Button variant="subtle" color="gray" onClick={handleClear} disabled={!hasActiveFilter}>
-            Reset filters
+      {/* The footer is the actions only: what the draft would apply is already
+          said by the rows' own subtitles and the panel's state word (1.444
+          removed the `Showing: …` echo of them). */}
+      <Group justify="space-between" wrap="wrap">
+        {/* "Reset filters" restores the role defaults; a group's own "None" is a
+            different thing (an explicit empty selection) and keeps that name. */}
+        <Button variant="subtle" color="gray" onClick={handleClear} disabled={!hasActiveFilter}>
+          Reset filters
+        </Button>
+        <Group gap="xs">
+          <Button variant="default" onClick={onClose}>
+            Cancel
           </Button>
-          <Group gap="xs">
-            <Button variant="default" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button
-              onClick={() => void handleApply()}
-              loading={applying}
-              disabled={applying}
-              loaderProps={BUTTON_LOADER_PROPS}
-            >
-              Apply
-            </Button>
-          </Group>
+          <Button
+            onClick={() => void handleApply()}
+            loading={applying}
+            disabled={applying}
+            loaderProps={BUTTON_LOADER_PROPS}
+          >
+            Apply
+          </Button>
         </Group>
-      </Box>
+      </Group>
     </Stack>
   );
 }

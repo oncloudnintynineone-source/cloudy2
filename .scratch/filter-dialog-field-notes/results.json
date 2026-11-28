@@ -1,0 +1,207 @@
+{
+  "mobileLevel1Light": {
+    "sheet": {
+      "detail": null,
+      "aside": "true",
+      "columns": "319px",
+      "height": 257
+    },
+    "rows": [
+      {
+        "label": "Calendars, All calendars",
+        "shadow": "none",
+        "borderLeft": "1px"
+      },
+      {
+        "label": "Users, All users",
+        "shadow": "none",
+        "borderLeft": "1px"
+      },
+      {
+        "label": "Event Types, All event types",
+        "shadow": "none",
+        "borderLeft": "1px"
+      }
+    ],
+    "eventNameInput": {
+      "value": "",
+      "width": 319
+    },
+    "panel": null,
+    "showingText": false,
+    "resultElement": false,
+    "footerButtons": [
+      "Reset filters",
+      "Cancel",
+      "Apply"
+    ],
+    "chips": 0,
+    "shot": ".scratch/filter-dialog-field-notes/01-m390-level1-light.png"
+  },
+  "mobilePanelLight": {
+    "sheet": {
+      "detail": "open",
+      "aside": null,
+      "columns": "319px",
+      "height": 127
+    },
+    "rows": [],
+    "eventNameInput": null,
+    "panel": {
+      "height": 127
+    },
+    "showingText": false,
+    "resultElement": false,
+    "footerButtons": [
+      "Reset filters",
+      "Cancel",
+      "Apply"
+    ],
+    "chips": 4,
+    "panelLabel": "Calendars",
+    "shot": ".scratch/filter-dialog-field-notes/02-m390-calendars-panel-light.png"
+  },
+  "afterBack": {
+    "sheet": {
+      "detail": null,
+      "aside": "true",
+      "columns": "319px",
+      "height": 257
+    },
+    "rows": [
+      {
+        "label": "Calendars, All calendars",
+        "shadow": "none",
+        "borderLeft": "1px"
+      },
+      {
+        "label": "Users, All users",
+        "shadow": "none",
+        "borderLeft": "1px"
+      },
+      {
+        "label": "Event Types, All event types",
+        "shadow": "none",
+        "borderLeft": "1px"
+      }
+    ],
+    "eventNameInput": {
+      "value": "parade",
+      "width": 319
+    },
+    "panel": null,
+    "showingText": false,
+    "resultElement": false,
+    "footerButtons": [
+      "Reset filters",
+      "Cancel",
+      "Apply"
+    ],
+    "chips": 0
+  },
+  "afterClear": "",
+  "mobileLevel1Dark": {
+    "sheet": {
+      "detail": null,
+      "aside": "true",
+      "columns": "319px",
+      "height": 257
+    },
+    "rows": [
+      {
+        "label": "Calendars, All calendars",
+        "shadow": "none",
+        "borderLeft": "1px"
+      },
+      {
+        "label": "Users, All users",
+        "shadow": "none",
+        "borderLeft": "1px"
+      },
+      {
+        "label": "Event Types, All event types",
+        "shadow": "none",
+        "borderLeft": "1px"
+      }
+    ],
+    "eventNameInput": {
+      "value": "",
+      "width": 319
+    },
+    "panel": null,
+    "showingText": false,
+    "resultElement": false,
+    "footerButtons": [
+      "Reset filters",
+      "Cancel",
+      "Apply"
+    ],
+    "chips": 0,
+    "shot": ".scratch/filter-dialog-field-notes/03-m390-level1-dark.png"
+  },
+  "mobilePanelDark": {
+    "sheet": {
+      "detail": "open",
+      "aside": null,
+      "columns": "319px",
+      "height": 175
+    },
+    "rows": [],
+    "eventNameInput": null,
+    "panel": {
+      "height": 175
+    },
+    "showingText": false,
+    "resultElement": false,
+    "footerButtons": [
+      "Reset filters",
+      "Cancel",
+      "Apply"
+    ],
+    "chips": 1,
+    "panelLabel": "Users",
+    "shot": ".scratch/filter-dialog-field-notes/04-m390-users-panel-dark.png"
+  },
+  "desktopPanelLight": {
+    "sheet": {
+      "detail": "open",
+      "aside": "true",
+      "columns": "192px 384px",
+      "height": 257
+    },
+    "rows": [
+      {
+        "label": "Calendars, All calendars",
+        "shadow": "none",
+        "borderLeft": "1px"
+      },
+      {
+        "label": "Users, All users",
+        "shadow": "none",
+        "borderLeft": "1px"
+      },
+      {
+        "label": "Event Types, All event types",
+        "shadow": "none",
+        "borderLeft": "1px"
+      }
+    ],
+    "eventNameInput": {
+      "value": "",
+      "width": 588
+    },
+    "panel": {
+      "height": 177
+    },
+    "showingText": false,
+    "resultElement": false,
+    "footerButtons": [
+      "Reset filters",
+      "Cancel",
+      "Apply"
+    ],
+    "chips": 1,
+    "shot": ".scratch/filter-dialog-field-notes/05-d1280-users-panel-light.png"
+  },
+  "consoleErrors": []
+}

@@ -618,8 +618,8 @@ Because that word *is* the dialog's payload, it never rides a fill shade:
 `.c2-filter-state` takes the text end of the accent ramp (accent-9 / gray-7 in
 light, accent-4 / dark-2 in dark) after the shipped-first version measured
 **1.66:1** for `c="accent"` on white and 3.33:1 for `c="dimmed"` — both under AA
-at 12px. The active row's inset bar moved with it (accent-8 light, 3.52:1 as a
-graphic); see [`accessibility.md`](accessibility.md) §1.7.
+at 12px ([`accessibility.md`](accessibility.md) §1.7). The row itself carries no
+state graphic: 1.444 removed the amber inset bar, so the subtitle is the whole cue.
 
 A panel is header + sections: back chevron, the group's own state word, its
 **All / None** pair, a search box once the list is longer than
@@ -672,12 +672,12 @@ the app-wide 36px `--c2-chip-height` chip the user picker's pool and the wizard'
 type step use, `aria-pressed` carrying the state, amber `accent-6` fill = in),
 wrapping freely so a long user name breaks inside its chip instead of being
 truncated. Because a chip's fill is colour, the meaning of a selection is always
-said in words as well — the row state words and the pinned `Showing: …` line —
-and the chip keeps a hairline plus the fill-vs-tint switch, so picked and
-unpicked still differ in greyscale. A **group chip** prints no count, so its
-closed state is the fill (all-in / partly-in) plus its `aria-label`; the count is
-still in the panel header's state word, the section's own popup, and that
-`Showing:` line.
+said in words as well — the row state words, the panel header's state word and
+the section counts — and the chip keeps a hairline plus the fill-vs-tint switch,
+so picked and unpicked still differ in greyscale. A **group chip** prints no
+count, so its closed state is the fill (all-in / partly-in) plus its
+`aria-label`, which carries `n of m`; the count is also in the panel header and
+the section's own popup.
 
 The pair's second word names what an empty selection means in that group —
 **None** (nothing will match) for a grid group, **Clear** (no picks, so nothing is
@@ -685,12 +685,12 @@ filtered) for a search group — and the row above says the same thing. Emptying
 grid group's last option now *does* empty it: the old dialog refused silently,
 which read as a broken checkbox.
 
-The footer states the result once — `Showing: All calendars · 3 of 12 users ·
-Event name "parade"` — assembled from the same rows, so the line and the rows
-cannot disagree. The reset button is **Reset filters** (restore the role
-defaults; the rows then read `Default`, because that is what Apply will store)
-and is deliberately named apart from a group's **None** (an explicit empty
-selection → an empty grid).
+The footer is the actions only — **Reset filters** (restore the role defaults; the
+rows then read `Default`, because that is what Apply will store) · Cancel ·
+Apply. 1.444 removed the `Showing: …` line that used to echo the rows: it said
+nothing they did not already say, and on a phone it cost the option list a line.
+**Reset filters** stays deliberately named apart from a group's **None** (an
+explicit empty selection → an empty grid).
 
 **Event Types keep the wizard's section order** — `buildEventTypePickerSections(eventTypes,
 eventTypeGroups)` (`src/lib/eventTypes/groups.ts`): inline groups in display
@@ -717,7 +717,8 @@ to *no filter* and silently turn the filter off. Keeping the universe fixed mean
 the only way to reach "all users" is to actually select every active user.
 
 An optional **Event name** text field (spanning the top of the sheet, above both
-levels; the dashboard
+levels; below `lg` it is a level-1 control and 1.444 hides it once a panel opens,
+so the option list gets the whole dialog; the dashboard
 is its only caller) is a case-insensitive **substring** match over the event's
 typed name (`payload.rawTitle`) and its rendered title (`title`, after the view's
 title recipe). Blank means "no filter"; it has no All/None and no role default.
@@ -801,7 +802,7 @@ flowchart LR
 	ROWS --> CAL["Calendars panel<br/>(selectable chips + All/None)"]
  ROWS --> US["Users panel<br/>(search + department chips + Myself)"]
  ROWS --> ET["Event Types panel<br/>(group chips + the admin's inline groups)"]
- FM --> FOOT["Pinned footer: Showing: All calendars · 3 of 12 users<br/>Reset filters · Cancel · Apply"]
+ FM --> FOOT["Pinned footer (actions only)<br/>Reset filters · Cancel · Apply"]
  FOOT --> APPLY["saveDashboardViewFilters<br/>(server action)"]
  APPLY --> ROW["active tab row<br/>(cal/users/types, NULL = role default)"]
  ROW --> RESOLVE["buildDashboardData (data.ts)<br/>validates ids vs live data"]
@@ -1493,8 +1494,8 @@ t: eventTypeNames, b: sharerName }`. The owner's effective filters are
 | `src/components/GridNavControls.tsx`                  | Day/Week (H) + Month right-edge cluster: zoom +/− + right pan, plus left-edge pan                                                                                                                                 |
 | `src/components/FilterButton.tsx`                     | Dedicated filter button (icon + active-group badge) replacing the kebab's filter menu                                                                                                                             |
 | `src/components/FilterModal.tsx`                      | Filters dialog chrome (two-level sheet, lazy body, origin-rect zoom, level-aware Escape)                                                          |
-| `src/components/FilterModalBody.tsx`                  | The sheet itself: group rows with state subtitles, per-group panels (search, sections, selectable chips), "Showing:" footer, Reset filters            |
-| `src/lib/filters/filterDialogModel.ts`                | Pure presentation model: row state words/subtitles, search threshold, section building + counts, the "Showing:" line                                |
+| `src/components/FilterModalBody.tsx`                  | The sheet itself: group rows with state subtitles, the level-1 Event-name field, per-group panels (search, sections, selectable chips), Reset filters  |
+| `src/lib/filters/filterDialogModel.ts`                | Pure presentation model: row state words/subtitles, search threshold, section building + counts                                                    |
 | `src/components/SelectableBadge.tsx`                  | The app-wide 36px selectable chip (`aria-pressed`, amber fill = in) — the filter dialog's option lists and every picker pool render through it      |
 | `src/components/ChipPopover.tsx`                      | The group chip: a container chip whose popup holds its members' chips — the wizard's folder tiles and the filter dialog's sections both use it      |
 

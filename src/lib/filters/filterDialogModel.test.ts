@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  effectiveSetLine,
   groupPanelRuns,
   groupRowState,
   isGroupSearchable,
@@ -467,42 +466,5 @@ describe("groupPanelRuns", () => {
     const runs = groupPanelRuns([section("Dep1")]);
     expect(runs).toHaveLength(1);
     expect(runs[0]?.kind).toBe("inline");
-  });
-});
-
-describe("effectiveSetLine", () => {
-  const groups = [calendars, users];
-
-  it("joins the group rows' own subtitles", () => {
-    expect(
-      effectiveSetLine(groups, { Calendars: ["cal-1"], Users: ["u1", "u2"] }),
-    ).toBe("1 of 3 calendars · 2 of 3 users");
-  });
-
-  it("appends the trimmed free-text term", () => {
-    expect(
-      effectiveSetLine(groups, { Calendars: [], Users: [] }, { label: "Event name", value: "  parade " }),
-    ).toBe('No calendars · All users · Event name "parade"');
-  });
-
-  it("omits a blank free-text term", () => {
-    expect(
-      effectiveSetLine(groups, { Calendars: [], Users: [] }, { label: "Event name", value: "   " }),
-    ).toBe("No calendars · All users");
-  });
-
-  it("says Default for every group Reset left untouched", () => {
-    expect(effectiveSetLine(groups, { Calendars: [], Users: [] }, undefined, { cleared: true })).toBe(
-      "Default · Default",
-    );
-  });
-
-  it("keeps an edited group honest after Reset", () => {
-    expect(
-      effectiveSetLine(groups, { Calendars: ["cal-1"], Users: [] }, undefined, {
-        cleared: true,
-        touched: new Set(["Calendars"]),
-      }),
-    ).toBe("1 of 3 calendars · Default");
   });
 });

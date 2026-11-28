@@ -169,8 +169,9 @@ export interface FilterModalProps {
  * gesture per group ("open it, tap chips") replaces the badge wall, the Add/Edit
  * trigger into a nested picker, the folder chips with popovers and the Show/Hide
  * disclosure this dialog used to mix; inside a panel, a section that is a real
- * group hides its members behind its own chip. The footer states the effective
- * result set in one line.
+ * group hides its members behind its own chip. The footer is the actions only —
+ * Reset filters · Cancel · Apply — because the rows and the panel already say
+ * what Apply would do.
  *
  * Selections are staged in a draft and only applied on "Apply"; "Reset filters"
  * restores the role defaults (rows then read "Default", because that is what

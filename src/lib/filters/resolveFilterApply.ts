@@ -65,7 +65,7 @@ export interface GroupFilterState {
  * {@link isGroupUnfiltered}, so the variant-dependent meaning of "no filter"
  * (grid: everything ticked; search: nothing ticked) can never drift from what
  * Apply actually stores. `filterDialogModel.ts` turns it into the sentences the
- * dialog's rows and its "Showing:" line print.
+ * dialog's rows print.
  *
  * With `optionValues` present the count only includes ids the dialog can
  * actually show, and a selection naming something outside the option list is

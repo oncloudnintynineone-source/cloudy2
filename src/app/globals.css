@@ -3506,7 +3506,9 @@ html.c2-low-end::view-transition-group(*) {
 
 /* With the free-text field the sheet is two rows: the field, then the level(s)
    that scroll. The field spans both columns at `lg`+ so it never gets squeezed
-   into the narrow list column. */
+   into the narrow list column; below `lg` it is a level-1 control, so the
+   attribute is absent while a panel owns the dialog (1.444) and the field gets
+   no row at all. */
 .c2-filter-sheet[data-aside] {
   grid-template-rows: auto minmax(0, 1fr);
 }
@@ -3564,9 +3566,10 @@ html.c2-low-end::view-transition-group(*) {
 /*
   Level-1 row: the group's name over what it currently does, with a chevron that
   says "this opens". It is a button, so it meets the same 44px floor as the
-  option rows it leads to. The amber inset only reinforces the state word beside
-  it — an inset shadow, not a border, so an active row never shifts its label by
-  a border width.
+  option rows it leads to. The row carries no state highlight of its own — 1.444
+  removed the amber inset bar, because the subtitle already says the state in
+  words and the bar read as a selection on the group button. `data-open` is the
+  only highlight left: which panel is on screen at `lg`+.
 */
 .c2-filter-row {
   display: block;
@@ -3589,12 +3592,6 @@ html.c2-low-end::view-transition-group(*) {
 .c2-filter-row:focus-visible {
   outline: 2px solid var(--mantine-color-brand-6);
   outline-offset: 2px;
-}
-
-.c2-filter-row[data-active] {
-  /* accent-8, not the base amber: the bar is a graphic, so it needs 3:1 against
-     the row, and #FBC02D only reaches 1.66:1 on white. */
-  box-shadow: inset calc(0.1875rem * var(--mantine-scale)) 0 0 var(--mantine-color-accent-8);
 }
 
 .c2-filter-row[data-open] {
@@ -3623,10 +3620,6 @@ html.c2-low-end::view-transition-group(*) {
   outline-color: var(--mantine-color-brand-4);
 }
 
-[data-mantine-color-scheme="dark"] .c2-filter-row[data-active] {
-  box-shadow: inset calc(0.1875rem * var(--mantine-scale)) 0 0 var(--mantine-color-accent-4);
-}
-
 /*
   The state word is what this dialog exists to say, so it never rides a fill
   shade: the accent's base (#FBC02D) is a 1.66:1 smudge on white and Mantine's
@@ -3648,13 +3641,6 @@ html.c2-low-end::view-transition-group(*) {
 
 [data-mantine-color-scheme="dark"] .c2-filter-state[data-active] {
   color: var(--mantine-color-accent-4);
-}
-
-/* The footer's one-line statement of what Apply will do. It wraps rather than
-   ellipsizes (the whole point is that it can be read), and a long quoted
-   free-text term must not push the footer wider than the dialog. */
-.c2-filter-result {
-  overflow-wrap: anywhere;
 }
 
 /*

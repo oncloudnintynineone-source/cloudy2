@@ -224,11 +224,13 @@ doc content here.
   one section always lists inline. Nothing in the dialog focuses a text field by itself
   (panel entry lands on Back), so opening it never summons the phone keyboard, and the
   Users panel's **Myself** quick action is an ordinary `SelectableBadge` chip in the
-  header band. At `lg`+ the two levels sit side by side. No Show/Hide disclosure or nested picker —
-  and no instructional copy: because a chip's fill is colour, what a selection *means* is
-  always said in words — the section counts, the row state words and the pinned
-  `Showing: …` line
-  (`src/lib/filters/filterDialogModel.ts`, pure + unit-tested). Vocabulary stays exact:
+  header band. At `lg`+ the two levels sit side by side, and the optional free-text Event-name field
+  spans above both; below `lg` that field is a **level-1 control** — it goes away when a panel opens
+  (1.444) so the option list gets the whole dialog. The level-1 row carries no state highlight (the
+  amber bar was removed in 1.444; its subtitle is the state) and there is no footer `Showing: …`
+  echo. No Show/Hide disclosure or nested picker — and no instructional copy: because a chip's fill
+  is colour, what a selection *means* is always said in words — the section counts and the row state
+  words (`src/lib/filters/filterDialogModel.ts`, pure + unit-tested). Vocabulary stays exact:
   group **All / None** (None = an explicit empty selection), search-group **All / Clear**
   (empty = no filter), footer **Reset filters** (role defaults — never rename a group's
   "None" to this). Event Types reuse the wizard's `buildEventTypePickerSections` for their

@@ -18,8 +18,9 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.443 (change-report convention)** is shipped,
-  including the **1.442** modal-skeleton reveal fix,
+- All work through changelog **1.444 (filter-dialog field notes)** is shipped,
+  including the **1.443** change-report convention,
+  the **1.442** modal-skeleton reveal fix,
   the **1.441** content-width department chips,
   the **1.440** filter-dialog department labels, the **1.439** filter-dialog polish,
   the **1.438** filter-dialog group chips,
@@ -3520,6 +3521,29 @@ size="compact"`), and renames **Duplicate Event** / **Copy to Other Google
   parts into one honest line. It is a shape, not a copy-paste template, and it defers to the
   git-workflow and visual-verification bullets rather than repeating them. No code, schema or
   `APP_VERSION` change.
+
+- 1.444 **Filter dialog: level-1 only Event-name field, no row bar, no `Showing:` line** (three
+  field notes, all subtraction): a new `showLevel1` (`openGroup === null || isDesktop`) now gates
+  the free-text Event-name field exactly like the group rows, so on a phone drilling into
+  Calendars/Users/Event Types takes the field away and the option list gets the whole dialog
+  (`data-aside` follows it; `lg`+ keeps the field above both levels). The level-1 row's amber inset
+  bar is gone — `.c2-filter-row[data-active]` (light + dark) and the row's `data-active` attribute
+  deleted, because the subtitle already says the state and `data-open` keeps the "which panel"
+  tint; the amber state *word* stays. And the footer `Showing: …` line is removed, with
+  `effectiveSetLine` and its 5 tests deleted rather than left unused, so the footer is Reset
+  filters · Cancel · Apply. `hasActiveFilter` still drives Reset's disabled state, a typed term
+  survives drill-in/Back, and storage/`FilterModalProps`/the chip vocabulary are unchanged.
+  **Browser-verified** on a production build in Chrome over raw CDP (DevTools MCP is not configured
+  here) at 390px and 1280px, light and dark, on the dashboard (staff session) plus the admin-only
+  Users table dialog (no `textFilter`) as the second consumer: at 390px the level-1 field is
+  present (`data-aside="true"`, input 319px) and **absent** in a panel (`data-aside` null, sheet
+  127–175px = the panel), Back restores it holding `parade`, the footer is Reset filters / Cancel /
+  Apply with no `Showing:` text and no `.c2-filter-result` in the DOM, every row computes
+  `box-shadow: none` even with `data-active` forced back on (the rule is gone from the stylesheet,
+  not just unused), and at 1280px the sheet is `192px 384px` with the field still above both
+  levels; the Users table dialog has no aside at all and no empty row reserved when drilled in.
+  Zero console errors. Docs: `dashboard-views.md` §1.2, `accessibility.md` §1.7/§1.9.2,
+  `ui-ux-improvements.md` E7.
 
 ## 1.4 Open items & next steps
 

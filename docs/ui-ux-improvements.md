@@ -1569,6 +1569,19 @@ left-to-right, wrapping. `.c2-filter-chip-grid` and `ChipPopover`'s short-lived 
 deleted rather than left as dead options. Measured at 390px: `Dep1` 73px, `Dep1 (Engineering)`
 176px, `Dep1 (HR)` 106px, `Dep2` 73px in a 319px panel — two per row, three distinct widths.
 
+**Field notes (1.444, 2026-11-28).** Three notes, all subtraction. (1) On a phone the
+**Event-name field is now a level-1 control**: it belongs beside the group rows, so drilling into
+Calendars/Users/Event Types takes it away and the option list gets the whole dialog (`lg`+ keeps it
+above both levels — that is the side-by-side budget). (2) The level-1 row lost its **amber inset
+bar**: the subtitle already says the state (`3 of 12 users`), and the bar read as a selection on
+the group button rather than a summary of the filter, so it was deleted rather than re-coloured
+(its accent-8 dark/light rules and the row's `data-active` attribute; the amber state *word*
+stays). (3) The footer **`Showing: …` line is gone** — it echoed the rows in the same words and
+cost a phone a line of panel height. With it went the model behind it: `effectiveSetLine` and its 5
+unit tests were deleted rather than left unused, and the footer is now Reset filters · Cancel ·
+Apply. Row state words, section counts, the All/None/Clear/Reset vocabulary, storage and
+`FilterModalProps` are unchanged.
+
 ## 1.9 Held register
 
 Reviewed on **2026-11-22** and **put aside by decision — not to be implemented without a new
@@ -1671,6 +1684,7 @@ land here.
 | E7  | 1.439 (2026-11-28) | Third pass, on four field notes: (1) a section's **All/Clear moved inside its popup, pinned top-right** — the panel row is the chip alone; (2) the chip **prints no count** (it still reaches AT via `aria-label`, and the fill still marks all-in / partly-in, with the state word and `Showing:` line carrying the words); (3) **nothing in the dialog focuses a text field by itself** — panel entry lands on Back instead of the search box, which used to pop the phone keyboard the moment Users opened; (4) **"Myself" became the dialog's own chip** (`SelectableBadge` + person glyph) in the panel's header band, replacing the full-width `.c2-filter-quick` button (its CSS rule deleted). `ChipPopover` gained an `actions` slot and now focuses the first **option** chip on open, never a bulk action. Draft/apply path, storage, `FilterModalProps` and the vocabulary unchanged. [`dashboard-views.md`](dashboard-views.md) §1.2. |
 | E7  | 1.440 (2026-11-28) | Fourth pass, two field notes: the panel's group chips now lay out as a **grid** (`.c2-filter-chip-grid`, `auto-fill minmax(min(100%, 9rem), 1fr)` — two columns on a phone and in the desktop panel, each chip filling its cell) instead of one stair-stepped line per department, and a **sub-department's chip reads `Parent (Department)`** (e.g. `Dep1 (Engineering)`) from the section's `parentLabel` — the nearest *shown* parent, filled by `buildUserGroups` under the same acceptance rule `depth` uses. The qualifier replaces the depth indent for chips (`hierarchyIndent` now only applies to inline sections), and `ChipPopover` grew a `block` mode for the grid cells. Consecutive chip sections share one grid container (`groupPanelRuns`), so section order and inline sections are untouched. Draft/apply path, popup, All/Clear placement, Myself chip and `FilterModalProps` unchanged. [`dashboard-views.md`](dashboard-views.md) §1.2, [`user-picker.md`](user-picker.md) §1.4. |
 | E7  | 1.441 (2026-11-28) | Fifth pass, correcting 1.440's equal-width cells: the chip run is now a plain **`<Group gap={6} wrap="wrap">`** — the app's chip-cloud idiom (the picker pool, the wizard's type step) — so each chip takes only the width its label needs (`Dep1` 73px, `Dep1 (Engineering)` 176px) and they pack several per row. `.c2-filter-chip-grid` and `ChipPopover`'s `block` mode are deleted (never left unused); everything else from 1.440 unchanged — `Parent (Department)` labels, no indent for chips, popups with All/Clear top-right, runs preserving section order. [`dashboard-views.md`](dashboard-views.md) §1.2. |
+| E7  | 1.444 (2026-11-28) | Three subtractions: the **Event-name field is a level-1 control** (below `lg` it disappears when a panel opens and the option list gets the dialog; `lg`+ keeps it above both levels), the level-1 row's **amber inset bar is gone** (the subtitle says the state; the open row keeps its brand tint, and the amber state word stays), and the footer **`Showing: …` line is removed** with `effectiveSetLine` + its 5 tests deleted, so the footer is actions only. Row state words, section counts, All/None/Clear/Reset vocabulary, storage and `FilterModalProps` unchanged. [`dashboard-views.md`](dashboard-views.md) §1.2, [`accessibility.md`](accessibility.md) §1.7/§1.9.2. |
 
 ## 1.11 Implementation guardrails
 
