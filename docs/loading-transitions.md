@@ -345,9 +345,18 @@ grid, modal/detail bodies, status pages, and search results. Rules:
   dissolve happens first at the skeleton's layout height — the wrapper locks to
   that height (`offsetHeight`, so the modal's entrance scale cannot pollute it)
   and clips the mounted content. Only after the dissolve ends does the wrapper
-  animate to the content's height. This avoids the skeleton boxes looking
-  detached while the dialog grows/shrinks around them. Bounded/page surfaces
-  leave it off (their boxes must not animate), and reduced-motion /
+  animate to the content's height — **one resize, never a collapse-then-expand**.
+  This avoids the skeleton boxes looking detached while the dialog grows/shrinks
+  around them. The skeleton height is **observed, not read once**: a
+  `keepMounted` dialog renders its content with `display: none` for the opening
+  frames (Mantine's `Transition` moves `exited → entering` two animation frames
+  after `mounted` flips), so a one-shot read there is `0` — recording it locked
+  the dialog to `height: 0` and played the collapse before the expand. A
+  `ResizeObserver` re-records the moment the box is laid out, and an
+  un-measured skeleton (or a 0-high content box) skips the height animation
+  entirely rather than locking to nothing (`recordSkeletonHeight` /
+  `shouldAnimateSwapHeight`, `src/lib/loading/swapHeight.ts`). Bounded/page
+  surfaces leave it off (their boxes must not animate), and reduced-motion /
   `c2-low-end` keep the instant swap. `flex: 0 1 auto` is applied for the beat
   so the filter body's `flex: 1` wrapper can be driven by the explicit height.
 
@@ -1222,6 +1231,7 @@ re-render the whole dashboard view.
 | File                                                             | Role                                                                                                                                                                                                                                                                                                                          |
 | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `src/lib/loading/minHoldLoading.ts`                              | `useMinSkeletonHold` + `MIN_SKELETON_HOLD_MS`                                                                                                                                                                                                                                                                                 |
+| `src/lib/loading/swapHeight.ts`                                  | Pure `recordSkeletonHeight` / `shouldAnimateSwapHeight` — never records an un-laid-out (0) skeleton height, so a `keepMounted` dialog's `display:none` opening frames can't collapse the modal before the one resize (§1.6.1)                                                                                                  |
 | `src/lib/loading/contentEnter.ts`                                | `CONTENT_ENTER_CLASS` + `useContentEnter` (cold-mount fades only; in-place swaps use `CrossfadeSwap`)                                                                                                                                                                                                                         |
 | `src/lib/loading/chunkReady.ts`                                  | `loadChunk`/`useChunkReady`/`preloadLazyBody` — lazy modal-chunk loads as a boolean so the chunk skeleton dissolves through `CrossfadeSwap` (§1.15.1)                                                                                                                                                                        |
 | `src/components/LazyModal.tsx`                                   | The shared chrome + chunk-gate + crossfade composition for lazy modal bodies (§1.15.1)                                                                                                                                                                                                                                      |

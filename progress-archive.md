@@ -10972,6 +10972,50 @@ handed to the dev preview check. Docs: `dashboard-views.md` §1.1/§1.8.1,
 `desktop-responsive.md` §1.4 + tier table, `AGENTS.md`. No schema, server, URL or cookie
 change.
 
+## Modal skeleton reveals resize once — no collapse before the expand (1.442)
+
+**Bug.** Opening a modal whose content has to load — the New-event wizard on a cold chunk, the
+event detail on Double Booking / KAH Status / a `?event=` deep link, the cold event history — showed
+the loading skeleton, then the dialog shrank to a header-height sliver and expanded again to the real
+content. Reported from the app as "the loading modal first shrinks (animates) then expands (animates)
+to the actual modal".
+
+**Cause.** `CrossfadeSwap`'s `animateHeight` path recorded the skeleton height in a single layout
+effect while the skeleton was up (`src/components/CrossfadeSwap.tsx:91-100` before the fix), then
+locked the wrapper to that value at the reveal and animated to the content height. A `keepMounted`
+dialog renders its children with `display: none` for the opening frames: on the commit where
+`mounted` flips true the Mantine `Transition` status is still `"exited"`, and it only moves to
+`"pre-entering"` two animation frames after that. The one-shot read therefore returned 0, and the
+lock set `height: 0px; overflow: hidden` — the dialog collapsed, the skeleton was clipped away, and
+the queued resize animated from 0 back up to the content height.
+
+**Fix.** The skeleton height is now observed, never read once: while `animateHeight && held` the swap
+resets the stored value, takes an immediate `offsetHeight` reading, and keeps a `ResizeObserver` on
+the wrapper until the hold ends, so the first laid-out frame is recorded (and any later skeleton size
+change). This is the rule `RichRemarks` already uses for its clamp measurement over the same
+`display: none` window (`src/components/RichRemarks.tsx:89-95, 120-128`). Two pure helpers carry the
+decisions (`src/lib/loading/swapHeight.ts`): `recordSkeletonHeight` ignores 0 / negative / non-finite
+reads, and `shouldAnimateSwapHeight` requires both ends to be real, non-zero heights with a ≥ 1px
+delta — so an un-measured skeleton (or a 0-high content box) falls back to no height animation (a
+clean swap) instead of locking to nothing. The two-phase reveal itself is unchanged: the skeleton
+dissolves at its layout height, then one `--c2-dur-standard` resize to the content height. The
+component/prop docs and `docs/loading-transitions.md` §1.6.1 (plus its file index) were updated.
+
+**Verification.** `pnpm lint` (the one pre-existing warning in `src/lib/metrics/running.test.ts`; no
+errors), `pnpm typecheck`, `pnpm test` (171 files / 2248 tests, including the new
+`swapHeight.test.ts` with 7 cases) green. Browser-verified on the already-running dev server over raw
+CDP (Chrome/DevTools MCP is not configured in this session; the probe is
+`.scratch/modal-reveal/probe.mjs`): on `/dashboard` → **New event** at 1280×1000 the dialog held
+956px with the skeleton and revealed to 968px with the form in one rise (no dip below 956); at
+390×844 both states measure 812px (the wizard's fixed body height) and the height never changes at
+all; on `/settings/departments` → **Add department** the dialog resized 392px → 488px in one animated
+sweep (the non-kept-mounted regression check); with `prefers-reduced-motion: reduce` emulated the same
+opens are instant swaps. Screenshots: `.scratch/modal-reveal/{d1280,m390,d1280-dept,d1280-rm}-*.png`.
+Kept as known out of scope: the department **edit** modal's access list keeps its own second data gate
+after the chrome's chunk gate, so it still plays a follow-up reveal of its own (it never collapses;
+the fix is not aimed at it). No schema, DB, API, URL or cookie change.
+
+
 
 
 

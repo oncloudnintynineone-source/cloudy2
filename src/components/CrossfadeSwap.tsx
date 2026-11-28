@@ -5,6 +5,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "re
 import { LoadingStatus } from "@/components/LoadingStatus";
 import { useMotion } from "@/components/MotionProvider";
 import { useMinSkeletonHold } from "@/lib/loading/minHoldLoading";
+import { recordSkeletonHeight, shouldAnimateSwapHeight } from "@/lib/loading/swapHeight";
 
 interface CrossfadeSwapProps {
   /** True while the skeleton is the real loading state. */
@@ -40,7 +41,8 @@ interface CrossfadeSwapProps {
    * (content-driven modal bodies). Off by default: bounded surfaces (grids,
    * page lists) must not animate their box. The dialog stays at the skeleton
    * height through the dissolve, then animates to the content height once the
-   * skeleton is gone; skipped for reduced motion / the low-end tier.
+   * skeleton is gone — one resize, never a collapse-then-re-expand; skipped for
+   * reduced motion / the low-end tier.
    */
   animateHeight?: boolean;
   children: ReactNode;
@@ -56,6 +58,16 @@ interface CrossfadeSwapProps {
  * is committed in the same pass as the content and the reveal frame never
  * shows an uncovered cut. Reduced-motion / low-end users skip the retention
  * window.
+ *
+ * With `animateHeight` the skeleton's height is **observed**, never read once:
+ * a kept-mounted dialog renders its content with `display: none` for the
+ * opening frames (Mantine's Transition moves "exited" -> "entering" two frames
+ * after `mounted` flips), so a one-shot read there is 0. Recording that would
+ * lock the dialog to `height: 0` and play a collapse followed by an expand —
+ * the shrink-then-expand reveal. The observer re-records the moment the box is
+ * laid out, and an un-measured height degrades to no height animation
+ * (`src/lib/loading/swapHeight.ts`), so the reveal is always at most one
+ * resize.
  */
 export function CrossfadeSwap({
   loading,
@@ -88,21 +100,41 @@ export function CrossfadeSwap({
     setLeaving(!held && !prefersInstantSwap() && motion.duration.standard > 0);
   }
 
-  // Track the skeleton's layout height while it is visible.
+  // Observe the skeleton's layout height while it is visible. A one-shot read
+  // is not enough: a kept-mounted dialog keeps its content `display: none` for
+  // the opening frames (Mantine's Transition moves "exited" -> "entering" two
+  // frames after `mounted` flips), so the first read sees 0. The observer
+  // re-records as soon as the box is painted (and on any later skeleton size
+  // change), and 0 / un-measurable reads are ignored — same rule as
+  // `RichRemarks`' clamp measurement.
   useLayoutEffect(() => {
     if (!animateHeight || !held) {
       return;
     }
     const el = sizeRef.current;
-    if (el) {
-      skeletonHeightRef.current = el.offsetHeight;
+    if (!el) {
+      return;
     }
+    // A previous open's height must never become this open's lock target.
+    skeletonHeightRef.current = null;
+    const record = () => {
+      skeletonHeightRef.current = recordSkeletonHeight(skeletonHeightRef.current, el.offsetHeight);
+    };
+    record();
+    if (typeof ResizeObserver !== "function") {
+      return;
+    }
+    const observer = new ResizeObserver(record);
+    observer.observe(el);
+    return () => observer.disconnect();
   }, [animateHeight, held]);
 
   // On skeleton -> content, lock the wrapper at the skeleton height (before
   // paint) so the dissolve happens at a stable size; the queued resize runs
   // only after the skeleton has faded out. Resizing while the skeleton is
-  // still visible made its boxes look detached from the content's layout.
+  // still visible made its boxes look detached from the content's layout. An
+  // un-measured (0 / hidden) skeleton, or a 0-high content box, falls back to
+  // no height animation — locking to 0 would collapse the dialog first.
   useLayoutEffect(() => {
     const changedToContent = prevHeldRef.current && !held;
     prevHeldRef.current = held;
@@ -113,11 +145,11 @@ export function CrossfadeSwap({
     const from = skeletonHeightRef.current;
     skeletonHeightRef.current = null;
     const duration = motion.duration.standard;
-    if (!el || from === null || duration <= 0 || prefersInstantSwap()) {
+    if (!el || duration <= 0 || prefersInstantSwap()) {
       return;
     }
     const to = el.offsetHeight;
-    if (Math.abs(to - from) < 1) {
+    if (!shouldAnimateSwapHeight(from, to)) {
       return;
     }
 

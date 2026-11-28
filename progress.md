@@ -3495,6 +3495,19 @@ size="compact"`), and renames **Duplicate Event** / **Copy to Other Google
   chip's popup still opens with All/Clear, the wizard's tile still measures 98px, and the run
   reported **zero console errors**. Docs: `dashboard-views.md` §1.2, `ui-ux-improvements.md` E7.
 
+- 1.442 **Modal skeleton reveals resize once, never collapse first (bugfix)**: a kept-mounted
+  dialog renders its content `display: none` for the opening frames (Mantine's Transition moves
+  `exited → entering` two frames after `mounted` flips), so `CrossfadeSwap`'s one-shot skeleton-height
+  read recorded 0 and locked the reveal at `height: 0` — the loading modal collapsed to its header,
+  then expanded to the real content. The height is now observed with a `ResizeObserver` while the
+  skeleton is up, un-measured (0) reads are ignored, and a missing skeleton / 0-high content skips the
+  height animation instead of locking to nothing (new pure `swapHeight.ts`, unit-tested). Affects
+  every `animateHeight` dialog — the event wizard, the Double Booking / KAH / `?event=` event detail
+  and the cold event history. **Browser-verified** over raw CDP (DevTools MCP is not configured here)
+  at 1280×1000 and 390×844 plus reduced motion: New event and Add department now reveal with one
+  resize and no dip, the wizard's fixed-height skeleton continues straight into the form, and the
+  reduced-motion path stays an instant swap. Docs: `loading-transitions.md` §1.6.1.
+
 ## 1.4 Open items & next steps
 
 1. **`ADMIN_INITIAL_PASSWORD` + `ADMIN_PIN`** must be set on Vercel Preview, in the
