@@ -18,8 +18,10 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.439 (filter dialog polish)** is shipped,
-  including the **1.438** filter-dialog group chips, the **1.437** filter-dialog chip lists,
+- All work through changelog **1.441 (content-width department chips)** is shipped,
+  including the **1.440** filter-dialog department labels, the **1.439** filter-dialog polish,
+  the **1.438** filter-dialog group chips,
+  the **1.437** filter-dialog chip lists,
   the **1.436** filter-dialog two-level sheet,
   the **1.435** resource-usage ledger +
   Egress writer, the **1.434** month-granular
@@ -3455,6 +3457,43 @@ size="compact"`), and renames **Duplicate Event** / **Copy to Other Google
   glyph, toggles to `aria-label="Myself, selected"` and drives the footer to `1 of 6 users`, the Audit
   Log shows `Dep1`/`Dep2`/`Other` chips, and the run reported **zero console errors**. Docs:
   `dashboard-views.md` §1.2, `ui-ux-improvements.md` E7.
+
+- 1.440 **Filter dialog: department chips in a grid, sub-departments labelled `Parent (Department)`**
+  (two field notes): the panel's group chips lay out as a CSS grid (`.c2-filter-chip-grid`,
+  `auto-fill minmax(min(100%, 9rem), 1fr)` — two columns at 390px and in the desktop panel) instead
+  of one stair-stepped line per department, each chip filling its cell with a long label wrapping
+  inside it; and a sub-department's chip reads `Parent (Department)` (`Dep1 (Engineering)`), taken
+  from `PickerGroup.parentLabel`, which `buildUserGroups` fills from the nearest **shown** parent
+  under the same acceptance rule `depth` uses. The qualifier replaces the depth indent for chips
+  (`hierarchyIndent` now applies only to inline sections), `sectionChipText` renders it (and feeds
+  the aria-label), and `groupPanelRuns` groups consecutive chip sections into one grid container so
+  section order and inline sections are preserved; `ChipPopover` gained a `block` mode for the grid
+  cells (the wizard's tiles stay content-width). Unchanged: the popup, the All/Clear placement, the
+  Myself chip, the draft/apply path, storage and `FilterModalProps`. **Browser-verified** on a
+  production build in Chrome over raw CDP (DevTools MCP is not configured here) at 390px and 1280px,
+  light and dark, on the dashboard (staff session), the Audit Log consumer (admin session) and the
+  wizard's type step (regression): the grid reports two equal columns with two chips on the first row
+  at both widths, the chips read `Dep1` / `Dep1 (Engineering)` / `Dep1 (HR)` / `Dep2` with the count
+  and qualifier in `aria-label` (`"Dep1 (Engineering), 0 of 1 selected"`), a child chip's popup still
+  opens (`Engineering options`, All/Clear top-right, `User 4`), the Audit Log's grid shows
+  `Dep1`/`Dep2`/`Other` (no qualifier for "Other"), the wizard's type tile still measures 98px
+  (content-width, not stretched), and the run reported **zero console errors**. Docs:
+  `dashboard-views.md` §1.2, `user-picker.md` §1.4, `ui-ux-improvements.md` E7.
+
+- 1.441 **Filter dialog: chips take only the width they need** (correction of 1.440's equal-width
+  cells): the chip run is again a plain `<Group gap={6} wrap="wrap">` — the app's chip-cloud idiom
+  the picker pool and the wizard's type step already use — so each chip is sized by its own label
+  and they pack left-to-right, wrapping. `.c2-filter-chip-grid` and `ChipPopover`'s `block` mode
+  were deleted rather than left as dead options; everything else from 1.440 stands (the
+  `Parent (Department)` labels, no depth indent for chips, the popup with All/Clear top-right, run
+  grouping preserving section order, the Myself chip, the draft/apply path, storage and
+  `FilterModalProps`). **Browser-verified** on a production build in Chrome over raw CDP (DevTools
+  MCP is not configured here) at 390px and 1280px, light and dark, plus the wizard's type step as
+  the regression check: measured chip widths at 390px are `Dep1` 73px, `Dep1 (Engineering)` 176px,
+  `Dep1 (HR)` 106px, `Dep2` 73px inside a 319px panel — three distinct widths, two chips on the
+  first row, no `.c2-filter-chip-grid` in the DOM — the chips still read `Parent (Department)`, a
+  chip's popup still opens with All/Clear, the wizard's tile still measures 98px, and the run
+  reported **zero console errors**. Docs: `dashboard-views.md` §1.2, `ui-ux-improvements.md` E7.
 
 ## 1.4 Open items & next steps
 

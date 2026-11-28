@@ -151,6 +151,35 @@ describe("buildUserGroups hierarchy nesting", () => {
     expect(last.label).toBe(NO_DEPARTMENT_LABEL);
     expect(last.depth).toBeUndefined();
   });
+
+  it("names each section's nearest shown parent so a chip can read Parent (Department)", () => {
+    const groups = buildUserGroups(HIERARCHY_MEMBERS);
+    expect(groups.map((g) => [g.label, g.parentLabel])).toEqual([
+      ["HQ", undefined],
+      ["Logistics", "HQ"],
+      ["Stores", "Logistics"],
+      ["Ops", "HQ"],
+      ["Field", undefined],
+    ]);
+  });
+
+  it("omits the qualifier when the parent has no members here", () => {
+    // HQ itself has no member, so its children lose both the indent and the label.
+    const groups = buildUserGroups(HIERARCHY_MEMBERS.filter((u) => u.departmentId !== "hq"));
+    expect(groups.map((g) => [g.label, g.parentLabel])).toEqual([
+      ["Logistics", undefined],
+      ["Stores", "Logistics"],
+      ["Ops", undefined],
+      ["Field", undefined],
+    ]);
+  });
+
+  it("never labels a self-referential parent", () => {
+    const groups = buildUserGroups([
+      { id: "u1", label: "A", department: "Loop", departmentId: "loop", departmentSort: 0, departmentParentId: "loop" },
+    ]);
+    expect(groups.map((g) => [g.label, g.parentLabel])).toEqual([["Loop", undefined]]);
+  });
 });
 
 describe("departmentPickerOptions", () => {

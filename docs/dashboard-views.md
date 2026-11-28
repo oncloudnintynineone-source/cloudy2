@@ -633,6 +633,19 @@ carries its own All/None pair, and its members are either listed inline or
   the wizard's event-type picker uses for a folder group: group name → tap → its
   chips). This is what stops a 40-department roster from becoming one wall of 200
   user chips.
+- **The chips are content-width and pack left-to-right** (1.440/1.441): consecutive
+  chip sections share one plain `<Group gap={6} wrap="wrap">` — the app's chip-cloud
+  idiom, the same one the user picker's pool and the wizard's type step use — so
+  `Dep1` takes 73px and `Dep1 (Engineering)` takes its 176px, several fit per row
+  and a long label takes the row it needs. No equal-width grid cells: a chip is
+  never wider than its own text.
+- **A sub-department says so in its label** — `Parent (Department)`, e.g.
+  `Dep1 (Engineering)`, from the nearest **shown** parent (the same rule `depth`
+  uses: a parent with no members in the panel contributes neither an indent nor a
+  qualifier). The label replaces the old left-indent;
+  `hierarchyIndent` now applies only to inline sections. Top-level departments,
+  "No department", the audit log's "Other" and any parent that is not shown keep
+  the plain name.
 - **Which sections group**: a department section (no admin flag exists — a
   department *is* its users' group name) and an event-type section the admin left
   collapsible (`event_type_groups.collapsible`, the wizard's own setting). A

@@ -1548,6 +1548,27 @@ glyph, in the panel's header band — replacing the full-width `.c2-filter-quick
 `SelectableBadge` grew an optional `icon`, and the popup's open-focus now targets the first option
 chip rather than a bulk action.
 
+**Fourth pass (1.440, 2026-11-28).** "Display the departments in a grid layout" and "subdepartments
+should be displayed like this (parent department (department))". The panel's group chips now sit in
+a CSS grid (`.c2-filter-chip-grid`, `auto-fill minmax(min(100%, 9rem), 1fr)`) — two columns on a
+phone and in the desktop panel, chips stretched to their cell, a long label wrapping inside the
+chip — and a sub-department's chip prints `Parent (Department)`. The qualifier comes from
+`PickerGroup.parentLabel`, filled by `buildUserGroups` from the nearest **shown** parent (the same
+acceptance rule `depth` uses: a parent with no members in the picker contributes neither an indent
+nor a qualifier), flows through `panelSections` and is rendered by `sectionChipText`. Because the
+label now carries the hierarchy, the depth indent is dropped for chip sections — an indent would
+stagger the grid columns — while inline sections keep it. Consecutive chip sections share one grid
+container (`groupPanelRuns`), so the section order and any inline section in the middle are
+preserved, and `ChipPopover` gained a `block` mode for the grid cells (the wizard's tiles stay
+content-width).
+
+**Correction (1.441).** Those equal-width cells made a chip wider than its own label, which is not
+how chips behave anywhere else in the app — so the container went back to the plain
+**`<Group gap={6} wrap="wrap">`** cloud (the picker pool's own idiom): content-width chips, packed
+left-to-right, wrapping. `.c2-filter-chip-grid` and `ChipPopover`'s short-lived `block` mode were
+deleted rather than left as dead options. Measured at 390px: `Dep1` 73px, `Dep1 (Engineering)`
+176px, `Dep1 (HR)` 106px, `Dep2` 73px in a 319px panel — two per row, three distinct widths.
+
 ## 1.9 Held register
 
 Reviewed on **2026-11-22** and **put aside by decision — not to be implemented without a new
@@ -1648,6 +1669,8 @@ land here.
 | E7  | 1.437 (2026-11-28) | Follow-up on the same dialog, at the user's request: level 2 lists each group's options as **`SelectableBadge` chips** (the app-wide 36px chip, amber fill = in, `aria-pressed`, wrapping long names) instead of checkbox rows, so a picked option looks picked everywhere; `SelectableRow.tsx` + `.c2-check-row` deleted, no flag. Sheet, state words, counts, `Showing:` line, All/None/Clear/Reset vocabulary, storage and `FilterModalProps` unchanged; the 36px chip floor is the app's existing chip-surface exception. [`dashboard-views.md`](dashboard-views.md) §1.2, [`accessibility.md`](accessibility.md) §1.9.2. |
 | E7  | 1.438 (2026-11-28) | Second follow-up, again at the user's request ("all events are hidden behind the group name" in the wizard's type picker — "I want similar implemented here"): inside a filter panel a **section that is a real group** now renders as **one group chip** carrying its `n of m` count, with its member chips in the chip's popup — the wizard's `GroupTile` mechanic extracted into the shared `ChipPopover` (same `zIndex=300`, `popoverTransitionProps`, chevron flip, focus handoff) and used by both surfaces. Users = one chip per **department**; Event Types honour the admin's `collapsible` flag (`EventTypeGroupGrid`'s split); a single remaining section, and any section marked inline, lists its chips straight away. The popup is multi-select and stays open while picking, the section's All/Clear stays beside its chip, and Escape closes the popup **without** stepping the sheet back a level (`FilterModal` now knows a chip is open). Sheet, state words, counts, `Showing:` line, vocabulary, storage and `FilterModalProps` unchanged. [`dashboard-views.md`](dashboard-views.md) §1.2, [`event-lifecycle.md`](event-lifecycle.md) §1.10. |
 | E7  | 1.439 (2026-11-28) | Third pass, on four field notes: (1) a section's **All/Clear moved inside its popup, pinned top-right** — the panel row is the chip alone; (2) the chip **prints no count** (it still reaches AT via `aria-label`, and the fill still marks all-in / partly-in, with the state word and `Showing:` line carrying the words); (3) **nothing in the dialog focuses a text field by itself** — panel entry lands on Back instead of the search box, which used to pop the phone keyboard the moment Users opened; (4) **"Myself" became the dialog's own chip** (`SelectableBadge` + person glyph) in the panel's header band, replacing the full-width `.c2-filter-quick` button (its CSS rule deleted). `ChipPopover` gained an `actions` slot and now focuses the first **option** chip on open, never a bulk action. Draft/apply path, storage, `FilterModalProps` and the vocabulary unchanged. [`dashboard-views.md`](dashboard-views.md) §1.2. |
+| E7  | 1.440 (2026-11-28) | Fourth pass, two field notes: the panel's group chips now lay out as a **grid** (`.c2-filter-chip-grid`, `auto-fill minmax(min(100%, 9rem), 1fr)` — two columns on a phone and in the desktop panel, each chip filling its cell) instead of one stair-stepped line per department, and a **sub-department's chip reads `Parent (Department)`** (e.g. `Dep1 (Engineering)`) from the section's `parentLabel` — the nearest *shown* parent, filled by `buildUserGroups` under the same acceptance rule `depth` uses. The qualifier replaces the depth indent for chips (`hierarchyIndent` now only applies to inline sections), and `ChipPopover` grew a `block` mode for the grid cells. Consecutive chip sections share one grid container (`groupPanelRuns`), so section order and inline sections are untouched. Draft/apply path, popup, All/Clear placement, Myself chip and `FilterModalProps` unchanged. [`dashboard-views.md`](dashboard-views.md) §1.2, [`user-picker.md`](user-picker.md) §1.4. |
+| E7  | 1.441 (2026-11-28) | Fifth pass, correcting 1.440's equal-width cells: the chip run is now a plain **`<Group gap={6} wrap="wrap">`** — the app's chip-cloud idiom (the picker pool, the wizard's type step) — so each chip takes only the width its label needs (`Dep1` 73px, `Dep1 (Engineering)` 176px) and they pack several per row. `.c2-filter-chip-grid` and `ChipPopover`'s `block` mode are deleted (never left unused); everything else from 1.440 unchanged — `Parent (Department)` labels, no indent for chips, popups with All/Clear top-right, runs preserving section order. [`dashboard-views.md`](dashboard-views.md) §1.2. |
 
 ## 1.11 Implementation guardrails
 

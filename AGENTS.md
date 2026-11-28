@@ -216,12 +216,15 @@ doc content here.
   chip — amber fill = in). A section that is a real group — a department, or an event-type
   group the admin left `collapsible` — is itself **one group chip** printing no count
   (`ChipPopover`, the same group-name → popup mechanic as the wizard's folder tiles,
-  multi-select inside), with its All/None pair pinned inside the popup's top-right; inline
-  sections list their chips straight away, and a panel narrowed to one section always lists
-  inline. Nothing in the dialog focuses a text field by itself (panel entry lands on Back),
-  so opening it never summons the phone keyboard, and the Users panel's **Myself** quick
-  action is an ordinary `SelectableBadge` chip in the header band. At `lg`+ the two levels
-  sit side by side. No Show/Hide disclosure or nested picker —
+  multi-select inside), with its All/None pair pinned inside the popup's top-right; those
+  chips are **content-width and pack left-to-right** (`<Group gap={6} wrap="wrap">`, the picker
+  pool's own idiom — never equal-width grid cells) and a
+  sub-department is labelled `Parent (Department)` from its nearest shown parent instead of
+  being indented. Inline sections list their chips straight away, and a panel narrowed to
+  one section always lists inline. Nothing in the dialog focuses a text field by itself
+  (panel entry lands on Back), so opening it never summons the phone keyboard, and the
+  Users panel's **Myself** quick action is an ordinary `SelectableBadge` chip in the
+  header band. At `lg`+ the two levels sit side by side. No Show/Hide disclosure or nested picker —
   and no instructional copy: because a chip's fill is colour, what a selection *means* is
   always said in words — the section counts, the row state words and the pinned
   `Showing: …` line

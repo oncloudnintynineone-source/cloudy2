@@ -54,6 +54,11 @@ export interface FilterModelSection {
    * chip. Departments carry no flag, so their sections group by default.
    */
   collapsible?: boolean;
+  /**
+   * A department section's nearest shown parent, so its chip can read
+   * `Parent (Department)` instead of being indented (see `sectionChipText`).
+   */
+  parentLabel?: string;
 }
 
 /** A filter group, structurally compatible with `FilterGroup`. */
@@ -157,6 +162,8 @@ export interface FilterPanelSection {
   depth?: number;
   /** The admin's per-group flag (see {@link FilterModelSection.collapsible}). */
   collapsible?: boolean;
+  /** A department section's nearest shown parent (see {@link sectionChipText}). */
+  parentLabel?: string;
 }
 
 function toPickerOption(option: FilterModelOption): PickerOption {
@@ -172,6 +179,7 @@ function toPickerGroups(group: FilterModelGroup): PickerGroup[] {
   if (group.sections?.length) {
     return group.sections.map((section) => ({
       label: section.label,
+      parentLabel: section.parentLabel,
       options: section.options.map(toPickerOption),
     }));
   }
@@ -216,6 +224,7 @@ export function panelSections(
       label: section.label,
       depth: section.depth,
       collapsible: collapsibleByLabel.get(section.label),
+      parentLabel: section.parentLabel,
       options: section.options.map((option) => ({
         value: option.id,
         label: option.label,
@@ -258,7 +267,45 @@ export function sectionRendersAsChip(
  * group's own state word and the footer's `Showing:` line.
  */
 export function sectionChipAriaLabel(section: FilterPanelSection): string {
-  return `${section.label}, ${section.selectedCount} of ${section.totalCount} selected`;
+  return `${sectionChipText(section)}, ${section.selectedCount} of ${section.totalCount} selected`;
+}
+
+/**
+ * A group chip's visible text: the section's own name, or `Parent (Department)`
+ * for a sub-department (1.440). The qualifier replaces horizontal indentation —
+ * in a chip grid an indent would stagger the columns, and the label says the
+ * hierarchy more directly. A top-level department, the "Other" section and any
+ * parent that is not shown keep the plain name.
+ */
+export function sectionChipText(section: FilterPanelSection): string {
+  return section.parentLabel ? `${section.parentLabel} (${section.label})` : section.label;
+}
+
+/** One run of a panel: consecutive group chips, or one inline section. */
+export type FilterPanelRun =
+  | { kind: "chips"; sections: FilterPanelSection[] }
+  | { kind: "inline"; section: FilterPanelSection };
+
+/**
+ * Split a panel's sections into render runs, preserving their order: consecutive
+ * chip sections share one grid container (`sectionRendersAsChip`), while each
+ * inline section keeps its own header + chip block.
+ */
+export function groupPanelRuns(sections: readonly FilterPanelSection[]): FilterPanelRun[] {
+  const runs: FilterPanelRun[] = [];
+  for (const section of sections) {
+    if (!sectionRendersAsChip(section, sections)) {
+      runs.push({ kind: "inline", section });
+      continue;
+    }
+    const last = runs[runs.length - 1];
+    if (last !== undefined && last.kind === "chips") {
+      last.sections.push(section);
+      continue;
+    }
+    runs.push({ kind: "chips", sections: [section] });
+  }
+  return runs;
 }
 
 /**

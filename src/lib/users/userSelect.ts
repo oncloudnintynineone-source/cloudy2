@@ -30,6 +30,14 @@ export interface PickerGroup {
    * flat.
    */
   depth?: number;
+  /**
+   * The label of the nearest **shown** parent section, when this section's
+   * department sits under one that also has members in this picker. Surfaces
+   * that render a section as one chip print it as `Parent (Department)` instead
+   * of indenting — the same acceptance rule `depth` uses, so a parent that is
+   * not shown contributes neither an indent nor a qualifier.
+   */
+  parentLabel?: string;
 }
 
 export interface UserGroupInput {
@@ -182,9 +190,24 @@ export function buildUserGroups(users: UserGroupInput[]): PickerGroup[] {
   }
   ranked.sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0) || compareLabels(a.label, b.label));
   unranked.sort((a, b) => compareLabels(a.label, b.label));
+
+  /**
+   * The nearest **shown** parent's label — the first ancestor that also has
+   * members here. Same acceptance rule as the depth walk above (a missing parent
+   * contributes nothing), cycle-safe because the parent must be another bucket.
+   */
+  function shownParentLabel(bucket: Bucket): string | undefined {
+    if (bucket.id === null || bucket.parentId === null || bucket.parentId === bucket.key) {
+      return undefined;
+    }
+    const parent = buckets.get(bucket.parentId);
+    return parent && parent.id === bucket.parentId ? parent.label : undefined;
+  }
+
   const groups: PickerGroup[] = [...ranked, ...unranked].map((bucket) => ({
     label: bucket.label,
     depth: bucket.id !== null ? depthByKey.get(bucket.key) : undefined,
+    parentLabel: bucket.id !== null ? shownParentLabel(bucket) : undefined,
     options: sortOptions(bucket.options),
   }));
   if (undepartmented.length > 0) {

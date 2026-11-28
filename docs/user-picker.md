@@ -107,13 +107,14 @@ of toggleable badges with a search box on top:
   the options as this doc's `SelectableBadge` chips (the app-wide 36px chip, amber
   fill = in), wrapped so a long name breaks inside its chip — but a **section that
   is a real group** (a department, an event-type group, the audit log's "Other")
-  is itself one `ChipPopover` group chip carrying its `n of m` count, and its
-  members live in that chip's popup: see
-  [`dashboard-views.md`](dashboard-views.md) §1.2. It shares this doc's option
-  shape (`FilterOption`), section math (`filterPickerGroups`), the chip, the group
-  chip and `AllNoneControls`; it does not use `PickerBadges` or `PickerTrigger`,
-  and it never opens the full badge picker modal — the group's whole option list
-  is the panel.
+  is itself one `ChipPopover` group chip, and its members live in that chip's
+  popup: see [`dashboard-views.md`](dashboard-views.md) §1.2. Those chips form a
+  grid and a sub-department is labelled `Parent (Department)` from the section's
+  `parentLabel` (the nearest shown parent, filled by `buildUserGroups`). It shares
+  this doc's option shape (`FilterOption`), section math (`filterPickerGroups`),
+  the chip, the group chip and `AllNoneControls`; it does not use `PickerBadges` or
+  `PickerTrigger`, and it never opens the full badge picker modal — the group's
+  whole option list is the panel.
 - **Double Booking scan target** — a `single`-mode `UserSelectModal` (department
   sections nested by tree depth, shortname `search`) replacing the page's original
   `NoKeyboardSelect` dropdown, since the roster is a large option list.

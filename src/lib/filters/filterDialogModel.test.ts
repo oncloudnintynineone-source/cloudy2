@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import {
   effectiveSetLine,
+  groupPanelRuns,
   groupRowState,
   isGroupSearchable,
   panelSections,
   sectionChipAriaLabel,
+  sectionChipText,
   sectionRendersAsChip,
   sectionState,
   showsSectionHeaders,
@@ -367,6 +369,104 @@ describe("section chip aria label", () => {
     expect(admin).toBeDefined();
     if (!admin) return;
     expect(sectionChipAriaLabel(admin)).toBe("Admin, 0 of 1 selected");
+  });
+});
+
+describe("sectionChipText", () => {
+  const section = (label: string, parentLabel?: string) => ({
+    key: label,
+    label,
+    parentLabel,
+    options: [],
+    selectedCount: 0,
+    totalCount: 0,
+  });
+
+  it("prints the department's own name when it sits at the top level", () => {
+    expect(sectionChipText(section("Dep1"))).toBe("Dep1");
+  });
+
+  it("qualifies a sub-department as Parent (Department)", () => {
+    expect(sectionChipText(section("Engineering", "Dep1"))).toBe("Dep1 (Engineering)");
+  });
+
+  it("carries the qualifier into the accessible name", () => {
+    expect(sectionChipAriaLabel({ ...section("Engineering", "Dep1"), totalCount: 2 })).toBe(
+      "Dep1 (Engineering), 0 of 2 selected",
+    );
+  });
+
+  it("resolves the parent through the shared department builder", () => {
+    const group: FilterModelGroup = {
+      label: "Users",
+      variant: "search",
+      options: [
+        { value: "u1", label: "Ana", department: "HQ", departmentId: "hq", departmentSort: 1 },
+        {
+          value: "u2",
+          label: "Bo",
+          department: "Stores",
+          departmentId: "stores",
+          departmentParentId: "hq",
+          departmentSort: 2,
+        },
+        { value: "u3", label: "Cy", department: "Other", departmentSort: 3 },
+      ],
+    };
+    expect(
+      panelSections(group, "", []).map((entry) => [entry.label, entry.parentLabel]),
+    ).toEqual([
+      ["HQ", undefined],
+      ["Stores", "HQ"],
+      ["Other", undefined],
+    ]);
+  });
+});
+
+describe("groupPanelRuns", () => {
+  const section = (label: string, options = 2, collapsible?: boolean) => ({
+    key: label,
+    label,
+    collapsible,
+    options: Array.from({ length: options }, (_, index) => ({
+      value: `${label}-${index}`,
+      label: `${label} ${index}`,
+    })),
+    selectedCount: 0,
+    totalCount: options,
+  });
+
+  it("puts a chunked panel's sections in one chips run", () => {
+    const runs = groupPanelRuns([section("Dep1"), section("Dep2")]);
+    expect(runs).toHaveLength(1);
+    expect(runs[0]?.kind).toBe("chips");
+    expect(runs[0]?.kind === "chips" ? runs[0].sections.map((s) => s.label) : []).toEqual([
+      "Dep1",
+      "Dep2",
+    ]);
+  });
+
+  it("keeps an inline-flagged section on its own", () => {
+    const runs = groupPanelRuns([section("Operations", 2, false), section("Admin", 2, true)]);
+    expect(runs.map((run) => (run.kind === "chips" ? run.sections.map((s) => s.label) : run.section.label))).toEqual([
+      "Operations",
+      ["Admin"],
+    ]);
+  });
+
+  it("splits a chips run around an inline section in the middle", () => {
+    const runs = groupPanelRuns([
+      section("A", 2, true),
+      section("B", 2, false),
+      section("C", 2, true),
+    ]);
+    expect(runs.map((run) => run.kind)).toEqual(["chips", "inline", "chips"]);
+  });
+
+  it("renders a lone section inline (nothing to hide behind)", () => {
+    const runs = groupPanelRuns([section("Dep1")]);
+    expect(runs).toHaveLength(1);
+    expect(runs[0]?.kind).toBe("inline");
   });
 });
 

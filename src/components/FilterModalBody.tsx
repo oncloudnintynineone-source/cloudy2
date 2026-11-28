@@ -21,11 +21,12 @@ import { EmptyState } from "@/components/EmptyState";
 import { SelectableBadge } from "@/components/SelectableBadge";
 import {
   effectiveSetLine,
+  groupPanelRuns,
   groupRowState,
   isGroupSearchable,
   panelSections,
   sectionChipAriaLabel,
-  sectionRendersAsChip,
+  sectionChipText,
   sectionState,
   showsSectionHeaders,
   toApplyGroup,
@@ -573,17 +574,12 @@ function FilterGroupPanel({
           onAction={group.options.length === 0 ? undefined : () => onQuery("")}
         />
       ) : (
-        sections.map((section) => {
-          const sectionSelection = sectionState(section, selected);
-          // A section hides its members behind its own chip when the panel really
-          // is chunked and the admin left the group collapsible (an option list
-          // that spills every user onto one wall is exactly what this fixes).
-          const asChip = namedSections && sectionRendersAsChip(section, sections);
+        groupPanelRuns(sections).map((run) => {
           // Chips, not rows: the same `SelectableBadge` the user picker's pool and
           // the wizard's type step use, so a picked option looks like a picked
-          // option everywhere in the app — either inline under the section header
-          // or inside the section's group chip.
-          const chips = (
+          // option everywhere in the app — inline under a section header or inside
+          // the section's group chip.
+          const sectionChips = (section: FilterPanelSection) => (
             <Group gap={6} wrap="wrap">
               {section.options.map((option) => (
                 <SelectableBadge
@@ -596,62 +592,32 @@ function FilterGroupPanel({
               ))}
             </Group>
           );
-          return (
-            <Box key={section.key} pl={namedSections ? hierarchyIndent(section.depth) : 0}>
-              {namedSections && (
-                <Group gap="xs" wrap="nowrap" align="center" mb={2}>
-                  {asChip ? (
-                    /* The wizard's group chip, reused: the group name is what you
-                       tap, its members stay hidden until you do. The chip carries no
-                       count — its All/Clear pair sits inside the popup's top-right
-                       corner instead, so the panel row is the chip alone. The count
-                       still reaches assistive tech through the aria-label, and the
-                       fill marks the all-in / partly-in state at a glance. */
-                    <Box style={{ minWidth: 0 }}>
-                      <ChipPopover
-                        label={section.label}
-                        ariaLabel={sectionChipAriaLabel(section)}
-                        optionsLabel={`${section.label} options`}
-                        badgeClassName="c2-filter-group-chip"
-                        labelNowrap={false}
-                        focusOnOpen
-                        open={openChipKey === section.key}
-                        onOpenChange={(next) => onChipOpenChange(next ? section.key : null)}
-                        selected={sectionSelection === "all"}
-                        partial={sectionSelection === "some"}
-                        dropdownMaxWidth={320}
-                        actions={
-                          <AllNoneControls
-                            label={section.label}
-                            allSelected={sectionSelection === "all"}
-                            noneSelected={sectionSelection === "none"}
-                            noneLabel={noneLabel}
-                            onAll={() => onSection(section, "all")}
-                            onNone={() => onSection(section, "none")}
-                          />
-                        }
-                      >
-                        {chips}
-                      </ChipPopover>
-                    </Box>
-                  ) : (
-                    <>
-                      <Text
-                        size="xs"
-                        fw={600}
-                        className="c2-filter-state"
-                        style={{ minWidth: 0 }}
-                        truncate
-                      >
-                        {section.label}
-                      </Text>
-                      {/* The count lives in the header, where a folder's state used to
-                          be a yellow border nobody could read closed. */}
-                      <Text size="xs" className="c2-filter-state" style={{ flexShrink: 0 }}>
-                        {section.selectedCount} of {section.totalCount}
-                      </Text>
-                      {/* No popup to hold the pair, so an inline section keeps it here. */}
-                      <Box ml="auto" style={{ flexShrink: 0 }}>
+
+          if (run.kind === "chips") {
+            /* One wrapping chip cloud across the run: each chip takes only the
+               width its label needs (the app's chip idiom — the picker pool and
+               the wizard's type step do the same), and a sub-department's
+               `Parent (Department)` label carries the hierarchy the old
+               left-indent used to. */
+            return (
+              <Group key={`chips:${run.sections[0]?.key ?? ""}`} gap={6} wrap="wrap">
+                {run.sections.map((section) => {
+                  const sectionSelection = sectionState(section, selected);
+                  return (
+                    <ChipPopover
+                      key={section.key}
+                      label={sectionChipText(section)}
+                      ariaLabel={sectionChipAriaLabel(section)}
+                      optionsLabel={`${section.label} options`}
+                      badgeClassName="c2-filter-group-chip"
+                      labelNowrap={false}
+                      focusOnOpen
+                      open={openChipKey === section.key}
+                      onOpenChange={(next) => onChipOpenChange(next ? section.key : null)}
+                      selected={sectionSelection === "all"}
+                      partial={sectionSelection === "some"}
+                      dropdownMaxWidth={320}
+                      actions={
                         <AllNoneControls
                           label={section.label}
                           allSelected={sectionSelection === "all"}
@@ -659,14 +625,52 @@ function FilterGroupPanel({
                           noneLabel={noneLabel}
                           onAll={() => onSection(section, "all")}
                           onNone={() => onSection(section, "none")}
-                          size="sm"
                         />
-                      </Box>
-                    </>
-                  )}
+                      }
+                    >
+                      {sectionChips(section)}
+                    </ChipPopover>
+                  );
+                })}
+              </Group>
+            );
+          }
+
+          const { section } = run;
+          const sectionSelection = sectionState(section, selected);
+          return (
+            <Box key={section.key} pl={namedSections ? hierarchyIndent(section.depth) : 0}>
+              {namedSections && (
+                <Group gap="xs" wrap="nowrap" align="center" mb={2}>
+                  <Text
+                    size="xs"
+                    fw={600}
+                    className="c2-filter-state"
+                    style={{ minWidth: 0 }}
+                    truncate
+                  >
+                    {sectionChipText(section)}
+                  </Text>
+                  {/* The count lives in the header, where a folder's state used to
+                      be a yellow border nobody could read closed. */}
+                  <Text size="xs" className="c2-filter-state" style={{ flexShrink: 0 }}>
+                    {section.selectedCount} of {section.totalCount}
+                  </Text>
+                  {/* No popup to hold the pair, so an inline section keeps it here. */}
+                  <Box ml="auto" style={{ flexShrink: 0 }}>
+                    <AllNoneControls
+                      label={section.label}
+                      allSelected={sectionSelection === "all"}
+                      noneSelected={sectionSelection === "none"}
+                      noneLabel={noneLabel}
+                      onAll={() => onSection(section, "all")}
+                      onNone={() => onSection(section, "none")}
+                      size="sm"
+                    />
+                  </Box>
                 </Group>
               )}
-              {!asChip && chips}
+              {sectionChips(section)}
             </Box>
           );
         })
