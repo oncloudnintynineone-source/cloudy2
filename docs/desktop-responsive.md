@@ -608,18 +608,29 @@ flowchart LR
   `SettingsListChrome`, not a smaller `Input`; the shared month-window control is
   `TimeRangeSelect` (`src/components/TimeRangeSelect.tsx`).
 - **The range pill opts out of both floors.** `TimeRangeSelect` is a `Menu` with a
-  native `<button>` target (`.c2-range-trigger`, `globals.css`), not a combobox —
+  native `<button>` target — the shared **`.c2-field-trigger`** base plus its
+  `.c2-range-trigger` modifier (`globals.css`) — not a combobox —
   nothing is typeable, so no field text and no `--combobox-option-fz` are involved,
   and a tap can never raise the virtual keyboard. It therefore pins its own values
   in the component: `--mantine-font-size-md` item text at 44px `minHeight` rows, and
   a trigger that is full-width below `40em` and content-sized (`min-width: 11rem`)
   above, so one control fits a stacked mobile header and a sticky desktop chrome row
   without a per-page width override. The one scoped exception is the report heads
-  (`.c2-report-range .c2-range-trigger`): there the phone row puts the title and the
+  (`.c2-report-range .c2-field-trigger`): there the phone row puts the title and the
   pill side by side, so the pill hugs its value below `40em` too and drops its
-  leading calendar glyph (`.c2-report-range .c2-range-trigger-icon`) — the value plus
+  leading calendar glyph (`.c2-report-range .c2-field-trigger-icon`) — the value plus
   the chevron still name the menu, and the freed ~26px keeps Double Booking's two
   controls on one line on a 320px phone. `40em`+ keeps the full pill.
+- **`.c2-field-trigger` is that base, and it is the app's one field-shaped button.**
+  Icon + value + chevron, `min-height: 44px` (the touch-target floor above), brand outline on
+  `:focus-visible` and while open, value truncating with an ellipsis; full width
+  below `40em`, `width: auto` / `min-width: 11rem` above. `TimeRangeSelect`
+  (`.c2-range-trigger`) and `PickerFieldTrigger`
+  ([`user-picker.md`](user-picker.md) §1.6) are its two renderers, so a person picker
+  and a range menu sitting in the same row are the same control — the mismatch this
+  base was extracted to kill. A control that needs a clear affordance wraps the open
+  button in a `div.c2-field-trigger` and puts an `ActionIcon` sibling beside it
+  (`.c2-field-trigger-main` / `-clear`), never a button inside a button.
 
 ## 1.12 Related docs
 

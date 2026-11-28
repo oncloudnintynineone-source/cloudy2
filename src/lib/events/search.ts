@@ -8,12 +8,13 @@ import {
   type CalendarEvent,
 } from "@/lib/events/queries";
 import {
-  coerceSearchRange,
+  coerceSearchMonths,
   countSubstringMatches,
-  DATE_ONLY_PATTERN,
-  defaultSearchFrom,
-  defaultSearchTo,
+  defaultSearchMonths,
   filterRangeForSearch,
+  MONTH_KEY_PATTERN,
+  monthEnd,
+  monthStart,
   SEARCH_MIN_QUERY_LENGTH,
 } from "@/lib/events/searchRange";
 import { eventMatchesUserFilter } from "@/lib/events/userFilter";
@@ -27,7 +28,11 @@ export type SearchEventsResult =
 /**
  * Fuzzy free-text search across every department calendar, served from the
  * layered events cache (the whole date window is read as months, then trimmed
- * and fuzzy-matched) rather than a per-calendar Google `q`. Results are mapped,
+ * and fuzzy-matched) rather than a per-calendar Google `q`. `fromMonth`/`toMonth`
+ * are `YYYY-MM` keys — the modal picks **whole months**, which is also the unit
+ * the cache stores — expanded to the first day of `fromMonth` through the last
+ * day of `toMonth`; a malformed key falls back to the default window and the
+ * pair is coerced into an ordered, capped range. Results are mapped,
  * deduped by logical event, and returned in relevance order (chronological on
  * ties / blank query), tiered: events whose fields literally contain the query
  * lead, typo-tolerant Fuse hits follow. `exactCount` is how many leading results
@@ -36,8 +41,8 @@ export type SearchEventsResult =
  */
 export async function searchEvents(
   q: string,
-  from: string,
-  to: string,
+  fromMonth: string,
+  toMonth: string,
 ): Promise<SearchEventsResult> {
   const session = await requireSession();
 
@@ -47,10 +52,13 @@ export async function searchEvents(
   }
 
   const today = formatInstantToNaive(new Date()).slice(0, 10);
-  const { from: fromDate, to: toDate } = coerceSearchRange(
-    DATE_ONLY_PATTERN.test(from ?? "") ? from : defaultSearchFrom(today),
-    DATE_ONLY_PATTERN.test(to ?? "") ? to : defaultSearchTo(today),
+  const fallback = defaultSearchMonths(today);
+  const range = coerceSearchMonths(
+    MONTH_KEY_PATTERN.test(fromMonth ?? "") ? fromMonth : fallback.fromMonth,
+    MONTH_KEY_PATTERN.test(toMonth ?? "") ? toMonth : fallback.toMonth,
   );
+  const fromDate = monthStart(range.fromMonth);
+  const toDate = monthEnd(range.toMonth);
 
   const allCalendars = await listCalendars();
   const data = await readCalendarRange({

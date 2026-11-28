@@ -307,7 +307,35 @@ Contacts / Parade State / `SettingsListChrome` no longer import it (the settings
 `AGENTS.md`, [`dashboard-views.md`](dashboard-views.md) §1.1 (auto-hide + pill-reuse bullets) and
 [`desktop-responsive.md`](desktop-responsive.md) §1.5/§1.6 updated.
 
-### 1.4.7 Not re-proposed here
+### 1.4.7 A10 — the pill's search box stopped short of its own buttons
+
+**Evidence.** Verified at 1.432: in the floating pill, `.c2-pill-field`
+(`src/app/globals.css`) had a `--c2-pill-field-min` basis and grew alongside
+`.c2-pill-actions` (`flex: 1 1 var(--c2-pill-actions-min)`), so the line's free space
+split between the two. The circles inside the strip are right-anchored with
+`margin-inline-start: auto` (`.c2-pill-scroll-inner` — deliberately, so an overflowing
+strip stays reachable by scroll), which means **the strip's share of the slack paints as
+empty space to the left of the buttons**. On Contacts at phone widths the search box
+therefore ended a visible gap before the filter/export circles, and the same rule drives
+`SettingsListChrome`'s pill on Users / Departments / Event Types.
+
+**Impact.** A gap between a field and the buttons that act on it reads as two unrelated
+groups, and it is widest exactly when the box is empty — the state that is supposed to
+invite the tap. It also wasted the one piece of width a search field is judged on.
+
+**Fix.** The field claims the **whole leftover line**: `flex: 1 1 calc(100% −
+--c2-pill-actions-min − gap)`. The wrap contract is untouched — line breaking reads the
+hypothetical main size, still clamped up by `min-width: --c2-pill-field-min`, so the strip
+gives up the line before the field stops being a search box, and the circles never squeeze.
+
+**Respect.** One rule, shared by every page that floats the pill; the calendar's own pill
+has no `.c2-pill-field` (its leading slot is the `.c2-pill-label` read-out) and is
+unaffected, as is Parade's centred `--fill` label.
+
+**Status.** Shipped **1.433** (2026-11-28): `.c2-pill-field` in `src/app/globals.css`.
+[`dashboard-views.md`](dashboard-views.md) §1.1. §1.10.1.
+
+### 1.4.8 Not re-proposed here
 
 Swipe-to-change-period on the non-Agenda grids (A3), drag-to-create/reschedule (A5) and delete undo
 (A6) were reviewed and are **held** — see §1.9.
@@ -392,6 +420,31 @@ be discoverable (D2) or the feature is folklore.
 Every affordance added under this plan ships its accessibility **in the same change**: accessible
 name, `announce()` for state changes with no toast, correct focus order, and a `docs/accessibility.md`
 row where the pattern is new.
+
+### 1.5.6 B7 — the page tree had no headings at all
+
+**Evidence.** Verified at 1.432: no page rendered an `<h1>`. `PageHeader`
+(`src/components/PageHeader.tsx`) — the block five pages open with — rendered its title as
+a `Text` at `size="lg" fw={600}`, and every section label on those pages was a `Text` or a
+`Group` with no `component` either. The document outline a screen reader navigates by, and
+any "jump to heading" affordance built on it, was empty on `/contacts`, `/parade-state`,
+`/double-booking`, `/kah-status` and `/my-events`.
+
+**Impact.** WCAG 1.3.1 / 2.4.6: a non-sighted user cannot get the shape of a page they cannot
+see, and cannot move around it. Visual hierarchy alone is not structure.
+
+**Fix.** `PageHeader` renders `Text component="h1"` (with `m={0}` — Mantine ships no heading
+reset, so the UA's `h1` margins would otherwise move a measured block), and the section
+labels below it become `Text component="h2"` at the same small-dimmed styling. KAH Status
+runs `h1` → `h2` Groups → `h3` group card → `h4` Breaches; Double Booking `h1` → `h2` day
+group.
+
+**Respect.** Levels come from `component`, size from `size`/`fz` — no level was skipped to
+get a smaller font, and no visual metric moved.
+
+**Status.** Shipped **1.433** (2026-11-28): `PageHeader.tsx`, `KahStatusView.tsx`,
+`KahGroupCard.tsx`, `KahGroupBreaches.tsx`, `DoubleBookingView.tsx`.
+[`accessibility.md`](accessibility.md) §1.10. §1.10.1.
 
 ## 1.6 Finding things and information density
 
@@ -663,6 +716,107 @@ in `src/app/globals.css`, the two band-switched scan-target presentations in
 clearance 13rem → 7.5rem, and mirrored loading skeletons. [`user-clashes.md`](user-clashes.md)
 §1.8, [`kah.md`](kah.md) §1.7, [`desktop-responsive.md`](desktop-responsive.md) §1.11.
 §1.10.1.
+
+**Follow-up (1.433).** The band switch this finding shipped as is **gone**: one
+`PickerFieldTrigger` now serves every width, so the head no longer renders the target twice
+and the labelled stack / compact-chip pair (plus `.c2-report-picker-stack`,
+`.c2-report-picker-compact`, `.c2-report-compact-trigger`) is deleted. The reason was the
+finding's own premise carried one step further — a labelled stack beside a pill-shaped range
+menu is two control patterns in one row, which reads as unfinished regardless of how tall the
+row is. Both controls now render the extracted `.c2-field-trigger` base
+([`user-picker.md`](user-picker.md) §1.6, [`desktop-responsive.md`](desktop-responsive.md)
+§1.11). The 44px floor, the pure-CSS discipline and the measured heights stand; the `40em`
+head is now **centred** rather than top-aligned, because the control row is one line tall.
+My Events' two-row sticky bar — consciously left alone here — became one row at **C11**.
+
+### 1.6.10 C10 — Double Booking's head put two control patterns in one row
+
+**Evidence.** Verified at 1.432: the report head's right side held the scan-target control
+and the look-ahead menu. Below `40em` the target was a compact pill matching the menu; at
+`40em`+ it became the event form's labelled `PickerField` stack — a "Check another person"
+label, an Add/Edit trigger, and a separate chip for the picked person — sitting beside a
+pill-shaped menu that had no label and a different fill, border and height. Two grammars,
+one row: the label/trigger/chip stack is a *form field* pattern, the menu is a *chrome
+control* pattern, and the eye reads the mismatch before it reads either label.
+
+**Impact.** The row looks unfinished, and the desktop pattern is three taps and two
+different surfaces for what the phone does in one tap (tap the chip → dialog; tap ✕ →
+back to self).
+
+**Fix.** One control at every width — a `PickerFieldTrigger` in the same
+`.c2-report-picker` slot as the menu, both rendering the extracted `.c2-field-trigger`
+base (icon + value + chevron, 44px, brand outline on open/focus). The value **is** the
+state: "Check someone" → `Name · Department`, with a ✕ sibling returning the scan to the
+user's own schedule. The labelled stack, its compact twin, and the CSS band switch between
+them are deleted.
+
+**Respect.** Nothing is lost: the department still reaches the accessible name
+(`Check someone — currently Name · Department`) and the dialog, and a long value truncates
+inside the trigger's `max-width` instead of wrapping the head. The 44px floor holds at both
+bands ([`accessibility.md`](accessibility.md) §1.9).
+
+**Status.** Shipped **1.433** (2026-11-28): `PickerFieldTrigger`
+(`src/components/PickerField.tsx`), `.c2-field-trigger` family in `globals.css`
+(`.c2-report-picker-stack` / `-compact` / `.c2-report-compact-trigger` deleted), head
+skeleton mirrored. [`user-clashes.md`](user-clashes.md) §1.8,
+[`user-picker.md`](user-picker.md) §1.6, [`desktop-responsive.md`](desktop-responsive.md)
+§1.11. §1.10.1.
+
+### 1.6.11 C11 — My Events spent two sticky rows on its controls
+
+**Evidence.** Verified at 1.432: the C9 follow-up deliberately left My Events' control bar
+stacked on phones — the search field on one row, the `TimeRangeSelect` menu full-width
+below it — inside `.c2-report-chrome`, which is **sticky**. Two rows of chrome above a list
+the user came to scroll is chrome the list never gets back, and this page's list is the
+whole point of the page.
+
+**Impact.** On a phone the search box and the range menu took **two** sticky rows before the
+first event row — chrome the list never gets back, re-paid on every scroll, on the page whose
+whole point is that list.
+
+**Fix.** One `nowrap` row at every width: the search field takes the leftover
+(`flex: 1 1 0`, `min-width: 0`, so a long term truncates rather than shoving the menu
+off-screen) and the menu rides the report head's `.c2-report-range` slot, which already
+hugs its value and drops its leading glyph below `40em` (C9).
+
+**Respect.** The field keeps a real width — 140px is the floor the pill pages accept for a
+search box, and the menu's own `min-width` keeps its label legible; nothing is hidden
+behind an icon.
+
+**Status.** Shipped **1.433** (2026-11-28): `MyEventsView.tsx` sticky bar.
+[`event-history.md`](event-history.md) §1.4. §1.10.1.
+
+### 1.6.12 C12 — the search modal asked for days over a cache that stores months
+
+**Evidence.** Verified at 1.432: the event-search range popover held two `DatePickerInput`s
+of `YYYY-MM-DD` values, defaulting to "1 month back / 3 months ahead" **of today's
+day-of-month**, and the server clamped the span at `SEARCH_MAX_RANGE_DAYS` (730). The read
+behind it walks whole `YYYY-MM` months (`monthsInRange` → `readCalendarRange`), so the
+window's edges were silently widened to month boundaries the user never chose: picking
+"Nov 21 → Feb 15" searched 1 Nov – 28 Feb, and the results caption named the day pair the
+user did not get.
+
+**Impact.** The control promised day precision the system does not have, the default window
+drifted with the calendar date (so a saved search meant something different a week later),
+and the 730-day cap could shave a day off a legitimate 24-month window.
+
+**Fix.** The window is a pair of **month keys** (`YYYY-MM`) end to end: two
+`MonthPickerInput`s bounded by each other and by `SEARCH_MAX_RANGE_MONTHS` (24), a
+`Reset to default range` action, and a dot on the calendar trigger while the window is
+non-default. `defaultSearchMonths` is the month before today through three months ahead;
+`coerceSearchMonths` swaps/clamps server-side; `monthStart`/`monthEnd` expand to days only
+at the cache-read edge, and the results caption names the window with the same words the
+pickers show (`monthRangeLabel`).
+
+**Respect.** The day-level clamp is deleted rather than kept as a backstop — with month
+pickers one clamp at month granularity is the whole contract. The pickers cannot produce an
+invalid window, so `coerceSearchMonths` is the server-side guarantee, not the UX.
+
+**Status.** Shipped **1.433** (2026-11-28): `src/lib/events/searchRange.ts` (month helpers;
+`coerceSearchRange` / `SEARCH_MAX_RANGE_DAYS` / `defaultSearchFrom` / `defaultSearchTo`
+deleted), `src/lib/events/search.ts`, `src/components/EventSearchRangeFields.tsx` (new),
+`EventSearchBody.tsx`, `.c2-range-dirty-dot`, 23 unit tests.
+[`event-search.md`](event-search.md) §1.2/§1.5/§1.7/§1.9/§1.11. §1.10.1.
 
 ## 1.7 Feedback, guidance and trust
 
@@ -1202,6 +1356,35 @@ the one percentage badge. Breaches integrated per group at **1.430.2**: the page
 rows with the away union and causing events, and the desktop grid uses equal-height rows
 (`align-items: stretch`). [`kah.md`](kah.md) §1.7.
 
+### 1.7.21 D24 — KAH Status restated the same facts three times
+
+**Evidence.** Verified at 1.432: the page said "2 breach periods across 2 groups in the
+next 6 months — **1 active, 1 upcoming**" above cards whose state pills already read
+**Breaching now** / **Breach upcoming**, and the clear case added "— **all 4 groups stay in
+country**" to "No KAH breaches in the next 6 months", a sentence that names a count the
+cards below enumerate. Inside a group card, each breach period row ended with
+"**3 away · 7 in country · worst Sun 29 Nov**" — the away count is the chip row printed
+directly beneath the row, in-country is `roster − away`, and the window's worst day is the
+card's own "Worst: 40% on Sun 29 Nov" line. The card's breach section heading carried a
+"(2)" count badge next to rows that are countable at a glance.
+
+**Impact.** Three surfaces repeating one number reads as three different numbers worth
+checking, and the period row — the one line that should scan — ran two clauses long on every
+phone width.
+
+**Fix.** Each fact gets exactly one home: the summary states scope only ("2 breach periods
+across 2 groups in the next 6 months." / "No KAH breaches in the next 6 months."), the row
+states its own identity (status badge · period · run length · `down to X%`), the chips state
+who is away, and the card owns the worst dip. The **Breaches** heading is bare.
+
+**Respect.** The away chips moved **outside** the disclosure rather than disappearing, so the
+row still answers "who" with the row collapsed; the per-period `down to X%` stays because it
+is not the card's window-level worst. Nothing is hidden behind a tooltip.
+
+**Status.** Shipped **1.433** (2026-11-28): `KahStatusView.tsx` summary,
+`KahBreachPeriodRow.tsx` (the `todayKey` / `clashDayLabel` plumbing for the deleted line went
+with it), `KahGroupBreaches.tsx`. [`kah.md`](kah.md) §1.7. §1.10.1.
+
 ## 1.8 Workflow level
 
 These are feature-shaped gaps that surface as UX pain. Most need their own spec before any UI is
@@ -1302,7 +1485,7 @@ flowchart TD
 
 | Tier                   | Items           | Why here                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | ---------------------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **1 — days, low risk** | B1, B4          | Missing-affordance and correctness fixes. Each is local, reversible, needs no schema or data change, and closes a gap the codebase already knows about (B1). A1/A2/A4, C1/C6 and D5/D6 left this tier shipped (§1.10.1), as did A7 — added and shipped at 1.403 — and A8/A9, added and shipped at 1.412. D8, added and shipped at 1.414, D9/D10, added and shipped at 1.415, and C7/D11/D12/D13, added and shipped at 1.416, never entered the tier table; nor did D14, added and shipped at 1.417, or C8, added and shipped at 1.418, nor D15–D20, added and shipped at 1.419, nor D22, added and shipped at 1.420, nor D23, added and shipped at 1.430, nor C9, added and shipped at 1.432. |
+| **1 — days, low risk** | B1, B4          | Missing-affordance and correctness fixes. Each is local, reversible, needs no schema or data change, and closes a gap the codebase already knows about (B1). A1/A2/A4, C1/C6 and D5/D6 left this tier shipped (§1.10.1), as did A7 — added and shipped at 1.403 — and A8/A9, added and shipped at 1.412. D8, added and shipped at 1.414, D9/D10, added and shipped at 1.415, and C7/D11/D12/D13, added and shipped at 1.416, never entered the tier table; nor did D14, added and shipped at 1.417, or C8, added and shipped at 1.418, nor D15–D20, added and shipped at 1.419, nor D22, added and shipped at 1.420, nor D23, added and shipped at 1.430, nor C9, added and shipped at 1.432, nor A10/B7/C10–C12/D24, added and shipped at 1.433. |
 | **2 — a sprint**       | B3, B5, D21     | Keyboard parity, the legibility floor, and the wizard draft surviving a reload. D2 shipped ahead of the tier (§1.10.1) **without** its shortcut section — fold that section in when B5 lands, per the original "B5 before D2" note. C2/C3/C4/C5 left this tier shipped (§1.10.1).                                                                                                                                                                                                                                                                                                                                    |
 | **3 — design-gated**   | E3, E6-hint     | Advisory and messaging that must be designed against the clashes engine and attendance docs rather than bolted on.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | **4 — feature work**   | E1, E4, E6-sync | Each needs its own spec, schema, and subsystem doc.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
@@ -1351,6 +1534,12 @@ land here.
 | dual | 1.426 (2026-11-26)                                    | **Month & Agenda view retired** (calendar review §1.14): below `lg` the Agenda half never rendered (the day modal already covered it) — a sixth renderer for a niche pairing. `dual` is out of the kind vocabulary; existing tabs, share tokens and `?view=dual` params coerce to Month via `resolveViewKind` (`src/lib/dashboardViews/views.ts`); `DualPaneView` / `dualSplit` deleted, cookie v3.7 drops the key. [`dashboard-views.md`](dashboard-views.md) §1.9, [`ui-state.md`](ui-state.md) §1.5.2. |
 | D23 | 1.430 (2026-11-27)                                    | KAH Status is member-visible across **every** group (own groups marked; non-members 404), defaults to **6 months** (6 months / 1 year only), and leads with group cards — state pill, a single current/minimum percentage badge over the in-country meter, worst dip, each card's own breach month timeline (shared `ClashMonthStrip`) + flat collapsible period rows, and the full roster with each member's merged away stretches; the page-level `ClashCard` section is gone and the desktop grid rows are equal height. Head counts, the "Your groups are marked" hint and the advisory footnote were trimmed at **1.430.1**; the in-card breach timeline/rows landed at **1.430.2**. `KahStatusBadge` keeps light-variant status text above 4.5:1 in both schemes. [`kah.md`](kah.md) §1.7. |
 | C9  | 1.432 (2026-11-27)                                    | Report-page heads no longer cost a third of a phone screen: `.c2-report-chrome` owns the sticky frosted wrapper (compact `sm` block padding below `40em`, the page rhythm above; My Events adopted it too) and `.c2-report-head` is one wrapping row — title block at zero flex basis with an ~8rem floor left, content-hugging controls right, the subtitle wrapping instead of clipping. Double Booking's scan target renders twice and band-switches in pure CSS: the labelled `PickerField` stack at `40em`+, one compact `PickerTrigger`/`PickerChip` control below it (tap to switch person, ✕ back to your own schedule, 44px floor), and the range pill drops its leading glyph inside a report head on phones. `.c2-db-day`'s clearance drops 13rem → 7.5rem. Measured whole-block heights: `/kah-status` 141.5 → 77.5px (99.2 at 320px), `/double-booking` 205.8 → 109.8px (69 when a target is picked at 430px); `40em`+ unchanged. [`user-clashes.md`](user-clashes.md) §1.8, [`kah.md`](kah.md) §1.7, [`desktop-responsive.md`](desktop-responsive.md) §1.11. |
+| A10 | 1.433 (2026-11-28) | `.c2-pill-field` claims the whole leftover line (`flex: 1 1 calc(100% − --c2-pill-actions-min − gap)`), so the floating pill's search box runs up to its circles instead of the strip's right-anchored slack painting a gap between them; `--c2-pill-field-min` wrap contract unchanged. [`dashboard-views.md`](dashboard-views.md) §1.1. |
+| B7 | 1.433 (2026-11-28) | `PageHeader` renders the page `h1` and the section labels below it are real headings (`component="h2"`), giving five pages an outline they never had; KAH runs h1→h2→h3→h4, Double Booking h1→h2. [`accessibility.md`](accessibility.md) §1.10. |
+| C10 | 1.433 (2026-11-28) | Double Booking's scan target is one `PickerFieldTrigger` at every width (value-is-the-state + ✕ sibling), replacing the labelled stack / compact chip band switch; both head controls now render the extracted `.c2-field-trigger` base, so the row is one control pattern. [`user-clashes.md`](user-clashes.md) §1.8, [`user-picker.md`](user-picker.md) §1.6, [`desktop-responsive.md`](desktop-responsive.md) §1.11. |
+| C11 | 1.433 (2026-11-28) | My Events' sticky control bar is one `nowrap` row on phones — search field `flex: 1 1 0` / `min-width: 0`, range menu in `.c2-report-range` — instead of two pinned rows above the list. [`event-history.md`](event-history.md) §1.4. |
+| C12 | 1.433 (2026-11-28) | Event search's window is **whole months** end to end: From/To `MonthPickerInput`s bounded by each other + `SEARCH_MAX_RANGE_MONTHS`, `defaultSearchMonths` (last month → +3), `coerceSearchMonths`, `monthStart`/`monthEnd` at the cache edge, `monthRangeLabel` caption, dirty dot on the trigger; the day-level `coerceSearchRange` / `SEARCH_MAX_RANGE_DAYS` clamp is gone. [`event-search.md`](event-search.md) §1.7/§1.9. |
+| D24 | 1.433 (2026-11-28) | KAH Status says each fact once: scope-only summary line, period rows without the `X away · Y in country · worst <day>` tail (away chips moved outside the disclosure), bare **Breaches** heading. [`kah.md`](kah.md) §1.7. |
 
 ## 1.11 Implementation guardrails
 
@@ -1412,20 +1601,23 @@ Every item above inherits these; they are the reason some obvious-looking fixes 
 | `src/components/AppShellShell.tsx`                                   | `RailEdgeControl` recipe (C1), header controls                                                                                                                                                                      |
 | `src/app/(protected)/contacts/ContactList.tsx`                       | C2                                                                                                                                                                                                                  |
 | `src/app/(protected)/parade-state/ParadeStateView.tsx`               | C3, E6, the legend precedent                                                                                                                                                                                        |
-| `src/app/(protected)/my-events/MyEventsView.tsx`                     | C4                                                                                                                                                                                                                  |
+| `src/app/(protected)/my-events/MyEventsView.tsx`                     | C4, C11 — title search + the one-row sticky control bar                                                                                                                                                             |
 | `src/app/(protected)/settings/audit-log/AuditLogView.tsx`            | C5                                                                                                                                                                                                                  |
-| `src/app/(protected)/kah-status/KahStatusView.tsx`                   | D8, D10, C9 — the sticky report head (`KahStatusHead.tsx`) and group cards                                                                                                                                          |
+| `src/app/(protected)/kah-status/KahStatusView.tsx`                   | D8, D10, C9, D24 — the sticky report head (`KahStatusHead.tsx`), group cards, summary copy                                                           |
 | `src/lib/events/clashDisplay.ts` + `src/lib/events/clashTimeline.ts` | D9, D10 — the shared clash display core                                                                                                                                                                             |
-| `src/app/(protected)/double-booking/DoubleBookingView.tsx`           | D10 — episode filing + heading; C9 — the band-switched scan-target control                                                                                                                                          |
+| `src/app/(protected)/double-booking/DoubleBookingView.tsx`           | D10 — episode filing + heading; C9/C10 — the head's scan-target control (now one `PickerFieldTrigger`)                                               |
+| `src/components/PickerField.tsx`                                     | C10 — `PickerFieldTrigger`, the row-shaped trigger on the shared `.c2-field-trigger` base                                                            |
+| `src/components/EventSearchRangeFields.tsx` + `src/lib/events/searchRange.ts` | C12 — the month-window pickers and their pure helpers                                                                                       |
+| `src/components/PageHeader.tsx`                                      | B7 — the page `h1` five pages never had                                                                                                              |
 | `src/lib/kah/status.ts` + `src/lib/kah/range.ts`                     | D10 — `worstDate` on the breach episode                                                                                                                                                                             |
 | `src/components/PreferencesModal.tsx`                                | D5, and the future home of any held preference                                                                                                                                                                      |
 | `src/components/UserMenu.tsx`                                        | D2 host                                                                                                                                                                                                             |
-| `src/app/globals.css`                                                | B1, B3, C9 (the shared report-head row), and the page-zoom / pull-to-refresh rules behind B2 and D4                                                                                                                 |
+| `src/app/globals.css`                                                | B1, B3, C9 (report head), C10 (`.c2-field-trigger`), A10 (`.c2-pill-field`), C12 (`.c2-range-dirty-dot`), and the page-zoom / pull-to-refresh rules behind B2 and D4 |
 | `src/lib/theme.ts`                                                   | Schedule/Month hook classes for B1; breakpoints for every responsive change                                                                                                                                         |
-| [`accessibility.md`](accessibility.md)                               | §1.7 chip contrast (B1), §1.8 page-zoom policy (B2/B3)                                                                                                                                                              |
+| [`accessibility.md`](accessibility.md)                               | §1.7 chip contrast (B1), §1.8 page-zoom policy (B2/B3), §1.10 heading structure (B7)                                                                |
 | [`loading-transitions.md`](loading-transitions.md)                   | §1.2 non-goals that constrain every item                                                                                                                                                                            |
 | [`action-pill.md`](action-pill.md)                                   | D6 boundary                                                                                                                                                                                                         |
-| [`user-picker.md`](user-picker.md)                                   | §1.6 `PickerBadges` cap + chip-size rule (C6, C7); the report-chrome compact trigger/chip (C9)                                                                                                                      |
+| [`user-picker.md`](user-picker.md)                                   | §1.6 `PickerBadges` cap + chip-size rule (C6, C7); the report-chrome compact trigger/chip (C9, superseded by `PickerFieldTrigger` at C10)                                                                           |
 | [`event-clashes.md`](event-clashes.md)                               | E3 engine reuse                                                                                                                                                                                                     |
 
 ## 1.14 Calendar view review — 2026-11-26

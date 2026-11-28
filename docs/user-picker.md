@@ -123,7 +123,7 @@ of toggleable badges with a search box on top:
 | `src/components/UserSelectModal.tsx`  | The badge-dialog picker |
 | `src/components/SelectableBadge.tsx` | Shared selectable badge — amber fill when selected (wizard + picker + filters) |
 | `src/components/AllNoneControls.tsx` | Shared compact All/None (or All/Clear) pair |
-| `src/components/PickerField.tsx` | The app-wide removable chip (`PickerChip`), its summary row (`PickerBadges`) and the picker trigger/field |
+| `src/components/PickerField.tsx` | The app-wide removable chip (`PickerChip`), its summary row (`PickerBadges`), the picker trigger/field, and the row-shaped `PickerFieldTrigger` |
 | `src/lib/ui/picker.ts` | Pure trigger-label copy helpers |
 | `src/lib/users/userSelect.ts` | Pure grouping/matching/merging helpers |
 | `src/lib/filters/filterSections.ts` | Pure section state + All/None math |
@@ -167,12 +167,25 @@ standalone as `PickerBadges` and one chip as `PickerChip`:
   label. Pure presentation — callers resolve their own id domains into items.
 - **`PickerTrigger`** is the shared trigger button: **Add** + `IconPlus` while nothing
   is picked, **Edit** + `IconPencil` afterwards; `triggerLabel` wins over the pair and
-  `addLabel`/`editLabel` customize it. `size` (default `xs`, the wizard's row scale) and
-  `className` let a chrome row resize it — the report heads' phone-sized control uses
-  `size="sm"` plus `.c2-report-compact-trigger` to reach the 44px tap floor.
+  `addLabel`/`editLabel` customize it. `size` (default `xs`, the wizard's row scale)
+  and `className` let a chrome row resize it.
 - **`PickerField`** composes the full affordance: an optional header (`label`, `count`
   suffix `(N)`, `description`) with the `PickerTrigger` pinned right, then
   `PickerBadges`.
+- **`PickerFieldTrigger`** is the trigger for a picker that sits **in a control row**
+  with no form label above it — Double Booking's scan target today. It renders the
+  shared `.c2-field-trigger` recipe
+  ([`desktop-responsive.md`](desktop-responsive.md) §1.6): icon + value + chevron,
+  44px tall, brand outline while open, so it reads as the same control as the
+  `TimeRangeSelect` next to it. Unlike `PickerTrigger` it never says Add/Edit — the
+  value **is** the state (`Check someone` → `Name · Department`) — and `onClear` +
+  `clearLabel` add the ✕ that returns the picker to its default. That ✕ is a
+  **sibling** of the open button, never a descendant (nested buttons are invalid
+  HTML): the picked state is a `div.c2-field-trigger` wrapping the open `<button>`
+  (`.c2-field-trigger-main`, padding-free so the two halves look like one control)
+  plus an `ActionIcon` on the shared ≥22px `.c2-picker-chip-remove` recipe. Pass
+  `ariaLabel` when the visible value alone would lose meaning once another control
+  names it (`Check someone — currently Name · Department`).
 
 The modal itself stays with each caller — open state, `zIndex`, and the `onConfirm`
 transform differ (prefixed invitees vs. flat member ids vs. FilterModal's staged draft
@@ -185,7 +198,7 @@ separate role + Add commit:
 | Event wizard (Participants step) | `PickerField` | departments `accent`, explanatory description (participants can edit; a fresh create pre-selects the acting user; an event must keep ≥1 participant/department); chip ✕ removes one `user:`/`dept:` invitee via `removeInvitee` |
 | KAH group form | `PickerField` | `Members (N)` count, "No members selected." empty; chip ✕ removes a member; field error renders below |
 | Parade email form (Recipients) | `PickerField` | chip ✕ removes a recipient |
-| Double Booking scan target | `PickerField` (stack) / `PickerTrigger` or `PickerChip` (phone) | single `brand` chip "Name · Department"; ✕ returns the scan to the user's own schedule; self-scan shows the empty text instead. Below the 40em band the field is a **chrome row**, so it renders once as the full stack (`40em`+) and once as a single compact control — `PickerTrigger addLabel="Check someone"` (44px via `.c2-report-compact-trigger`) or a name-only `PickerChip` whose label reopens the dialog and whose ✕ returns to self; the band switch is pure CSS ([`user-clashes.md`](user-clashes.md) §1.8) |
+| Double Booking scan target | `PickerFieldTrigger` | one control at every width in the report head's `.c2-report-picker` slot: "Check someone" while scanning self, `Name · Department` once picked, ✕ returns the scan to the user's own schedule ([`user-clashes.md`](user-clashes.md) §1.8). The labelled stack + band-switched compact twin it replaced are gone |
 | Department create/edit (Parent department) | `PickerField` | chip ✕ clears the parent to top level; empty text "No parent (top level)"; `triggerLabel="Select"` |
 | UserForm (Department) | `PickerField` | single chip; ✕ clears the department ("Remove department"); `triggerLabel="Select"` |
 | UserForm (Department to grant) | trigger `Button` | stages the department; role select + Add commit it — add-only by design, so its dialog keeps `confirmLabel="Add"` |

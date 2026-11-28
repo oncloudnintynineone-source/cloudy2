@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import type { ButtonProps } from "@mantine/core";
 import { ActionIcon, Badge, Button, Group, Stack, Text, UnstyledButton } from "@mantine/core";
-import { IconPencil, IconPlus, IconX } from "@tabler/icons-react";
+import { IconChevronDown, IconPencil, IconPlus, IconX } from "@tabler/icons-react";
 
 import { pickerTriggerLabel } from "@/lib/ui/picker";
 
@@ -254,7 +254,8 @@ export interface PickerTriggerProps {
   size?: ButtonProps["size"];
   /**
    * Extra classes on the trigger button — e.g. a chrome row raising it to the
-   * 44px tap floor (`.c2-report-compact-trigger`, `globals.css`).
+   * 44px tap floor. A report head's scan-target control renders through
+   * `PickerFieldTrigger` instead, which already carries that floor.
    */
   className?: string;
 }
@@ -292,6 +293,103 @@ export function PickerTrigger({
     >
       {triggerLabel ?? pickerTriggerLabel(count, { addLabel, editLabel })}
     </Button>
+  );
+}
+
+export interface PickerFieldTriggerProps {
+  /** Leading glyph naming what the control picks (e.g. `IconUserCheck`). */
+  icon: ReactNode;
+  /** The field's value: the picked option, or the empty-state prompt. */
+  value: string;
+  /** Opens the caller's picker dialog. */
+  onOpen: () => void;
+  /** Renders the ✕ that clears the pick back to its default. */
+  onClear?: () => void;
+  /** Accessible name of the ✕ (e.g. "Back to my schedule"). */
+  clearLabel?: string;
+  /**
+   * Accessible name of the trigger. Omit it while the field shows its
+   * empty-state prompt (the visible text is already the name); pass one over a
+   * picked value that **contains the visible text** (WCAG 2.5.3 Label in Name),
+   * e.g. `Check someone — currently Tan Wei Ling · Signals`.
+   */
+  ariaLabel?: string;
+  disabled?: boolean;
+}
+
+/**
+ * The picker trigger for a **chrome row** — the same field-look pill
+ * `.c2-range-trigger` rides (`.c2-field-trigger`, `globals.css`), so a person
+ * picker and a month-range menu sitting side by side can never drift in height,
+ * border, fill, radius or type. Use `PickerField` instead whenever the picker
+ * owns a labelled form row (label + description + summary chips).
+ *
+ * One control while nothing is picked; with `onClear` the pill holds **two
+ * sibling controls** — the region that reopens the dialog and the ✕ that clears
+ * it — never one nested in another (the `PickerChip` rule, docs/user-picker.md
+ * §1.7). Both are real buttons, so the keyboard reaches them in reading order,
+ * and the dialog's own focus return puts the caret back on the pill on close.
+ */
+export function PickerFieldTrigger({
+  icon,
+  value,
+  onOpen,
+  onClear,
+  clearLabel,
+  ariaLabel,
+  disabled,
+}: PickerFieldTriggerProps) {
+  const content = (
+    <>
+      <span className="c2-field-trigger-icon">{icon}</span>
+      <span className="c2-field-trigger-value">{value}</span>
+      <IconChevronDown className="c2-field-trigger-chevron" size={18} aria-hidden />
+    </>
+  );
+
+  if (!onClear) {
+    return (
+      <button
+        type="button"
+        className="c2-field-trigger"
+        onClick={onOpen}
+        disabled={disabled}
+        aria-label={ariaLabel}
+        aria-haspopup="dialog"
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <div className="c2-field-trigger" data-disabled={disabled || undefined}>
+      <button
+        type="button"
+        className="c2-field-trigger-main"
+        onClick={onOpen}
+        disabled={disabled}
+        aria-label={ariaLabel}
+        aria-haspopup="dialog"
+      >
+        {content}
+      </button>
+      <ActionIcon
+        // The pill is not itself a control; only the ✕ (and the region beside
+        // it) act — so the removal sits inside the thing it removes without
+        // nesting one button in another.
+        className="c2-field-trigger-clear c2-picker-chip-remove"
+        variant="subtle"
+        color="gray"
+        size="lg"
+        aria-label={clearLabel}
+        title={clearLabel}
+        disabled={disabled}
+        onClick={onClear}
+      >
+        <IconX size={16} />
+      </ActionIcon>
+    </div>
   );
 }
 

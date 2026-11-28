@@ -262,9 +262,12 @@ flowchart LR
   wraps rather than being clipped, and breaks evenly when it does wrap
   (`text-wrap: balance`).
 - Above the content sits a `role="status"` **summary line** — "2 breach periods
-  across 2 groups in the next 6 months — 1 active, 1 upcoming" — or the clear case
-  ("No KAH breaches in the next 6 months — all 4 groups stay in country.") with a
-  green check. It is the single live region: the in-card period rows are not live
+  across 2 groups in the next 6 months." — or the clear case ("No KAH breaches in
+  the next 6 months."). It states the scope and nothing else: the active/upcoming
+  split and the all-clear group count are already on the cards below, and repeating
+  them here turned one sentence into a paragraph. The clear case keeps its green
+  check. It is the single live region: the
+  in-card period rows are not live
   regions, so a range change is announced exactly once. A failed range change keeps
   the last good window on screen and shows the inline error + **Retry** strip (the
   Double Booking recipe) instead of a toast that vanishes with no way back.
@@ -284,8 +287,9 @@ flowchart LR
     and no separate "today" text line;
   - the **worst dip** in the window and, for an upcoming breach, the day it starts
     (`Worst: 40% on Sun 29 Nov · next Thu 10 Dec`);
-  - **the group's breach section** (only for a group with a breached day): a
-    **Breaches** subheading with the period count, then a **month preview timeline**
+  - **the group's breach section** (only for a group with a breached day): a bare
+    **Breaches** subheading — the card's state pill already says the group is
+    breaching, and the rows below are countable — then a **month preview timeline**
     built from the shared `ClashMonthStrip` over the scanned window — one cell per
     month, busy cells carry that month's breach-day count, and the strip wraps
     inside the card instead of scrolling. Tapping a busy month scrolls to and
@@ -293,8 +297,13 @@ flowchart LR
     Booking strip interaction; reduced motion gets an instant jump). One flat
     disclosure row per breach period follows:
     - the row shows the status badge (**Active** / **Upcoming**), the period and run
-      length, `down to X%`, and `X away · Y in country · worst <day>`;
-    - the **away union** is always visible as chips, capped through the shared
+      length, and `down to X%` — one line, one fact per clause. The
+      `X away · Y in country · worst <day>` tail this row used to end with is gone:
+      the away count is the chip row directly beneath it, in-country is
+      `roster − away`, and the window's worst day is the card's own
+      `Worst: X% on <day>` line — the row was restating the card twice;
+    - the **away union** is always visible as chips (outside the disclosure, so it
+      stays readable with the row collapsed), capped through the shared
       `capBadgeItems` recipe (the viewer's own chip is pinned first and can never
       be hidden behind the cap);
     - expanding lists the **overseas events that took those members away** during

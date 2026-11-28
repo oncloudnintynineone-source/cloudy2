@@ -36,12 +36,14 @@ const MENU_STYLES = {
  *
  * A `Menu` rather than a `Select`: the control has nothing to type, and a menu
  * trigger is a plain button, so a tap can never raise the virtual keyboard
- * (the rule `NoKeyboardSelect` exists to work around). The trigger is an
- * input-look pill (`.c2-range-trigger`, `globals.css`) that fills its column on
- * phones and hugs its content from the 40em desktop band on, so the same
- * control fits a stacked mobile header and a sticky desktop chrome row without
- * a per-page width override. The label rides inside the pill at 40em+ and moves
- * into the dropdown header below it, where the pill stays short enough to scan.
+ * (the rule `NoKeyboardSelect` exists to work around). The trigger is the shared
+ * field-look pill (`.c2-field-trigger` + its range-specific `.c2-range-trigger`
+ * rules, `globals.css`) that fills its column on phones and hugs its content from
+ * the 40em desktop band on, so the same control fits a stacked mobile header and
+ * a sticky desktop chrome row without a per-page width override — and sits in one
+ * row beside `PickerFieldTrigger` with no visual drift. The label rides inside
+ * the pill at 40em+ and moves into the dropdown header below it, where the pill
+ * stays short enough to scan.
  */
 export function TimeRangeSelect<T extends number>({
   label,
@@ -66,16 +68,16 @@ export function TimeRangeSelect<T extends number>({
       <Menu.Target>
         <button
           type="button"
-          className="c2-range-trigger"
+          className="c2-field-trigger c2-range-trigger"
           disabled={disabled}
           aria-label={`${label}: ${current}`}
         >
-          <IconCalendarTime className="c2-range-trigger-icon" size={18} aria-hidden />
-          <span className="c2-range-trigger-value">
+          <IconCalendarTime className="c2-field-trigger-icon" size={18} aria-hidden />
+          <span className="c2-field-trigger-value">
             <span className="c2-range-trigger-label">{label}</span>
             {current}
           </span>
-          <IconChevronDown className="c2-range-trigger-chevron" size={18} aria-hidden />
+          <IconChevronDown className="c2-field-trigger-chevron" size={18} aria-hidden />
         </button>
       </Menu.Target>
       <Menu.Dropdown>

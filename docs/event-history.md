@@ -200,6 +200,14 @@ client-only filter would silently miss rows on other pages. The box debounces
 `history.replaceState` rule as `?range=`/`?page=` (reload/share keep the
 search; the always-fresh adoption gate compares all three).
 
+**The bar is one row at every width.** The search box and the range menu share a
+single `nowrap` line below `40em`: the box takes the leftover (`flex: 1 1 0`,
+`min-width: 0`, so a long term truncates instead of pushing the menu off-screen) and
+the menu rides the report-head `.c2-report-range` slot, which drops its leading
+calendar glyph there ([`desktop-responsive.md`](desktop-responsive.md) §1.11). The
+stacked version this replaced spent two rows of a **sticky** bar on a phone — chrome
+the list never gets back.
+
 It is a **union of two sources** (`buildMyEventsData`,
 `src/lib/events/myEventsData.ts`):
 

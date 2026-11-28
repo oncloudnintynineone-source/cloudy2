@@ -45,7 +45,9 @@ get every matching event across every department, best matches first.
 
 - Fuzzy free-text lookup across **all** department calendars (any signed-in user).
 - Typo tolerance and relevance ranking (a near-miss still surfaces, best first).
-- A user-chosen window with sensible defaults (1 month back, 3 months ahead).
+- A user-chosen window of **whole months** with sensible defaults (the month
+  before today through three months ahead) — the same month vocabulary the cache
+  and the app's other range controls use (§1.7).
 - Reuse the warm month cache so repeated searches and the dashboard share work.
 - A zero-cost entry point: the modal and its imports stay out of the shell's
   initial bundle until the user opens search.
@@ -83,7 +85,7 @@ flowchart LR
  MC["getCachedMonthEventsForCalendarsMulti<br/>(Google fill on miss)"]
  end
  B -->|open| M
- M -->|"searchEvents(q, from, to)"| R --> C --> RC --> MC
+ M -->|"searchEvents(q, fromMonth, toMonth)"| R --> C --> RC --> MC
  RC --> PJ --> FF --> M
  M -->|result click| SPIN
  SPIN -->|"/dashboard?date=..&event=.."| DEEP["dashboard EventDetail<br/>(Duplicate / Edit / Delete)"]
@@ -95,7 +97,8 @@ cache, while a cold month is filled from Google in one batched read.
 
 ## 1.4 The read path
 
-The action converts the window to `YYYY-MM` months (`monthsInRange`), reads the
+The action expands the picked month window to whole days (§1.7), walks it as
+`YYYY-MM` months (`monthsInRange`), reads the
 months for every registry calendar via `readCalendarRange` (which calls
 `getCachedMonthEventsForCalendarsMulti`; a cache miss fills that month from
 Google and warms adjacent months after the response), then projects them with
@@ -110,11 +113,13 @@ an indexed feature, but it is not this one.
 
 ## 1.5 The server action
 
-`searchEvents(q, from, to)` (`src/lib/events/search.ts`, `"use server"`):
+`searchEvents(q, fromMonth, toMonth)` (`src/lib/events/search.ts`, `"use server"`),
+where both range arguments are `YYYY-MM` **month keys**:
 
 1. `requireSession()`.
 2. Trims and enforces `SEARCH_MIN_QUERY_LENGTH` (2) characters.
-3. Coerces the date window (§1.7).
+3. Coerces the month window and expands it to whole days — the first of
+   `fromMonth` through the last day of `toMonth` (§1.7).
 4. `listCalendars()` → `readCalendarRange({ months, calendarIds })` (§1.4).
 5. `projectRangeEvents` → the deduped, start-sorted `CalendarEvent[]`.
 6. `filterRangeForSearch(events, from, to, q)` — trims whole months down to the
@@ -148,24 +153,39 @@ service account also serves un-scoped).
 
 ## 1.7 Date range & defaults
 
-The window is an inclusive `[from, to]` pair of `YYYY-MM-DD` dates the user
-picks; defaults open 1 month back and 3 months ahead of "today" (UTC+8 naive).
-The pure helpers live in `src/lib/events/searchRange.ts`:
+The window is an inclusive **month** window — a `YYYY-MM` key pair the user
+picks — because that is the unit the cache stores and the unit every other range
+control in the app speaks (`src/lib/dateRange/monthRange.ts`). The default is the
+month before today through three months ahead. At the edge of the read the window
+becomes days again: `monthStart(from)` … `monthEnd(to)`, so "Nov 2026 – Feb 2027"
+means 1 Nov through 28 Feb inclusive. The pure helpers live in
+`src/lib/events/searchRange.ts`:
 
-- `defaultSearchFrom` / `defaultSearchTo` — month arithmetic with day-of-month
-  clamping (`Jan 31 − 1 month → Dec 31`).
+- `MONTH_KEY_PATTERN` — `YYYY-MM` shape check; a malformed key on the server
+  falls back to the default window.
+- `defaultSearchMonths(today)` — the `SEARCH_DEFAULT_MONTHS_BACK` (1) /
+  `SEARCH_DEFAULT_MONTHS_AHEAD` (3) pair, year wrap included.
+- `coerceSearchMonths(from, to)` — swaps a reversed pair and clamps the inclusive
+  span to `SEARCH_MAX_RANGE_MONTHS` (24), keeping `from`. The pickers bound each
+  other so neither case is reachable through the UI; this is the server-side
+  guarantee, and it is what bounds how many months one search can read.
+- `monthStart` / `monthEnd` — the day window a month window expands to
+  (`monthEnd` reuses `lastDayOfMonth`, so Feb 29 lands on leap years).
+- `monthLabel` / `monthRangeLabel` — `Nov 2026` and `Nov 2026 – Feb 2027` (one
+  label when the window is a single month): the results caption names the scope
+  with the same words the pickers show.
 - `searchRangeBoundaries` — `from` → `timeMin = UTC-midnight`, `to` →
   `timeMax = UTC-midnight of addOneDay(to)` (Google's exclusive all-day-end
   convention), so an event on the `to` date is still included.
-- `coerceSearchRange` — swaps a reversed pair and clamps the forward span to
-  `SEARCH_MAX_RANGE_DAYS` (730).
 - `eventWithinRange` — overlaps the event's absolute span (all-day exclusive-end
   via `exclusiveAbsEventRange`) with the window; the cache read returns whole
   months, so this trims the extra days at the edges.
 - `filterRangeForSearch` — the window trim above plus the Fuse relevance rank.
 
-On the server, non-`YYYY-MM-DD` inputs fall back to the defaults; the span cap
-bounds how many months a single search can read.
+The day-level clamp this feature used to carry (`coerceSearchRange` /
+`SEARCH_MAX_RANGE_DAYS`) is gone: with month-granular pickers, one clamp at month
+granularity is the whole contract, and a 730-day cap would silently shave the
+last day off a full 24-month window.
 
 ## 1.8 Searchable surface & fuzzy matching
 
@@ -224,7 +244,7 @@ visible count.
   in the shell bundle), exactly like `PinnedEventsPanel`: `opened` is passed
   straight through, so the zoom-out plays on _every_ open, including a click
   that beats the chunk. Only the body (`EventSearchBody.tsx` — the toolbar,
-  `DatePickerInput`s, recents and results) is lazy:
+  `EventSearchRangeFields`, recents and results) is lazy:
   `dynamic(() => import("./EventSearchBody"), { ssr: false, loading: () =>
 <EventSearchBodySkeleton /> })` renders a dependency-free skeleton _inside_
   the already-animating dialog, and the real content swaps in place when the
@@ -262,24 +282,32 @@ false`), so the search state resets for free on every reopen; the chrome
 - Contents: a single toolbar row — the query `TextInput` (no autofocus;
   in-field clear) plus a Search submit (`Button` at `lg`, an icon-only button
   below it) and a date-filter `ActionIcon` that opens a popover with the From/To
-  `DatePickerInput`s (cleared → server defaults) and a Reset, badge-counting a
-  non-default window. All three controls share `TOOLBAR_CONTROL_SIZE` (43px ≈
+  `MonthPickerInput`s and a Reset (`src/components/EventSearchRangeFields.tsx`,
+  §1.7). All three controls share `TOOLBAR_CONTROL_SIZE` (43px ≈
   the theme's `--input-height-sm`, which every `Input` field already renders at):
   the `Button` overrides Mantine's 36px `sm` height through
   `__vars={{ "--button-height" }}`, because a 36px submit between two 43px
   neighbours read as visibly short (the shared `.c2-button-label` nudge in
   `globals.css` was measured at 43px, so its label stays optically centred).
-  The date popover **stacks From above To at full width**: `DatePickerInput`
-  renders its value as *button text* (`component="button"` + `multiline`), so two
-  half-width fields inside the 300px popover left ~60px for `2026-11-21` (the
-  clearable ✕ reserves 50px) and the date wrapped onto a second line, growing the
-  field. Full width leaves ~200px of text room, and `styles.input.whiteSpace:
-  nowrap` keeps a value from ever re-wrapping it. Below it the recent-search badges scroll as one
+  The date popover puts the two month fields **side by side**, and neither is
+  clearable: a month value is eight characters (`Nov 2026`) and the window always
+  has exactly two ends, so there is no empty state to return to — the day pickers
+  this replaced needed the full width for `2026-11-21` plus the clear ✕'s reserved
+  50px. Each picker's `minDate`/`maxDate` are the other's month and
+  `SEARCH_MAX_RANGE_MONTHS` away from it, so an impossible window cannot be
+  picked (the server re-checks it regardless). Both pass
+  `popoverProps={{ returnFocus: true }}` — the dropdown's own Popover defaults to
+  `false`, which drops focus on `<body>` after every pick. The trigger is
+  icon-only, so its `aria-label` names the window it opens (`Search date range:
+  Nov 2026 – Feb 2027`), and while the window is away from its default a brand
+  dot (`.c2-range-dirty-dot`) marks it — a dot, not the old per-field count badge,
+  because the window is one value. Below it the recent-search badges scroll as one
   horizontal chip row and are **hidden once results exist** — while the history
   is still loading the row shows the label plus a few skeleton pills (sized to
   the chip's 36px `--c2-chip-height`, with a `LoadingStatus`), so the badges never
   pop in out of nowhere; an empty history collapses the section. A result-count +
-  active-range caption (from the resolved window, not the result extremes) with
+  active-range caption (the month window the search actually ran with, not the
+  result extremes — `monthRangeLabel`, §1.7) with
   a Clear action heads the list. Results render as a **tier-then-relevance list in
   two labelled sections** (§1.8.1) — each row a colored stripe + title + a date/time/all-day line, plus
   location and calendar — reusing the dashboard's amber `c2-my-agenda-event` /
@@ -358,7 +386,8 @@ the cache-backed search with the current (defaulted) date window.
 ## 1.11 Pure helpers & testing
 
 The decision-making parts are pure and unit-tested. `searchRange.test.ts` covers
-the date helpers plus `eventWithinRange` / `filterRangeForSearch` /
+the month-window helpers (defaults, year wrap, the 24-month clamp, leap-year
+`monthEnd`, labels) plus `eventWithinRange` / `filterRangeForSearch` /
 `countSubstringMatches` (including the contiguity invariant the two UI sections
 rely on);
 `searchHistory.test.ts` covers the history list; `fuzzy.test.ts` covers
@@ -380,10 +409,9 @@ The shared `src/lib/search/fuzzy.ts` wraps Fuse.js once for the whole app
 
 | Helper                                                                          | Module                    | Tests                   |
 | ------------------------------------------------------------------------------- | ------------------------- | ----------------------- |
-| `addMonthsClamped`                                                              | `events/searchRange.ts`   | `searchRange.test.ts`   |
-| `defaultSearchFrom` / `defaultSearchTo`                                         | `events/searchRange.ts`   | `searchRange.test.ts`   |
-| `searchRangeBoundaries`                                                         | `events/searchRange.ts`   | `searchRange.test.ts`   |
-| `coerceSearchRange`                                                             | `events/searchRange.ts`   | `searchRange.test.ts`   |
+| `defaultSearchMonths` / `coerceSearchMonths` / `monthStart` / `monthEnd`         | `events/searchRange.ts`   | `searchRange.test.ts`   |
+| `monthLabel` / `monthRangeLabel`                                                 | `events/searchRange.ts`   | `searchRange.test.ts`   |
+| `searchRangeBoundaries`                                                          | `events/searchRange.ts`   | `searchRange.test.ts`   |
 | `eventWithinRange` / `filterRangeForSearch`                                     | `events/searchRange.ts`   | `searchRange.test.ts`   |
 | `eventSubstringMatch` / `searchMatchTier` / `countSubstringMatches`             | `events/searchRange.ts`   | `searchRange.test.ts`   |
 | `fuzzyFilter` / `fuzzySearch` / `fuzzySearchRanked` / `fuzzyMatches`            | `search/fuzzy.ts`         | `fuzzy.test.ts`         |
@@ -395,7 +423,7 @@ The shared `src/lib/search/fuzzy.ts` wraps Fuse.js once for the whole app
 | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `src/lib/search/fuzzy.ts`                       | Shared Fuse.js wrapper (fuzzy filter/search/matches)                                                                                              |
 | `src/lib/events/search.ts`                      | `searchEvents` server action (cache read → project → fuzzy rank → tier split)                                                                     |
-| `src/lib/events/searchRange.ts`                 | Pure date-range helpers + window trim + Fuse rank + tier split (tested)                                                                           |
+| `src/lib/events/searchRange.ts`                 | Pure month-window helpers + day trim + Fuse rank + tier split (tested)                                                                            |
 | `src/lib/events/searchHistory.ts`               | Pure history-list helpers (tested)                                                                                                                |
 | `src/lib/events/searchHistoryActions.ts`        | `getSearchHistory` / `recordSearchHistory` / `removeSearchHistory` actions                                                                        |
 | `src/lib/userPrefs/queries.ts`                  | `getUserPreferences` (now exposes `searchHistory`)                                                                                                |
@@ -406,6 +434,7 @@ The shared `src/lib/search/fuzzy.ts` wraps Fuse.js once for the whole app
 | `src/app/(protected)/dashboard/EventDetail.tsx` | The shared detail modal the deep link lands on (unchanged)                                                                                        |
 | `src/components/EventSearchModal.tsx`           | Search modal chrome: always-mounted `Modal` + zoom transition + history state + body chunk preload                                                |
 | `src/components/EventSearchBody.tsx`            | Lazy body: toolbar + two tier sections (contains-text / approximate) + history badges + row-spinner deep link                                       |
+| `src/components/EventSearchRangeFields.tsx`     | The range popover's From/To `MonthPickerInput`s + Reset (month keys in, month keys out)                                                           |
 | `src/components/EventSearchBodySkeleton.tsx`    | Dependency-free body loading fallback painted inside the open chrome                                                                              |
 | `src/components/AppShellShell.tsx`              | Desktop header "Search events" trigger + ⌘/Ctrl-K + always-mounted modal + origin rect + near-signal body preload + `SearchPanelContext` provider |
 | `src/lib/ui/searchPanel.ts`                     | `SearchPanelContext` — the calendar's search triggers (desktop header + mobile pill) → shell-owned modal                                          |

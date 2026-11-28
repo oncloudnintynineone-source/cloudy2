@@ -5,7 +5,6 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   ActionIcon,
-  Badge,
   Box,
   Button,
   Group,
@@ -17,7 +16,6 @@ import {
   TextInput,
   UnstyledButton,
 } from "@mantine/core";
-import { DatePickerInput } from "@mantine/dates";
 import { IconCalendar, IconSearch, IconSearchOff, IconX } from "@tabler/icons-react";
 import dayjs from "dayjs";
 
@@ -26,8 +24,8 @@ import { formatInstantToNaive } from "@/lib/events/datetime";
 import type { CalendarEvent } from "@/lib/events/queries";
 import { searchEvents } from "@/lib/events/search";
 import {
-  defaultSearchFrom,
-  defaultSearchTo,
+  defaultSearchMonths,
+  monthRangeLabel,
   SEARCH_MIN_QUERY_LENGTH,
 } from "@/lib/events/searchRange";
 import { CrossfadeSwap } from "@/components/CrossfadeSwap";
@@ -36,6 +34,7 @@ import { MIN_SKELETON_HOLD_MS } from "@/lib/loading/minHoldLoading";
 import { BUTTON_LOADER_PROPS } from "@/lib/theme";
 
 import { EmptyState } from "./EmptyState";
+import { EventSearchRangeFields } from "./EventSearchRangeFields";
 import { LoadingStatus } from "./LoadingStatus";
 import { PickerChip } from "./PickerField";
 
@@ -178,12 +177,13 @@ export default function EventSearchBody({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const today = formatInstantToNaive(new Date()).slice(0, 10);
-  const defaultFrom = defaultSearchFrom(today);
-  const defaultTo = defaultSearchTo(today);
+  // The default window is a whole-month pair (one month back, three ahead) —
+  // the same vocabulary the results header names the scope with.
+  const defaultRange = defaultSearchMonths(today);
 
   const [query, setQuery] = useState("");
-  const [from, setFrom] = useState<string | null>(defaultFrom);
-  const [to, setTo] = useState<string | null>(defaultTo);
+  const [fromMonth, setFromMonth] = useState(defaultRange.fromMonth);
+  const [toMonth, setToMonth] = useState(defaultRange.toMonth);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<CalendarEvent[] | null>(null);
@@ -191,9 +191,12 @@ export default function EventSearchBody({
   // The current user's own events (tagged attendee) among the results — drives
   // the amber "mine" row highlight, matching the dashboard agenda.
   const [myEventIds, setMyEventIds] = useState<string[]>([]);
-  // The [from, to] window a completed search actually ran with (defaults
-  // resolved), shown beside the result count so the scope is never ambiguous.
-  const [searchedRange, setSearchedRange] = useState<{ from: string; to: string } | null>(null);
+  // The month window a completed search actually ran with (defaults resolved),
+  // shown beside the result count so the scope is never ambiguous.
+  const [searchedRange, setSearchedRange] = useState<{
+    fromMonth: string;
+    toMonth: string;
+  } | null>(null);
   // The term a completed search actually ran with — the "Contains …" section
   // header names it, so it must not follow later typing in the input.
   const [searchedTerm, setSearchedTerm] = useState("");
@@ -238,17 +241,13 @@ export default function EventSearchBody({
     }
     setError(null);
     setLoading(true);
-    // Resolve the window locally so the result header can name the scope even
-    // though the server owns the final coercion.
-    const effectiveFrom = from || defaultFrom;
-    const effectiveTo = to || defaultTo;
     try {
-      const result = await searchEvents(trimmed, from ?? "", to ?? "");
+      const result = await searchEvents(trimmed, fromMonth, toMonth);
       if (result.ok) {
         setResults(result.events);
         setVisibleCount(RESULT_PAGE_SIZE);
         setMyEventIds(result.myEventIds);
-        setSearchedRange({ from: effectiveFrom, to: effectiveTo });
+        setSearchedRange({ fromMonth, toMonth });
         setSearchedTerm(trimmed);
         setExactCount(result.exactCount);
         // Remember the query server-side (fire-and-forget) and update the
@@ -315,13 +314,15 @@ export default function EventSearchBody({
   // the purple one — the same classes the dashboard agenda uses.
   const myIdSet = useMemo(() => new Set(myEventIds), [myEventIds]);
 
-  const rangeChanges =
-    ((from || defaultFrom) !== defaultFrom ? 1 : 0) + ((to || defaultTo) !== defaultTo ? 1 : 0);
+  // One badge for the whole window: the two pickers bound each other, so the
+  // trigger is either at the default range or away from it.
+  const rangeIsDefault =
+    fromMonth === defaultRange.fromMonth && toMonth === defaultRange.toMonth;
   // Recents only compete with results: they show while no search has run (or
   // it came up empty), and collapse as soon as results arrive.
   const idleState = results === null || results.length === 0;
   const rangeLabel = searchedRange
-    ? `${dayjs(searchedRange.from).format("D MMM YYYY")} – ${dayjs(searchedRange.to).format("D MMM YYYY")}`
+    ? monthRangeLabel(searchedRange.fromMonth, searchedRange.toMonth)
     : "";
 
   return (
@@ -402,63 +403,37 @@ export default function EventSearchBody({
               <ActionIcon
                 size={TOOLBAR_CONTROL_SIZE}
                 variant="default"
-                aria-label="Search date range"
+                // Icon-only, so the name carries the window it opens — and, in
+                // words, the same "away from the default" state the dot carries
+                // in ink (the dot itself is decorative).
+                aria-label={`Search date range: ${monthRangeLabel(fromMonth, toMonth)}${
+                  rangeIsDefault ? "" : " (custom range)"
+                }`}
                 style={{ flexShrink: 0 }}
               >
                 <IconCalendar size={18} />
               </ActionIcon>
-              {rangeChanges > 0 && (
-                <Badge
-                  size="sm"
-                  variant="filled"
-                  radius="xl"
-                  pos="absolute"
-                  style={{ top: -4, right: -4 }}
-                >
-                  {rangeChanges}
-                </Badge>
-              )}
+              {/* A dot, not a count: the window is one value, so there is
+                  nothing to count — it only says "away from the default range". */}
+              {!rangeIsDefault && <span className="c2-range-dirty-dot" aria-hidden />}
             </Box>
           </Menu.Target>
           <Menu.Dropdown>
-            <Stack gap="sm" p="xs">
-              {/* Stacked, not side by side: `DatePickerInput` renders its value
-                  as *button text* (`component="button"` + `multiline`), so two
-                  half-width fields inside a 300px popover left ~60px for
-                  "2026-11-21" (the clearable ✕ reserves 50px) and the date
-                  wrapped onto a second line. Full width gives each field ~200px
-                  of text room; `nowrap` keeps a value from ever re-wrapping the
-                  field into two lines at any popover width. */}
-              <Stack gap="xs">
-                <DatePickerInput
-                  label="From"
-                  value={from}
-                  valueFormat="YYYY-MM-DD"
-                  onChange={setFrom}
-                  clearable
-                  styles={{ input: { whiteSpace: "nowrap" } }}
-                />
-                <DatePickerInput
-                  label="To"
-                  value={to}
-                  valueFormat="YYYY-MM-DD"
-                  onChange={setTo}
-                  clearable
-                  styles={{ input: { whiteSpace: "nowrap" } }}
-                />
-              </Stack>
-              <Button
-                variant="subtle"
-                size="xs"
-                disabled={rangeChanges === 0}
-                onClick={() => {
-                  setFrom(defaultFrom);
-                  setTo(defaultTo);
+            <Box p="xs">
+              <EventSearchRangeFields
+                fromMonth={fromMonth}
+                toMonth={toMonth}
+                onChange={(range) => {
+                  setFromMonth(range.fromMonth);
+                  setToMonth(range.toMonth);
                 }}
-              >
-                Reset to default range
-              </Button>
-            </Stack>
+                onReset={() => {
+                  setFromMonth(defaultRange.fromMonth);
+                  setToMonth(defaultRange.toMonth);
+                }}
+                isDefault={rangeIsDefault}
+              />
+            </Box>
           </Menu.Dropdown>
         </Menu>
       </Group>

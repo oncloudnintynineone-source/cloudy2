@@ -1,12 +1,23 @@
 /**
  * Pure helpers for the event-search date range and result ranking. The search
- * reads events from Google Calendar directly (bypassing the month cache), bounded
- * by an inclusive `YYYY-MM-DD` [from, to] window the user picks. Defaults,
- * boundary math and the substring-before-fuzzy tiering live here so they are
- * unit-testable without a DB or Google runtime.
+ * reads events from Google Calendar through the month cache, bounded by an
+ * inclusive **month window** (`YYYY-MM` keys) the user picks — the same
+ * month-granular vocabulary the rest of the app's range controls use, and a
+ * perfect fit for a cache that stores whole months. The window is expanded to
+ * whole days (`monthStart`/`monthEnd`) at the edge of the read, which is where
+ * the day-level helpers below take over. Defaults, boundary math and the
+ * substring-before-fuzzy tiering live here so they are unit-testable without a
+ * DB or Google runtime.
  */
 
-import { addDays, addOneDay, dateToUtc, exclusiveAbsEventRange } from "./datetime";
+import dayjs from "dayjs";
+import {
+  addOneDay,
+  dateToUtc,
+  exclusiveAbsEventRange,
+  lastDayOfMonth,
+  shiftMonth,
+} from "./datetime";
 import { fuzzySearchRanked } from "@/lib/search/fuzzy";
 import type { CalendarEvent } from "./queries";
 
@@ -14,36 +25,75 @@ import type { CalendarEvent } from "./queries";
 export const SEARCH_DEFAULT_MONTHS_BACK = 1;
 /** Default window extends this many months after today. */
 export const SEARCH_DEFAULT_MONTHS_AHEAD = 3;
-/** Hard cap on the forward span of a search window (~2 years). */
-export const SEARCH_MAX_RANGE_DAYS = 730;
+/** Hard cap on the span of a search window, counted in whole months (2 years). */
+export const SEARCH_MAX_RANGE_MONTHS = 24;
 /** Minimum query length accepted by the server action. */
 export const SEARCH_MIN_QUERY_LENGTH = 2;
 
-/** `YYYY-MM-DD` shape check (lexicographic order equals chronological order). */
-export const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+/** `YYYY-MM` month-key shape check (lexicographic order equals chronological order). */
+export const MONTH_KEY_PATTERN = /^\d{4}-\d{2}$/;
+
+/** The first day of a `YYYY-MM` month, as `YYYY-MM-DD`. */
+export function monthStart(monthKey: string): string {
+  return `${monthKey}-01`;
+}
+
+/** The last day of a `YYYY-MM` month, as `YYYY-MM-DD` (Feb 29 on leap years). */
+export function monthEnd(monthKey: string): string {
+  return lastDayOfMonth(monthKey);
+}
 
 /**
- * Add a signed number of months to `YYYY-MM-DD`, clamping the day to the target
- * month's length (Jan 31 - 1 month -> Dec 31; Mar 31 + 1 month -> Apr 30).
+ * The default search window for `today` (`YYYY-MM-DD`): the whole month
+ * `SEARCH_DEFAULT_MONTHS_BACK` back through the whole month
+ * `SEARCH_DEFAULT_MONTHS_AHEAD` ahead.
  */
-export function addMonthsClamped(dateOnly: string, delta: number): string {
-  const [year, monthIndex, day] = dateOnly.split("-").map(Number);
-  let shiftedMonth = monthIndex - 1 + delta;
-  const yearOut = year + Math.floor(shiftedMonth / 12);
-  shiftedMonth = ((shiftedMonth % 12) + 12) % 12;
-  const daysInMonth = new Date(Date.UTC(yearOut, shiftedMonth + 1, 0)).getUTCDate();
-  const dayOut = Math.min(day, daysInMonth);
-  return `${yearOut}-${String(shiftedMonth + 1).padStart(2, "0")}-${String(dayOut).padStart(2, "0")}`;
+export function defaultSearchMonths(today: string): { fromMonth: string; toMonth: string } {
+  const current = today.slice(0, 7);
+  return {
+    fromMonth: shiftMonth(current, -SEARCH_DEFAULT_MONTHS_BACK),
+    toMonth: shiftMonth(current, SEARCH_DEFAULT_MONTHS_AHEAD),
+  };
 }
 
-/** The default "from" date for `today` (`YYYY-MM-DD`). */
-export function defaultSearchFrom(today: string): string {
-  return addMonthsClamped(today, -SEARCH_DEFAULT_MONTHS_BACK);
+/** Whole months from `fromMonth` to `toMonth`, inclusive (same month → 1). */
+function monthSpan(fromMonth: string, toMonth: string): number {
+  const [fromYear, fromIndex] = fromMonth.split("-").map(Number);
+  const [toYear, toIndex] = toMonth.split("-").map(Number);
+  return (toYear - fromYear) * 12 + (toIndex - fromIndex) + 1;
 }
 
-/** The default "to" date for `today` (`YYYY-MM-DD`). */
-export function defaultSearchTo(today: string): string {
-  return addMonthsClamped(today, SEARCH_DEFAULT_MONTHS_AHEAD);
+/**
+ * Normalize a user-supplied month window: a reversed pair is swapped into
+ * ascending order, and a span wider than `SEARCH_MAX_RANGE_MONTHS` keeps its
+ * `from` and pulls `to` back. The pickers bound each other so neither case is
+ * reachable through the UI — this is the server-side guarantee.
+ */
+export function coerceSearchMonths(
+  fromMonth: string,
+  toMonth: string,
+): { fromMonth: string; toMonth: string } {
+  const start = fromMonth <= toMonth ? fromMonth : toMonth;
+  const end = fromMonth <= toMonth ? toMonth : fromMonth;
+  if (monthSpan(start, end) <= SEARCH_MAX_RANGE_MONTHS) {
+    return { fromMonth: start, toMonth: end };
+  }
+  return { fromMonth: start, toMonth: shiftMonth(start, SEARCH_MAX_RANGE_MONTHS - 1) };
+}
+
+/** A single `YYYY-MM` month as `Nov 2026`. */
+export function monthLabel(monthKey: string): string {
+  return dayjs(`${monthKey}-01`).format("MMM YYYY");
+}
+
+/**
+ * Human-readable window label for the results header: `Nov 2026 – Feb 2027`,
+ * or a single month when the window is one month wide.
+ */
+export function monthRangeLabel(fromMonth: string, toMonth: string): string {
+  return fromMonth === toMonth
+    ? monthLabel(fromMonth)
+    : `${monthLabel(fromMonth)} – ${monthLabel(toMonth)}`;
 }
 
 /**
@@ -59,20 +109,6 @@ export function searchRangeBoundaries(
     timeMin: dateToUtc(fromDate),
     timeMax: dateToUtc(addOneDay(toDate)),
   };
-}
-
-/**
- * Normalize a user-supplied window: a reversed pair is swapped into ascending
- * order, and a forward span wider than `SEARCH_MAX_RANGE_DAYS` is clamped to it.
- */
-export function coerceSearchRange(
-  fromDate: string,
-  toDate: string,
-): { from: string; to: string } {
-  const start = fromDate <= toDate ? fromDate : toDate;
-  const end = fromDate <= toDate ? toDate : fromDate;
-  const maxEnd = addDays(start, SEARCH_MAX_RANGE_DAYS);
-  return { from: start, to: end <= maxEnd ? end : maxEnd };
 }
 
 /**

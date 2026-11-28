@@ -1,6 +1,6 @@
 "use client";
 
-import { Box, Group, Stack, Text } from "@mantine/core";
+import { Box, Stack, Text } from "@mantine/core";
 
 import { ClashMonthStrip } from "@/components/clashTimeline";
 import { buildClashMonthStrip } from "@/lib/events/clashDisplay";
@@ -9,7 +9,6 @@ import type { Rect } from "@/lib/motion/origin";
 import type { KahGroupRow } from "@/lib/kah/range";
 
 import { KahBreachPeriodRow } from "./KahBreachPeriodRow";
-import { KahStatusBadge } from "./KahStatusBadge";
 
 /** Stable DOM id for a period row; the month strip focuses it on jump. */
 function periodDomId(groupId: string, startDate: string): string {
@@ -46,7 +45,6 @@ export function KahGroupBreaches({
   }
 
   const cells = buildClashMonthStrip(windowStart, windowEnd, group.breachDayKeys, todayKey);
-  const periodCount = group.episodes.length;
 
   function focusPeriod(dayKey: string) {
     const episode =
@@ -70,14 +68,12 @@ export function KahGroupBreaches({
   return (
     <Box className="c2-kah-breaches">
       <Stack gap="xs">
-        <Group justify="space-between" align="baseline" gap="xs" wrap="wrap">
-          <Text component="h4" fz="xs" fw={600} c="dimmed">
-            Breaches
-          </Text>
-          <KahStatusBadge size="xs" color="orange">
-            {periodCount} period{periodCount === 1 ? "" : "s"}
-          </KahStatusBadge>
-        </Group>
+        {/* The heading only: the rows below count themselves, and the month strip
+            already shows how much of the window is affected — a "2 periods" pill
+            beside it restated both. */}
+        <Text component="h4" fz="xs" fw={600} c="dimmed">
+          Breaches
+        </Text>
         <ClashMonthStrip
           cells={cells}
           rangeLabel={rangeLabel}
@@ -93,7 +89,6 @@ export function KahGroupBreaches({
               id={periodDomId(group.groupId, episode.startDate)}
               episode={episode}
               currentUserId={currentUserId}
-              todayKey={todayKey}
               onOpen={onOpen}
             />
           ))}

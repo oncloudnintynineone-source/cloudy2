@@ -4,15 +4,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Box, Button, Group, Paper, Skeleton, Stack, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { IconCalendarClock, IconCircleCheck, IconRefresh } from "@tabler/icons-react";
+import { IconCalendarClock, IconCircleCheck, IconRefresh, IconUserCheck } from "@tabler/icons-react";
 
 import { CrossfadeSwap } from "@/components/CrossfadeSwap";
-import {
-  PickerChip,
-  PickerField,
-  PickerTrigger,
-  type PickerBadgeItem,
-} from "@/components/PickerField";
+import { PickerFieldTrigger } from "@/components/PickerField";
 import { UserSelectModal } from "@/components/UserSelectModal";
 import { LoadingStatus } from "@/components/LoadingStatus";
 import { EmptyState } from "@/components/EmptyState";
@@ -255,18 +250,15 @@ export function DoubleBookingView({
     view = { kind: "loading" };
   }
 
-  // The single summary badge for the target picker (hidden while self-scanning).
+  // The scan target's label: name + department where both are known (the bare
+  // id only ever shows for a user who vanished from the roster mid-session).
   const selfScan = targetUserId === currentUserId;
   const targetOption = users.find((user) => user.id === targetUserId);
-  const targetSummaryItem: PickerBadgeItem = {
-    key: targetUserId,
-    label: targetOption
-      ? targetOption.departmentName
-        ? `${targetOption.name} · ${targetOption.departmentName}`
-        : targetOption.name
-      : targetUserId,
-    color: "brand",
-  };
+  const targetLabel = targetOption
+    ? targetOption.departmentName
+      ? `${targetOption.name} · ${targetOption.departmentName}`
+      : targetOption.name
+    : targetUserId;
 
   return (
     <Stack gap="md" pb="xl" className={CONTENT_ENTER_CLASS}>
@@ -282,58 +274,21 @@ export function DoubleBookingView({
           <div className="c2-report-controls">
             {users.length > 0 && (
               <div className="c2-report-picker">
-                {/* Desktop/tablet: the labelled picker stack — "Check another
-                    person" + the Add/Edit trigger + the current target chip (or
-                    the self-scan line). Hidden below 40em in favour of the
-                    single compact control below; the band switch is pure CSS so
-                    there is no first-frame shift. */}
-                <div className="c2-report-picker-stack">
-                  <PickerField
-                    label="Check another person"
-                    items={selfScan ? [] : [targetSummaryItem]}
-                    // ✕ returns the scan to the user's own schedule — the same
-                    // state the page opens in.
-                    onRemove={() => setTargetUserId(currentUserId)}
-                    removeLabel={() => "Back to my schedule"}
-                    empty={
-                      selfScan ? (
-                        <Text size="xs" c="dimmed">
-                          Checking your own schedule
-                        </Text>
-                      ) : null
-                    }
-                    onOpen={() => setTargetPickerOpen(true)}
-                  />
-                </div>
-                {/* Phones: one compact control, because the stack above was the
-                    largest block in a chrome row that never scrolls away. The
-                    default self scan reads as an action ("Check someone" — the
-                    short label the phone row can afford beside the look-ahead
-                    pill); once a target is picked the chip names them, opens the
-                    dialog from its label (one tap to switch) and keeps the ✕
+                {/* One control at every width, riding the same field-look pill as
+                    the look-ahead menu beside it (`.c2-field-trigger`) — the two
+                    can no longer drift in height, border, fill or type. The
+                    default self scan reads as an action ("Check someone"); a
+                    picked target names themselves and their department, reopens
+                    the dialog from the pill (one tap to switch) and keeps the ✕
                     (one tap back to your own schedule). */}
-                <div className="c2-report-picker-compact">
-                  {selfScan ? (
-                    <PickerTrigger
-                      count={0}
-                      addLabel="Check someone"
-                      size="sm"
-                      className="c2-report-compact-trigger"
-                      onOpen={() => setTargetPickerOpen(true)}
-                    />
-                  ) : (
-                    <PickerChip
-                      label={targetOption?.name ?? targetUserId}
-                      tt="none"
-                      selectLabel={`Check another person — currently ${
-                        targetOption?.name ?? "the selected person"
-                      }`}
-                      onSelect={() => setTargetPickerOpen(true)}
-                      onRemove={() => setTargetUserId(currentUserId)}
-                      removeLabel="Back to my schedule"
-                    />
-                  )}
-                </div>
+                <PickerFieldTrigger
+                  icon={<IconUserCheck size={18} />}
+                  value={selfScan ? "Check someone" : targetLabel}
+                  ariaLabel={selfScan ? undefined : `Check someone — currently ${targetLabel}`}
+                  onOpen={() => setTargetPickerOpen(true)}
+                  onClear={selfScan ? undefined : () => setTargetUserId(currentUserId)}
+                  clearLabel="Back to my schedule"
+                />
               </div>
             )}
             <div className="c2-report-range">
@@ -554,7 +509,9 @@ export function DoubleBookingView({
         )}
         {dayGroups.map(({ dayKey, groups }) => (
           <Stack key={dayKey} gap="sm" id={`c2-db-day-${dayKey}`} className="c2-db-day">
-            <Text component="h3" fw={600} size="sm" c="dimmed">
+            {/* `h2` directly under the page's `h1` — the day is this page's only
+                section level (docs/accessibility.md §1.10). */}
+            <Text component="h2" fw={600} size="sm" c="dimmed">
               {clashDayLabel(dayKey, todayKey)}
             </Text>
             {groups.map((group, groupIndex) => {

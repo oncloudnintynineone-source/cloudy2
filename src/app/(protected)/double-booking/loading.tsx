@@ -24,19 +24,11 @@ export default function DoubleBookingLoading() {
               <PageHeaderSkeleton titleWidth="24%" subtitleWidth="45%" />
             </div>
             <div className="c2-report-controls">
-              {/* The picker skeleton rides the same band switch as the real
-                  control: one 44px pill on phones, the label row + chip stack
-                  from 40em on — so neither band reflows when the head lands. */}
+              {/* Both controls are the shared field-look pill, so the skeleton is
+                  two same-height pills — one row at every band, no reflow when
+                  the head lands. */}
               <div className="c2-report-picker">
-                <div className="c2-report-picker-compact">
-                  <Skeleton height={44} width={150} radius="sm" />
-                </div>
-                <div className="c2-report-picker-stack">
-                  <Stack gap="xs">
-                    <Skeleton height={30} width={190} radius="sm" />
-                    <Skeleton height={36} width={150} radius="sm" />
-                  </Stack>
-                </div>
+                <Skeleton height={44} width={150} radius="sm" />
               </div>
               <div className="c2-report-range">
                 <Skeleton height={44} width={140} radius="sm" />

@@ -60,24 +60,18 @@ export function KahStatusView({ initial, currentUserId }: KahStatusViewProps) {
   // Civil "today" for the worst-day / away-span labels (Today / Tomorrow / Sep 14).
   const todayKey = formatInstantToNaive(new Date()).slice(0, 10);
   const breachingGroups = groups.filter((group) => group.state !== "clear").length;
-  const statusSummary = (["active", "upcoming", "resolved"] as const)
-    .map((status) => {
-      const count = episodes.filter((episode) => episode.status === status).length;
-      return count > 0 ? `${count} ${status}` : null;
-    })
-    .filter((part): part is string => part !== null)
-    .join(", ");
   const rangeLabel = kahRangeLabel(rangeMonths);
+  // Plain facts, one number each. The per-card state pills already say *which*
+  // groups are breaching now versus later, and the period rows name their own
+  // status — so the summary restates neither, and the clear case says nothing
+  // more than "no breaches in this window" (docs/kah.md §1.7).
   const summary =
     episodes.length > 0
       ? `${plural(episodes.length, "breach period")} across ${plural(
           breachingGroups,
           "group",
-        )} in the next ${rangeLabel}${statusSummary ? ` — ${statusSummary}` : ""}.`
-      : `No KAH breaches in the next ${rangeLabel} — all ${plural(
-          groups.length,
-          "group",
-        )} stay in country.`;
+        )} in the next ${rangeLabel}.`
+      : `No KAH breaches in the next ${rangeLabel}.`;
   // Cold-start readiness: this view only mounts after the server computed the
   // whole window, so reporting on mount is exactly "content painted".
   useColdStartContent();

@@ -19,7 +19,8 @@ floor.
 - [1.8 Page zoom policy](#18-page-zoom-policy)
 - [1.9 Touch targets](#19-touch-targets)
   - [1.9.1 Radio choice rows (`RadioCardGroup`)](#191-radio-choice-rows-radiocardgroup)
-- [1.10 File index & related docs](#110-file-index--related-docs)
+- [1.10 Heading structure](#110-heading-structure)
+- [1.11 File index & related docs](#111-file-index--related-docs)
 
 ## 1.1 Skip-to-content link
 
@@ -319,7 +320,31 @@ hover fill gives the row pointer feedback.
 Any future small-square control that must stay compact on a dense surface should
 follow the same recipe instead of enlarging the glyph.
 
-## 1.10 File index & related docs
+## 1.10 Heading structure
+
+Every page names itself exactly once with an `<h1>` and the sections under it
+descend one level at a time. A screen-reader user (and a "skip to heading" jump)
+navigates by that outline — WCAG 1.3.1 Info and Relationships — and an outline that
+skips levels, or whose section labels are styled `<div>`s, reads as a page whose
+structure was guessed at.
+
+- **The page title is the `h1`.** `PageHeader` (`src/components/PageHeader.tsx`)
+  renders its title as `Text component="h1"`, so the five pages that use it (Contacts,
+  Parade State, Double Booking, KAH Status, My Events) get their single `h1` from the
+  shared component instead of a level hand-picked per page. `m={0}` there is
+  load-bearing: Mantine ships no heading reset, so the UA's own `h1` margins would
+  otherwise add ~22px above and below a title whose block metrics are measured.
+- **A section label is a heading, at the level under its parent.** The app's visual
+  language for a group heading is a small dimmed label, and it is now also the
+  semantic one: `Text component="h2" size="sm" c="dimmed"`. KAH Status runs `h1` page
+  → `h2` Groups → `h3` a group card's name → `h4` that card's **Breaches** section;
+  Double Booking runs `h1` page → `h2` a day group.
+- **Never skip a level to get a smaller font.** The level comes from `component`, the
+  size from `size`/`fz`: an `h4` at `fz="xs"` and an `h2` at `size="sm"` can look
+  identical and are two different documents. Pick the level the outline needs, then
+  style it.
+
+## 1.11 File index & related docs
 
 | File                                              | Role                                                              |
 | ------------------------------------------------- | ----------------------------------------------------------------- |
@@ -335,6 +360,7 @@ follow the same recipe instead of enlarging the glyph.
 | `src/app/(protected)/dashboard/EventDraftBar.tsx` | Minimized-draft bar + docked FAB-row chip, resume/discard targets |
 | `src/components/ColdStartReady.tsx`               | Cold-start readiness announcement                                 |
 | `src/components/RadioCardGroup.tsx`               | 44px+ radio choice rows (series scopes), `.c2-radio-card` styling |
+| `src/components/PageHeader.tsx`                   | The page `h1` every `PageHeader` page opens with (§1.10)          |
 
 Related docs:
 

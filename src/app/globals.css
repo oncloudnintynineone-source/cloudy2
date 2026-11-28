@@ -1663,6 +1663,21 @@ html.c2-low-end::view-transition-group(*) {
   display: none;
 }
 
+/* The event-search modal's date-range trigger wears this dot while the window is
+   away from its default range (docs/event-search.md §1.5). A dot, not a count:
+   the window is one value, so there is nothing to count — and an empty element
+   keeps the icon-only trigger's accessible name clean (the window itself is
+   already spelled out in its aria-label). */
+.c2-range-dirty-dot {
+  position: absolute;
+  top: calc(0.1875rem * var(--mantine-scale));
+  right: calc(0.1875rem * var(--mantine-scale));
+  width: calc(0.4375rem * var(--mantine-scale));
+  height: calc(0.4375rem * var(--mantine-scale));
+  border-radius: 50%;
+  background: var(--mantine-color-brand-filled);
+}
+
 /* The wizard's "Select time" trigger: an input-look button (44px tall) that
    opens the time picker dialog. Theme border/body vars keep it consistent in
    both schemes; `data-empty` dims the placeholder and `data-invalid` marks the
@@ -2232,13 +2247,17 @@ html.c2-low-end::view-transition-group(*) {
   text-align: center;
 }
 
-/* Variant for a search field in the leading slot: it keeps a usable minimum
-   width and grows into the free space, so the circles never squeeze it into a
-   sliver — when `field-min + --c2-pill-actions-min` cannot share the line, the
-   strip wraps to its own row and the field takes the full first row. */
+/* Variant for a search field in the leading slot: it claims the **whole
+   leftover line**, so the circle strip never absorbs slack — with both items
+   growing, the free space split between them and the strip's
+   `margin-inline-start: auto` painted its share as a gap between the field and
+   the circles. Line breaking uses the hypothetical main size (the basis clamped
+   up by `min-width`), so the wrap contract is unchanged: when
+   `--c2-pill-field-min + --c2-pill-actions-min` cannot share the line, the strip
+   takes its own row and the field grows to the full first row. */
 .c2-pill-field {
-  flex: 1 1 var(--c2-pill-field-min);
-  min-width: 0;
+  flex: 1 1 calc(100% - var(--c2-pill-actions-min) - var(--mantine-spacing-xs));
+  min-width: var(--c2-pill-field-min);
 }
 
 .c2-pill-actions {
@@ -3714,13 +3733,17 @@ html.c2-low-end::view-transition-group(*) {
   min-width: 0;
 }
 
-/* The target control is content-sized (a "Select" button + optional
-   current-target chip on desktop, one compact control on phones) — not a
-   full-width input — so it takes only the width its chip needs and shares the
-   row with the look-ahead menu. */
+/* The scan-target control shares the row with the look-ahead menu, so it is
+   content-sized rather than a full-width field; the cap is what keeps a long
+   "name · department" from pushing the menu off the row (the value ellipsizes). */
 .c2-report-picker {
   flex: 0 0 auto;
   min-width: 0;
+}
+
+.c2-report-picker .c2-field-trigger {
+  width: auto;
+  max-width: min(100%, calc(15rem * var(--mantine-scale)));
 }
 
 .c2-report-range {
@@ -3730,9 +3753,9 @@ html.c2-low-end::view-transition-group(*) {
 
 /* The range pill fills its column on phones everywhere else (My Events' sticky
    search bar); inside a report head it hugs its value so it can share the row
-   with the title. Scoped on purpose — `.c2-range-trigger` keeps its documented
+   with the title. Scoped on purpose — `.c2-field-trigger` keeps its documented
    full-width phone behaviour in every other context. */
-.c2-report-range .c2-range-trigger {
+.c2-report-range .c2-field-trigger {
   width: auto;
 }
 
@@ -3740,41 +3763,22 @@ html.c2-low-end::view-transition-group(*) {
    calendar glyph: "6 months" + the chevron already read as the look-ahead menu,
    and the ~26px it frees is what keeps Double Booking's two controls on one
    line on a 320px phone. `40em`+ keeps the full pill. */
-.c2-report-range .c2-range-trigger-icon {
+.c2-report-range .c2-field-trigger-icon {
   display: none;
 }
 
 @media (min-width: 40em) {
-  .c2-report-range .c2-range-trigger-icon {
+  .c2-report-range .c2-field-trigger-icon {
     display: block;
   }
-}
-
-/* Double Booking's scan-target control exists twice — the labelled
-   `PickerField` stack (desktop: "Check another person" + the Add/Edit trigger +
-   the current-target chip) and a single compact control for phones — switched by
-   band in pure CSS so there is no `useMediaQuery` first-frame shift
-   (docs/user-clashes.md §1.8). The hidden copy is `display: none`, so it never
-   enters the focus order or the accessibility tree. */
-.c2-report-picker-compact {
-  display: block;
-}
-
-.c2-report-picker-stack {
-  display: none;
-}
-
-/* The phone's compact trigger is one of the head's 44px controls, like the
-   range pill beside it (docs/accessibility.md §1.9) — `PickerTrigger`'s own
-   `size="sm"` is 36px. */
-.c2-report-compact-trigger {
-  min-height: calc(2.75rem * var(--mantine-scale));
 }
 
 @media (min-width: 40em) {
   .c2-report-head {
     justify-content: space-between;
-    align-items: flex-start;
+    /* One control row now sits beside the title at every width, so the title
+       block centres against it instead of top-aligning to a taller stack. */
+    align-items: center;
     gap: var(--mantine-spacing-md);
   }
 
@@ -3786,14 +3790,6 @@ html.c2-low-end::view-transition-group(*) {
 
   .c2-report-picker {
     flex: 0 1 auto;
-  }
-
-  .c2-report-picker-compact {
-    display: none;
-  }
-
-  .c2-report-picker-stack {
-    display: block;
   }
 }
 
@@ -3878,16 +3874,18 @@ html.c2-low-end::view-transition-group(*) {
   min-width: 0;
 }
 
-/* Shared month-range control (`src/components/TimeRangeSelect.tsx`): the pill
-   trigger behind My Events "Range" and the KAH Status / Double Booking
-   "Look ahead" menus. Same input-look language as the wizard's time trigger
-   (theme border/body vars, dimmed leading icon, ellipsized value), but it
-   fills its column on phones — where it sits in a stacked page header — and
-   hugs its content from the 40em desktop band on, so the same control fits a
-   sticky chrome row with no per-page width override. The label prefix rides the
-   pill only at 40em+; below it the dropdown's own header names the control, and
-   the pill stays short enough to scan. */
-.c2-range-trigger {
+/* Shared **field-look trigger** — the one input-shaped control a page header or
+   toolbar opens a picker from. Two consumers render through it so the two
+   controls in one row can never drift in height, border, fill, radius or type:
+   `TimeRangeSelect` (`.c2-range-trigger`, the month-range menu) and
+   `PickerFieldTrigger` (`.c2-field-trigger`, the scan-target picker). Same
+   input-look language as the wizard's time trigger (theme border/body vars,
+   dimmed leading icon, ellipsized value). It fills its column on phones — where
+   it sits in a stacked page header — and hugs its content from the 40em band on,
+   so the same control fits a sticky chrome row with no per-page width override.
+   The 44px phone floor is the app-wide tap target (docs/accessibility.md §1.9);
+   `40em`+ drops to the 40px control height the desktop rows use. */
+.c2-field-trigger {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -3906,41 +3904,59 @@ html.c2-low-end::view-transition-group(*) {
     border-color var(--c2-dur-micro) var(--c2-ease-out);
 }
 
-.c2-range-trigger:hover:not(:disabled) {
+.c2-field-trigger:hover:not(:disabled) {
   background: var(--mantine-color-default-hover);
 }
 
-.c2-range-trigger[data-expanded] {
+.c2-field-trigger[data-expanded] {
   border-color: var(--mantine-color-brand-6);
 }
 
 /* Disabled affordance, not a loading state: §1.6 of docs/loading-transitions.md
    bans opacity as progress feedback — the skeleton carries the wait, and this
-   only says the control is inert while a scan runs. */
-.c2-range-trigger:disabled {
+   only says the control is inert while a scan runs. The picked state's root is a
+   `div` (its two controls are the buttons), so it carries `data-disabled` —
+   `:disabled` would never match it, and the pill would look live with dead
+   contents. */
+.c2-field-trigger:disabled,
+.c2-field-trigger[data-disabled] {
   cursor: not-allowed;
   opacity: 0.55;
 }
 
-.c2-range-trigger:focus-visible {
+.c2-field-trigger[data-disabled]:hover {
+  background: var(--mantine-color-body);
+}
+
+/* Both renderers of the pill take the same ring: the plain `<button>` root, and
+   the inner open-button of the picked (two-control) state — the `div` root never
+   receives focus, so without this the reopen affordance would be invisible to a
+   keyboard user (WCAG 2.4.7). */
+.c2-field-trigger:focus-visible,
+.c2-field-trigger-main:focus-visible {
   outline: 2px solid var(--mantine-color-brand-6);
   outline-offset: 2px;
 }
 
-[data-mantine-color-scheme="dark"] .c2-range-trigger:focus-visible {
+[data-mantine-color-scheme="dark"] .c2-field-trigger:focus-visible,
+[data-mantine-color-scheme="dark"] .c2-field-trigger-main:focus-visible {
   outline-color: var(--mantine-color-brand-4);
 }
 
-[data-mantine-color-scheme="dark"] .c2-range-trigger[data-expanded] {
+[data-mantine-color-scheme="dark"] .c2-field-trigger[data-expanded] {
   border-color: var(--mantine-color-brand-4);
 }
 
-.c2-range-trigger-icon {
+.c2-field-trigger-icon {
+  /* `display: flex` so the glyph is a box, not baseline text — the wrapper span
+     `PickerFieldTrigger` renders would otherwise sit on a line box taller than
+     the icon and nudge the pill's contents off centre. */
+  display: flex;
   flex: 0 0 auto;
   color: var(--mantine-color-dimmed);
 }
 
-.c2-range-trigger-value {
+.c2-field-trigger-value {
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
@@ -3949,6 +3965,53 @@ html.c2-low-end::view-transition-group(*) {
   font-weight: 600;
 }
 
+.c2-field-trigger-chevron {
+  flex: 0 0 auto;
+  color: var(--mantine-color-dimmed);
+  transition: transform var(--c2-dur-micro) var(--c2-ease-out);
+}
+
+/* The picked state is a pill holding **two sibling controls** — the region that
+   reopens the picker and the ✕ that clears it — never one control nested in
+   another (the `PickerChip` rule, docs/user-picker.md §1.7). The root keeps the
+   field's padding, so the inner button is a padding-free, transparent flex row
+   that inherits the field's type and colour. */
+.c2-field-trigger-main {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--mantine-radius-md);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* The ✕ rides the shared removal-control recipe (`.c2-picker-chip-remove`:
+   ≥22px, explicit focus ring on the brand ramp) at a size that stays legible
+   inside the 44px field. */
+.c2-field-trigger-clear {
+  margin-inline-end: -4px;
+}
+
+@media (min-width: 40em) {
+  .c2-field-trigger {
+    width: auto;
+    min-width: calc(11rem * var(--mantine-scale));
+    min-height: calc(2.5rem * var(--mantine-scale));
+  }
+}
+
+/* Month-range specifics (`src/components/TimeRangeSelect.tsx`): the label prefix
+   rides the pill only at 40em+ — below it the dropdown's own header names the
+   control, and the pill stays short enough to scan — and the chevron turns while
+   the menu is open. */
 .c2-range-trigger-label {
   display: none;
   color: var(--mantine-color-dimmed);
@@ -3959,23 +4022,11 @@ html.c2-low-end::view-transition-group(*) {
   content: "\00a0\00b7\00a0";
 }
 
-.c2-range-trigger-chevron {
-  flex: 0 0 auto;
-  color: var(--mantine-color-dimmed);
-  transition: transform var(--c2-dur-micro) var(--c2-ease-out);
-}
-
-.c2-range-trigger[data-expanded] .c2-range-trigger-chevron {
+.c2-range-trigger[data-expanded] .c2-field-trigger-chevron {
   transform: rotate(180deg);
 }
 
 @media (min-width: 40em) {
-  .c2-range-trigger {
-    width: auto;
-    min-width: calc(11rem * var(--mantine-scale));
-    min-height: calc(2.5rem * var(--mantine-scale));
-  }
-
   .c2-range-trigger-label {
     display: inline;
   }

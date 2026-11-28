@@ -337,7 +337,13 @@ export function MyEventsView(props: MyEventsViewProps) {
           sticky-chrome recipe (`.c2-report-chrome`, `globals.css`; it also
           carries the compact phone block padding). */}
       <Box className="c2-glass-surface c2-report-chrome">
-        <Group gap="sm" wrap="wrap">
+        {/* One row on phones: the search field takes the line's leftover space
+            (its old 200px floor is what forced the wrap) and the range pill
+            hugs its value via `.c2-report-range` — the same rule the report
+            heads use, which also drops the pill's leading glyph below 40em. The
+            two-row bar it replaces spent a second sticky row above the list —
+            chrome the list never gets back. */}
+        <Group gap="xs" wrap="nowrap">
           {/* Title search (C4): the dashboard event-name filter's semantics,
               applied server-side so paging stays honest; mirrored in `?q=`. */}
           <TextInput
@@ -345,16 +351,18 @@ export function MyEventsView(props: MyEventsViewProps) {
             placeholder="Search by title"
             value={searchInput}
             onChange={(e) => setSearchInput(e.currentTarget.value)}
-            style={{ flex: 1, minWidth: 200 }}
+            style={{ flex: "1 1 0", minWidth: 0 }}
           />
-          <TimeRangeSelect
-            label="Range"
-            values={MY_EVENTS_RANGE_MONTHS}
-            labelFor={myEventsRangeLabel}
-            months={selection.rangeMonths}
-            onSelect={selectRange}
-            disabled={pending}
-          />
+          <div className="c2-report-range">
+            <TimeRangeSelect
+              label="Range"
+              values={MY_EVENTS_RANGE_MONTHS}
+              labelFor={myEventsRangeLabel}
+              months={selection.rangeMonths}
+              onSelect={selectRange}
+              disabled={pending}
+            />
+          </div>
         </Group>
       </Box>
 

@@ -18,9 +18,9 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.432 (compact mobile report heads)** is shipped,
-  including the **1.431** compact-desktop chrome fix and the **1.430.1** KAH copy-trim
-  and **1.430.2** breach-integration follow-ups.
+- All work through changelog **1.433 (UI/UX streamline passes + heading outline)** is shipped,
+  including the **1.432** compact mobile report heads, the **1.431** compact-desktop chrome
+  fix and the **1.430.1** KAH copy-trim and **1.430.2** breach-integration follow-ups.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -3273,6 +3273,44 @@ size="compact"`), and renames **Duplicate Event** / **Copy to Other Google
   `/double-booking` 109.8px (69 with a target picked at 430px); `40em`+ unchanged. Docs:
   `user-clashes.md` §1.8, `kah.md` §1.7, `desktop-responsive.md` §1.11, `user-picker.md`
   §1.6, `ui-ux-improvements.md` C9.
+
+- 1.433 **Five UI/UX streamline passes + a real heading outline**:
+  - **Contacts / every control pill (A10)**: `.c2-pill-field` now claims the whole leftover
+    line (`flex: 1 1 calc(100% − --c2-pill-actions-min − gap)`), so the mobile search box runs
+    up to the action circles instead of the strip's right-anchored slack painting a gap
+    between them. `--c2-pill-field-min` still drives line breaking, so the wrap contract and
+    the calendar/Parade read-outs are untouched.
+  - **Double Booking (C10)**: the scan target is **one control at every width** — a new
+    `PickerFieldTrigger` (`src/components/PickerField.tsx`) in the `.c2-report-picker` slot,
+    reading "Check someone" → `Name · Department` with a ✕ sibling back to the user's own
+    schedule. The labelled `PickerField` stack, its phone-only compact twin and the pure-CSS
+    band switch between them are deleted (`.c2-report-picker-stack` / `-compact` /
+    `.c2-report-compact-trigger`), and the trigger + range menu now both render the extracted
+    **`.c2-field-trigger`** base — the colour/shape mismatch was two control patterns in one
+    row, not a sizing bug. The `40em`+ head centres against the now single-line control row.
+  - **My Events (C11)**: the sticky bar is one `nowrap` row on phones (search `flex: 1 1 0` /
+    `min-width: 0`, menu in `.c2-report-range`) instead of two pinned rows above the list.
+  - **KAH Status (D24)**: every fact has one home — the summary line states scope only
+    ("2 breach periods across 2 groups in the next 6 months."), the period rows drop the
+    `X away · Y in country · worst <day>` tail (away chips moved outside the disclosure), and
+    the card's **Breaches** heading is bare.
+  - **Event search (C12)**: the modal's window is **whole months** end to end — From/To
+    `MonthPickerInput`s bounded by each other and `SEARCH_MAX_RANGE_MONTHS` (24),
+    `defaultSearchMonths` (last month → +3 months), `coerceSearchMonths`, and
+    `monthStart`/`monthEnd` expanding only at the cache-read edge, with the caption naming the
+    window in the pickers' own words (`monthRangeLabel`) and a dot on the trigger while it is
+    non-default. `searchEvents(q, fromMonth, toMonth)` takes `YYYY-MM` keys; the day-level
+    `coerceSearchRange` / `SEARCH_MAX_RANGE_DAYS` clamp is gone (a 24-month window can be 731
+    days). New `src/components/EventSearchRangeFields.tsx`; 23 unit tests in
+    `src/lib/events/searchRange.test.ts`.
+  - **Headings (B7)**: `PageHeader` renders the page **`h1`** and the section labels below it
+    are real headings — Contacts / Parade State / Double Booking / KAH Status / My Events had
+    no document outline at all. KAH runs h1 → h2 Groups → h3 group card → h4 Breaches; Double
+    Booking h1 → h2 day group.
+  Docs: `event-search.md` §1.2/§1.5/§1.7/§1.9/§1.11/§1.12, `kah.md` §1.7, `user-clashes.md`
+  §1.8, `user-picker.md` §1.6, `dashboard-views.md` §1.1, `desktop-responsive.md` §1.11,
+  `event-history.md` §1.4, `accessibility.md` §1.10 (new) + §1.11, `ui-ux-improvements.md`
+  A10/B7/C10–C12/D24 + C9 follow-up.
 
 ## 1.4 Open items & next steps
 

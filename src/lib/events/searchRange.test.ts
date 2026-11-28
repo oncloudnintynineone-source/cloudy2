@@ -2,11 +2,18 @@ import { describe, expect, it } from "vitest";
 
 import type { CalendarEvent } from "./queries";
 import {
+  coerceSearchMonths,
   countSubstringMatches,
+  defaultSearchMonths,
   eventSubstringMatch,
   eventWithinRange,
   filterRangeForSearch,
+  MONTH_KEY_PATTERN,
+  monthEnd,
+  monthRangeLabel,
+  monthStart,
   searchMatchTier,
+  SEARCH_MAX_RANGE_MONTHS,
 } from "./searchRange";
 
 function event(overrides: {
@@ -49,6 +56,64 @@ function event(overrides: {
     },
   };
 }
+
+describe("month window", () => {
+  it("accepts only `YYYY-MM` keys", () => {
+    expect(MONTH_KEY_PATTERN.test("2026-11")).toBe(true);
+    expect(MONTH_KEY_PATTERN.test("2026-11-21")).toBe(false);
+    expect(MONTH_KEY_PATTERN.test("2026-1")).toBe(false);
+    expect(MONTH_KEY_PATTERN.test("")).toBe(false);
+  });
+
+  it("expands a month to its first and last day (leap years included)", () => {
+    expect(monthStart("2026-11")).toBe("2026-11-01");
+    expect(monthEnd("2026-11")).toBe("2026-11-30");
+    expect(monthEnd("2026-02")).toBe("2026-02-28");
+    expect(monthEnd("2028-02")).toBe("2028-02-29");
+  });
+
+  it("defaults to one month back through three months ahead", () => {
+    expect(defaultSearchMonths("2026-11-21")).toEqual({ fromMonth: "2026-10", toMonth: "2027-02" });
+  });
+
+  it("wraps the default window across the year boundary", () => {
+    expect(defaultSearchMonths("2026-12-31")).toEqual({ fromMonth: "2026-11", toMonth: "2027-03" });
+    expect(defaultSearchMonths("2027-01-05")).toEqual({ fromMonth: "2026-12", toMonth: "2027-04" });
+  });
+
+  it("keeps an ordered window and swaps a reversed pair", () => {
+    expect(coerceSearchMonths("2026-10", "2027-02")).toEqual({
+      fromMonth: "2026-10",
+      toMonth: "2027-02",
+    });
+    expect(coerceSearchMonths("2027-02", "2026-10")).toEqual({
+      fromMonth: "2026-10",
+      toMonth: "2027-02",
+    });
+    expect(coerceSearchMonths("2026-11", "2026-11")).toEqual({
+      fromMonth: "2026-11",
+      toMonth: "2026-11",
+    });
+  });
+
+  it("clamps a window wider than the cap to its `from` month", () => {
+    // The cap is inclusive: `from` counts as month 1.
+    expect(coerceSearchMonths("2026-01", "2027-12")).toEqual({
+      fromMonth: "2026-01",
+      toMonth: "2027-12",
+    });
+    expect(coerceSearchMonths("2026-01", "2029-05")).toEqual({
+      fromMonth: "2026-01",
+      toMonth: "2027-12",
+    });
+    expect(SEARCH_MAX_RANGE_MONTHS).toBe(24);
+  });
+
+  it("labels the window the way the results header names the scope", () => {
+    expect(monthRangeLabel("2026-11", "2027-02")).toBe("Nov 2026 – Feb 2027");
+    expect(monthRangeLabel("2026-11", "2026-11")).toBe("Nov 2026");
+  });
+});
 
 describe("eventWithinRange", () => {
   it("includes an all-day event on the window's last day (exclusive Google end)", () => {

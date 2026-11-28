@@ -371,8 +371,12 @@ minActions)` (`src/lib/ui/controlPill.ts`, unit-tested): three 36px circles +
   size** (ignoring shrink), the strip shares the row with the label whenever
   `label + min` fits and otherwise drops to a full-width **second row** instead
   of collapsing to a sliver — no JS measurement. A `.c2-pill-field` behaves the
-  same way from the other side: its basis is `--c2-pill-field-min` (140px), so a
-  search box is never squeezed to a few characters — the strip gives up the line
+  same way from the other side, and **claims the whole leftover line**: its basis is
+   `calc(100% − --c2-pill-actions-min − gap)` with `flex-grow: 1`, so a search box runs
+   right up to the circles instead of stopping short and leaving a gap before them
+   (with both items growing, the strip's `margin-inline-start: auto` used to paint the
+   split slack as exactly that gap), while `min-width: --c2-pill-field-min` (140px),
+  still stops it being squeezed to a few characters — the strip gives up the line
   first. The strip's inner box is
   right-anchored with an **auto margin**, never `justify-content: flex-end`
   (that clips the scroll start unrecoverably; auto margins resolve to zero on

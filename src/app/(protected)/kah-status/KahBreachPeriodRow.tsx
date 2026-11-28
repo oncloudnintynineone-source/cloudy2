@@ -6,7 +6,6 @@ import { IconChevronDown } from "@tabler/icons-react";
 
 import { useMotion } from "@/components/MotionProvider";
 import { ClashEventRow } from "@/components/clashCards";
-import { clashDayLabel } from "@/lib/events/clashDisplay";
 import type { EventClashEntry } from "@/lib/events/clashActions";
 import type { Rect } from "@/lib/motion/origin";
 import { capBadgeItems } from "@/lib/ui/badgeCap";
@@ -114,21 +113,17 @@ export function KahBreachPeriodRow({
   episode,
   id,
   currentUserId,
-  todayKey,
   onOpen,
 }: {
   episode: KahEpisodeRow;
   /** Stable DOM id so the month strip can focus this row. */
   id: string;
   currentUserId: string;
-  todayKey: string;
   onOpen: (entry: EventClashEntry, rect: Rect) => void;
 }) {
   const motion = useMotion();
   const [open, setOpen] = useState(false);
   const regionId = useId();
-  const awayCount = episode.awayIds.length;
-  const inCountryCount = Math.max(0, episode.totalMembers - awayCount);
   const days = `${episode.days} day${episode.days === 1 ? "" : "s"}`;
 
   return (
@@ -142,21 +137,19 @@ export function KahBreachPeriodRow({
         aria-controls={regionId}
       >
         <Group justify="space-between" align="flex-start" gap="xs" wrap="nowrap">
-          <Stack gap={2} style={{ minWidth: 0, flexGrow: 1 }}>
-            <Group gap={6} align="center" wrap="wrap">
-              {episodeStatusBadge(episode.status)}
-              <Text fz="sm" fw={500} style={{ overflowWrap: "anywhere" }}>
-                {periodLabel(episode)}
-              </Text>
-              <Text fz="xs" c="dimmed">
-                · {days} · down to {episode.worstPct}%
-              </Text>
-            </Group>
-            <Text fz="xs" c="dimmed">
-              {awayCount} away · {inCountryCount} in country · worst{" "}
-              {clashDayLabel(episode.worstDate, todayKey)}
+          {/* One line: what the period is and how deep it dips. Who was away is
+              the chip row directly beneath the head, and the card's own line
+              names the worst day — restating both here made every row three
+              lines of numbers (docs/kah.md §1.7). */}
+          <Group gap={6} align="center" wrap="wrap" style={{ minWidth: 0 }}>
+            {episodeStatusBadge(episode.status)}
+            <Text fz="sm" fw={500} style={{ overflowWrap: "anywhere" }}>
+              {periodLabel(episode)}
             </Text>
-          </Stack>
+            <Text fz="xs" c="dimmed">
+              · {days} · down to {episode.worstPct}%
+            </Text>
+          </Group>
           <IconChevronDown
             size={16}
             style={{
