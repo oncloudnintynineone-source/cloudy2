@@ -256,8 +256,8 @@ Mechanics worth knowing:
 
 ### 1.4.1 Step details
 
-- **Type** (`EventForm.tsx`): the type list renders through the shared
-  `EventTypeGroupGrid` in `single` mode (§1.10). There is **no "currently selected"
+- **Type** (`EventForm.tsx`): the type list renders through
+  `EventTypeGroupGrid` (§1.10), the wizard's **single**-select picker. There is **no "currently selected"
   banner** — the chosen type is the one amber badge in the grid, its folder pill
   wears the yellow outline, and tapping the selected badge again clears the pick.
   Selecting a type re-resolves the time option against the type's allowed set and
@@ -1101,15 +1101,18 @@ flowchart LR
   groups in the same `Promise.all` as the types (`listEventTypeGroups()`, per-request
   React-cached like `listEventTypes`) and passes them through `DashboardView` to
   `EventForm`.
-- **Filters reuse the same sections.** The dashboard's Event Types filter builds its
+- **Filters reuse the same sections, not the same layout.** The dashboard's Event Types filter builds its
   `FilterGroupSection`s with the same `buildEventTypePickerSections` call, so the
-  filter dialog shows the identical inline rows, folder chips and
-  "Ungrouped" catch-all. The single group-level
+  filter dialog's Event Types panel lists the identical categories in the
+  identical order — but every category renders as a header (with its own
+  `n of m` count and All/None pair) above checkbox rows, because a multi-select
+  group needs counts, not chips whose state is a border
+  ([`dashboard-views.md`](dashboard-views.md) §1.2). The single group-level
   All/None selects or clears every type across all categories. The group's flat option
   list stays the canonical value set for apply and active-filter counting
   (`src/components/FilterModal.tsx`).
-- **Grouped layout (`EventTypeGroupGrid`, `src/components/EventTypeGroupGrid.tsx`).** Both
-  surfaces render their sections through this shared component. Inline groups (and
+- **Grouped layout (`EventTypeGroupGrid`, `src/components/EventTypeGroupGrid.tsx`).** The
+  wizard's type step renders its sections through this component. Inline groups (and
   Ungrouped) each get their own row — a dimmed name-only category label above a wrapping
   row of `SelectableBadge`s, toggled directly with no popup. Folder groups become
   content-width **container chips** in a wrapping row after the inline rows: a
@@ -1121,11 +1124,11 @@ flowchart LR
   fill, no glyph, no count badge — the `aria-label` carries the count). Tapping a chip
   opens a Mantine `Popover`
   (zIndex 300, above the modals, standard `popoverTransitionProps` pop) with the
-  group's `SelectableBadge`s. `mode="single"` (the wizard) closes the popup on select;
-  `mode="multi"` (the filter dialog) keeps it open for several toggles. A lone
+  group's `SelectableBadge`s and closes it on select — one type per wizard event. A lone
   non-folder section (e.g. an org with no groups at all) skips the label row and renders
   the badges directly — no extra chrome when there is nothing to chunk away. Search is
-  deliberately not offered.
+  deliberately not offered: the wizard's step is a short list, and the filter dialog's
+  panel carries its own search once a group gets long.
 - **Management** lives in Settings → Event Types under **Manage groups** (a dialog,
   not a separate tab): create (appends after the last group), inline rename, delete
   (the confirm states how many types become ungrouped), up/down reordering, and a

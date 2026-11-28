@@ -17,7 +17,8 @@ export interface SelectableBadgeProps {
  * The app's one selectable badge: an `UnstyledButton` wrapping a Badge so the
  * control is keyboard-operable and announces its pressed state. Matches the
  * wizard's event-type badges and the user picker's option badges, and is shared
- * by those surfaces and the filter dialog so they can't drift apart.
+ * by those surfaces so they can't drift apart. (The filter dialog is not a
+ * consumer — its options are `SelectableRow`s.)
  *
  * Selected = **amber fill** (`.c2-selectable-badge[data-selected]` in
  * `globals.css` — brand amber + near-black text in both schemes), unselected =

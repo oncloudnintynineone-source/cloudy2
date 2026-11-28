@@ -1,6 +1,6 @@
 /**
  * Pure copy/state helpers shared by every badge picker (`PickerField`,
- * `PickerTrigger`, `FilterModalBody`). Kept I/O-free so the wording rules can be
+ * `PickerTrigger`, `UserSelectModal`). Kept I/O-free so the wording rules can be
  * unit-tested without a component — the whole point is that no consumer invents
  * its own "Select"/"Add" label (docs/user-picker.md §1.7).
  */

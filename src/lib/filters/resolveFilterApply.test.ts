@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  describeFilterGroups,
   groupFilterState,
   isGroupUnfiltered,
   resolveFilterApply,
@@ -159,12 +158,6 @@ describe("option-set awareness (optionValues)", () => {
     expect(isGroupUnfiltered(calendarsGroup, [CAL_A, CAL_B, "gone"])).toBe(false);
     expect(groupFilterState(calendarsGroup, [CAL_A, CAL_B, "gone"]).label).toBe("2 of 3");
   });
-
-  it("describeFilterGroups agrees with the set-aware state", () => {
-    expect(describeFilterGroups([usersGroup], { Users: ["u1", "u2", "gone"] })).toEqual([
-      "2 users",
-    ]);
-  });
 });
 
 describe("groupFilterState", () => {
@@ -207,47 +200,5 @@ describe("groupFilterState", () => {
 
   it("treats a group with no options as All", () => {
     expect(groupFilterState({ optionCount: 0 }, []).kind).toBe("all");
-  });
-});
-
-describe("describeFilterGroups", () => {
-  it("names every group's state in plain words", () => {
-    expect(
-      describeFilterGroups(groups, {
-        Calendars: [CAL_A, CAL_B, CAL_C],
-        Users: ["u1", "u2"],
-        "Event Types": ["t1"],
-      }),
-    ).toEqual(["All calendars", "2 users", "1 event type"]);
-  });
-
-  it("says No <group> for an explicit empty grid selection", () => {
-    expect(describeFilterGroups([groups[0]], { Calendars: [] })).toEqual(["No calendars"]);
-  });
-
-  it("keeps an already-plural group label plural", () => {
-    expect(
-      describeFilterGroups([{ label: "Entity types", optionCount: 4 }], {
-        "Entity types": ["a", "b"],
-      }),
-    ).toEqual(["2 entity types"]);
-  });
-
-  it("does not reduce a label that merely ends in s", () => {
-    expect(describeFilterGroups([{ label: "Status", optionCount: 4 }], { Status: ["a"] })).toEqual([
-      "1 status",
-    ]);
-  });
-
-  it("appends the trimmed free-text term when present", () => {
-    expect(
-      describeFilterGroups([groups[0]], { Calendars: [] }, { label: "Event name", value: "  parade " }),
-    ).toEqual(["No calendars", 'Event name "parade"']);
-  });
-
-  it("omits a blank free-text term", () => {
-    expect(
-      describeFilterGroups([groups[0]], { Calendars: [] }, { label: "Event name", value: "   " }),
-    ).toEqual(["No calendars"]);
   });
 });

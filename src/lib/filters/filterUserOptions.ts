@@ -18,7 +18,7 @@ export interface FilterUserSource {
  * `keepUserIds` (the dialog's currently applied picks) are always included too:
  * the option list can shrink under an applied selection (a user later
  * deactivated, a narrowed scope), and a stored pick with no option would
- * otherwise be invisible — no chip to read, no badge to untick — while still
+ * otherwise be invisible — no row to read or untick — while still
  * filtering the view.
  */
 export function filterUserOptionIds(params: {

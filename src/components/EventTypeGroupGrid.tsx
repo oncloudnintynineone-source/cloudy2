@@ -30,35 +30,32 @@ interface EventTypeGroupGridProps {
   sections: EventTypeGroupSection[];
   isSelected: (value: string) => boolean;
   onToggle: (value: string) => void;
-  /**
-   * "single": selecting an option closes the popup (the wizard's one-type
-   * picker). "multi": the popup stays open while several options are toggled
-   * (the filter dialog).
-   */
-  mode: "single" | "multi";
 }
 
-/** Above the wizard/filter modals (200) so the popup never hides behind them. */
+/** Above the wizard modal (200) so the folder popup never hides behind it. */
 const POPOVER_Z_INDEX = 300;
 
 /**
- * The event-type picker's grouped layout, shared by the wizard's type step and
- * the filter dialog's Event Types group. Groups flagged as folders render as
- * content-width chips whose popup holds that group's `SelectableBadge`s;
- * every other group renders directly as its own row — category label above,
- * badges below — so ordinary groups are never hidden behind an extra tap.
- * The inline rows come first, then the folder chips (the pure builder already
- * orders them that way).
+ * The wizard's type step: a **single**-select event-type picker. Groups flagged
+ * as folders render as content-width chips whose popup holds that group's
+ * `SelectableBadge`s (tapping a type picks it and closes the popup); every
+ * other group renders directly as its own row — category label above, badges
+ * below — so ordinary groups are never hidden behind an extra tap. The inline
+ * rows come first, then the folder chips (the pure builder already orders them
+ * that way).
  *
  * A lone non-folder section (e.g. an org with no groups at all) skips the
  * label row and renders the badges directly — no extra chrome when there is
  * nothing to chunk away.
+ *
+ * The filter dialog no longer renders through here: a multi-select group needs
+ * counts and rows, not chips whose state is a border (docs/dashboard-views.md
+ * §1.2), and its own panel owns that now.
  */
 export function EventTypeGroupGrid({
   sections,
   isSelected,
   onToggle,
-  mode,
 }: EventTypeGroupGridProps) {
   if (sections.length === 0) {
     return null;
@@ -110,7 +107,6 @@ export function EventTypeGroupGrid({
               section={section}
               isSelected={isSelected}
               onToggle={onToggle}
-              mode={mode}
             />
           ))}
         </Group>
@@ -129,19 +125,18 @@ export function EventTypeGroupGrid({
  * / `[data-partial]` in `globals.css`). No glyph, no count badge, no fill: a
  * folder that looks untouched while it holds a selection is what made people
  * re-pick types they had already filtered, and the dash/color says it at a
- * glance in both select modes. The `aria-label` spells the count out for
- * assistive tech.
+ * glance. The `aria-label` spells the count out for assistive tech. (The filter
+ * dialog no longer uses this layout: there, a folder holds several picks and a
+ * border was the only cue — see docs/dashboard-views.md §1.2.)
  */
 function GroupTile({
   section,
   isSelected,
   onToggle,
-  mode,
 }: {
   section: EventTypeGroupSection;
   isSelected: (value: string) => boolean;
   onToggle: (value: string) => void;
-  mode: EventTypeGroupGridProps["mode"];
 }) {
   const motion = useMotion();
   const [open, setOpen] = useState(false);
@@ -153,9 +148,8 @@ function GroupTile({
 
   function handleToggle(value: string) {
     onToggle(value);
-    if (mode === "single") {
-      setOpen(false);
-    }
+    // Single-select: the pick is made, so the popup gets out of the way.
+    setOpen(false);
   }
 
   return (

@@ -92,7 +92,7 @@ export interface PickerChipProps {
 
 /**
  * The app's one removable chip — the recipe every removable pill rides: the
- * wizard's participant chips, the filter dialog's summaries, the event search's
+ * wizard's participant chips, the event search's
  * recent searches and the audit log's applied filters. A `variant="light"` Badge
  * on the shared `--c2-chip-height` with the ✕ **inside** the chip's right
  * section — a ≥22px `ActionIcon` (`.c2-picker-chip-remove`, `globals.css`) named
@@ -261,8 +261,8 @@ export interface PickerTriggerProps {
 }
 
 /**
- * The picker's trigger button, shared by `PickerField` and the filter dialog's
- * search groups so the two can never drift: it says **Add** with a `+` while
+ * The picker's trigger button, rendered by `PickerField` (and exported for a
+ * caller that composes the summary row itself): it says **Add** with a `+` while
  * nothing is picked and **Edit** with a pencil afterwards. A trigger that keeps
  * reading "Select +" after people are already tagged is exactly what made users
  * believe the dialog could only add (docs/user-picker.md §1.7).
@@ -414,8 +414,9 @@ export interface PickerFieldProps extends PickerBadgesProps {
  * A labelled user/department picker row: an optional header (label + count +
  * description) with the state-dependent `PickerTrigger` pinned right, then the
  * `PickerBadges` summary. Shared by the event wizard's
- * invitees, KAH member fields, and the Double Booking scan target; FilterModal
- * composes `PickerBadges` + `PickerTrigger` directly for its search groups.
+ * invitees and the KAH member fields; the Double Booking scan target uses the
+ * row-shaped `PickerFieldTrigger` instead. (The filter dialog is not a consumer —
+ * its groups select in their own sheet, docs/dashboard-views.md §1.2.)
  * Every chip in the row is a `PickerChip` — the app-wide removable-chip recipe
  * the non-picker surfaces (recent searches, applied filters) render too.
  */

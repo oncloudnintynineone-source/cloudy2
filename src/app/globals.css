@@ -3453,6 +3453,237 @@ html.c2-low-end::view-transition-group(*) {
 }
 
 /*
+  Filter dialog sheet (docs/dashboard-views.md §1.2): the dialog is one column
+  that switches between two levels — the group list and the open group's option
+  panel — and from `lg` (40em) the two sit side by side instead of replacing
+  each other. The modal body is already a flex column with `overflow: hidden`
+  (and `.c2-filter-modal-swap` carries that chain through the crossfade), so the
+  sheet takes the remaining height and each column scrolls on its own while the
+  footer stays pinned below.
+*/
+:root {
+  /* WCAG 2.5.5 floor for every row in the sheet (docs/accessibility.md §1.9). */
+  --c2-touch-row-height: calc(2.75rem * var(--mantine-scale)); /* 44px */
+}
+
+.c2-filter-sheet {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: calc(0.75rem * var(--mantine-scale));
+  flex: 1;
+  min-height: 0;
+}
+
+/* With the free-text field the sheet is two rows: the field, then the level(s)
+   that scroll. The field spans both columns at `lg`+ so it never gets squeezed
+   into the narrow list column. */
+.c2-filter-sheet[data-aside] {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.c2-filter-sheet__aside {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.c2-filter-sheet__list,
+.c2-filter-sheet__detail {
+  min-width: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+@media (min-width: 40em) {
+  .c2-filter-sheet[data-detail="open"] {
+    grid-template-columns: minmax(9.5rem, 12rem) minmax(0, 1fr);
+  }
+
+  .c2-filter-sheet[data-detail="open"] .c2-filter-sheet__detail {
+    border-left: 1px solid var(--mantine-color-gray-2);
+    padding-left: calc(0.75rem * var(--mantine-scale));
+  }
+}
+
+[data-mantine-color-scheme="dark"] .c2-filter-sheet[data-detail="open"] .c2-filter-sheet__detail {
+  border-left-color: var(--mantine-color-dark-5);
+}
+
+/* The panel enters from the right because at `lg`+ it *is* to the right; below
+   that it slides in as the level it replaces. */
+@keyframes c2-filter-panel-enter {
+  from {
+    opacity: 0;
+    transform: translateX(var(--c2-dist-sm));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .c2-filter-sheet__detail {
+    animation: c2-filter-panel-enter var(--c2-dur-quick) var(--c2-ease-out);
+  }
+}
+
+/*
+  Level-1 row: the group's name over what it currently does, with a chevron that
+  says "this opens". It is a button, so it meets the same 44px floor as the
+  option rows it leads to. The amber inset only reinforces the state word beside
+  it — an inset shadow, not a border, so an active row never shifts its label by
+  a border width.
+*/
+.c2-filter-row {
+  display: block;
+  width: 100%;
+  text-align: left;
+  min-height: var(--c2-touch-row-height);
+  padding: calc(0.5rem * var(--mantine-scale)) calc(0.75rem * var(--mantine-scale));
+  border: 1px solid var(--mantine-color-gray-3);
+  border-radius: var(--mantine-radius-default);
+  cursor: pointer;
+  transition:
+    background-color var(--c2-dur-micro) var(--c2-ease-out),
+    border-color var(--c2-dur-micro) var(--c2-ease-out);
+}
+
+.c2-filter-row:hover {
+  background-color: var(--mantine-color-gray-0);
+}
+
+.c2-filter-row:focus-visible {
+  outline: 2px solid var(--mantine-color-brand-6);
+  outline-offset: 2px;
+}
+
+.c2-filter-row[data-active] {
+  /* accent-8, not the base amber: the bar is a graphic, so it needs 3:1 against
+     the row, and #FBC02D only reaches 1.66:1 on white. */
+  box-shadow: inset calc(0.1875rem * var(--mantine-scale)) 0 0 var(--mantine-color-accent-8);
+}
+
+.c2-filter-row[data-open] {
+  border-color: var(--mantine-color-brand-6);
+  background-color: var(--mantine-color-brand-0);
+}
+
+[data-mantine-color-scheme="dark"] .c2-filter-row {
+  border-color: var(--mantine-color-dark-4);
+}
+
+[data-mantine-color-scheme="dark"] .c2-filter-row:hover {
+  background-color: var(--mantine-color-dark-6);
+}
+
+[data-mantine-color-scheme="dark"] .c2-filter-row[data-open] {
+  border-color: var(--mantine-color-brand-4);
+  background-color: color-mix(
+    in srgb,
+    var(--mantine-color-brand-6) 22%,
+    var(--mantine-color-dark-7)
+  );
+}
+
+[data-mantine-color-scheme="dark"] .c2-filter-row:focus-visible {
+  outline-color: var(--mantine-color-brand-4);
+}
+
+[data-mantine-color-scheme="dark"] .c2-filter-row[data-active] {
+  box-shadow: inset calc(0.1875rem * var(--mantine-scale)) 0 0 var(--mantine-color-accent-4);
+}
+
+/*
+  The state word is what this dialog exists to say, so it never rides a fill
+  shade: the accent's base (#FBC02D) is a 1.66:1 smudge on white and Mantine's
+  `dimmed` is 3.3:1 — both under AA for 12px text. Text takes the text end of the
+  same ramp instead (gray-7 / accent-9 light, dark-2 / accent-4 dark), which is
+  the scheme-scoped recipe docs/accessibility.md §1.7 sets for this theme.
+*/
+.c2-filter-state {
+  color: var(--mantine-color-gray-7);
+}
+
+.c2-filter-state[data-active] {
+  color: var(--mantine-color-accent-9);
+}
+
+[data-mantine-color-scheme="dark"] .c2-filter-state {
+  color: var(--mantine-color-dark-2);
+}
+
+[data-mantine-color-scheme="dark"] .c2-filter-state[data-active] {
+  color: var(--mantine-color-accent-4);
+}
+
+/*
+  Touch-sized checkbox row — the multi-select twin of `.c2-radio-card` above
+  (docs/accessibility.md §1.9, `SelectableRow`): `Checkbox.Card` renders a
+  full-width `role="checkbox"` **button**, so the whole row is the tap target and
+  `Checkbox.Indicator size="md"` supplies the 24px glyph. Selection is the tick
+  plus the brand tint, so it survives greyscale — precisely what the filter
+  dialog's amber-fill badges and border-only folder chips could not say.
+  Borderless like the radio rows: one list, not a stack of cards.
+*/
+.mantine-CheckboxCard-card.c2-check-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: var(--c2-touch-row-height);
+  padding: calc(0.375rem * var(--mantine-scale)) calc(0.625rem * var(--mantine-scale));
+  text-align: left;
+  transition: background-color var(--c2-dur-micro) var(--c2-ease-out);
+}
+
+.mantine-CheckboxCard-card.c2-check-row:hover {
+  background-color: var(--mantine-color-gray-0);
+}
+
+.mantine-CheckboxCard-card.c2-check-row[data-checked] {
+  background-color: var(--mantine-color-brand-0);
+}
+
+.mantine-CheckboxCard-card.c2-check-row:focus-visible {
+  outline: 2px solid var(--mantine-color-brand-6);
+  outline-offset: 2px;
+}
+
+.mantine-CheckboxCard-card.c2-check-row[disabled] {
+  opacity: 0.5;
+  cursor: default;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-CheckboxCard-card.c2-check-row:hover {
+  background-color: var(--mantine-color-dark-6);
+}
+
+[data-mantine-color-scheme="dark"] .mantine-CheckboxCard-card.c2-check-row[data-checked] {
+  background-color: color-mix(
+    in srgb,
+    var(--mantine-color-brand-6) 22%,
+    var(--mantine-color-dark-7)
+  );
+}
+
+[data-mantine-color-scheme="dark"] .mantine-CheckboxCard-card.c2-check-row:focus-visible {
+  outline-color: var(--mantine-color-brand-4);
+}
+
+/* The quick action ("Myself") is a row-scale toggle, not a header-sized button:
+   it is the fastest way to the one calendar most people open the dialog for. */
+.mantine-Button-root.c2-filter-quick {
+  min-height: var(--c2-touch-row-height);
+}
+
+/* The footer's one-line statement of what Apply will do. It wraps rather than
+   ellipsizes (the whole point is that it can be read), and a long quoted
+   free-text term must not push the footer wider than the dialog. */
+.c2-filter-result {
+  overflow-wrap: anywhere;
+}
+
+/*
   "External events" highlight (dashboard calendar views — see
   docs/dashboard-views.md §1.6). Events created directly in Google Calendar
   (no internal marker, no notes block) get a purple treatment per view, in

@@ -350,9 +350,9 @@ double-quotes fields containing `"`, `,`, `\r`, or `\n` and doubles inner quotes
   From/To date pickers, plus the **multi-value filters shared with the rest of
   the app** — a `FilterButton` (desktop) or the mobile filter menu's "More
   filters…" item opens one [`FilterModal`](user-picker.md) with three
-  `variant: "search"` groups (Actors / Actions / Entity types), each rendered as
-  a removable badge summary + Add/Edit trigger opening the `UserSelectModal` badge
-  picker;
+  `variant: "search"` groups (Actors / Actions / Entity types), each a row in the
+  two-level sheet that opens its own searchable checkbox list
+  ([`dashboard-views.md`](dashboard-views.md) §1.2);
   Actors get per-department sections from the roster map ("Other" for
   unmatched). Applied selections show as a row of removable chips under the filter
   row (`PickerBadges` — the app-wide removable chip, [`user-picker.md`](user-picker.md) §1.6, natural case — one chip per value: actor name, `actionLabel(action)`, entity type,

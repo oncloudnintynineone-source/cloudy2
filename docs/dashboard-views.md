@@ -587,64 +587,88 @@ opens `FilterModal` (`src/components/FilterModal.tsx`). The nav row's date contr
 and the **Select date** circle (the **Today** jump floats in the toolbar row at `lg`+ — compact tier: under the fullscreen button — / on the FAB row below `lg` — see the Today-jump bullet in §1.1); the dashboard chrome carries **no Guide "?"** of its own (the profile menu is the only entry to the sheet, at every width); Force refresh
 is a header button, view management lives on the strip's right settings
 button, and fullscreen is the shared `FullscreenButton` (floating top-right at `lg`+, inline in the mobile control pill below). Dashboards'
-"Myself" quick action lives inside the filter modal
-beside the Users group; "Reset filters" clears (role defaults).
+"Myself" quick action lives inside the filter dialog's **Users panel**; "Reset
+filters" clears (role defaults).
 
-The modal promotes the filters most people reach — **Calendars** (selectable
-badge grid) and **Users** (badge-dialog picker, `variant: "search"`) — and tucks
-**Event Types** behind a "Show"/"Hide" disclosure (`collapsedGroupLabels`;
-audit-log/user-table callers keep all groups expanded). All groups share **one
-header recipe** (`FilterGroupHeader` in `FilterModalBody.tsx`): label + a state
-chip (pure `groupFilterState`: `All` / `None` / `"N of M"`, amber while a filter
-is active — grid groups treat "all selected" as no filter, search groups treat
-empty _and_ all-selected as no filter, where "all-selected" is a **set**
-comparison against the group's option ids, so a stored id that is no longer an
-option is never read as "everything") + Show/Hide + the group-level
-**All / None** pair (search groups label the second action **Clear**,
-because empty means "no filter"). Grouped lists keep their per-group counts, but
-the All/None action spans the whole group — there is no separate All/None per
-event-type category.
+The dialog is a **two-level sheet**: level 1 is one row per group, level 2 is
+that group's whole option list. A row names the group over what it currently
+does — **Calendars · All calendars**, **Users · 3 of 12 users**, **Event Types ·
+No event types** — with a chevron that says it opens; tapping it fills the dialog
+with the list (at `lg`+ the two levels sit side by side instead — the dialog wears
+the `lg` (620px) modal size for exactly that budget,
+[`desktop-responsive.md`](desktop-responsive.md) §1.9 — the open row highlighted,
+Escape steps back a level before it closes the dialog, and focus lands back on the
+row the panel opened from). One
+gesture per group — *open it, tap rows* — replaces the four mechanics this dialog
+used to mix: an inline badge grid, an Add/Edit trigger into a nested picker,
+folder chips opening popovers, and a Show/Hide disclosure that hid Event Types
+behind an extra tap for the most common pick.
 
-Selection stays visible with the group collapsed: a chip row (`PickerBadges`
-`cap={5}`, each chip carrying a ✕ that drops that pick in place; "None selected"
-for a deliberately emptied grid group, "All {label}" for an unfiltered search
-group) renders beside the header, and search groups open their dialog through
-the shared `PickerTrigger` (**Add** → **Edit** once picks exist). The footer's
-reset button is **Reset filters** — it restores the
-role defaults (`NULL`) — deliberately named apart from a group's **None** (an
-explicit empty selection → an empty grid).
+The rows' state words come from the same pure model Apply reads
+(`src/lib/filters/filterDialogModel.ts` over `groupFilterState`): `All` / `None`
+/ `"N of M"` / `Default`, where grid groups treat "all selected" as no filter and
+search groups treat empty _and_ all-selected as no filter — "all-selected" being
+a **set** comparison against the group's option ids, so a stored id that is no
+longer an option is never read as "everything". Because each row says what its
+empty selection *means*, the dialog no longer asks the user to discover that a
+fully ticked Calendars group and an empty Users group are the same thing.
 
-**Event Types mirror the wizard's type step exactly**: the dashboard builds
-`FilterGroupSection`s with `buildEventTypePickerSections(eventTypes,
-eventTypeGroups)` (`src/lib/eventTypes/groups.ts`) — inline groups in display order,
-then Ungrouped, then the folder groups; empty groups skipped. They render through the
-shared `EventTypeGroupGrid` (`src/components/EventTypeGroupGrid.tsx`): non-folder
-groups as labeled rows (category name above the badges, toggled directly), folder
-groups as content-width chips whose popups hold their badges (multi-select — the popup
-stays open while toggling); a folder chip holding picks wears a **yellow outline** —
-**dotted** while some of its types are picked, **solid** when all are — so a collapsed folder never
-hides that it is filtering; the single group-level All/None
-selects or clears every type across all categories. The group's flat `options`
-remain the canonical value list for apply/count logic; sections are presentation
-only.
+Because that word *is* the dialog's payload, it never rides a fill shade:
+`.c2-filter-state` takes the text end of the accent ramp (accent-9 / gray-7 in
+light, accent-4 / dark-2 in dark) after the shipped-first version measured
+**1.66:1** for `c="accent"` on white and 3.33:1 for `c="dimmed"` — both under AA
+at 12px. The active row's inset bar moved with it (accent-8 light, 3.52:1 as a
+graphic); see [`accessibility.md`](accessibility.md) §1.7.
 
-The **Users** picker uses the same `SelectableBadge` as the wizard and filter
-grids, now with department section counts, hierarchy indentation, per-section
-All/Clear, a global Select all/Clear, and an amber "(You)" badge for the acting
-user. Filter scoping is **per tab**: each tab stores its own Calendars/Users/Event
-Types/Event-name selection, and clearing one tab's filters never touches the
-others.
+A panel is header + rows: back chevron, the group's own state word, its
+**All / None** pair, a search box once the list is longer than
+`FILTER_SEARCH_THRESHOLD` (12) options, then every option as a touch-sized
+checkbox row (`SelectableRow` — the multi-select twin of `RadioCardGroup`:
+≥ 44px, `role="checkbox"`, a real tick) under its section header. Section headers
+carry their own `n of m` count and their own All/None pair, so a folder's state
+is a number rather than a border. Selection is never colour-only: the amber badge
+fill and the dotted/solid folder outline this dialog used both disappear in
+greyscale.
+
+The pair's second word names what an empty selection means in that group —
+**None** (nothing will match) for a grid group, **Clear** (no picks, so nothing is
+filtered) for a search group — and the row above says the same thing. Unticking a
+grid group's last option now *does* empty it: the old dialog refused silently,
+which read as a broken checkbox.
+
+The footer states the result once — `Showing: All calendars · 3 of 12 users ·
+Event name "parade"` — assembled from the same rows, so the line and the rows
+cannot disagree. The reset button is **Reset filters** (restore the role
+defaults; the rows then read `Default`, because that is what Apply will store)
+and is deliberately named apart from a group's **None** (an explicit empty
+selection → an empty grid).
+
+**Event Types keep the wizard's section order** — `buildEventTypePickerSections(eventTypes,
+eventTypeGroups)` (`src/lib/eventTypes/groups.ts`): inline groups in display
+order, then Ungrouped, then the folder groups, empty groups skipped — but the
+dialog renders every section as the same header + rows; the folder/inline split
+only decides the wizard's chips (`EventTypeGroupGrid` is now the wizard's
+single-select type step). The group's flat `options` remain the canonical value
+list for apply/count logic; sections are presentation only.
+
+The **Users** panel renders the roster as checkbox rows grouped into department
+sections (nested by `departmentId`/`departmentParentId`, ordered by
+`departmentSort`), the acting user suffixed **(You)**, and the group's **Myself**
+quick action as a full-width row above the list. Filter scoping is **per tab**:
+each tab stores its own Calendars/Users/Event Types/Event-name selection, and
+clearing one tab's filters never touches the others.
 
 The Users group's **option list is the whole active roster** (plus the acting
 user and any pick already applied), deliberately **independent of the Calendars
 filter**. An option list that followed the calendar selection made the same
 `users` filter mean different things as the calendars changed: people of a
-deselected department vanished from the picker, an applied pick could lose its
-chip while still filtering, and "every listed user selected" could be normalised
+deselected department vanished from the list, an applied pick could lose its row
+while still filtering, and "every listed user selected" could be normalised
 to *no filter* and silently turn the filter off. Keeping the universe fixed means
 the only way to reach "all users" is to actually select every active user.
 
-An optional **Event name** text field (rendered above the groups; the dashboard
+An optional **Event name** text field (spanning the top of the sheet, above both
+levels; the dashboard
 is its only caller) is a case-insensitive **substring** match over the event's
 typed name (`payload.rawTitle`) and its rendered title (`title`, after the view's
 title recipe). Blank means "no filter"; it has no All/None and no role default.
@@ -666,7 +690,8 @@ Filter storage & resolution:
 - The **Users option list** (`filterUsers` in the snapshot) is the active roster +
   the acting user + the tab's applied picks (`filterUserOptionIds` with
   `keepUserIds`, `src/lib/filters/filterUserOptions.ts`). It is not scoped by the
-  Calendars filter, and an applied pick therefore always has a chip and a badge —
+  Calendars filter, and an applied pick therefore always has a row in the Users
+  panel —
   a stored filter can never be invisible or unremovable in the dialog.
 - A tab's filter state lives **on the tab row** (`user_dashboard_views.cal_filter`
   / `users_filter` / `types_filter`, each JSON array or SQL `NULL`; plus
@@ -722,12 +747,13 @@ Filter storage & resolution:
 
 ```mermaid
 flowchart LR
- FB["FilterButton (nav row)<br/>icon + active-group badge"] --> FM["FilterModal"]
- FM --> CAL["Calendars<br/>(badge grid + All/None)"]
- FM --> US["Users<br/>(grouped badge picker + Myself)"]
- FM --> ET["Event Types<br/>(inline rows + folder chips: yellow outline —<br/>dotted=some, solid=all; behind Show/Hide)"]
- FM --> HINT["Scope hint<br/>(these filters apply to {tab} only)"]
- HINT --> APPLY["saveDashboardViewFilters<br/>(server action)"]
+ FB["FilterButton (nav row)<br/>icon + active-group badge"] --> FM["FilterModal<br/>(two-level sheet)"]
+ ROWS["Level 1: one row per group<br/>(name · what it does · chevron)"]
+	ROWS --> CAL["Calendars panel<br/>(checkbox rows + All/None)"]
+ ROWS --> US["Users panel<br/>(search + department sections + Myself)"]
+ ROWS --> ET["Event Types panel<br/>(every group as a header + rows)"]
+ FM --> FOOT["Pinned footer: Showing: All calendars · 3 of 12 users<br/>Reset filters · Cancel · Apply"]
+ FOOT --> APPLY["saveDashboardViewFilters<br/>(server action)"]
  APPLY --> ROW["active tab row<br/>(cal/users/types, NULL = role default)"]
  ROW --> RESOLVE["buildDashboardData (data.ts)<br/>validates ids vs live data"]
  RESOLVE --> DEF["role default"]
@@ -1417,7 +1443,10 @@ t: eventTypeNames, b: sharerName }`. The owner's effective filters are
 | `src/lib/ui/monthZoom.ts`                             | Pure Month fit-width zoom levels + stepping (`clampMonthZoom`, `stepMonthZoom`) + the fit-height fill + chip-count math (`monthFillEvents`, `monthFitChipCount`, §1.8.1)                                          |
 | `src/components/GridNavControls.tsx`                  | Day/Week (H) + Month right-edge cluster: zoom +/− + right pan, plus left-edge pan                                                                                                                                 |
 | `src/components/FilterButton.tsx`                     | Dedicated filter button (icon + active-group badge) replacing the kebab's filter menu                                                                                                                             |
-| `src/components/FilterModal.tsx`                      | Filters dialog (unified group headers + state chips, badge grids, labeled rows + folder chips with yellow dotted/solid outline, removable summary chips, "Showing:" line, Reset filters, collapsible groups)      |
+| `src/components/FilterModal.tsx`                      | Filters dialog chrome (two-level sheet, lazy body, origin-rect zoom, level-aware Escape)                                                          |
+| `src/components/FilterModalBody.tsx`                  | The sheet itself: group rows with state subtitles, per-group panels (search, sections, checkbox rows), "Showing:" footer, Reset filters            |
+| `src/lib/filters/filterDialogModel.ts`                | Pure presentation model: row state words/subtitles, search threshold, section building + counts, the "Showing:" line                                |
+| `src/components/SelectableRow.tsx`                    | Touch-sized checkbox choice row (the multi-select twin of `RadioCardGroup`)                                                                        |
 
 Related docs:
 

@@ -433,13 +433,19 @@ drops the mobile sizes one step so the dialog never approaches the viewport edge
 | Event form (`DashboardView`)        | `xs` (320px)    | `sm` (380px) | `md` (440px) → 720px ≥ 800px           |
 | Event detail (`EventDetail`)        | `xs`            | `sm`         | `md`                                   |
 | Agenda day modal                    | `xs`            | `sm`         | `md` (list `56dvh` → fills the dialog) |
-| Filter modal (`FilterModal`)        | `xs`            | `sm`         | `md`                                   |
+| Filter modal (`FilterModal`)        | `xs`            | `sm`         | `lg` (620px — two-column budget)       |
 | Date picker (`DateSelectorModal`)   | `xs`            | `sm`         | `md`                                   |
 | User form                           | `md`            | `md`         | `lg`                                   |
 | Event type form                     | `sm`            | `sm`         | `lg`                                   |
 | Event search (`EventSearchModal`)   | `sm`            | `md`         | `lg`                                   |
 | Pinned events (`PinnedEventsPanel`) | `sm`            | `md`         | `lg`                                   |
 | Audit detail (`LogDetailModal`)     | `md`            | `md`         | `lg`                                   |
+
+The **filter dialog** is the one dialog whose wide size is set by its layout rather than
+by its form: at `lg`+ it shows the group rows and the open group's option list side by
+side, and `md` (440px) leaves the panel ~250px — enough to truncate a department name
+beside its own All/Clear pair. Below `lg` it is one level at a time, so the phone tiers
+stay on the shared `xs`/`sm` steps (docs/dashboard-views.md §1.2).
 
 `EventDetail`'s shrink animation sizes off the same value through
 `modalContentWidth(viewport, sizePx)` in `src/lib/motion/origin.ts`
@@ -534,7 +540,8 @@ left of the period chevrons, flexing into the space the fixed 56px controls leav
 | `src/app/(protected)/dashboard/DashboardView.tsx`                                                                         | Schedule label/slot widths, header New-event button, hidden FAB, modal size tiers (`isNarrow` → `xs`; event form `md` → 720px on the wide band); event-form host `centered` at every width with `yOffset="16px"` (equal gutters, no caption)                                                |
 | `src/app/(protected)/dashboard/WeekMatrixView.tsx`                                                                        | MOBILE_/DESKTOP_ label widths, responsive `contentMinWidth`/`labelLeft`                                                                                                                                                                                                                     |
 | `src/app/(protected)/dashboard/EventForm.tsx`                                                                             | Body-height tiers (phone fills the box, desktop capped), Timestamp 2-col at `lg`, Review 2-col + vertical step rail at the wide band                                                                                                                                                        |
-| `src/app/(protected)/dashboard/EventDetail.tsx`, `src/components/FilterModal.tsx`, `src/components/DateSelectorModal.tsx` | `xs` → `sm` → `md` (compact/mobile/lg)                                                                                                                                                                                                                                                      |
+| `src/app/(protected)/dashboard/EventDetail.tsx`, `src/components/DateSelectorModal.tsx`                                    | `xs` → `sm` → `md` (compact/mobile/lg)                                                                                                                                                                                                                                                      |
+| `src/components/FilterModal.tsx`                                                                                            | `xs` → `sm` → `lg` — the wide tier is the two-level sheet's side-by-side budget (§1.9)                                                                                                                                                                                                      |
 | `src/components/EventSearchModal.tsx`, `src/components/PinnedEventsPanel.tsx`, `src/components/UserSelectModal.tsx`       | Modal sizes via `isNarrow`/`isDesktop`                                                                                                                                                                                                                                                      |
 | `src/lib/motion/origin.ts`                                                                                                | `modalContentWidth(viewport, sizePx)`                                                                                                                                                                                                                                                       |
 | `src/app/(protected)/contacts/page.tsx` + `ContactList.tsx`                                                               | `PageContainer` + dense rows gridded inside full-width group cards + centred A–Z rail (§1.6)                                                                                                                                                                                                |

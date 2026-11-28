@@ -1944,10 +1944,9 @@ export function EventForm({
                       pick (the folder pills' yellow outline says which group
                       holds it). */}
                   {/* Inline groups -> labeled rows; folder groups -> chips with a
-                      popup of that group's types (shared with the filter dialog). */}
+                      popup of that group's types. */}
                   <EventTypeGroupGrid
                     sections={typeGridSections}
-                    mode="single"
                     isSelected={(value) => value === form.values.eventType}
                     onToggle={(value) =>
                       handleEventTypeChange(form.values.eventType === value ? null : value)

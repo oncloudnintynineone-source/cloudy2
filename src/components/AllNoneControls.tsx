@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Group } from "@mantine/core";
+import { Button, Group, type ButtonProps } from "@mantine/core";
 
 export interface AllNoneControlsProps {
   /** Accessible context: "Select all <label>" / "Clear <label>". */
@@ -11,6 +11,11 @@ export interface AllNoneControlsProps {
   onNone: () => void;
   /** Search groups say "Clear": empty means "no filter", not "hide all". */
   noneLabel?: string;
+  /**
+   * Button scale; default `"xs"` (the dense picker header). The filter dialog's
+   * panel raises it to `"sm"` because its rows are touch-sized.
+   */
+  size?: ButtonProps["size"];
 }
 
 /**
@@ -25,11 +30,12 @@ export function AllNoneControls({
   onAll,
   onNone,
   noneLabel = "None",
+  size = "xs",
 }: AllNoneControlsProps) {
   return (
     <Group gap={2} wrap="nowrap">
       <Button
-        size="xs"
+        size={size}
         variant="subtle"
         color="gray"
         px={6}
@@ -40,7 +46,7 @@ export function AllNoneControls({
         All
       </Button>
       <Button
-        size="xs"
+        size={size}
         variant="subtle"
         color="gray"
         px={6}

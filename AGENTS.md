@@ -210,18 +210,20 @@ doc content here.
   `cal/users/types` URL params); the optional Event-name field is a case-insensitive
   substring over the typed name + rendered title, applied server-side in the tab
   projection (`filterEventsByText`, `src/lib/events/textFilter.ts`); the shared
-  `FilterModal` renders every group with one header recipe (label + All/None state chip
-  + Show/Hide + an All/None pair — search groups label it All/Clear) and removable
-  summary chips beside an Add/Edit trigger, plus a "Showing: …" result line and a
-  **Reset filters** footer (role defaults — never rename a group's "None" to this);
-  Event Types reuse the wizard's
-  `buildEventTypePickerSections` rendered through the shared `EventTypeGroupGrid`
-  (non-folder groups as name-only labeled rows, folder groups as chips → popup of
-  badges, Ungrouped last among the rows; a lone non-folder section renders badges
-  directly)
-  with one group-level All/None across every category (no per-category pair), and the
-  Users badge picker gains department-section counts, per-section All/Clear, a global
-  Select all/Clear and an amber "(You)" badge.
+  `FilterModal` is a **two-level sheet** — level 1 is one row per group naming what it
+  currently does (`All calendars` / `3 of 12 users` / `No event types`), level 2 is that
+  group's whole option list as touch-sized checkbox rows (`SelectableRow`) under section
+  headers that carry their own `n of m` + All/None pair; at `lg`+ the two levels sit side
+  by side. No badges, chips, Show/Hide disclosure or nested picker — and no instructional
+  copy: the rows and the pinned `Showing: …` line say the state
+  (`src/lib/filters/filterDialogModel.ts`, pure + unit-tested). Vocabulary stays exact:
+  group **All / None** (None = an explicit empty selection), search-group **All / Clear**
+  (empty = no filter), footer **Reset filters** (role defaults — never rename a group's
+  "None" to this). Event Types reuse the wizard's
+  `buildEventTypePickerSections` for their **section order only** (the wizard keeps
+  `EventTypeGroupGrid`'s chips for its single-select step), and the
+  Users panel keeps department-section counts, per-section All/Clear, a global
+  Select all/Clear and an amber "(You)" suffix.
   Applying filters is one `UPDATE … WHERE id AND user_id RETURNING` server action
   (`saveDashboardViewFilters`) with **no** `revalidatePath` — the dashboard shell reads no
   view data, and the client's own `/api/dashboard/load` re-read carries the new filter set,
@@ -468,7 +470,7 @@ the floating fullscreen button — never over the canvas
   audit failure), and a future surface that needs page zoom must own the gesture, since
   `touch-action` can't be re-enabled below `html`. Design:
   [docs/accessibility.md](docs/accessibility.md) §1.7 (contrast) / §1.8 (page zoom) /
-  §1.9 (touch targets — 44px floor, `RadioCardGroup` choice rows).
+  §1.9 (touch targets — 44px floor, `RadioCardGroup` / `SelectableRow` choice rows).
 
 ## Conventions
 
@@ -522,8 +524,10 @@ a compact tier via `NARROW_MEDIA_QUERY` (`src/lib/theme.ts`) + `useMediaQuery` `
   users (or any large option list) is a badge dialog (`UserSelectModal`), not a searchable
   dropdown. Its trigger + summary markup is shared: every consumer renders through
   `PickerField` / `PickerBadges` (`src/components/PickerField.tsx`) — never hand-roll it.
+  (The filter dialog is **not** one of those consumers: it selects in its own two-level
+  sheet, rows not chips.)
   Selection state must be visible everywhere and removal one tap: Add→Edit trigger, ✕ on
-  every summary chip, a pinned Selected strip inside the dialog (docs/user-picker.md §1.7).
+  every summary chip, and picks unmistakable in the dialog's own pool (docs/user-picker.md §1.7).
   Design: [docs/user-picker.md](docs/user-picker.md).
 - **Floating action buttons** use shared `FloatingActionButton` + `FloatingToolbar`
   (`src/components/FloatingToolbar.tsx`) anchored bottom-right — never a raw `Button`.

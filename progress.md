@@ -18,11 +18,11 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.435 (Resource Usage ledger closes days; Egress has a
-  writer)** is shipped, including the **1.434** month-granular event-type migration
-  range, the **1.433** UI/UX streamline passes + heading outline, the **1.432** compact
-  mobile report heads, the **1.431** compact-desktop chrome fix and the **1.430.1** KAH
-  copy-trim and **1.430.2** breach-integration follow-ups.
+- All work through changelog **1.436 (Filter dialog is a two-level sheet)** is shipped,
+  including the **1.435** resource-usage ledger + Egress writer, the **1.434** month-granular
+  event-type migration range, the **1.433** UI/UX streamline passes + heading outline, the
+  **1.432** compact mobile report heads, the **1.431** compact-desktop chrome fix and the
+  **1.430.1** KAH copy-trim and **1.430.2** breach-integration follow-ups.
 - Quality gates (`lint` / `typecheck` / `test` / schema-drift check) run in CI on every
   push and PR. Pushes also auto-apply migrations per environment: `dev` →
   `migrate-preview` against the dev Neon DB, `main` → `migrate` against the prod Neon
@@ -3341,6 +3341,33 @@ size="compact"`), and renames **Duplicate Event** / **Copy to Other Google
   after mount), and the dev DB's migration ledger was missing the applied-but-unrecorded
   `0074` row, which failed every `db:migrate` (repaired in place). Docs: `neon-usage.md`
   §1.5 (new).
+
+- 1.436 **Filter dialog is a two-level sheet (Users + Event Types stop being a puzzle)**: the
+  shared filter dialog asked "which of these count?" in four mechanics with two opposite answers
+  — Calendars' badge grid meant *all ticked = no filter*, Users' **Add → Edit** trigger opened a
+  nested `UserSelectModal` where *nothing picked = no filter*, and Event Types hid behind a
+  Show/Hide disclosure as folder chips whose selection state was a yellow border, with both
+  groups labelled "All". It is now **one row per group naming what it currently does**
+  (`All calendars` · `3 of 12 users` · `No event types` · `Default`) that drills into that
+  group's whole option list as 44px checkbox rows (`SelectableRow`, the multi-select twin of
+  `RadioCardGroup`), every section header carrying its own `n of m` + All/None pair; at `lg`+ the
+  two levels sit side by side, Escape steps back a level before it closes the dialog, and focus
+  returns to the row the user came from. The footer states the effective set once
+  (`Showing: All calendars · 3 of 12 users · Event name "parade"`) and there is **no instructional
+  copy**: the rows themselves say what an empty selection *means* (grid **None** / search
+  **Clear** / footer **Reset filters**). Unticking a grid group's last option now empties it
+  instead of silently refusing. Pure presentation model in
+  `src/lib/filters/filterDialogModel.ts` (27 tests); `describeFilterGroups` is gone with the
+  5-chip strip it fed. Storage semantics, share tokens, per-tab scoping and the
+  `FilterModalProps` API (five callers) are unchanged, and the wizard's type step and
+  `UserSelectModal` keep the badge idiom. Docs: `dashboard-views.md` §1.2, `user-picker.md`
+  §1.4/§1.6, `event-lifecycle.md` §1.10, `ui-ux-improvements.md` E7. **Browser-verified** on a
+  production build in Chrome over raw CDP (DevTools MCP is not configured here) at 360/390/430
+  and 1280px, light and dark, on the dashboard and the Audit Log consumer — a pass that moved the
+  desktop dialog to `lg` (440px could not seat the side-by-side panel without truncating section
+  names), disabled a no-op **Clear** on an already-empty search group, restored focus to the row
+  after Escape, and replaced the measured 1.66:1 amber state word with `.c2-filter-state`
+  (`accessibility.md` §1.7).
 
 ## 1.4 Open items & next steps
 

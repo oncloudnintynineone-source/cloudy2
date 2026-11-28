@@ -64,7 +64,7 @@ The app has ~1,400 phases of UI work behind it. These are settled; re-suggesting
 | Pickers              | Badge dialogs (`UserSelectModal` + `PickerField`/`PickerBadges`) instead of searchable selects; no-keyboard dropdowns                                                                                                                                                                                                   |
 | Chrome               | Coherent mobile/desktop split at `lg` (640px), compact tier at ≤ 360px, auto-hiding mobile chrome, 44px targets, trigger-origin modal zooms                                                                                                                                                                             |
 | Lists                | One shared reorder recipe (`useReorderRows` + FLIP + dnd-kit)                                                                                                                                                                                                                                                           |
-| Filters              | Per-view filter sets stored server-side, one header recipe in `FilterModal`, removable summary chips, Reset                                                                                                                                                                                                             |
+| Filters              | Per-view filter sets stored server-side; the dialog is a two-level sheet whose rows state their own effect (E7, 1.436) — chips, badges and explanatory captions in it are the shipped-away design, not a proposal |
 
 **Consequence:** the remaining gaps are almost entirely **affordance reachability, feedback and
 guidance** — things that exist but are hard to reach, or absent muscle-memory paths — not visual
@@ -1444,6 +1444,59 @@ their phone is empty.
 **Effort.** S (hint) / L (sync). **Respect.** The hint must not compete with the count for
 attention, and must survive the chrome-hide rules.
 
+### 1.8.5 E7 — the filter dialog asked one question four different ways
+
+**Evidence.** At **1.433** the shared filter dialog put Calendars, Users and Event Types side by
+side with one shared header recipe and four different mechanics underneath it, two of them with
+**opposite polarity**: Calendars was an inline badge grid where *all ticked = no filter*
+(`initialDraft` in `FilterModalBody.tsx`), Users was an **Add → Edit** trigger opening a nested
+`UserSelectModal` at z-200 where *nothing picked = no filter* (`docs/user-picker.md` §1.4), and
+Event Types rendered through `EventTypeGroupGrid` as folder chips whose selection state was a
+**yellow border** — dotted for some, solid for all (`globals.css:3388`
+`.c2-event-type-group-tile[data-selected]` / `[data-partial]`) — behind a Show/Hide disclosure
+(`collapsedGroupLabels`) that cost five taps for the most common pick. Both "All" labels meant
+different things; the summary row capped at five chips with an inert `+N`
+(`PickerBadges cap={5}`), so a sixth pick had no visible owner; nothing said what **Apply** would
+do; and every control was `xs`-sized, under the 44px floor ([`accessibility.md`](accessibility.md)
+§1.9).
+
+**Impact.** Field feedback was that the Users and Event Type selection is confusing. The tempting
+answer — write instructions beside it — is the one already rejected: **1.410** deleted every
+explainer caption in this dialog because "the app stops narrating itself", and prose over a
+four-mechanic dialog is clutter that ages worse than the bug. The confusion is structural, so the
+fix has to be too.
+
+**Fix.** Make the state structural, not verbal. One row per group that names what it currently
+does — `All calendars` / `3 of 12 users` / `No event types` / `Default` — drilling into that
+group's whole option list as touch-sized checkbox rows, each section header carrying its own
+`n of m` and All/None pair, and a footer line stating the effective set once, computed from the
+same model as the rows. No help text, no summary chrome, nothing new to delete later.
+
+**Effort.** M. **Respect.** Storage semantics, share tokens and the `FilterModalProps` API stay
+untouched (five callers); the wizard's type step and `UserSelectModal` keep the badge idiom — they
+are single-select over short lists, where chips are right. A live "N events match" count is not
+honestly available (the client holds only already-filtered events), which is exactly why the
+effective-set line is the feedback instead.
+
+**Status.** Shipped **1.436** (2026-11-28): the dialog is a two-level sheet —
+`src/lib/filters/filterDialogModel.ts` (pure row/section/result-line model, 27 tests),
+`src/components/SelectableRow.tsx` (44px `Checkbox.Card` row), `FilterModalBody.tsx` rewritten,
+`FilterModal.tsx` owning the level so Escape steps back before closing, `.c2-filter-sheet` /
+`.c2-filter-row` / `.c2-filter-state` / `.c2-check-row` in `globals.css`.
+[`dashboard-views.md`](dashboard-views.md) §1.2, [`user-picker.md`](user-picker.md) §1.4/§1.6.
+
+**Verified in a browser** (production build, Chrome over CDP — DevTools MCP is not configured
+here): 390/430/360px and 1280px, light and dark, on both this dialog and the Audit Log consumer.
+Rows measure 55px and checkbox rows 44px; the level-1 row and the `Showing:` line move together
+(`1 of 6` → `2 of 6` → `3 of 6`); Escape steps back a level and lands focus on the row the panel
+opened from. Four defects the screenshots caught and the build fixed: the desktop dialog was
+`md` (440px), which left the side-by-side panel ~250px and truncated section names beside their
+own All/Clear pair — it now wears `lg`; a search group with nothing selected showed a live-looking
+**Clear** whose click did nothing (an empty draft already reads *All*), so it is disabled; Escape
+bypassed the panel's own close path, so focus fell to `<body>`; and the state words measured
+**1.66:1** (`c="accent"` on white) and 3.33:1 (`c="dimmed"`), fixed by `.c2-filter-state`
+([`accessibility.md`](accessibility.md) §1.7).
+
 ## 1.9 Held register
 
 Reviewed on **2026-11-22** and **put aside by decision — not to be implemented without a new
@@ -1540,6 +1593,7 @@ land here.
 | C11 | 1.433 (2026-11-28) | My Events' sticky control bar is one `nowrap` row on phones — search field `flex: 1 1 0` / `min-width: 0`, range menu in `.c2-report-range` — instead of two pinned rows above the list. [`event-history.md`](event-history.md) §1.4. |
 | C12 | 1.433 (2026-11-28) | Event search's window is **whole months** end to end: From/To `MonthPickerInput`s bounded by each other + `SEARCH_MAX_RANGE_MONTHS`, `defaultSearchMonths` (last month → +3), `coerceSearchMonths`, `monthStart`/`monthEnd` at the cache edge, `monthRangeLabel` caption, dirty dot on the trigger; the day-level `coerceSearchRange` / `SEARCH_MAX_RANGE_DAYS` clamp is gone. [`event-search.md`](event-search.md) §1.7/§1.9. |
 | D24 | 1.433 (2026-11-28) | KAH Status says each fact once: scope-only summary line, period rows without the `X away · Y in country · worst <day>` tail (away chips moved outside the disclosure), bare **Breaches** heading. [`kah.md`](kah.md) §1.7. |
+| E7  | 1.436 (2026-11-28) | The filter dialog is a **two-level sheet**: level 1 is one row per group naming what it currently does (`All calendars` · `3 of 12 users` · `No event types` · `Default`), level 2 that group's whole list as 44px checkbox rows under section headers carrying their own `n of m` + All/None pair; at `lg`+ the levels sit side by side, Escape steps back before closing, focus returns to the row. One polarity per group and it is stated in words, so no caption is needed anywhere: grid groups say **None** (nothing will match), search groups say **Clear** (nothing is filtered), the footer says **Reset filters** (role defaults) over a `Showing: …` line built from the same rows. Gone: badge grids, the nested `UserSelectModal`, folder chips whose state was a border, the Show/Hide disclosure, the 5-chip cap with its inert `+N`, and the untick-that-refused-to-empty. Pure model in `src/lib/filters/filterDialogModel.ts` (27 tests) + `SelectableRow.tsx`; storage, share tokens and `FilterModalProps` unchanged. [`dashboard-views.md`](dashboard-views.md) §1.2, [`user-picker.md`](user-picker.md) §1.4/§1.6. |
 
 ## 1.11 Implementation guardrails
 

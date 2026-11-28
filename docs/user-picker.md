@@ -66,8 +66,9 @@ of toggleable badges with a search box on top:
   department/parent pickers keep "Select").
 - The `values` prop and every helper stay ids-in/ids-out; ownership of the id domain
   never changes.
-- Pass `zIndex` when nested — the event wizard uses 300 over its z-250 dialog;
-  FilterModal uses 200.
+- Pass `zIndex` when nested — the event wizard uses 300 over its z-250 dialog.
+  (The filter dialog used to open one at 200; it now selects in its own panel, so
+  nothing stacks over it — see [`dashboard-views.md`](dashboard-views.md) §1.2.)
 - **`single` mode** (optional prop): for exactly-one-person picks (the Double Booking
   admin "check another person" target). Tapping any badge _replaces_
   the whole draft (one id across all sections; still re-seeded from `values` on each
@@ -95,14 +96,20 @@ of toggleable badges with a search box on top:
   the ancestor path (wrapped pills) + per-department user sections (id-keyed,
   indented under their parent); the form's `invitees` field keeps
   its `user:`/`dept:` prefixed shape.
-- **FilterModal's `variant: "search"` groups** — Users on dashboard + parade state;
-  options may carry `department` to get per-department sections, `search` for extra
-  matching, and `self` for the acting user's amber badge. Department sections order by
-  the caller-provided `departmentSort` (the Settings → Departments sort order) and nest
-  via `departmentId`/`departmentParentId`; the audit log's actors with no roster match
-  fall into an unranked trailing "Other" section. Grid groups (Calendars, departments,
-  Event Types) render the same `SelectableBadge`s; labels carry the full ancestor chain
-  for departments, and event-type groups use the wizard's section/folder split.
+- **Filter dialog groups** — Users on the dashboard + parade state carry
+  `variant: "search"`, which since the two-level sheet means only
+  **empty = no filter** (it is no longer a layout switch). Options may carry
+  `department` to get per-department sections, `search` for extra matching, and
+  `self` for the "(You)" suffix. Department sections order by the
+  caller-provided `departmentSort` (the Settings → Departments sort order) and
+  nest via `departmentId`/`departmentParentId`; the audit log's actors with no
+  roster match fall into an unranked trailing "Other" section. The dialog renders
+  **every** group — Users, Calendars, Event Types — as touch-sized checkbox rows
+  (`SelectableRow`) under section headers with `n of m` counts, not as badges:
+  see [`dashboard-views.md`](dashboard-views.md) §1.2. It shares this doc's option
+  shape (`FilterOption`), section math (`filterPickerGroups`) and
+  `AllNoneControls`; it does not use `SelectableBadge`, `PickerBadges` or
+  `PickerTrigger`.
 - **Double Booking scan target** — a `single`-mode `UserSelectModal` (department
   sections nested by tree depth, shortname `search`) replacing the page's original
   `NoKeyboardSelect` dropdown, since the roster is a large option list.
@@ -140,7 +147,7 @@ in `PickerField` (`src/components/PickerField.tsx`), with the badge row itself r
 standalone as `PickerBadges` and one chip as `PickerChip`:
 
 - **`PickerChip`** is **the app's one removable chip**: every removable pill in the app
-  renders through it — the wizard's participant chips, the filter dialog's summaries, the
+  renders through it — the wizard's participant chips, the
   event search's recent searches and the audit log's applied filters — so a removal
   affordance is never painted outside the thing it removes. A `variant="light"` Badge on
   the shared `--c2-chip-height` (36px, `globals.css`) with the ✕ **inside** the chip's
@@ -202,7 +209,7 @@ separate role + Add commit:
 | Department create/edit (Parent department) | `PickerField` | chip ✕ clears the parent to top level; empty text "No parent (top level)"; `triggerLabel="Select"` |
 | UserForm (Department) | `PickerField` | single chip; ✕ clears the department ("Remove department"); `triggerLabel="Select"` |
 | UserForm (Department to grant) | trigger `Button` | stages the department; role select + Add commit it — add-only by design, so its dialog keeps `confirmLabel="Add"` |
-| `FilterModal` search groups | `PickerBadges` + `PickerTrigger` | `cap={5}` + inert `+N`, chip ✕, "All {label}" empty — the group's heading row is FilterModal's (see [`dashboard-views.md`](dashboard-views.md) §1.2) |
+| Filter dialog (all groups) | — | **no longer a chip consumer** — its groups are rows in its own two-level sheet, so it renders neither `PickerBadges` nor `PickerTrigger` (§1.4, [`dashboard-views.md`](dashboard-views.md) §1.2) |
 | Event search recent searches | `PickerChip` × N | not a picker — the row is the modal's own `.c2-chip-scroll`; tapping the label re-runs that query (`onSelect`), the ✕ forgets it; `tt="none"` (a query is free text) |
 | Audit log applied filters | `PickerBadges` | not a picker — one chip per applied value (actors / actions / entity types / search / From / To); the ✕ drops just that value from the URL; `tt="none"` |
 | Event detail modal (Participants) | `PickerBadges` | not a picker — `size="compact"` read-only badges; people first (self pinned with "(You)"), then tagged departments (`accent`, `srSuffix="department"`) in one merged row; `cap` + `+N` toggle |

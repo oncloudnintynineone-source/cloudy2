@@ -115,13 +115,14 @@ them with the tabs above the grid:
   window a circle under the fullscreen button; on phones a circle joins
   the step buttons, left of ‹ ›. One tap slides straight back to today.
 - The **filter button** (funnel icon, with a badge when filters are active) opens
-  the filter dialog: Calendars/departments and Users (searchable badge list grouped
-  by department) up front, Event Types behind a **Show** toggle, and a **Myself**
+  the filter dialog: **Calendars**, **Users** and **Event Types** each get one row
+  naming what they currently do (*All calendars*, *3 of 12 users*, *No event
+  types*), and tapping a row opens that list — search, department sections with
+  their own counts, and a **Myself**
   one-tap (events you are tagged on, plus events tagged to your department).
-  **Reset** clears them (back to your role default).
+  **Reset filters** clears them (back to your role default).
 - **Filters are per view** — each of Month / Week (H) / Week (D) / Day / Agenda
-  remembers its own Calendars/Users/Event Types selection, and the dialog notes
-  _"These filters apply to {view} only"_. Setting a filter on one view never
+  remembers its own Calendars/Users/Event Types selection. Setting a filter on one view never
   affects the others; clearing one view's filters never resets the rest.
   An untouched view shows your role default (admin: all departments). Filtering
   is not tied to access: everyone can always select **every** department

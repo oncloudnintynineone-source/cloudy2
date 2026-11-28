@@ -2541,9 +2541,9 @@ function DashboardViewImpl({
     const userOptions = filterUsers.map((user) => ({
       value: user.id,
       label: user.name,
-      // Carries the department into the picker dialog so users render as
-      // per-department badge sections instead of one flat list; the sort order
-      // keeps the sections in Settings → Departments display order and the id +
+      // Carries the department into the Users panel so users render as
+      // per-department sections instead of one flat list; the sort order keeps
+      // the sections in Settings → Departments display order and the id +
       // parent id let the sections nest under their parents.
       department: user.departmentName,
       departmentSort: user.departmentSort,
@@ -2555,8 +2555,10 @@ function DashboardViewImpl({
       groups.push({
         label: "Users",
         options: userOptions,
-        // A searchable dropdown instead of one checkbox card per user — the
-        // card grid gets unusably tall as the roster grows.
+        // Semantics, not layout: an empty Users selection is *no filter*, so
+        // narrowing 400 people to 3 never means unticking 397. The panel is
+        // searchable by size, and its row says "All users" when nothing is
+        // picked.
         variant: "search",
         action: filterUsers.some((user) => user.id === currentUser)
           ? {
@@ -2573,9 +2575,10 @@ function DashboardViewImpl({
       });
     }
     if (eventTypes.length > 0) {
-      // Same sections as the wizard's type step: inline groups first (labeled
-      // rows), Ungrouped, then folder groups as chips with popups; empty
-      // groups skipped.
+      // Same sections as the wizard's type step (inline groups first, then
+      // Ungrouped, then folder groups; empty groups skipped). The filter dialog
+      // renders every section as a header + rows — the folder/inline split only
+      // decides the wizard's chips, but the section *order* is shared.
       const sections = buildEventTypePickerSections(
         eventTypes.map((type) => ({ name: type.name, groupId: type.groupId })),
         eventTypeGroups,
@@ -6195,7 +6198,6 @@ function DashboardViewImpl({
             placeholder: "Filter by event name…",
           }}
           onApply={handleApplyFilters}
-          collapsedGroupLabels={["Event Types"]}
           originRect={filterOriginRect}
         />
       )}

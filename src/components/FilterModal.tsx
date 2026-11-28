@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import { CrossfadeSwap } from "@/components/CrossfadeSwap";
 import { FormModalSkeleton } from "@/components/FormModalSkeleton";
@@ -11,12 +11,11 @@ import { MIN_SKELETON_HOLD_MS } from "@/lib/loading/minHoldLoading";
 import type { Rect } from "@/lib/motion/origin";
 import { useModalZoom } from "@/lib/motion/useModalZoom";
 
-// The body (badge grids, the event-type picker and the nested user picker) is
-// large and only needed once the dialog opens. The chrome stays static so the
-// dialog zooms out of the trigger immediately and the chunk skeleton dissolves
-// inside it, instead of `next/dynamic` swapping a whole animated fallback modal
-// for the real one and replaying the entrance (docs/loading-transitions.md
-// §1.15.1).
+// The body (the group rows, their option panels and the section math) is large
+// and only needed once the dialog opens. The chrome stays static so the dialog
+// zooms out of the trigger immediately and the chunk skeleton dissolves inside
+// it, instead of `next/dynamic` swapping a whole animated fallback modal for the
+// real one and replaying the entrance (docs/loading-transitions.md §1.15.1).
 const loadFilterModalBody = () =>
   import("./FilterModalBody").then((mod) => mod.FilterModalBody);
 const FilterModalBody = dynamic(loadFilterModalBody, { ssr: false, loading: () => null });
@@ -69,8 +68,10 @@ export interface FilterGroupSection {
   id: string;
   label: string;
   /**
-   * Folder-style section: rendered as a chip whose popup holds the badges.
-   * `false` sections render directly as a labeled row.
+   * Folder-style section: the wizard renders it as a chip whose popup holds the
+   * badges, an inline one as a labeled row. The filter dialog **ignores** this
+   * and renders every section as the same header + rows — a folder whose state
+   * was a yellow border was unreadable until it was opened.
    */
   collapsible: boolean;
   options: FilterOption[];
@@ -93,24 +94,25 @@ export interface FilterGroup {
   /** Every selectable value in the group (also the union of `sections`). */
   options: FilterOption[];
   /**
-   * Optional grouped presentation: inline sections render as labeled rows of
-   * badges, folder sections as chips whose popups hold their badges (see
-   * `EventTypeGroupGrid`; flat groups omit this).
+   * Optional grouping: each section becomes a header (with its own count and
+   * All/None pair) above its rows in the group's panel. Flat groups omit this.
    */
   sections?: FilterGroupSection[];
-  /** Optional quick action rendered beside the group label (e.g. "My Events"). */
+  /** Optional quick action offered inside the group's panel (e.g. "Myself"). */
   action?: FilterGroupAction;
   /**
-   * "grid" (default) renders the options as toggleable `SelectableBadge`s,
-   * optionally chunked into `sections` (event-type groups) as a tile grid
-   * whose tiles open badge popups (see `EventTypeGroupGrid`). "search" renders a
-   * badge picker dialog (UserSelectModal) for large option lists:
-   * the currently selected options appear as removable chips beside an Add/Edit
-   * trigger, and the dialog filters them by a search box. Search groups use
-   * "empty = no filter" semantics, so narrowing 100 options down to a few never
-   * requires unticking the rest.
+   * Selection **semantics**, not a layout switch — the dialog renders every
+   * group the same way now. "grid" (default) means an empty selection is a real
+   * filter (nothing will match); "search" means an empty selection is *no*
+   * filter. The group's row says which in words ("All calendars" / "All users"
+   * vs "No calendars"), so the difference never has to be guessed.
    */
   variant?: "grid" | "search";
+  /**
+   * Force the group's panel to carry (or drop) a search box. By default one
+   * appears when the list is longer than `FILTER_SEARCH_THRESHOLD` options.
+   */
+  searchable?: boolean;
 }
 
 /**
@@ -152,32 +154,30 @@ export interface FilterModalProps {
   textFilter?: FilterTextGroup;
   /**
    * Viewport rect of the trigger button, captured on tap. Drives the modal's
-   * standard grow/shrink-from-element zoom animation (see `lib/motion/origin`).
+   * standard grow-from-element zoom animation (see `lib/motion/origin`).
    * Omit for a plain centered zoom.
    */
   originRect?: Rect | null;
-  /**
-   * Group labels that start collapsed behind a "Show …" toggle. Only the
-   * groups most users reach stay open (the dashboard promotes Calendars +
-   * Users and tucks Event Types away); audit-log/user-table callers omit this
-   * and keep every group expanded.
-   */
-  collapsedGroupLabels?: string[];
 }
 
 /**
- * Reusable filter dialog: opens from a trigger button and presents each filter
- * group as selectable badges — flat, split into labeled rows and folder chips
- * (see `EventTypeGroupGrid`), or as a removable-chip summary + an Add/Edit
- * trigger that opens the UserSelectModal badge picker (variant "search", for
- * large option lists). Every group is introduced by the same header recipe
- * (label · state chip · All/None pair · quick action), so the three group kinds
- * read as one dialog; the pair says "Clear" instead of "None" on a search group,
- * and the All/None action always spans the whole group.
- * Selections are staged in a draft and only applied when "Apply" is pressed;
- * "Reset filters" restores the role defaults (a group's "None" is a real, empty
- * selection — a third thing, with its own name). "No filter applied" is "all
- * selected" in grid groups and "nothing selected" in search groups.
+ * Reusable filter dialog: a **two-level sheet**. Level 1 lists the groups, each
+ * row naming what that group currently does ("Calendars · All", "Users · 3 of
+ * 12"); tapping a row opens that group's whole option list — search box,
+ * sections, touch-sized checkbox rows — in the same dialog (side by side at
+ * `lg`+). One gesture per group ("open it, tap rows") replaces the badge wall,
+ * the Add/Edit trigger into a nested picker, the folder chips with popovers and
+ * the Show/Hide disclosure this dialog used to mix, and the footer states the
+ * effective result set in one line.
+ *
+ * Selections are staged in a draft and only applied on "Apply"; "Reset filters"
+ * restores the role defaults (rows then read "Default", because that is what
+ * Apply will store). A group's own "None" stays a separate, named thing: an
+ * explicit empty selection. "No filter applied" is an empty selection in a
+ * search group and a full one in a grid group — a storage fact the rows state
+ * in words instead of asking the user to infer it.
+ *
+ * Design: docs/dashboard-views.md §1.2, docs/user-picker.md §1.7.
  */
 export function FilterModal({
   opened,
@@ -187,23 +187,36 @@ export function FilterModal({
   values,
   onApply,
   textFilter,
-  collapsedGroupLabels,
   originRect = null,
 }: FilterModalProps) {
   const bodyReady = useChunkReady(loadFilterModalBody, opened);
+  // The drill-in level lives here because Mantine routes Escape and the
+  // overlay tap to the modal: with a group open they step back to the list
+  // instead of closing the dialog. Every close path — footer, Escape, overlay —
+  // is this component's `onClose`, so `close()` is where the level resets; the
+  // dialog never reopens into a panel the user left behind.
+  const [openLabel, setOpenLabel] = useState<string | null>(null);
+
+  function close() {
+    setOpenLabel(null);
+    onClose();
+  }
 
   // The modal zooms out of / shrinks back into the trigger button (the app's
-  // standard grow/shrink animation; mirror the other zoom modals).
+  // standard grow/shrink animation; mirror the other zoom modals). `lg` on
+  // desktop is the two-column budget, not generosity: at `md` (440) the side
+  // panel leaves ~250px for the option list, which truncates section names
+  // beside their own All/Clear pair.
   const { size, transitionProps } = useModalZoom({
     originRect,
-    spec: { narrow: "xs", mobile: "sm", desktop: "md" },
+    spec: { narrow: "xs", mobile: "sm", desktop: "lg" },
     contentWidthPx: { narrow: 300 },
   });
 
   return (
     <MotionModal
       opened={opened}
-      onClose={onClose}
+      onClose={openLabel !== null ? () => setOpenLabel(null) : close}
       title={title}
       centered
       size={size}
@@ -244,8 +257,9 @@ export function FilterModal({
           values={values}
           onApply={onApply}
           textFilter={textFilter}
-          onClose={onClose}
-          collapsedGroupLabels={collapsedGroupLabels}
+          openLabel={openLabel}
+          onOpenGroup={setOpenLabel}
+          onClose={close}
         />
       </CrossfadeSwap>
     </MotionModal>

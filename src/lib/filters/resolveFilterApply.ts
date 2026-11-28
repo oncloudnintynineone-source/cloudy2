@@ -2,7 +2,11 @@ export interface FilterApplyGroup {
   label: string;
   /** Number of selectable options; "all selected" = optionCount. */
   optionCount: number;
-  /** "grid" (default) checkbox cards vs "search" dropdown (empty = no filter). */
+  /**
+   * Selection semantics only (never a layout switch): "grid" (default) means an
+   * empty selection is a real filter, "search" means an empty selection is *no*
+   * filter.
+   */
   variant?: "grid" | "search";
   /**
    * The selectable option ids, when the caller has them. Makes the
@@ -47,7 +51,7 @@ export type GroupFilterStateKind = "all" | "none" | "some";
 
 export interface GroupFilterState {
   kind: GroupFilterStateKind;
-  /** Compact chip label: `"All"` / `"None"` / `"3 of 12"`. */
+  /** Compact state label: `"All"` / `"None"` / `"3 of 12"`. */
   label: string;
   /** True when the selection actually filters (`kind !== "all"`). */
   active: boolean;
@@ -56,16 +60,17 @@ export interface GroupFilterState {
 }
 
 /**
- * The one "what is selected here?" answer every filter group header shows, so a
- * grid group, a sectioned group and a search group describe their state in the
- * same words. Built on {@link isGroupUnfiltered}, so the variant-dependent
- * meaning of "no filter" (grid: everything ticked; search: nothing ticked) can
- * never drift from what Apply actually stores.
+ * The one "what is selected here?" answer for a group, so every group describes
+ * its state in the same words ("All" / "None" / "3 of 12"). Built on
+ * {@link isGroupUnfiltered}, so the variant-dependent meaning of "no filter"
+ * (grid: everything ticked; search: nothing ticked) can never drift from what
+ * Apply actually stores. `filterDialogModel.ts` turns it into the sentences the
+ * dialog's rows and its "Showing:" line print.
  *
  * With `optionValues` present the count only includes ids the dialog can
  * actually show, and a selection naming something outside the option list is
  * never reported as "All" — it reads as a real filter (or "None" when nothing
- * visible is left) so the header/chips can't promise something Apply won't do.
+ * visible is left) so the dialog can't promise something Apply won't do.
  */
 export function groupFilterState(
   group: Pick<FilterApplyGroup, "variant" | "optionCount" | "optionValues">,
@@ -82,48 +87,6 @@ export function groupFilterState(
     return { kind: "none", label: "None", active: true, count };
   }
   return { kind: "some", label: `${count} of ${group.optionCount}`, active: true, count };
-}
-
-/**
- * Group labels are the UI's plural nouns ("Event Types"), so a single pick reads
- * better singular ("1 event type"). Only regular English plurals reduce — words
- * that merely end in `s` ("Status", "Access") stay untouched.
- */
-const ALREADY_SINGULAR = /(ss|us|is|xs)$/i;
-
-function singularizeLabel(label: string): string {
-  return label.length > 1 && !ALREADY_SINGULAR.test(label) && label.endsWith("s")
-    ? label.slice(0, -1)
-    : label;
-}
-
-/**
- * One plain-language entry per group for the dialog's "Showing: …" line, e.g.
- * `["All calendars", "3 users", 'Event name "parade"']`. It reads the same
- * variant semantics as Apply, so the line can never promise something the write
- * would not do.
- */
-export function describeFilterGroups(
-  groups: readonly FilterApplyGroup[],
-  draft: Record<string, readonly string[]>,
-  text?: { label: string; value: string },
-): string[] {
-  const entries = groups.map((group) => {
-    const state = groupFilterState(group, draft[group.label] ?? []);
-    const label = group.label.toLocaleLowerCase();
-    if (state.kind === "all") {
-      return `All ${label}`;
-    }
-    if (state.kind === "none") {
-      return `No ${label}`;
-    }
-    return `${state.count} ${state.count === 1 ? singularizeLabel(label) : label}`;
-  });
-  const trimmed = text?.value.trim() ?? "";
-  if (trimmed !== "" && text) {
-    entries.push(`${text.label} "${trimmed}"`);
-  }
-  return entries;
 }
 
 /**
