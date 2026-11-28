@@ -499,6 +499,33 @@ the floating fullscreen button — never over the canvas
   step if the schema changed (§1.11). **Suggest a commit message** summarizing the change,
   matching the repo's concise style — then stop. **You never run these git commands
   yourself** (see Hard rules): hand the user the exact commands and let them push.
+- **Hand every change over in the fixed report layout** — the message that ends the
+  task (the user reads it instead of the diff; the plan is separate and is not repeated
+  in it). Same order every time: **(1) Outcome first** — one or two plain sentences on
+  what the user now sees and the app's own idiom it matches; no restating of the request,
+  jargon only if the user used it first. **(2) `## What changed`** — a bullet per change,
+  each opening with a **bold lead-in** naming the subsystem (a file path only where the
+  pointer matters), then the observable effect and *why that choice*; name deletions
+  explicitly ("deleted rather than parked") and close with what still stands from earlier
+  phases ("everything from 1.440 stands"), so the reader learns what was *not* touched.
+  **(3) Visual evidence inline** — wherever the change is visible, screenshots in the
+  message itself (never "see attached"), each with alt text naming viewport, scheme and
+  state, plus the tooling used and stated honestly (e.g. headless Chrome over raw CDP
+  because Chrome DevTools MCP is not configured); shots are evidence, not deliverables —
+  they stay untracked under `.scratch/`, so never invite `git add .`.
+  **(4) `## Verification`** — the gates with real numbers (`pnpm lint` / `typecheck` /
+  `test`'s "N files / M tests" / `build`, flagging any pre-existing warning), then what
+  was rendered at which viewports/schemes/tiers, the measurement or DOM fact that proves
+  the point (px, counts, a removed class), the regression deliberately re-checked, and
+  zero console errors; a claim without a number, a viewport or an image is not a
+  verification. **(5) One docs/version line** — the docs and `APP_VERSION` that moved,
+  linked. **(6) `## Handoff — you run these (I never touch git)`** — the exact commands
+  in one fenced block to copy verbatim (per the bullet above), what each push triggers per
+  environment ([docs/developer-guide.md](docs/developer-guide.md) §1.7/§1.8/§1.9),
+  and the schema note ("no schema change, so no `pnpm db:migrate`"). Then **stop** — no
+  "should I proceed?", no unprompted next steps, no inventory table of edited files (the git
+  block is that list) and no plan pasted back. A docs-only change collapses parts 3–4 into
+  one honest line ("docs-only: no `APP_VERSION` bump, no UI check").
 - **Verify UI work visually before handoff:** any change that affects what the user sees —
   components, layout, styling, loading transitions, responsive tiers, accessibility — must
   be **rendered and looked at** before it is called done: run `pnpm dev` (or use the Vercel

@@ -18,8 +18,10 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.441 (content-width department chips)** is shipped,
-  including the **1.440** filter-dialog department labels, the **1.439** filter-dialog polish,
+- All work through changelog **1.443 (change-report convention)** is shipped,
+  including the **1.442** modal-skeleton reveal fix,
+  the **1.441** content-width department chips,
+  the **1.440** filter-dialog department labels, the **1.439** filter-dialog polish,
   the **1.438** filter-dialog group chips,
   the **1.437** filter-dialog chip lists,
   the **1.436** filter-dialog two-level sheet,
@@ -3507,6 +3509,17 @@ size="compact"`), and renames **Duplicate Event** / **Copy to Other Google
   at 1280×1000 and 390×844 plus reduced motion: New event and Add department now reveal with one
   resize and no dip, the wizard's fixed-height skeleton continues straight into the form, and the
   reduced-motion path stays an instant swap. Docs: `loading-transitions.md` §1.6.1.
+
+- 1.443 **Change-report convention recorded in `AGENTS.md`** (docs-only): the handover message
+  that ends a task now has a fixed shape — outcome first; `## What changed` with one bold-led
+  bullet per change, deletions named and what still stands from earlier phases; inline visual
+  evidence with the tooling stated honestly; `## Verification` with real numbers, the
+  measurement that proves the point and the regression deliberately re-checked; one
+  docs/`APP_VERSION` line; then `## Handoff — you run these (I never touch git)` with the exact
+  commands plus the schema note, and nothing after it. A docs-only change collapses the middle
+  parts into one honest line. It is a shape, not a copy-paste template, and it defers to the
+  git-workflow and visual-verification bullets rather than repeating them. No code, schema or
+  `APP_VERSION` change.
 
 ## 1.4 Open items & next steps
 
