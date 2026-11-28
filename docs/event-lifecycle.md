@@ -1105,8 +1105,9 @@ flowchart LR
   `FilterGroupSection`s with the same `buildEventTypePickerSections` call, so the
   filter dialog's Event Types panel lists the identical categories in the
   identical order — but every category renders as a header (with its own
-  `n of m` count and All/None pair) above checkbox rows, because a multi-select
-  group needs counts, not chips whose state is a border
+  `n of m` count and All/None pair) above that category's selectable chips — the
+  same `SelectableBadge` the wizard's single-select step uses, here multi-select,
+  with the state in a count and in `aria-pressed` rather than in a border
   ([`dashboard-views.md`](dashboard-views.md) §1.2). The single group-level
   All/None selects or clears every type across all categories. The group's flat option
   list stays the canonical value set for apply and active-filter counting

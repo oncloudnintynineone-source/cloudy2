@@ -599,7 +599,7 @@ the `lg` (620px) modal size for exactly that budget,
 [`desktop-responsive.md`](desktop-responsive.md) §1.9 — the open row highlighted,
 Escape steps back a level before it closes the dialog, and focus lands back on the
 row the panel opened from). One
-gesture per group — *open it, tap rows* — replaces the four mechanics this dialog
+gesture per group — *open it, tap chips* — replaces the four mechanics this dialog
 used to mix: an inline badge grid, an Add/Edit trigger into a nested picker,
 folder chips opening popovers, and a Show/Hide disclosure that hid Event Types
 behind an extra tap for the most common pick.
@@ -611,7 +611,8 @@ search groups treat empty _and_ all-selected as no filter — "all-selected" bei
 a **set** comparison against the group's option ids, so a stored id that is no
 longer an option is never read as "everything". Because each row says what its
 empty selection *means*, the dialog no longer asks the user to discover that a
-fully ticked Calendars group and an empty Users group are the same thing.
+Calendars group with every chip filled and an empty Users group are the same
+thing.
 
 Because that word *is* the dialog's payload, it never rides a fill shade:
 `.c2-filter-state` takes the text end of the accent ramp (accent-9 / gray-7 in
@@ -620,19 +621,23 @@ light, accent-4 / dark-2 in dark) after the shipped-first version measured
 at 12px. The active row's inset bar moved with it (accent-8 light, 3.52:1 as a
 graphic); see [`accessibility.md`](accessibility.md) §1.7.
 
-A panel is header + rows: back chevron, the group's own state word, its
+A panel is header + chips: back chevron, the group's own state word, its
 **All / None** pair, a search box once the list is longer than
-`FILTER_SEARCH_THRESHOLD` (12) options, then every option as a touch-sized
-checkbox row (`SelectableRow` — the multi-select twin of `RadioCardGroup`:
-≥ 44px, `role="checkbox"`, a real tick) under its section header. Section headers
-carry their own `n of m` count and their own All/None pair, so a folder's state
-is a number rather than a border. Selection is never colour-only: the amber badge
-fill and the dotted/solid folder outline this dialog used both disappear in
-greyscale.
+`FILTER_SEARCH_THRESHOLD` (12) options, then every option as a
+**`SelectableBadge` chip** (`src/components/SelectableBadge.tsx` — the app-wide
+36px `--c2-chip-height` chip the user picker's pool and the wizard's type step
+use, `aria-pressed` carrying the state, amber `accent-6` fill = in) under its
+section header, wrapping freely so a long user name breaks inside its chip
+instead of being truncated. Section headers carry their own `n of m` count and
+their own All/None pair, so a folder's state is a number rather than a border.
+Because a chip's fill is colour, the meaning of a selection is always said in
+words as well — the section counts, the row state words and the pinned
+`Showing: …` line — and the chip keeps a hairline plus the fill-vs-tint switch,
+so picked and unpicked still differ in greyscale.
 
 The pair's second word names what an empty selection means in that group —
 **None** (nothing will match) for a grid group, **Clear** (no picks, so nothing is
-filtered) for a search group — and the row above says the same thing. Unticking a
+filtered) for a search group — and the row above says the same thing. Emptying a
 grid group's last option now *does* empty it: the old dialog refused silently,
 which read as a broken checkbox.
 
@@ -651,7 +656,7 @@ only decides the wizard's chips (`EventTypeGroupGrid` is now the wizard's
 single-select type step). The group's flat `options` remain the canonical value
 list for apply/count logic; sections are presentation only.
 
-The **Users** panel renders the roster as checkbox rows grouped into department
+The **Users** panel renders the roster as chips grouped into department
 sections (nested by `departmentId`/`departmentParentId`, ordered by
 `departmentSort`), the acting user suffixed **(You)**, and the group's **Myself**
 quick action as a full-width row above the list. Filter scoping is **per tab**:
@@ -749,9 +754,9 @@ Filter storage & resolution:
 flowchart LR
  FB["FilterButton (nav row)<br/>icon + active-group badge"] --> FM["FilterModal<br/>(two-level sheet)"]
  ROWS["Level 1: one row per group<br/>(name · what it does · chevron)"]
-	ROWS --> CAL["Calendars panel<br/>(checkbox rows + All/None)"]
+	ROWS --> CAL["Calendars panel<br/>(selectable chips + All/None)"]
  ROWS --> US["Users panel<br/>(search + department sections + Myself)"]
- ROWS --> ET["Event Types panel<br/>(every group as a header + rows)"]
+ ROWS --> ET["Event Types panel<br/>(every group as a header + chips)"]
  FM --> FOOT["Pinned footer: Showing: All calendars · 3 of 12 users<br/>Reset filters · Cancel · Apply"]
  FOOT --> APPLY["saveDashboardViewFilters<br/>(server action)"]
  APPLY --> ROW["active tab row<br/>(cal/users/types, NULL = role default)"]
@@ -1444,15 +1449,15 @@ t: eventTypeNames, b: sharerName }`. The owner's effective filters are
 | `src/components/GridNavControls.tsx`                  | Day/Week (H) + Month right-edge cluster: zoom +/− + right pan, plus left-edge pan                                                                                                                                 |
 | `src/components/FilterButton.tsx`                     | Dedicated filter button (icon + active-group badge) replacing the kebab's filter menu                                                                                                                             |
 | `src/components/FilterModal.tsx`                      | Filters dialog chrome (two-level sheet, lazy body, origin-rect zoom, level-aware Escape)                                                          |
-| `src/components/FilterModalBody.tsx`                  | The sheet itself: group rows with state subtitles, per-group panels (search, sections, checkbox rows), "Showing:" footer, Reset filters            |
+| `src/components/FilterModalBody.tsx`                  | The sheet itself: group rows with state subtitles, per-group panels (search, sections, selectable chips), "Showing:" footer, Reset filters            |
 | `src/lib/filters/filterDialogModel.ts`                | Pure presentation model: row state words/subtitles, search threshold, section building + counts, the "Showing:" line                                |
-| `src/components/SelectableRow.tsx`                    | Touch-sized checkbox choice row (the multi-select twin of `RadioCardGroup`)                                                                        |
+| `src/components/SelectableBadge.tsx`                  | The app-wide 36px selectable chip (`aria-pressed`, amber fill = in) — the filter dialog's option lists and every picker pool render through it      |
 
 Related docs:
 
 - [`events-cache.md`](events-cache.md) — the read path every view uses.
 - [`grid-pan.md`](grid-pan.md) — horizontal pan for the wide grids.
 - [`immersive-mode.md`](immersive-mode.md) — fullscreen calendar chrome.
-- [`user-picker.md`](user-picker.md) — the Users filter's badge-dialog picker.
+- [`user-picker.md`](user-picker.md) — the shared selectable chip the filter dialog's option lists use (and the badge dialog the wizard picks through).
 - [`desktop-responsive.md`](desktop-responsive.md) — the slot/label width table and the Schedule CSS-var gotcha zoom builds on.
 - [`ui-state.md`](ui-state.md) — server-side prefs (tabs + filters) vs the device-local cookie (`zoom`, date/month, sidebar).

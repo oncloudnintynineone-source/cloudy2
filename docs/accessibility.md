@@ -19,6 +19,7 @@ floor.
 - [1.8 Page zoom policy](#18-page-zoom-policy)
 - [1.9 Touch targets](#19-touch-targets)
   - [1.9.1 Radio choice rows (`RadioCardGroup`)](#191-radio-choice-rows-radiocardgroup)
+  - [1.9.2 Chip surfaces (`SelectableBadge`) — the accepted exception](#192-chip-surfaces-selectablebadge--the-accepted-exception)
 - [1.10 Heading structure](#110-heading-structure)
 - [1.11 File index & related docs](#111-file-index--related-docs)
 
@@ -332,6 +333,30 @@ hover fill gives the row pointer feedback.
 Any future small-square control that must stay compact on a dense surface should
 follow the same recipe instead of enlarging the glyph.
 
+### 1.9.2 Chip surfaces (`SelectableBadge`) — the accepted exception
+
+Chips are the one surface the app deliberately keeps **below** the 44px floor:
+the shared `SelectableBadge` is `--c2-chip-height` (36px, `height: auto` so a
+long label wraps inside the chip instead of truncating), because a chip is read
+as one item in a wrapped set — pool badges, the wizard's type step, the title
+recipe rows — and a 44px chip would turn every one of those lists into a
+sparsely scattered column. The filter dialog's option lists (Calendars, Users,
+Event Types) ride the same standard since 1.437, so a picked option looks like a
+picked option everywhere in the app.
+
+What the exception costs is bought back elsewhere:
+
+- **State is in the accessible name**, not only in the fill: the chip is an
+  `aria-pressed` button whose name carries `", selected"` (measured:
+  `"User 1, selected"`), and the dialog says the same thing in words — section
+  `n of m` counts, the group's state word, the pinned `Showing: …` line.
+- **Picked vs unpicked survives greyscale** — a fill plus a hairline against a
+  tint — so the amber never carries the meaning alone.
+- **Keyboard parity**: Tab reaches every chip, Space/Enter toggle it, and focus
+  draws the shared brand `:focus-visible` outline (2px, brand-8) — the scrolling
+  panel columns carry `padding-inline` so that ring is never clipped at the
+  dialog edge on a 360px phone.
+
 ## 1.10 Heading structure
 
 Every page names itself exactly once with an `<h1>` and the sections under it
@@ -372,6 +397,7 @@ structure was guessed at.
 | `src/app/(protected)/dashboard/EventDraftBar.tsx` | Minimized-draft bar + docked FAB-row chip, resume/discard targets |
 | `src/components/ColdStartReady.tsx`               | Cold-start readiness announcement                                 |
 | `src/components/RadioCardGroup.tsx`               | 44px+ radio choice rows (series scopes), `.c2-radio-card` styling |
+| `src/components/SelectableBadge.tsx`              | 36px chip surface — `aria-pressed` + name carry its state (§1.9.2) |
 | `src/components/PageHeader.tsx`                   | The page `h1` every `PageHeader` page opens with (§1.10)          |
 
 Related docs:

@@ -3490,6 +3490,10 @@ html.c2-low-end::view-transition-group(*) {
 .c2-filter-sheet__list,
 .c2-filter-sheet__detail {
   min-width: 0;
+  /* A control's focus outline is drawn 2px outside its own box, and a scrolling
+     column clips horizontally — without this the back chevron's and the
+     leftmost chip's ring are cut in half at the panel edge on phones. */
+  padding-inline: calc(0.25rem * var(--mantine-scale));
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -3615,59 +3619,6 @@ html.c2-low-end::view-transition-group(*) {
 
 [data-mantine-color-scheme="dark"] .c2-filter-state[data-active] {
   color: var(--mantine-color-accent-4);
-}
-
-/*
-  Touch-sized checkbox row — the multi-select twin of `.c2-radio-card` above
-  (docs/accessibility.md §1.9, `SelectableRow`): `Checkbox.Card` renders a
-  full-width `role="checkbox"` **button**, so the whole row is the tap target and
-  `Checkbox.Indicator size="md"` supplies the 24px glyph. Selection is the tick
-  plus the brand tint, so it survives greyscale — precisely what the filter
-  dialog's amber-fill badges and border-only folder chips could not say.
-  Borderless like the radio rows: one list, not a stack of cards.
-*/
-.mantine-CheckboxCard-card.c2-check-row {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  min-height: var(--c2-touch-row-height);
-  padding: calc(0.375rem * var(--mantine-scale)) calc(0.625rem * var(--mantine-scale));
-  text-align: left;
-  transition: background-color var(--c2-dur-micro) var(--c2-ease-out);
-}
-
-.mantine-CheckboxCard-card.c2-check-row:hover {
-  background-color: var(--mantine-color-gray-0);
-}
-
-.mantine-CheckboxCard-card.c2-check-row[data-checked] {
-  background-color: var(--mantine-color-brand-0);
-}
-
-.mantine-CheckboxCard-card.c2-check-row:focus-visible {
-  outline: 2px solid var(--mantine-color-brand-6);
-  outline-offset: 2px;
-}
-
-.mantine-CheckboxCard-card.c2-check-row[disabled] {
-  opacity: 0.5;
-  cursor: default;
-}
-
-[data-mantine-color-scheme="dark"] .mantine-CheckboxCard-card.c2-check-row:hover {
-  background-color: var(--mantine-color-dark-6);
-}
-
-[data-mantine-color-scheme="dark"] .mantine-CheckboxCard-card.c2-check-row[data-checked] {
-  background-color: color-mix(
-    in srgb,
-    var(--mantine-color-brand-6) 22%,
-    var(--mantine-color-dark-7)
-  );
-}
-
-[data-mantine-color-scheme="dark"] .mantine-CheckboxCard-card.c2-check-row:focus-visible {
-  outline-color: var(--mantine-color-brand-4);
 }
 
 /* The quick action ("Myself") is a row-scale toggle, not a header-sized button:

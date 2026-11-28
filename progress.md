@@ -18,8 +18,9 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.436 (Filter dialog is a two-level sheet)** is shipped,
-  including the **1.435** resource-usage ledger + Egress writer, the **1.434** month-granular
+- All work through changelog **1.437 (Filter dialog's option lists are chips)** is shipped,
+  including the **1.436** filter-dialog two-level sheet, the **1.435** resource-usage ledger +
+  Egress writer, the **1.434** month-granular
   event-type migration range, the **1.433** UI/UX streamline passes + heading outline, the
   **1.432** compact mobile report heads, the **1.431** compact-desktop chrome fix and the
   **1.430.1** KAH copy-trim and **1.430.2** breach-integration follow-ups.
@@ -3368,6 +3369,31 @@ size="compact"`), and renames **Duplicate Event** / **Copy to Other Google
   names), disabled a no-op **Clear** on an already-empty search group, restored focus to the row
   after Escape, and replaced the measured 1.66:1 amber state word with `.c2-filter-state`
   (`accessibility.md` §1.7).
+
+- 1.437 **Filter dialog's option lists are chips** (follow-up on 1.436, at the user's request —
+  "this looks good, but I still like to see the chip layout for listing the calendars, users, and
+  event types"): inside a group panel, every option is now a `SelectableBadge` — the app-wide 36px
+  `--c2-chip-height` chip the picker pool and the wizard's type step already use, amber fill = in,
+  `aria-pressed` carrying the state, `height: auto` so a long user name wraps inside its chip
+  instead of truncating — under the same section headers with their `n of m` + All/Clear pair. A
+  straight replacement with no flag: `SelectableRow.tsx` and `.c2-check-row` are deleted, so a
+  picked option looks like a picked option everywhere in the app. Nothing else moved — the
+  two-level sheet, the row state words, the counts, the `Showing:` line, the All/None/Clear/Reset
+  vocabulary, storage semantics and `FilterModalProps` are exactly as 1.436 shipped, and the
+  meaning of a selection is still said in words because a chip's fill is colour. The chip's 36px
+  height sits under the 44px floor: the same exception every other chip surface in the app makes,
+  now written down as `accessibility.md` §1.9.2. One visible tradeoff: a grid group at rest has
+  every chip filled, so an unfiltered Calendars / Event Types panel reads as a wall of amber — the
+  honest "all of these are in", and the same thing the chip idiom says in the picker pool.
+  **Browser-verified** on a production build in Chrome over raw CDP (DevTools MCP is not
+  configured here) at 360 and 1280px, light and dark: chips measure 36px in both schemes (amber
+  `#FBC02D` + `accent-7` hairline + near-black text picked, tint + hairline unpicked), grid groups
+  are `aria-pressed=true` at rest and one tap takes the footer to `4 of 5 event types`, Cancel →
+  reopen resets the draft, Space toggles the focused chip whose accessible name is
+  `User 1, selected`, and zero console errors. That pass also caught the scrolling panel columns
+  clipping the focus ring at the dialog edge on a 360px phone — `.c2-filter-sheet__list/__detail`
+  now carry `padding-inline`. Docs: `dashboard-views.md` §1.2, `user-picker.md` §1.4,
+  `accessibility.md` §1.9.2, `ui-ux-improvements.md` E7.
 
 ## 1.4 Open items & next steps
 

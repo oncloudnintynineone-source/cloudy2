@@ -1497,6 +1497,23 @@ bypassed the panel's own close path, so focus fell to `<body>`; and the state wo
 **1.66:1** (`c="accent"` on white) and 3.33:1 (`c="dimmed"`), fixed by `.c2-filter-state`
 ([`accessibility.md`](accessibility.md) §1.7).
 
+**Follow-up — chips (1.437, 2026-11-28).** The rows shipped, and the reaction was "this looks
+good, but I still like to see the chip layout for listing the calendars, users, and event types".
+So level 2 now lists every option as the app's own `SelectableBadge` chip — the 36px
+`--c2-chip-height` chip the picker pool and the wizard's type step use, amber fill = in,
+`aria-pressed` carrying the state, wrapping so a long name breaks inside its chip — under the same
+section headers with their `n of m` + All/Clear pair. Straight replacement, no flag:
+`SelectableRow.tsx` and `.c2-check-row` are deleted, and a picked option now looks like a picked
+option everywhere in the app. What did **not** move: the two-level sheet, the row state words, the
+counts, the `Showing:` line, the All/None/Clear/Reset vocabulary, storage and `FilterModalProps`.
+The chip's 36px height is below the 44px floor — accepted deliberately, because it is the same
+exception every other chip surface in the app already makes ([`accessibility.md`](accessibility.md)
+§1.9.2), and the meaning stays in words because a chip's fill is colour. One tradeoff is now
+visible rather than hidden: a grid group at rest has every chip filled, so an unfiltered Calendars
+or Event Types panel reads as a wall of amber. That is the honest state of "all of these are in",
+and it is what the chip idiom says anywhere else; if it grates in the field, the one-line change is
+rendering grid-group chips neutral while the group is unfiltered.
+
 ## 1.9 Held register
 
 Reviewed on **2026-11-22** and **put aside by decision — not to be implemented without a new
@@ -1594,6 +1611,7 @@ land here.
 | C12 | 1.433 (2026-11-28) | Event search's window is **whole months** end to end: From/To `MonthPickerInput`s bounded by each other + `SEARCH_MAX_RANGE_MONTHS`, `defaultSearchMonths` (last month → +3), `coerceSearchMonths`, `monthStart`/`monthEnd` at the cache edge, `monthRangeLabel` caption, dirty dot on the trigger; the day-level `coerceSearchRange` / `SEARCH_MAX_RANGE_DAYS` clamp is gone. [`event-search.md`](event-search.md) §1.7/§1.9. |
 | D24 | 1.433 (2026-11-28) | KAH Status says each fact once: scope-only summary line, period rows without the `X away · Y in country · worst <day>` tail (away chips moved outside the disclosure), bare **Breaches** heading. [`kah.md`](kah.md) §1.7. |
 | E7  | 1.436 (2026-11-28) | The filter dialog is a **two-level sheet**: level 1 is one row per group naming what it currently does (`All calendars` · `3 of 12 users` · `No event types` · `Default`), level 2 that group's whole list as 44px checkbox rows under section headers carrying their own `n of m` + All/None pair; at `lg`+ the levels sit side by side, Escape steps back before closing, focus returns to the row. One polarity per group and it is stated in words, so no caption is needed anywhere: grid groups say **None** (nothing will match), search groups say **Clear** (nothing is filtered), the footer says **Reset filters** (role defaults) over a `Showing: …` line built from the same rows. Gone: badge grids, the nested `UserSelectModal`, folder chips whose state was a border, the Show/Hide disclosure, the 5-chip cap with its inert `+N`, and the untick-that-refused-to-empty. Pure model in `src/lib/filters/filterDialogModel.ts` (27 tests) + `SelectableRow.tsx`; storage, share tokens and `FilterModalProps` unchanged. [`dashboard-views.md`](dashboard-views.md) §1.2, [`user-picker.md`](user-picker.md) §1.4/§1.6. |
+| E7  | 1.437 (2026-11-28) | Follow-up on the same dialog, at the user's request: level 2 lists each group's options as **`SelectableBadge` chips** (the app-wide 36px chip, amber fill = in, `aria-pressed`, wrapping long names) instead of checkbox rows, so a picked option looks picked everywhere; `SelectableRow.tsx` + `.c2-check-row` deleted, no flag. Sheet, state words, counts, `Showing:` line, All/None/Clear/Reset vocabulary, storage and `FilterModalProps` unchanged; the 36px chip floor is the app's existing chip-surface exception. [`dashboard-views.md`](dashboard-views.md) §1.2, [`accessibility.md`](accessibility.md) §1.9.2. |
 
 ## 1.11 Implementation guardrails
 

@@ -212,10 +212,12 @@ doc content here.
   projection (`filterEventsByText`, `src/lib/events/textFilter.ts`); the shared
   `FilterModal` is a **two-level sheet** — level 1 is one row per group naming what it
   currently does (`All calendars` / `3 of 12 users` / `No event types`), level 2 is that
-  group's whole option list as touch-sized checkbox rows (`SelectableRow`) under section
-  headers that carry their own `n of m` + All/None pair; at `lg`+ the two levels sit side
-  by side. No badges, chips, Show/Hide disclosure or nested picker — and no instructional
-  copy: the rows and the pinned `Showing: …` line say the state
+  group's whole option list as **selectable chips** (`SelectableBadge`, the app-wide 36px
+  chip — amber fill = in) under section headers that carry their own `n of m` + All/None
+  pair; at `lg`+ the two levels sit side by side. No Show/Hide disclosure or nested picker —
+  and no instructional copy: because a chip's fill is colour, what a selection *means* is
+  always said in words — the section counts, the row state words and the pinned
+  `Showing: …` line
   (`src/lib/filters/filterDialogModel.ts`, pure + unit-tested). Vocabulary stays exact:
   group **All / None** (None = an explicit empty selection), search-group **All / Clear**
   (empty = no filter), footer **Reset filters** (role defaults — never rename a group's
@@ -470,7 +472,8 @@ the floating fullscreen button — never over the canvas
   audit failure), and a future surface that needs page zoom must own the gesture, since
   `touch-action` can't be re-enabled below `html`. Design:
   [docs/accessibility.md](docs/accessibility.md) §1.7 (contrast) / §1.8 (page zoom) /
-  §1.9 (touch targets — 44px floor, `RadioCardGroup` / `SelectableRow` choice rows).
+  §1.9 (touch targets — 44px floor for choice rows (`RadioCardGroup`); chip surfaces ride
+  `--c2-chip-height`).
 
 ## Conventions
 
@@ -525,7 +528,8 @@ a compact tier via `NARROW_MEDIA_QUERY` (`src/lib/theme.ts`) + `useMediaQuery` `
   dropdown. Its trigger + summary markup is shared: every consumer renders through
   `PickerField` / `PickerBadges` (`src/components/PickerField.tsx`) — never hand-roll it.
   (The filter dialog is **not** one of those consumers: it selects in its own two-level
-  sheet, rows not chips.)
+  sheet — its options are `SelectableBadge` chips, but never a nested picker nor
+  `PickerBadges`.)
   Selection state must be visible everywhere and removal one tap: Add→Edit trigger, ✕ on
   every summary chip, and picks unmistakable in the dialog's own pool (docs/user-picker.md §1.7).
   Design: [docs/user-picker.md](docs/user-picker.md).

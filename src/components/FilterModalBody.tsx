@@ -17,7 +17,7 @@ import { IconChevronLeft, IconChevronRight, IconSearch, IconX } from "@tabler/ic
 
 import { AllNoneControls } from "@/components/AllNoneControls";
 import { EmptyState } from "@/components/EmptyState";
-import { SelectableRow } from "@/components/SelectableRow";
+import { SelectableBadge } from "@/components/SelectableBadge";
 import {
   effectiveSetLine,
   groupRowState,
@@ -73,17 +73,20 @@ function initialDraft(
 /**
  * The filter dialog's body: a **two-level sheet**. Level 1 is one row per group
  * naming what that group currently does; level 2 is that group's whole option
- * list — search box, sections, touch-sized checkbox rows — filling the same
- * dialog. At `lg`+ the two levels sit side by side (master–detail) instead of
- * replacing each other; nothing else about the interaction changes.
+ * list — search box, sections, selectable chips — filling the same dialog. At
+ * `lg`+ the two levels sit side by side (master–detail) instead of replacing each
+ * other; nothing else about the interaction changes.
  *
  * One grammar for every group replaces the four the dialog used to mix (inline
  * badges, an Add/Edit trigger into a nested picker, folder chips opening
- * popovers, and a Show/Hide disclosure): **open the group, tap rows, Apply**.
- * Selection is a check glyph + a count + a state word, never a fill or a border
- * colour, and the footer states the effective result set in one line.
- * `FilterGroupSection.collapsible` is deliberately ignored here — a folder and
- * an inline section are the same header + rows (the wizard still uses it).
+ * popovers, and a Show/Hide disclosure): **open the group, tap chips, Apply**.
+ * What a selection *means* is always said in words — a section count, a state
+ * word, and one footer line naming the effective result set — so a chip's amber
+ * fill never has to carry a meaning on its own, and the 5-chip summary this
+ * dialog used to cap its picks at (with an inert `+N` nobody could tap) is gone:
+ * a panel lists every option. `FilterGroupSection.collapsible` is deliberately
+ * ignored here — a folder and an inline section are the same header + chips (the
+ * wizard still uses it).
  *
  * Split into its own chunk so the modal chrome can animate out of the trigger
  * before {@link FilterModal} finishes loading this body
@@ -425,8 +428,8 @@ interface FilterGroupPanelProps {
 /**
  * Level 2: one group's whole option list. Back + the group's own state + its
  * All/None pair, the search box (only for a list too long to scan), the quick
- * action as a full-width row, then every option as the same checkbox row under
- * its section header.
+ * action as a full-width row, then every option as a chip under its section
+ * header.
  *
  * The pair's second word names what an empty selection *means* in this group —
  * **None** (nothing will match) for a grid group, **Clear** (no picks, so
@@ -570,9 +573,15 @@ function FilterGroupPanel({
                   </Box>
                 </Group>
               )}
-              <Stack gap={2}>
+              {/* Chips, not rows: the same `SelectableBadge` the user picker's pool
+                  and the wizard's type step use, so a picked option looks like a
+                  picked option everywhere in the app. A chip cloud is what makes a
+                  40-department group scannable without scrolling — and the state it
+                  used to hide (a folder's yellow border, the 5-chip cap with its
+                  inert "+N") is now carried by the section header above it. */}
+              <Group gap={6} wrap="wrap">
                 {section.options.map((option) => (
-                  <SelectableRow
+                  <SelectableBadge
                     key={option.value}
                     label={option.label}
                     self={option.self}
@@ -580,7 +589,7 @@ function FilterGroupPanel({
                     onToggle={() => onToggle(option.value)}
                   />
                 ))}
-              </Stack>
+              </Group>
             </Box>
           );
         })

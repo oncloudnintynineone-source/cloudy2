@@ -104,12 +104,13 @@ of toggleable badges with a search box on top:
   caller-provided `departmentSort` (the Settings → Departments sort order) and
   nest via `departmentId`/`departmentParentId`; the audit log's actors with no
   roster match fall into an unranked trailing "Other" section. The dialog renders
-  **every** group — Users, Calendars, Event Types — as touch-sized checkbox rows
-  (`SelectableRow`) under section headers with `n of m` counts, not as badges:
+  **every** group — Users, Calendars, Event Types — as this doc's
+  `SelectableBadge` chips (the app-wide 36px chip, amber fill = in) under section
+  headers with `n of m` counts, wrapped so a long name breaks inside its chip:
   see [`dashboard-views.md`](dashboard-views.md) §1.2. It shares this doc's option
-  shape (`FilterOption`), section math (`filterPickerGroups`) and
-  `AllNoneControls`; it does not use `SelectableBadge`, `PickerBadges` or
-  `PickerTrigger`.
+  shape (`FilterOption`), section math (`filterPickerGroups`), the chip itself and
+  `AllNoneControls`; it does not use `PickerBadges` or `PickerTrigger`, and it
+  never opens a nested picker — the whole option list is the panel.
 - **Double Booking scan target** — a `single`-mode `UserSelectModal` (department
   sections nested by tree depth, shortname `search`) replacing the page's original
   `NoKeyboardSelect` dropdown, since the roster is a large option list.
