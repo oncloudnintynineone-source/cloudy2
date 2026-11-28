@@ -5,6 +5,9 @@ import {
   groupRowState,
   isGroupSearchable,
   panelSections,
+  sectionChipAriaLabel,
+  sectionChipLabel,
+  sectionRendersAsChip,
   sectionState,
   showsSectionHeaders,
   toApplyGroup,
@@ -252,6 +255,120 @@ describe("sectionState", () => {
     expect(sectionState(section, [])).toBe("none");
     expect(sectionState(section, ["op-1", "op-2"])).toBe("some");
     expect(sectionState(section, ["op-1", "op-2", "op-3"])).toBe("all");
+  });
+});
+
+describe("sectionRendersAsChip", () => {
+  const typeGroup = (
+    collapsible: boolean | undefined,
+    id: string,
+    label: string,
+    count: number,
+  ) => ({
+    id,
+    label,
+    collapsible,
+    options: options(`${id}-`, count),
+  });
+
+  it("stays inline for a flat group — there is nothing to hide behind", () => {
+    const group: FilterModelGroup = { label: "Status", options: options("s", 3) };
+    const sections = panelSections(group, "", []);
+    expect(sectionRendersAsChip(sections[0]!, sections)).toBe(false);
+  });
+
+  it("groups departments by default (no flag on a department section)", () => {
+    const group: FilterModelGroup = {
+      label: "Users",
+      options: [
+        { value: "u1", label: "Ana", department: "HQ", departmentSort: 1 },
+        { value: "u2", label: "Bo", department: "HQ", departmentSort: 1 },
+        { value: "u3", label: "Cy", department: "Stores", departmentSort: 2 },
+      ],
+    };
+    const sections = panelSections(group, "", []);
+    expect(sections).toHaveLength(2);
+    expect(sections.every((section) => sectionRendersAsChip(section, sections))).toBe(true);
+  });
+
+  it("honours an inline flag: collapsible false lists its chips straight away", () => {
+    const group: FilterModelGroup = {
+      label: "Event Types",
+      options: [...options("op-", 2), ...options("ad-", 2)],
+      sections: [typeGroup(false, "op", "Operations", 2), typeGroup(true, "ad", "Admin", 2)],
+    };
+    const sections = panelSections(group, "", []);
+    const byLabel = new Map(sections.map((section) => [section.label, section]));
+    expect(sectionRendersAsChip(byLabel.get("Operations")!, sections)).toBe(false);
+    expect(sectionRendersAsChip(byLabel.get("Admin")!, sections)).toBe(true);
+  });
+
+  it("lists inline once a search narrows the panel to one section", () => {
+    const group: FilterModelGroup = {
+      label: "Event Types",
+      options: [
+        { value: "p1", label: "Plumbing" },
+        { value: "e1", label: "Electrical" },
+      ],
+      sections: [
+        {
+          id: "ops",
+          label: "Operations",
+          collapsible: true,
+          options: [{ value: "p1", label: "Plumbing" }],
+        },
+        {
+          id: "eng",
+          label: "Engineering",
+          collapsible: true,
+          options: [{ value: "e1", label: "Electrical" }],
+        },
+      ],
+    };
+    const narrowed = panelSections(group, "Plumbing", []);
+    expect(narrowed).toHaveLength(1);
+    expect(narrowed[0]?.label).toBe("Operations");
+    expect(sectionRendersAsChip(narrowed[0]!, narrowed)).toBe(false);
+  });
+
+  it("carries the admin flag through panelSections", () => {
+    const group: FilterModelGroup = {
+      label: "Event Types",
+      options: [...options("op-", 2), ...options("ad-", 2)],
+      sections: [typeGroup(false, "op", "Operations", 2), typeGroup(true, "ad", "Admin", 2)],
+    };
+    expect(
+      panelSections(group, "", []).map((section) => [section.label, section.collapsible]),
+    ).toEqual([
+      ["Operations", false],
+      ["Admin", true],
+    ]);
+  });
+});
+
+describe("section chip labels", () => {
+  const group: FilterModelGroup = {
+    label: "Event Types",
+    options: [...options("op-", 3), ...options("ad-", 1)],
+    sections: [
+      { id: "op", label: "Operations", options: options("op-", 3) },
+      { id: "ad", label: "Admin", options: options("ad-", 1) },
+    ],
+  };
+
+  it("states the count in words, not just a fill", () => {
+    const [operations] = panelSections(group, "", ["op-1"]);
+    expect(operations).toBeDefined();
+    if (!operations) return;
+    expect(sectionChipLabel(operations)).toBe("Operations 1 of 3");
+    expect(sectionChipAriaLabel(operations)).toBe("Operations, 1 of 3 selected");
+  });
+
+  it("reads zero for a search group with nothing picked", () => {
+    const [, admin] = panelSections({ ...group, variant: "search" }, "", []);
+    expect(admin).toBeDefined();
+    if (!admin) return;
+    expect(sectionChipLabel(admin)).toBe("Admin 0 of 1");
   });
 });
 

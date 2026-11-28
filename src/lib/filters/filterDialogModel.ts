@@ -48,6 +48,12 @@ export interface FilterModelSection {
   id: string;
   label: string;
   options: FilterModelOption[];
+  /**
+   * The admin's per-group flag (event-type groups only): `false` keeps the
+   * section inline, `true`/absent lets the panel hide its members behind a group
+   * chip. Departments carry no flag, so their sections group by default.
+   */
+  collapsible?: boolean;
 }
 
 /** A filter group, structurally compatible with `FilterGroup`. */
@@ -149,6 +155,8 @@ export interface FilterPanelSection {
   totalCount: number;
   /** Department-tree depth of this section (0 = top level) for indentation. */
   depth?: number;
+  /** The admin's per-group flag (see {@link FilterModelSection.collapsible}). */
+  collapsible?: boolean;
 }
 
 function toPickerOption(option: FilterModelOption): PickerOption {
@@ -196,12 +204,18 @@ export function panelSections(
   selected: readonly string[],
 ): FilterPanelSection[] {
   const chosen = new Set(selected);
+  // The admin's per-group flag rides the source section, not the picker pipeline
+  // (the picker has no use for it), so it is looked up by label afterwards.
+  const collapsibleByLabel = new Map<string, boolean | undefined>(
+    (group.sections ?? []).map((section) => [section.label, section.collapsible]),
+  );
   return sortOptionsInGroups(filterPickerGroups(toPickerGroups(group), query))
     .filter((section) => section.options.length > 0)
     .map((section) => ({
       key: section.label,
       label: section.label,
       depth: section.depth,
+      collapsible: collapsibleByLabel.get(section.label),
       options: section.options.map((option) => ({
         value: option.id,
         label: option.label,
@@ -214,6 +228,37 @@ export function panelSections(
       ),
       totalCount: section.options.length,
     }));
+}
+
+/**
+ * Whether a section hides its members behind a group chip, the way the wizard's
+ * type step hides a folder group's types.
+ *
+ * Three rules, and the section has to pass all of them:
+ * - the admin did not mark the group as inline (`collapsible: false`);
+ * - the panel really is chunked (≥ 2 sections) — with one section left there is
+ *   nothing to hide it behind, which is also why a search that narrows the list
+ *   to one block shows that block's chips immediately;
+ * - the section has members to hide (an empty section never renders at all).
+ *
+ * Departments carry no flag, so they pass by default: a department *is* the group
+ * name its users belong under.
+ */
+export function sectionRendersAsChip(
+  section: FilterPanelSection,
+  sections: readonly FilterPanelSection[],
+): boolean {
+  return section.collapsible !== false && sections.length >= 2;
+}
+
+/** A group chip's visible text — the count is **words**, never just a fill. */
+export function sectionChipLabel(section: FilterPanelSection): string {
+  return `${section.label} ${section.selectedCount} of ${section.totalCount}`;
+}
+
+/** A group chip's accessible name — the same count, spelled out. */
+export function sectionChipAriaLabel(section: FilterPanelSection): string {
+  return `${section.label}, ${section.selectedCount} of ${section.totalCount} selected`;
 }
 
 /**

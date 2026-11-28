@@ -621,17 +621,36 @@ light, accent-4 / dark-2 in dark) after the shipped-first version measured
 at 12px. The active row's inset bar moved with it (accent-8 light, 3.52:1 as a
 graphic); see [`accessibility.md`](accessibility.md) §1.7.
 
-A panel is header + chips: back chevron, the group's own state word, its
+A panel is header + sections: back chevron, the group's own state word, its
 **All / None** pair, a search box once the list is longer than
-`FILTER_SEARCH_THRESHOLD` (12) options, then every option as a
-**`SelectableBadge` chip** (`src/components/SelectableBadge.tsx` — the app-wide
-36px `--c2-chip-height` chip the user picker's pool and the wizard's type step
-use, `aria-pressed` carrying the state, amber `accent-6` fill = in) under its
-section header, wrapping freely so a long user name breaks inside its chip
-instead of being truncated. Section headers carry their own `n of m` count and
-their own All/None pair, so a folder's state is a number rather than a border.
-Because a chip's fill is colour, the meaning of a selection is always said in
-words as well — the section counts, the row state words and the pinned
+`FILTER_SEARCH_THRESHOLD` (12) options, then the group's sections. Each section
+carries its own `n of m` count and its own All/None pair, so a folder's state is
+a number rather than a border — and its members are either listed inline or
+**hidden behind the section's own group chip**:
+
+- **A section that is a real group renders as one chip** — `Logistics 3 of 7 ›`,
+  the count in words — and its option chips live in the chip's popup
+  (`src/components/ChipPopover.tsx`, the same mechanic the wizard's event-type
+  picker uses for a folder group: group name → tap → its chips). This is what
+  stops a 40-department roster from becoming one wall of 200 user chips.
+- **Which sections group**: a department section (no admin flag exists — a
+  department *is* its users' group name) and an event-type section the admin left
+  collapsible (`event_type_groups.collapsible`, the wizard's own setting). A
+  section the admin marked **inline** lists its chips straight away, as does any
+  panel that has **one** section left (a search that narrows to one block shows
+  its matches immediately instead of hiding them behind a chip).
+- **A section's All / Clear pair stays beside its chip**, so selecting a whole
+  department never costs the extra tap of opening it.
+- **The popup is multi-select and stays open while picking** (the wizard's tile
+  closes on its single pick instead). Escape closes the popup and leaves the
+  panel where it is — the sheet only steps back a level on the next Escape.
+
+Options are **`SelectableBadge` chips** (`src/components/SelectableBadge.tsx` —
+the app-wide 36px `--c2-chip-height` chip the user picker's pool and the wizard's
+type step use, `aria-pressed` carrying the state, amber `accent-6` fill = in),
+wrapping freely so a long user name breaks inside its chip instead of being
+truncated. Because a chip's fill is colour, the meaning of a selection is always
+said in words as well — the section counts, the row state words and the pinned
 `Showing: …` line — and the chip keeps a hairline plus the fill-vs-tint switch,
 so picked and unpicked still differ in greyscale.
 
@@ -755,8 +774,8 @@ flowchart LR
  FB["FilterButton (nav row)<br/>icon + active-group badge"] --> FM["FilterModal<br/>(two-level sheet)"]
  ROWS["Level 1: one row per group<br/>(name · what it does · chevron)"]
 	ROWS --> CAL["Calendars panel<br/>(selectable chips + All/None)"]
- ROWS --> US["Users panel<br/>(search + department sections + Myself)"]
- ROWS --> ET["Event Types panel<br/>(every group as a header + chips)"]
+ ROWS --> US["Users panel<br/>(search + department chips + Myself)"]
+ ROWS --> ET["Event Types panel<br/>(group chips + the admin's inline groups)"]
  FM --> FOOT["Pinned footer: Showing: All calendars · 3 of 12 users<br/>Reset filters · Cancel · Apply"]
  FOOT --> APPLY["saveDashboardViewFilters<br/>(server action)"]
  APPLY --> ROW["active tab row<br/>(cal/users/types, NULL = role default)"]
@@ -1452,6 +1471,7 @@ t: eventTypeNames, b: sharerName }`. The owner's effective filters are
 | `src/components/FilterModalBody.tsx`                  | The sheet itself: group rows with state subtitles, per-group panels (search, sections, selectable chips), "Showing:" footer, Reset filters            |
 | `src/lib/filters/filterDialogModel.ts`                | Pure presentation model: row state words/subtitles, search threshold, section building + counts, the "Showing:" line                                |
 | `src/components/SelectableBadge.tsx`                  | The app-wide 36px selectable chip (`aria-pressed`, amber fill = in) — the filter dialog's option lists and every picker pool render through it      |
+| `src/components/ChipPopover.tsx`                      | The group chip: a container chip whose popup holds its members' chips — the wizard's folder tiles and the filter dialog's sections both use it      |
 
 Related docs:
 

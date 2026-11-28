@@ -18,8 +18,9 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.437 (Filter dialog's option lists are chips)** is shipped,
-  including the **1.436** filter-dialog two-level sheet, the **1.435** resource-usage ledger +
+- All work through changelog **1.438 (filter dialog group chips)** is shipped,
+  including the **1.437** filter-dialog chip lists, the **1.436** filter-dialog two-level sheet,
+  the **1.435** resource-usage ledger +
   Egress writer, the **1.434** month-granular
   event-type migration range, the **1.433** UI/UX streamline passes + heading outline, the
   **1.432** compact mobile report heads, the **1.431** compact-desktop chrome fix and the
@@ -3394,6 +3395,40 @@ size="compact"`), and renames **Duplicate Event** / **Copy to Other Google
   clipping the focus ring at the dialog edge on a 360px phone — `.c2-filter-sheet__list/__detail`
   now carry `padding-inline`. Docs: `dashboard-views.md` §1.2, `user-picker.md` §1.4,
   `accessibility.md` §1.9.2, `ui-ux-improvements.md` E7.
+
+- 1.438 **Filter dialog: a group's members hide behind its group chip** (follow-up, at the user's
+  request — pointing at the wizard's type picker: "all events are hidden behind the group name. I
+  want similar implemented here"): inside a panel, a **section that is a real group** now renders as
+  **one chip** named after the group, carrying its `n of m` count, and its member chips live in the
+  chip's popup — instead of every option spilling onto the panel. The mechanic was extracted, not
+  re-implemented: `EventTypeGroupGrid`'s `GroupTile` became the shared
+  `src/components/ChipPopover.tsx` (chip + chevron + `aria-expanded` + `zIndex=300` popup +
+  `popoverTransitionProps(useMotion())` + open→first-chip / close→chip focus handoff), and both the
+  wizard's folder tiles and the filter dialog's sections render through it. The dialog keeps its own
+  skin (`.c2-filter-group-chip`) because a section there holds several picks: the count is printed in
+  words (`Logistics 3 of 7`) with the fill language a selected chip uses as a glance-level aid, never
+  as the only cue. **Which sections group** is the load-bearing rule — a department always (a
+  department is its users' group name; no per-department flag exists), an event-type group only when
+  the admin left it `collapsible` (`event_type_groups.collapsible`, the wizard's own flag, so
+  `buildEventTypePickerSections`' inline/folder split is now the dialog's too), and **never** a panel
+  with one section left — a search that narrows the list to one block lists its matches rather than
+  hiding them. A section's All/Clear pair stays beside its chip so a whole department is still one
+  tap. Two deliberate divergences from the wizard: the popup is **multi-select and stays open** while
+  picking, and **Escape closes the popup without stepping the sheet back a level** — the latter
+  needed `FilterModal` to be told a chip is open (`onChipOpenChange`), because Mantine routes Escape
+  to the modal too; before that fix one Escape closed the popup *and* popped the panel (found and
+  fixed in the browser pass, not by reasoning). Unchanged: the draft/apply path, storage, share
+  tokens, `FilterModalProps`, the level-1 rows, group All/None/Clear, the `Myself` quick action and
+  the `Showing:` line. **Browser-verified** on a production build in Chrome over raw CDP (DevTools
+  MCP is not configured here) at 360/390/1280px, light and dark, on the dashboard, the Audit Log
+  consumer and the wizard's type step (the regression check): Users opens to 4 department chips
+  (`Dep1, 0 of 2 selected`, no `aria-pressed`), a chip opens its popup (`Dep1 options`, focus lands
+  on `User 1`), picking keeps it open and the chip moves to `1 of 2`, Escape closes the popup and
+  leaves the panel, section All takes it to `2 of 2` / `2 of 6 users`, Event Types shows `Ungrouped`
+  inline plus `Group 1` as a chip, the Audit Log shows `Dep1`/`Dep2`/`Other` chips, the wizard's tile
+  still opens its popup with focus left on itself, and the run reported **zero console errors**.
+  Docs: `dashboard-views.md` §1.2, `user-picker.md` §1.4, `event-lifecycle.md` §1.10,
+  `ui-ux-improvements.md` E7.
 
 ## 1.4 Open items & next steps
 

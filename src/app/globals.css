@@ -3364,13 +3364,14 @@ html.c2-low-end::view-transition-group(*) {
 }
 
 /*
-  Event-type folder chip (the wizard Type step + the filter dialog's Event
-  Types group, `EventTypeGroupGrid`'s GroupTile): `variant="outline"` paints
-  its text and border in `--mantine-color-brand-outline` = brand-4 in the dark
-  scheme, i.e. 4.28:1 on the dark body — just under the 4.5:1 AA floor for its
-  13px label, and visibly dim next to the light/filled type badges in its
-  popup. brand-3 keeps the same blue language at 6.52:1 and doubles as a
-  readable chip edge. The class is applied in EventTypeGroupGrid only.
+  Event-type folder chip (the wizard's Type step, `EventTypeGroupGrid`'s
+  GroupTile): `variant="outline"` paints its text and border in
+  `--mantine-color-brand-outline` = brand-4 in the dark scheme, i.e. 4.28:1 on
+  the dark body — just under the 4.5:1 AA floor for its 13px label, and visibly
+  dim next to the light/filled type badges in its popup. brand-3 keeps the same
+  blue language at 6.52:1 and doubles as a readable chip edge. (The filter
+  dialog renders through the same `ChipPopover` but with its own
+  `.c2-filter-group-chip` skin, below.)
 */
 [data-mantine-color-scheme="dark"] .mantine-Badge-root.c2-event-type-group-tile {
   color: var(--mantine-color-brand-3);
@@ -3393,6 +3394,34 @@ html.c2-low-end::view-transition-group(*) {
   border-style: dotted;
 }
 [data-mantine-color-scheme="dark"] .mantine-Badge-root.c2-event-type-group-tile[data-selected] {
+  border-color: var(--mantine-color-accent-6);
+}
+
+/*
+  The filter dialog's **group chip** (`ChipPopover` inside a sectioned panel —
+  one department, one event-type group), docs/dashboard-views.md §1.2. It reuses
+  the wizard's container-chip geometry, but not its state language: here a group
+  holds *several* picks and its count is printed on the chip in words
+  ("Logistics 3 of 7"), so the fill is only a glance-level aid —
+  **amber fill** when every member is in (the same fill a selected
+  `SelectableBadge` takes), **amber hairline** when only some are, plain outline
+  when none. The count text is what always says it, in both schemes.
+*/
+[data-mantine-color-scheme="dark"] .mantine-Badge-root.c2-filter-group-chip {
+  /* Same AA fix as the wizard's tile: brand-4 is 4.28:1 on the dark body. */
+  color: var(--mantine-color-brand-3);
+  border-color: var(--mantine-color-brand-3);
+}
+.mantine-Badge-root.c2-filter-group-chip[data-selected] {
+  background-color: var(--mantine-color-accent-6);
+  border-color: var(--mantine-color-accent-7);
+  color: var(--mantine-color-dark-9);
+}
+.mantine-Badge-root.c2-filter-group-chip[data-partial] {
+  border-color: var(--mantine-color-accent-7);
+}
+[data-mantine-color-scheme="dark"] .mantine-Badge-root.c2-filter-group-chip[data-selected],
+[data-mantine-color-scheme="dark"] .mantine-Badge-root.c2-filter-group-chip[data-partial] {
   border-color: var(--mantine-color-accent-6);
 }
 

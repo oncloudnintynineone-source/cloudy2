@@ -1101,13 +1101,15 @@ flowchart LR
   groups in the same `Promise.all` as the types (`listEventTypeGroups()`, per-request
   React-cached like `listEventTypes`) and passes them through `DashboardView` to
   `EventForm`.
-- **Filters reuse the same sections, not the same layout.** The dashboard's Event Types filter builds its
-  `FilterGroupSection`s with the same `buildEventTypePickerSections` call, so the
-  filter dialog's Event Types panel lists the identical categories in the
-  identical order — but every category renders as a header (with its own
-  `n of m` count and All/None pair) above that category's selectable chips — the
-  same `SelectableBadge` the wizard's single-select step uses, here multi-select,
-  with the state in a count and in `aria-pressed` rather than in a border
+- **Filters reuse the same sections *and* the same folder split.** The dashboard's
+  Event Types filter builds its `FilterGroupSection`s with the same
+  `buildEventTypePickerSections` call, so the filter dialog's Event Types panel
+  lists the identical categories in the identical order and honours the same
+  `collapsible` flag: a folder group is one **group chip** (`n of m` in words)
+  whose popup holds its `SelectableBadge`s — the shared `ChipPopover` the
+  wizard's tile uses — while an inline group lists its chips under its own
+  `n of m` + All/None header. The filter's popup is multi-select (the wizard's is
+  single-select), and the state is a count plus `aria-pressed`, never a border
   ([`dashboard-views.md`](dashboard-views.md) §1.2). The single group-level
   All/None selects or clears every type across all categories. The group's flat option
   list stays the canonical value set for apply and active-filter counting

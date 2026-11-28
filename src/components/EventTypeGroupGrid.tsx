@@ -1,12 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Badge, Group, Popover, Stack, Text, UnstyledButton } from "@mantine/core";
-import { IconChevronDown } from "@tabler/icons-react";
+import { Group, Stack, Text } from "@mantine/core";
 
+import { ChipPopover } from "@/components/ChipPopover";
 import { SelectableBadge } from "@/components/SelectableBadge";
-import { useMotion } from "@/components/MotionProvider";
-import { popoverTransitionProps } from "@/lib/motion/transitions";
 
 export interface EventTypeGroupOption {
   value: string;
@@ -32,12 +30,9 @@ interface EventTypeGroupGridProps {
   onToggle: (value: string) => void;
 }
 
-/** Above the wizard modal (200) so the folder popup never hides behind it. */
-const POPOVER_Z_INDEX = 300;
-
 /**
  * The wizard's type step: a **single**-select event-type picker. Groups flagged
- * as folders render as content-width chips whose popup holds that group's
+ * as folders render as content-width group chips whose popup holds that group's
  * `SelectableBadge`s (tapping a type picks it and closes the popup); every
  * other group renders directly as its own row — category label above, badges
  * below — so ordinary groups are never hidden behind an extra tap. The inline
@@ -48,9 +43,12 @@ const POPOVER_Z_INDEX = 300;
  * label row and renders the badges directly — no extra chrome when there is
  * nothing to chunk away.
  *
- * The filter dialog no longer renders through here: a multi-select group needs
- * counts and rows, not chips whose state is a border (docs/dashboard-views.md
- * §1.2), and its own panel owns that now.
+ * The chip itself is the shared `ChipPopover`, which the filter dialog's
+ * sectioned panels also render through — the *mechanic* (group name → popup of
+ * chips) is deliberately one implementation; the skin is each surface's own
+ * (`c2-event-type-group-tile` here, `c2-filter-group-chip` there; the filter
+ * dialog says the group's count in words instead of in a border, because there a
+ * group holds several picks — docs/dashboard-views.md §1.2).
  */
 export function EventTypeGroupGrid({
   sections,
@@ -125,9 +123,10 @@ export function EventTypeGroupGrid({
  * / `[data-partial]` in `globals.css`). No glyph, no count badge, no fill: a
  * folder that looks untouched while it holds a selection is what made people
  * re-pick types they had already filtered, and the dash/color says it at a
- * glance. The `aria-label` spells the count out for assistive tech. (The filter
- * dialog no longer uses this layout: there, a folder holds several picks and a
- * border was the only cue — see docs/dashboard-views.md §1.2.)
+ * glance. The `aria-label` spells the count out for assistive tech.
+ *
+ * The popup is **controlled** here only so a single-select pick can close it;
+ * `ChipPopover` owns the rest of the mechanic.
  */
 function GroupTile({
   section,
@@ -138,7 +137,6 @@ function GroupTile({
   isSelected: (value: string) => boolean;
   onToggle: (value: string) => void;
 }) {
-  const motion = useMotion();
   const [open, setOpen] = useState(false);
   const selectedCount = section.options.reduce(
     (count, option) => count + (isSelected(option.value) ? 1 : 0),
@@ -146,85 +144,31 @@ function GroupTile({
   );
   const allSelected = selectedCount > 0 && selectedCount === section.options.length;
 
-  function handleToggle(value: string) {
-    onToggle(value);
-    // Single-select: the pick is made, so the popup gets out of the way.
-    setOpen(false);
-  }
-
   return (
-    <Popover
-      opened={open}
-      onChange={setOpen}
-      position="bottom"
-      withArrow
-      shadow="md"
-      radius="md"
-      zIndex={POPOVER_Z_INDEX}
-      transitionProps={popoverTransitionProps(motion)}
+    <ChipPopover
+      open={open}
+      onOpenChange={setOpen}
+      label={section.label}
+      ariaLabel={`${section.label}, ${section.options.length} type${
+        section.options.length === 1 ? "" : "s"
+      }${allSelected ? ", all selected" : selectedCount > 0 ? `, ${selectedCount} selected` : ""}`}
+      optionsLabel={`${section.label} options`}
+      badgeClassName="c2-event-type-group-tile"
+      selected={selectedCount > 0}
+      partial={selectedCount > 0 && !allSelected}
     >
-      <Popover.Target>
-        <UnstyledButton
-          onClick={() => setOpen((prev) => !prev)}
-          aria-haspopup="true"
-          aria-expanded={open}
-          aria-label={`${section.label}, ${section.options.length} type${
-            section.options.length === 1 ? "" : "s"
-          }${allSelected ? ", all selected" : selectedCount > 0 ? `, ${selectedCount} selected` : ""}`}
-          style={{
-            cursor: "pointer",
-            borderRadius: "var(--mantine-radius-md)",
-            maxWidth: "100%",
+      {section.options.map((option) => (
+        <SelectableBadge
+          key={option.value}
+          label={option.label}
+          selected={isSelected(option.value)}
+          onToggle={() => {
+            onToggle(option.value);
+            // Single-select: the pick is made, so the popup gets out of the way.
+            setOpen(false);
           }}
-        >
-          <Badge
-            size="lg"
-            variant="outline"
-            className="c2-event-type-group-tile"
-            data-selected={selectedCount > 0 ? "true" : undefined}
-            data-partial={selectedCount > 0 && !allSelected ? "true" : undefined}
-            aria-hidden
-            style={{
-              gap: 6,
-              height: "auto",
-              minHeight: "var(--c2-chip-height)",
-              paddingBlock: 4,
-              maxWidth: "100%",
-            }}
-          >
-            <span
-              style={{
-                minWidth: 0,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {section.label}
-            </span>
-            <IconChevronDown
-              size={14}
-              style={{
-                flexShrink: 0,
-                transform: open ? "rotate(180deg)" : undefined,
-                transition: `transform ${motion.duration.micro}ms ${motion.easing.out}`,
-              }}
-            />
-          </Badge>
-        </UnstyledButton>
-      </Popover.Target>
-      <Popover.Dropdown aria-label={`${section.label} options`}>
-        <Group gap={6} wrap="wrap" maw={280}>
-          {section.options.map((option) => (
-            <SelectableBadge
-              key={option.value}
-              label={option.label}
-              selected={isSelected(option.value)}
-              onToggle={() => handleToggle(option.value)}
-            />
-          ))}
-        </Group>
-      </Popover.Dropdown>
-    </Popover>
+        />
+      ))}
+    </ChipPopover>
   );
 }

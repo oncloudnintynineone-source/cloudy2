@@ -16,6 +16,7 @@ import { useMediaQuery } from "@mantine/hooks";
 import { IconChevronLeft, IconChevronRight, IconSearch, IconX } from "@tabler/icons-react";
 
 import { AllNoneControls } from "@/components/AllNoneControls";
+import { ChipPopover } from "@/components/ChipPopover";
 import { EmptyState } from "@/components/EmptyState";
 import { SelectableBadge } from "@/components/SelectableBadge";
 import {
@@ -23,6 +24,9 @@ import {
   groupRowState,
   isGroupSearchable,
   panelSections,
+  sectionChipAriaLabel,
+  sectionChipLabel,
+  sectionRendersAsChip,
   sectionState,
   showsSectionHeaders,
   toApplyGroup,
@@ -84,9 +88,13 @@ function initialDraft(
  * word, and one footer line naming the effective result set — so a chip's amber
  * fill never has to carry a meaning on its own, and the 5-chip summary this
  * dialog used to cap its picks at (with an inert `+N` nobody could tap) is gone:
- * a panel lists every option. `FilterGroupSection.collapsible` is deliberately
- * ignored here — a folder and an inline section are the same header + chips (the
- * wizard still uses it).
+ * a panel lists every option, either inline or inside its section's chip.
+ *
+ * `FilterGroupSection.collapsible` **is** honoured: a section the admin kept
+ * collapsible hides its members behind a group chip (the same `ChipPopover` the
+ * wizard's type step uses — group name, `n of m`, tap to open), while an inline
+ * section lists its chips straight away. With one section left there is nothing
+ * to hide behind, so even a collapsible one lists inline.
  *
  * Split into its own chunk so the modal chrome can animate out of the trigger
  * before {@link FilterModal} finishes loading this body
@@ -101,6 +109,11 @@ export interface FilterModalBodyProps
    */
   openLabel: string | null;
   onOpenGroup: (label: string | null) => void;
+  /**
+   * True while a section's group chip has its popup open. The dialog owns
+   * Escape, so it needs this to close the popup first and leave the panel alone.
+   */
+  onChipOpenChange?: (open: boolean) => void;
 }
 
 export function FilterModalBody({
@@ -111,6 +124,7 @@ export function FilterModalBody({
   onClose,
   openLabel,
   onOpenGroup,
+  onChipOpenChange,
 }: FilterModalBodyProps) {
   const theme = useMantineTheme();
   // `lg` (640px) is where there is room to keep the group list visible beside a
@@ -132,6 +146,11 @@ export function FilterModalBody({
   // spinner and can't be double-fired; the dialog closes once it resolves.
   const [applying, setApplying] = useState(false);
   const [query, setQuery] = useState("");
+  // Which section's group chip currently has its popup open (one at a time —
+  // the same rule Mantine gives a popover anyway). `FilterModal` needs to know,
+  // because it owns Escape: with a popup open, Escape must close the popup and
+  // leave the panel where it is, not step the sheet back a level.
+  const [openChipKey, setOpenChipKey] = useState<string | null>(null);
 
   const rowRefs = useRef(new Map<string, HTMLButtonElement>());
   const backRef = useRef<HTMLButtonElement>(null);
@@ -175,12 +194,20 @@ export function FilterModalBody({
 
   function openPanel(label: string) {
     setQuery("");
+    setOpenChipKey(null);
     onOpenGroup(label);
   }
 
   function closePanel() {
     setQuery("");
+    setOpenChipKey(null);
     onOpenGroup(null);
+  }
+
+  /** One chip popup at a time, and the modal is told so its Escape can defer. */
+  function setChipOpen(key: string | null) {
+    setOpenChipKey(key);
+    onChipOpenChange?.(key !== null);
   }
 
   function commitGroupValue(key: string, value: string[]) {
@@ -354,6 +381,8 @@ export function FilterModalBody({
               searchRef={searchRef}
               backRef={backRef}
               onBack={closePanel}
+              openChipKey={openChipKey}
+              onChipOpenChange={setChipOpen}
               onToggle={(value) => toggleOption(openGroup, value)}
               onAll={() => commitGroupValue(openGroup.label, allOptionValues(openGroup))}
               onNone={() => commitGroupValue(openGroup.label, [])}
@@ -418,6 +447,9 @@ interface FilterGroupPanelProps {
   searchRef: RefObject<HTMLInputElement | null>;
   backRef: RefObject<HTMLButtonElement | null>;
   onBack: () => void;
+  /** The section whose group chip has its popup open, if any. */
+  openChipKey: string | null;
+  onChipOpenChange: (key: string | null) => void;
   onToggle: (value: string) => void;
   onAll: () => void;
   onNone: () => void;
@@ -429,7 +461,7 @@ interface FilterGroupPanelProps {
  * Level 2: one group's whole option list. Back + the group's own state + its
  * All/None pair, the search box (only for a list too long to scan), the quick
  * action as a full-width row, then every option as a chip under its section
- * header.
+ * header — or, when the section is a real group, behind that section's own chip.
  *
  * The pair's second word names what an empty selection *means* in this group —
  * **None** (nothing will match) for a grid group, **Clear** (no picks, so
@@ -447,6 +479,8 @@ function FilterGroupPanel({
   searchRef,
   backRef,
   onBack,
+  openChipKey,
+  onChipOpenChange,
   onToggle,
   onAll,
   onNone,
@@ -548,18 +582,72 @@ function FilterGroupPanel({
       ) : (
         sections.map((section) => {
           const sectionSelection = sectionState(section, selected);
+          // A section hides its members behind its own chip when the panel really
+          // is chunked and the admin left the group collapsible (an option list
+          // that spills every user onto one wall is exactly what this fixes).
+          const asChip = namedSections && sectionRendersAsChip(section, sections);
+          // Chips, not rows: the same `SelectableBadge` the user picker's pool and
+          // the wizard's type step use, so a picked option looks like a picked
+          // option everywhere in the app — either inline under the section header
+          // or inside the section's group chip.
+          const chips = (
+            <Group gap={6} wrap="wrap">
+              {section.options.map((option) => (
+                <SelectableBadge
+                  key={option.value}
+                  label={option.label}
+                  self={option.self}
+                  selected={selected.includes(option.value)}
+                  onToggle={() => onToggle(option.value)}
+                />
+              ))}
+            </Group>
+          );
           return (
             <Box key={section.key} pl={namedSections ? hierarchyIndent(section.depth) : 0}>
               {namedSections && (
                 <Group gap="xs" wrap="nowrap" align="center" mb={2}>
-                  <Text size="xs" fw={600} className="c2-filter-state" style={{ minWidth: 0 }} truncate>
-                    {section.label}
-                  </Text>
-                  {/* The count lives in the header, where a folder's state used to
-                      be a yellow border nobody could read closed. */}
-                  <Text size="xs" className="c2-filter-state" style={{ flexShrink: 0 }}>
-                    {section.selectedCount} of {section.totalCount}
-                  </Text>
+                  {asChip ? (
+                    /* The wizard's group chip, reused: the group name is what you
+                       tap, its members stay hidden until you do. The count rides
+                       the chip in words ("Logistics 3 of 7") so a group's state is
+                       never just a fill, and All/Clear stay outside it so a whole
+                       department is still one tap away. */
+                    <Box style={{ minWidth: 0 }}>
+                      <ChipPopover
+                        label={sectionChipLabel(section)}
+                        ariaLabel={sectionChipAriaLabel(section)}
+                        optionsLabel={`${section.label} options`}
+                        badgeClassName="c2-filter-group-chip"
+                        labelNowrap={false}
+                        focusOnOpen
+                        open={openChipKey === section.key}
+                        onOpenChange={(next) => onChipOpenChange(next ? section.key : null)}
+                        selected={sectionSelection === "all"}
+                        partial={sectionSelection === "some"}
+                        dropdownMaxWidth={320}
+                      >
+                        {chips}
+                      </ChipPopover>
+                    </Box>
+                  ) : (
+                    <>
+                      <Text
+                        size="xs"
+                        fw={600}
+                        className="c2-filter-state"
+                        style={{ minWidth: 0 }}
+                        truncate
+                      >
+                        {section.label}
+                      </Text>
+                      {/* The count lives in the header, where a folder's state used to
+                          be a yellow border nobody could read closed. */}
+                      <Text size="xs" className="c2-filter-state" style={{ flexShrink: 0 }}>
+                        {section.selectedCount} of {section.totalCount}
+                      </Text>
+                    </>
+                  )}
                   <Box ml="auto" style={{ flexShrink: 0 }}>
                     <AllNoneControls
                       label={section.label}
@@ -573,23 +661,7 @@ function FilterGroupPanel({
                   </Box>
                 </Group>
               )}
-              {/* Chips, not rows: the same `SelectableBadge` the user picker's pool
-                  and the wizard's type step use, so a picked option looks like a
-                  picked option everywhere in the app. A chip cloud is what makes a
-                  40-department group scannable without scrolling — and the state it
-                  used to hide (a folder's yellow border, the 5-chip cap with its
-                  inert "+N") is now carried by the section header above it. */}
-              <Group gap={6} wrap="wrap">
-                {section.options.map((option) => (
-                  <SelectableBadge
-                    key={option.value}
-                    label={option.label}
-                    self={option.self}
-                    selected={selected.includes(option.value)}
-                    onToggle={() => onToggle(option.value)}
-                  />
-                ))}
-              </Group>
+              {!asChip && chips}
             </Box>
           );
         })

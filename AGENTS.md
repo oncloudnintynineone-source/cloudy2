@@ -213,18 +213,22 @@ doc content here.
   `FilterModal` is a **two-level sheet** — level 1 is one row per group naming what it
   currently does (`All calendars` / `3 of 12 users` / `No event types`), level 2 is that
   group's whole option list as **selectable chips** (`SelectableBadge`, the app-wide 36px
-  chip — amber fill = in) under section headers that carry their own `n of m` + All/None
-  pair; at `lg`+ the two levels sit side by side. No Show/Hide disclosure or nested picker —
+  chip — amber fill = in). A section that is a real group — a department, or an event-type
+  group the admin left `collapsible` — is itself **one group chip** carrying its `n of m`
+  count (`ChipPopover`, the same group-name → popup mechanic as the wizard's folder tiles,
+  multi-select inside), with its All/None pair beside it; inline sections list their chips
+  straight away, and a panel narrowed to one section always lists inline. At `lg`+ the two
+  levels sit side by side. No Show/Hide disclosure or nested picker —
   and no instructional copy: because a chip's fill is colour, what a selection *means* is
   always said in words — the section counts, the row state words and the pinned
   `Showing: …` line
   (`src/lib/filters/filterDialogModel.ts`, pure + unit-tested). Vocabulary stays exact:
   group **All / None** (None = an explicit empty selection), search-group **All / Clear**
   (empty = no filter), footer **Reset filters** (role defaults — never rename a group's
-  "None" to this). Event Types reuse the wizard's
-  `buildEventTypePickerSections` for their **section order only** (the wizard keeps
-  `EventTypeGroupGrid`'s chips for its single-select step), and the
-  Users panel keeps department-section counts, per-section All/Clear, a global
+  "None" to this). Event Types reuse the wizard's `buildEventTypePickerSections` for their
+  **section order and folder split** (`collapsible`), but keep their own multi-select
+  popups — the wizard stays single-select (`EventTypeGroupGrid`), and the
+  Users panel keeps department counts, per-department All/Clear, a global
   Select all/Clear and an amber "(You)" suffix.
   Applying filters is one `UPDATE … WHERE id AND user_id RETURNING` server action
   (`saveDashboardViewFilters`) with **no** `revalidatePath` — the dashboard shell reads no

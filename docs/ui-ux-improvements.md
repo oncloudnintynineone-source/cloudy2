@@ -1514,6 +1514,28 @@ or Event Types panel reads as a wall of amber. That is the honest state of "all 
 and it is what the chip idiom says anywhere else; if it grates in the field, the one-line change is
 rendering grid-group chips neutral while the group is unfiltered.
 
+**Follow-up — group chips (1.438, 2026-11-28).** The next reaction pointed at the wizard's type
+picker: "all events are hidden behind the group name. I want similar implemented here". So a panel's
+**section** now renders the way a wizard folder does — one chip named after the group, its members
+in the chip's popup — instead of spilling every option onto the panel. The mechanic was **extracted**
+rather than re-implemented: `EventTypeGroupGrid`'s `GroupTile` became `ChipPopover` (chip + chevron +
+`aria-expanded` + `zIndex=300` popup + `popoverTransitionProps(useMotion())` + open→first-chip /
+close→chip focus handoff), and both surfaces render through it. The filter dialog keeps its own
+skin (`.c2-filter-group-chip`) because there the chip holds *several* picks: its state is the count
+in words (`Logistics 3 of 7`) plus the same fill language a selected chip uses, never a border.
+
+Which sections group is the rule that matters: a **department** always (a department is its users'
+group name — there is no per-department flag), an **event-type group** only when the admin left it
+`collapsible` (the same flag the wizard honours, so `EventTypeGroupGrid`'s inline/folder split is
+now the dialog's too), and **never** a panel with one section left — a search that narrows the list
+to one block shows its matches instead of hiding them behind a chip. A section's All/Clear pair
+stays beside its chip, so a whole department is still one tap. Two behaviours are deliberate
+divergences from the wizard: the popup is **multi-select and stays open** while picking (the wizard's
+single pick closes it), and **Escape closes the popup without stepping the sheet back a level** —
+that needed `FilterModal` to be told a chip is open (`onChipOpenChange`), because Mantine routes
+Escape to the modal as well; without it one Escape closed the popup *and* popped the panel, which
+reads as a lost panel.
+
 ## 1.9 Held register
 
 Reviewed on **2026-11-22** and **put aside by decision — not to be implemented without a new
@@ -1612,6 +1634,7 @@ land here.
 | D24 | 1.433 (2026-11-28) | KAH Status says each fact once: scope-only summary line, period rows without the `X away · Y in country · worst <day>` tail (away chips moved outside the disclosure), bare **Breaches** heading. [`kah.md`](kah.md) §1.7. |
 | E7  | 1.436 (2026-11-28) | The filter dialog is a **two-level sheet**: level 1 is one row per group naming what it currently does (`All calendars` · `3 of 12 users` · `No event types` · `Default`), level 2 that group's whole list as 44px checkbox rows under section headers carrying their own `n of m` + All/None pair; at `lg`+ the levels sit side by side, Escape steps back before closing, focus returns to the row. One polarity per group and it is stated in words, so no caption is needed anywhere: grid groups say **None** (nothing will match), search groups say **Clear** (nothing is filtered), the footer says **Reset filters** (role defaults) over a `Showing: …` line built from the same rows. Gone: badge grids, the nested `UserSelectModal`, folder chips whose state was a border, the Show/Hide disclosure, the 5-chip cap with its inert `+N`, and the untick-that-refused-to-empty. Pure model in `src/lib/filters/filterDialogModel.ts` (27 tests) + `SelectableRow.tsx`; storage, share tokens and `FilterModalProps` unchanged. [`dashboard-views.md`](dashboard-views.md) §1.2, [`user-picker.md`](user-picker.md) §1.4/§1.6. |
 | E7  | 1.437 (2026-11-28) | Follow-up on the same dialog, at the user's request: level 2 lists each group's options as **`SelectableBadge` chips** (the app-wide 36px chip, amber fill = in, `aria-pressed`, wrapping long names) instead of checkbox rows, so a picked option looks picked everywhere; `SelectableRow.tsx` + `.c2-check-row` deleted, no flag. Sheet, state words, counts, `Showing:` line, All/None/Clear/Reset vocabulary, storage and `FilterModalProps` unchanged; the 36px chip floor is the app's existing chip-surface exception. [`dashboard-views.md`](dashboard-views.md) §1.2, [`accessibility.md`](accessibility.md) §1.9.2. |
+| E7  | 1.438 (2026-11-28) | Second follow-up, again at the user's request ("all events are hidden behind the group name" in the wizard's type picker — "I want similar implemented here"): inside a filter panel a **section that is a real group** now renders as **one group chip** carrying its `n of m` count, with its member chips in the chip's popup — the wizard's `GroupTile` mechanic extracted into the shared `ChipPopover` (same `zIndex=300`, `popoverTransitionProps`, chevron flip, focus handoff) and used by both surfaces. Users = one chip per **department**; Event Types honour the admin's `collapsible` flag (`EventTypeGroupGrid`'s split); a single remaining section, and any section marked inline, lists its chips straight away. The popup is multi-select and stays open while picking, the section's All/Clear stays beside its chip, and Escape closes the popup **without** stepping the sheet back a level (`FilterModal` now knows a chip is open). Sheet, state words, counts, `Showing:` line, vocabulary, storage and `FilterModalProps` unchanged. [`dashboard-views.md`](dashboard-views.md) §1.2, [`event-lifecycle.md`](event-lifecycle.md) §1.10. |
 
 ## 1.11 Implementation guardrails
 

@@ -68,10 +68,11 @@ export interface FilterGroupSection {
   id: string;
   label: string;
   /**
-   * Folder-style section: the wizard renders it as a chip whose popup holds the
-   * badges, an inline one as a labeled row. The filter dialog **ignores** this
-   * and renders every section as the same header + rows — a folder whose state
-   * was a yellow border was unreadable until it was opened.
+   * Folder-style section: the wizard renders it as a group chip whose popup
+   * holds its badges, an inline one as a labeled row. The filter dialog honours
+   * it too — a collapsible section hides its members behind a group chip
+   * (`n of m` in words), an inline one lists them under its header — except when
+   * the panel has only one section left, where there is nothing to hide behind.
    */
   collapsible: boolean;
   options: FilterOption[];
@@ -164,11 +165,12 @@ export interface FilterModalProps {
  * Reusable filter dialog: a **two-level sheet**. Level 1 lists the groups, each
  * row naming what that group currently does ("Calendars · All", "Users · 3 of
  * 12"); tapping a row opens that group's whole option list — search box,
- * sections, touch-sized checkbox rows — in the same dialog (side by side at
- * `lg`+). One gesture per group ("open it, tap rows") replaces the badge wall,
- * the Add/Edit trigger into a nested picker, the folder chips with popovers and
- * the Show/Hide disclosure this dialog used to mix, and the footer states the
- * effective result set in one line.
+ * sections, selectable chips — in the same dialog (side by side at `lg`+). One
+ * gesture per group ("open it, tap chips") replaces the badge wall, the Add/Edit
+ * trigger into a nested picker, the folder chips with popovers and the Show/Hide
+ * disclosure this dialog used to mix; inside a panel, a section that is a real
+ * group hides its members behind its own chip. The footer states the effective
+ * result set in one line.
  *
  * Selections are staged in a draft and only applied on "Apply"; "Reset filters"
  * restores the role defaults (rows then read "Default", because that is what
@@ -196,10 +198,27 @@ export function FilterModal({
   // is this component's `onClose`, so `close()` is where the level resets; the
   // dialog never reopens into a panel the user left behind.
   const [openLabel, setOpenLabel] = useState<string | null>(null);
+  // A section's group chip popup is a layer *inside* the panel: while it is open,
+  // Escape and the overlay close that popup and nothing else. The chip reports
+  // its state up; this component is where Escape and the overlay land.
+  const [chipOpen, setChipOpen] = useState(false);
 
   function close() {
     setOpenLabel(null);
+    setChipOpen(false);
     onClose();
+  }
+
+  function stepBack() {
+    if (chipOpen) {
+      // The chip's own popover handles the close; the panel stays put.
+      return;
+    }
+    if (openLabel !== null) {
+      setOpenLabel(null);
+      return;
+    }
+    close();
   }
 
   // The modal zooms out of / shrinks back into the trigger button (the app's
@@ -216,7 +235,7 @@ export function FilterModal({
   return (
     <MotionModal
       opened={opened}
-      onClose={openLabel !== null ? () => setOpenLabel(null) : close}
+      onClose={stepBack}
       title={title}
       centered
       size={size}
@@ -259,6 +278,7 @@ export function FilterModal({
           textFilter={textFilter}
           openLabel={openLabel}
           onOpenGroup={setOpenLabel}
+          onChipOpenChange={setChipOpen}
           onClose={close}
         />
       </CrossfadeSwap>
