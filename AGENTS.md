@@ -224,9 +224,9 @@ doc content here.
   one section always lists inline. Nothing in the dialog focuses a text field by itself
   (panel entry lands on Back), so opening it never summons the phone keyboard, and the
   Users panel's **Myself** quick action is an ordinary `SelectableBadge` chip in the
-  header band. At `lg`+ the two levels sit side by side, and the optional free-text Event-name field
-  spans above both; below `lg` that field is a **level-1 control** — it goes away when a panel opens
-  (1.444) so the option list gets the whole dialog. The level-1 row carries no state highlight (the
+  header band. At `lg`+ the two levels sit side by side. The optional free-text **Event-name** field
+  is the **last row** of level 1, under a hairline, because the rows read in the order the filters are
+  **applied**: the name matches against what the option groups left (1.446 — it used to span the top of the sheet, which said the opposite, and below `lg` it disappeared when a panel opened). The level-1 row carries no state highlight (the
   amber bar was removed in 1.444; its subtitle is the state) and there is no footer `Showing: …`
   echo. No Show/Hide disclosure or nested picker — and no instructional copy: because a chip's fill
   is colour, what a selection *means* is always said in words — the section counts and the row state

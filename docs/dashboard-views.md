@@ -590,11 +590,12 @@ button, and fullscreen is the shared `FullscreenButton` (floating top-right at `
 "Myself" quick action lives inside the filter dialog's **Users panel**; "Reset
 filters" clears (role defaults).
 
-The dialog is a **two-level sheet**: level 1 is one row per group, level 2 is
-that group's whole option list. A row names the group over what it currently
-does — **Calendars · All calendars**, **Users · 3 of 12 users**, **Event Types ·
-No event types** — with a chevron that says it opens; tapping it fills the dialog
-with the list (at `lg`+ the two levels sit side by side instead — the dialog wears
+The dialog is a **two-level sheet**: level 1 is one row per filter, level 2 is
+that filter's own option list or field. A row names the filter over what it
+currently does — **Calendars · All calendars**, **Users · 3 of 12 users**,
+**Event Types · No event types**, **Event name · “night duty”** — with a chevron
+that says it opens; tapping it fills the dialog with the list (at `lg`+ the two
+levels sit side by side instead — the dialog wears
 the `lg` (620px) modal size for exactly that budget,
 [`desktop-responsive.md`](desktop-responsive.md) §1.9 — the open row highlighted,
 Escape steps back a level before it closes the dialog, and focus lands back on the
@@ -603,6 +604,18 @@ gesture per group — *open it, tap chips* — replaces the four mechanics this 
 used to mix: an inline badge grid, an Add/Edit trigger into a nested picker,
 folder chips opening popovers, and a Show/Hide disclosure that hid Event Types
 behind an extra tap for the most common pick.
+
+**The rows read in the order the filters are applied** (1.446): calendars, users,
+event types, then the free-text name **last**, under a hairline — because the name
+matches against what those three left (`projectRangeEvents` → `filterEventsByText`,
+`src/lib/dashboard/data.ts`). That position is the whole of how it is
+communicated: this dialog carries no instructional copy, and a caption explaining
+the order would have been the first thing to go stale. `level1Entries` owns the
+order (pure, unit-tested), so the list cannot quietly be reordered out from under
+the fact, and the free-text entry renders through the very same row component as
+the groups — same 44px floor, same hover, same `aria-expanded` — which is what
+makes it read as the fourth filter rather than as a field that wandered into the
+list.
 
 The rows' state words come from the same pure model Apply reads
 (`src/lib/filters/filterDialogModel.ts` over `groupFilterState`): `All` / `None`
@@ -661,7 +674,13 @@ carries its own All/None pair, and its members are either listed inline or
 - **Nothing in the dialog focuses a text field by itself.** Entering a panel puts
   the caret on its Back button (it used to jump into the search box, which opened
   the phone keyboard before the user had asked for it, 1.439); the search box and
-  the Event-name field are only focused by a tap.
+  the Event-name field are only focused by a tap — the name filter got its own
+  panel in 1.446 and keeps that rule, landing on Back like every other panel.
+- **Stepping back moves, too** (1.446): below `lg` the list slides in from the
+  left as the panel leaves, mirroring the panel's own enter from the right, so
+  "went back" and "reopened" are not the same nothing. `FilterModal` owns the
+  level, so it says which way it moved (`data-nav`) in the same commit that
+  re-mounts the list; at `lg`+ both levels stay put and nothing animates.
 
 The **Myself** quick action (Users only) is an ordinary `SelectableBadge` chip
 with a person glyph, sitting in the header band above the section chips — the
@@ -684,6 +703,19 @@ The pair's second word names what an empty selection means in that group —
 filtered) for a search group — and the row above says the same thing. Emptying a
 grid group's last option now *does* empty it: the old dialog refused silently,
 which read as a broken checkbox.
+
+The pair belongs to the **group**, not to a section: **All** fills every option of
+every section (all departments' users, all folders' event types) and **Clear**
+empties them the same way, so a section chip is a way into a subset and never a
+wall in front of the whole. Its buttons are enabled by what a click would change
+— `groupDraftState`, *what is ticked* — and not by the state word beside it, *what
+the selection means*, because in a search group those two disagree on exactly the
+state the panel opens in: an empty Users draft already reads "All users", and
+reading that word here left **All** disabled in the one place "all users in all
+departments" has to be reachable from (1.446 — the write was always whole-group;
+only the enablement lied). Filling every user still *applies* as no filter, which
+is the storage rule above, not a bug: what the pair buys is the workflow of
+filling everything in one tap and unticking the few you do not want.
 
 The footer is the actions only — **Reset filters** (restore the role defaults; the
 rows then read `Default`, because that is what Apply will store) · Cancel ·
@@ -714,20 +746,30 @@ filter**. An option list that followed the calendar selection made the same
 deselected department vanished from the list, an applied pick could lose its row
 while still filtering, and "every listed user selected" could be normalised
 to *no filter* and silently turn the filter off. Keeping the universe fixed means
-the only way to reach "all users" is to actually select every active user.
+the only way to reach "all users" is to actually select every active user —
+which since 1.446 is one tap of the panel's **All**, not a department popup at a
+time.
 
-An optional **Event name** text field (spanning the top of the sheet, above both
-levels; below `lg` it is a level-1 control and 1.444 hides it once a panel opens,
-so the option list gets the whole dialog; the dashboard
-is its only caller) is a case-insensitive **substring** match over the event's
+An optional **Event name** filter is the **last row of level 1** (1.446 — it used
+to span the top of the sheet above both levels, where it read as the first filter
+applied, and below `lg` it vanished when a panel opened; the dashboard is its only
+caller). Tapping the row opens a level-2 panel with the same header recipe as a
+group's — Back, the entry's name, its state word — over the one text field. The
+field's own ✕ is its clear; there is no All/Clear pair, because that pair is the
+vocabulary of an option group and this has no options. Its row state follows a
+search group's grammar exactly: blank reads **All event names** (where Users reads
+"All users"), a term reads as the term, quoted — `textRowState`, pure and
+unit-tested. It is a case-insensitive **substring** match over the event's
 typed name (`payload.rawTitle`) and its rendered title (`title`, after the view's
 title recipe). Blank means "no filter"; it has no All/None and no role default.
 It is staged in the same draft as the groups and persisted/applied through the
 same Apply/Clear path, and it is applied **server-side while projecting the tab**
 (`filterEventsByText` in `src/lib/events/textFilter.ts`, after
-`resolveDisplayTitles`), so preloaded tabs and cold starts resolve it identically.
-Matching deliberately covers the typed name _and_ the composed title: a name that
-the recipe wraps ("[AM] Logistics — HQ") still matches its plain text.
+`resolveDisplayTitles`) — that is, **after** the calendar/user/type narrowing of
+the same projection, which is the fact the row's last position under the hairline
+says without a word of copy. Preloaded tabs and cold starts therefore resolve it
+identically. Matching deliberately covers the typed name _and_ the composed title:
+a name that the recipe wraps ("[AM] Logistics — HQ") still matches its plain text.
 
 Filter storage & resolution:
 
@@ -1493,9 +1535,9 @@ t: eventTypeNames, b: sharerName }`. The owner's effective filters are
 | `src/lib/ui/monthZoom.ts`                             | Pure Month fit-width zoom levels + stepping (`clampMonthZoom`, `stepMonthZoom`) + the fit-height fill + chip-count math (`monthFillEvents`, `monthFitChipCount`, §1.8.1)                                          |
 | `src/components/GridNavControls.tsx`                  | Day/Week (H) + Month right-edge cluster: zoom +/− + right pan, plus left-edge pan                                                                                                                                 |
 | `src/components/FilterButton.tsx`                     | Dedicated filter button (icon + active-group badge) replacing the kebab's filter menu                                                                                                                             |
-| `src/components/FilterModal.tsx`                      | Filters dialog chrome (two-level sheet, lazy body, origin-rect zoom, level-aware Escape)                                                          |
-| `src/components/FilterModalBody.tsx`                  | The sheet itself: group rows with state subtitles, the level-1 Event-name field, per-group panels (search, sections, selectable chips), Reset filters  |
-| `src/lib/filters/filterDialogModel.ts`                | Pure presentation model: row state words/subtitles, search threshold, section building + counts                                                    |
+| `src/components/FilterModal.tsx`                      | Filters dialog chrome (two-level sheet, lazy body, origin-rect zoom, level-aware Escape, level direction for the step-back motion)                |
+| `src/components/FilterModalBody.tsx`                  | The sheet itself: level-1 rows in application order (name filter last, under a hairline), group panels (search, sections, selectable chips) whose All/Clear spans every section, the name panel, Reset filters |
+| `src/lib/filters/filterDialogModel.ts`                | Pure presentation model: row state words/subtitles, level-1 entry order, text row state, what-is-ticked vs what-it-means, search threshold, section building + counts |
 | `src/components/SelectableBadge.tsx`                  | The app-wide 36px selectable chip (`aria-pressed`, amber fill = in) — the filter dialog's option lists and every picker pool render through it      |
 | `src/components/ChipPopover.tsx`                      | The group chip: a container chip whose popup holds its members' chips — the wizard's folder tiles and the filter dialog's sections both use it      |
 

@@ -1,0 +1,103 @@
+{
+  "viewport": "390x844",
+  "scheme": "light",
+  "reducedMotion": false,
+  "path": "/dashboard",
+  "level1": {
+    "scheme": "light",
+    "trigger": "Filters",
+    "rows": [
+      {
+        "aria": "Calendars, All calendars",
+        "state": "All calendars",
+        "h": 55,
+        "expanded": "false"
+      },
+      {
+        "aria": "Users, All users",
+        "state": "All users",
+        "h": 55,
+        "expanded": "false"
+      },
+      {
+        "aria": "Event Types, All event types",
+        "state": "All event types",
+        "h": 55,
+        "expanded": "false"
+      },
+      {
+        "aria": "Event name, All event name",
+        "state": "All event name",
+        "h": 55,
+        "expanded": "false"
+      }
+    ],
+    "ruleCount": 1,
+    "ruleH": 1,
+    "ruleBg": "rgb(222, 226, 230)",
+    "ruleBeforeLast": "mantine-focus-auto c2-filter-row m_87cf2631 mantine-UnstyledButton-root",
+    "aside": false,
+    "dataAside": false,
+    "inputInList": false,
+    "gridCols": "319px",
+    "sheetW": 319,
+    "detailOpen": null,
+    "dataNav": "in"
+  },
+  "namePanel": {
+    "detailLabel": "Event name",
+    "detailTitle": null,
+    "stateWord": "All event name",
+    "focused": "Back to filters",
+    "inputW": 311,
+    "inputValue": "",
+    "hasAllNone": false,
+    "hasClearPair": false,
+    "dataDetail": "open",
+    "listDisplay": null,
+    "detailAnim": "c2-filter-panel-enter",
+    "backH": 34
+  },
+  "typed": {
+    "stateWord": "“night duty”",
+    "clearBtn": true
+  },
+  "back": {
+    "dataNav": "back",
+    "animationName": "c2-filter-list-enter",
+    "animationDuration": "0.16s",
+    "animation": "0.16s cubic-bezier(0.22, 1, 0.36, 1) c2-filter-list-enter",
+    "detailGone": true,
+    "dataNavAfterDrill": null,
+    "dataNavRestored": "back"
+  },
+  "users": {
+    "before": {
+      "allDisabled": false,
+      "clearDisabled": true,
+      "chips": 4,
+      "pressed": 0,
+      "chipTransition": "background-color, border-color, color",
+      "chipTransitionDur": "0.12s, 0.12s, 0.12s",
+      "rowState": "All users"
+    },
+    "after": {
+      "allDisabled": true,
+      "clearDisabled": false,
+      "pressed": 0,
+      "rowState": "All users"
+    },
+    "hasGroupChip": true
+  },
+  "types": {
+    "stateWord": "All event types",
+    "allDisabled": true,
+    "noneDisabled": false,
+    "noneLabel": "None"
+  },
+  "closed": {
+    "cancelFound": true,
+    "sheetGone": true
+  },
+  "consoleErrors": []
+}

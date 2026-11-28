@@ -1,0 +1,57 @@
+{
+  "viewport": "390x844",
+  "scheme": "light",
+  "reducedMotion": false,
+  "path": "/settings/users",
+  "level1": {
+    "scheme": "light",
+    "trigger": "Filters",
+    "rows": [
+      {
+        "aria": "Status, All status",
+        "state": "All status",
+        "h": 55,
+        "expanded": "false"
+      },
+      {
+        "aria": "Department, All department",
+        "state": "All department",
+        "h": 55,
+        "expanded": "false"
+      }
+    ],
+    "ruleCount": 0,
+    "ruleH": null,
+    "ruleBg": null,
+    "ruleBeforeLast": null,
+    "aside": false,
+    "dataAside": false,
+    "inputInList": false,
+    "gridCols": "319px",
+    "sheetW": 319,
+    "detailOpen": null,
+    "dataNav": "in"
+  },
+  "namePanel": null,
+  "typed": null,
+  "back": {
+    "dataNav": "in",
+    "animationName": "none",
+    "animationDuration": "0s",
+    "animation": "none",
+    "detailGone": true,
+    "dataNavAfterDrill": null,
+    "dataNavRestored": "back"
+  },
+  "users": {
+    "skipped": true
+  },
+  "types": {
+    "skipped": true
+  },
+  "closed": {
+    "cancelFound": true,
+    "sheetGone": true
+  },
+  "consoleErrors": []
+}

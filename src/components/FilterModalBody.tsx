@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { Fragment, useEffect, useRef, useState, type RefObject } from "react";
 import {
   ActionIcon,
   Box,
@@ -20,17 +20,22 @@ import { ChipPopover } from "@/components/ChipPopover";
 import { EmptyState } from "@/components/EmptyState";
 import { SelectableBadge } from "@/components/SelectableBadge";
 import {
+  groupDraftState,
   groupPanelRuns,
   groupRowState,
   isGroupSearchable,
+  level1Entries,
   panelSections,
   sectionChipAriaLabel,
   sectionChipText,
   sectionState,
   showsSectionHeaders,
+  textRowState,
   toApplyGroup,
+  TEXT_ENTRY_KEY,
   type FilterPanelSection,
   type FilterRowState,
+  type FilterTextRowState,
 } from "@/lib/filters/filterDialogModel";
 import { applySectionSelection } from "@/lib/filters/filterSections";
 import { isGroupUnfiltered, resolveFilterApply } from "@/lib/filters/resolveFilterApply";
@@ -74,11 +79,12 @@ function initialDraft(
 }
 
 /**
- * The filter dialog's body: a **two-level sheet**. Level 1 is one row per group
- * naming what that group currently does; level 2 is that group's whole option
- * list — search box, sections, selectable chips — filling the same dialog. At
- * `lg`+ the two levels sit side by side (master–detail) instead of replacing each
- * other; nothing else about the interaction changes.
+ * The filter dialog's body: a **two-level sheet**. Level 1 is one row per filter
+ * — a row for every option group naming what that group currently does, and the
+ * free-text name filter as the last one — each opening its own level 2: the
+ * group's whole option list (search box, sections, selectable chips) or the one
+ * field. At `lg`+ the two levels sit side by side (master–detail) instead of
+ * replacing each other; nothing else about the interaction changes.
  *
  * One grammar for every group replaces the four the dialog used to mix (inline
  * badges, an Add/Edit trigger into a nested picker, folder chips opening
@@ -89,9 +95,12 @@ function initialDraft(
  * could tap) is gone: a panel lists every option, either inline or inside its
  * section's chip.
  *
- * Everything that belongs to level 1 — the free-text filter and the group rows —
- * is hidden together once a panel takes the dialog below `lg`, so drilling in
- * gives the option list the whole sheet (1.444).
+ * Level 1 is the whole first screen and goes as a unit once a panel takes the
+ * dialog below `lg`, so drilling in gives level 2 the entire sheet (1.444). Its
+ * rows read in the order the filters are applied — calendars, users, event types,
+ * and the name **last**, under a hairline, because it matches against what those
+ * left — which is why nothing spells that out: the position is the message, and
+ * the field spanning the top of the dialog said the opposite (1.446).
  *
  * `FilterGroupSection.collapsible` **is** honoured: a section the admin kept
  * collapsible hides its members behind a group chip (the same `ChipPopover` the
@@ -106,12 +115,20 @@ function initialDraft(
 export interface FilterModalBodyProps
   extends Pick<FilterModalProps, "groups" | "values" | "onApply" | "textFilter" | "onClose"> {
   /**
-   * The group whose panel is open (level 2); `null` shows the group list. Owned
-   * by {@link FilterModal} so Escape and the overlay step back a level instead
-   * of closing the dialog.
+   * The entry whose panel is open (level 2): a group label, or
+   * {@link TEXT_ENTRY_KEY} for the free-text filter; `null` shows the level-1
+   * list. Owned by {@link FilterModal} so Escape and the overlay step back a
+   * level instead of closing the dialog.
    */
   openLabel: string | null;
   onOpenGroup: (label: string | null) => void;
+  /**
+   * Which way the level just moved. The list re-mounts when a panel closes below
+   * `lg`, and a re-mount cannot tell "returned to" from "first opened" — the
+   * owner of the level knows, so it says, and only `back` animates (the panel's
+   * own enter is CSS, since a panel is always new).
+   */
+  navDir?: "in" | "back";
   /**
    * True while a section's group chip has its popup open. The dialog owns
    * Escape, so it needs this to close the popup first and leave the panel alone.
@@ -127,6 +144,7 @@ export function FilterModalBody({
   onClose,
   openLabel,
   onOpenGroup,
+  navDir = "in",
   onChipOpenChange,
 }: FilterModalBodyProps) {
   const theme = useMantineTheme();
@@ -161,12 +179,16 @@ export function FilterModalBody({
   const focusedPanel = useRef<string | null>(null);
   const prevOpenLabel = useRef<string | null>(null);
 
-  const openGroup = openLabel !== null ? (groups.find((g) => g.label === openLabel) ?? null) : null;
+  const openGroup =
+    openLabel !== null ? (groups.find((g) => g.label === openLabel) ?? null) : null;
+  // The free-text entry is a level-1 entry like any group, so it owns its panel
+  // the same way — keyed on the sentinel, never on a group label.
+  const textOpen = openLabel === TEXT_ENTRY_KEY;
 
-  // Below `lg` a panel replaces the group list, so it replaces everything that is
-  // level 1 — the free-text filter included: the option list gets the whole
-  // dialog instead of sharing its height with a field nobody needs mid-pick.
-  const showLevel1 = openGroup === null || isDesktop;
+  // Below `lg` a panel replaces level 1 outright, so the option list (or the
+  // field) gets the whole dialog. Tested on `openLabel`, not on `openGroup`: the
+  // text entry has no group, and a panel that resolved to nothing still owns it.
+  const showLevel1 = openLabel === null || isDesktop;
 
   // Entering a panel puts the caret on its Back button — never on a text field.
   // Focusing the search box here (what this did until 1.439) opened the phone
@@ -270,92 +292,80 @@ export function FilterModalBody({
     ? panelSections(openGroup, query, draft[openGroup.label] ?? [])
     : [];
 
-  const textInput = textFilter ? (
-    <Box className="c2-filter-sheet__aside">
-      <Text fw={600} size="sm" mb={4}>
-        {textFilter.label}
-      </Text>
-      <TextInput
-        aria-label={textFilter.label}
-        value={textDraft}
-        onChange={(event) => setTextDraft(event.currentTarget.value)}
-        placeholder={textFilter.placeholder ?? "Type to match"}
-        maxLength={textFilter.maxLength ?? DEFAULT_TEXT_FILTER_MAX_LENGTH}
-        leftSection={<IconSearch size={16} />}
-        rightSectionPointerEvents="all"
-        rightSection={
-          textDraft.length > 0 ? (
-            <ActionIcon
-              variant="subtle"
-              color="gray"
-              size="sm"
-              aria-label={`Clear ${textFilter.label}`}
-              onClick={() => setTextDraft("")}
-            >
-              <IconX size={14} />
-            </ActionIcon>
-          ) : undefined
-        }
+  // The name filter's own row state, in the same grammar as a group's: an empty
+  // draft is no filter, so it reads "All event names" where Users reads
+  // "All users", and a term reads as the term — that is what it matches.
+  const textState: FilterTextRowState | null = textFilter
+    ? textRowState(textFilter.label.toLocaleLowerCase(), textDraft)
+    : null;
+  const textRow =
+    textFilter && textState ? (
+      <FilterRow
+        title={textFilter.label}
+        stateLabel={textState.label}
+        active={textState.active}
+        open={textOpen}
+        ref={(node) => {
+          if (node) {
+            rowRefs.current.set(TEXT_ENTRY_KEY, node);
+          } else {
+            rowRefs.current.delete(TEXT_ENTRY_KEY);
+          }
+        }}
+        onOpen={() => openPanel(TEXT_ENTRY_KEY)}
       />
-    </Box>
-  ) : null;
+    ) : null;
+  // Level 1 in the order the filters are applied: every group, then the name.
+  const entries = level1Entries(groups, textFilter !== undefined);
 
   return (
     <Stack gap="md" style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
       <Box
         className="c2-filter-sheet"
-        data-detail={openGroup ? "open" : undefined}
-        data-aside={showLevel1 && textInput !== null ? "true" : undefined}
+        data-detail={openGroup || textOpen ? "open" : undefined}
+        data-nav={openLabel === null ? navDir : undefined}
       >
-        {/* The free-text filter is not a group, so it is not a row: at `lg`+ it
-            spans the sheet above both levels, and below `lg` it is a level-1
-            control like the rows — gone once a panel opens. */}
-        {showLevel1 ? textInput : null}
         {showLevel1 && (
-          /* Level 1 — one row per group. The row's own subtitle is the group's
-             summary, so there is no separate chip strip to cap, overflow, or
-             explain. */
+          /* Level 1 — one row per filter, reading in the order they are applied.
+             The name filter is one of those rows (last, under a hairline) rather
+             than a field above the list: the position is what says it narrows
+             what the option groups left, and this dialog carries no copy to say
+             it with. The row's own subtitle is the group's summary, so there is
+             no separate chip strip to cap, overflow, or explain. */
           <Stack className="c2-filter-sheet__list" gap={6}>
-            {groups.map((group) => {
+            {entries.map((entry) => {
+              if (entry.kind === "text") {
+                // The hairline is the only new mark in the sheet: it separates a
+                // different *kind* of filter, and it is the cue that this row is
+                // the one applied last.
+                return (
+                  <Fragment key={entry.key}>
+                    {groups.length > 0 && <Box className="c2-filter-sheet__rule" aria-hidden />}
+                    {textRow}
+                  </Fragment>
+                );
+              }
+              const group = entry.group;
               const state = groupRowState(group, draft[group.label] ?? [], {
                 cleared,
                 touched: touched.has(group.label),
               });
               return (
-                <UnstyledButton
-                  key={group.label}
-                  className="c2-filter-row"
-                  data-open={openLabel === group.label || undefined}
-                  aria-expanded={openLabel === group.label}
-                  aria-label={`${group.label}, ${state.subtitle}`}
+                <FilterRow
+                  key={entry.key}
+                  title={group.label}
+                  stateLabel={state.subtitle}
+                  active={state.active}
+                  open={openLabel === entry.key}
                   ref={(node) => {
                     if (node) {
-                      rowRefs.current.set(group.label, node);
+                      rowRefs.current.set(entry.key, node);
                     } else {
-                      rowRefs.current.delete(group.label);
+                      rowRefs.current.delete(entry.key);
                     }
                   }}
-                  onClick={() => openPanel(group.label)}
-                >
-                  <Group gap="xs" wrap="nowrap" align="center">
-                    <Box style={{ minWidth: 0, flex: 1 }}>
-                      <Text fw={600} size="sm" truncate>
-                        {group.label}
-                      </Text>
-                      {/* The state word is the whole summary; the amber tint only
-                          reinforces it (colour is never the cue). */}
-                      <Text
-                        size="xs"
-                        className="c2-filter-state"
-                        data-active={state.active || undefined}
-                        truncate
-                      >
-                        {state.subtitle}
-                      </Text>
-                    </Box>
-                    <IconChevronRight size={16} aria-hidden style={{ flexShrink: 0 }} />
-                  </Group>
-                </UnstyledButton>
+                  onOpen={() => openPanel(entry.key)}
+                />
               );
             })}
           </Stack>
@@ -395,6 +405,26 @@ export function FilterModalBody({
                   allValues: allOptionValues(openGroup),
                 })
               }
+            />
+          </Box>
+        )}
+
+        {textOpen && textFilter && textState && (
+          <Box
+            key={TEXT_ENTRY_KEY}
+            className="c2-filter-sheet__detail"
+            role="group"
+            aria-label={textFilter.label}
+          >
+            <FilterTextPanel
+              label={textFilter.label}
+              state={textState}
+              value={textDraft}
+              onChange={setTextDraft}
+              placeholder={textFilter.placeholder ?? "Type to match"}
+              maxLength={textFilter.maxLength ?? DEFAULT_TEXT_FILTER_MAX_LENGTH}
+              backRef={backRef}
+              onBack={closePanel}
             />
           </Box>
         )}
@@ -461,6 +491,14 @@ interface FilterGroupPanelProps {
  * nothing is filtered) for a search group — and the state word beside it says
  * the same thing, which is the one polarity question the old dialog left the
  * user to infer.
+ *
+ * The pair is the **group's**, not a section's: All fills every option of every
+ * section (every department's users, every folder's types) and Clear empties
+ * them the same way, so a section chip is a way into a subset and never a wall
+ * in front of the whole. Its buttons answer to what is ticked while the word
+ * beside them answers to what that means — deliberately different questions
+ * (`groupDraftState` vs `groupRowState`), because in a search group the two
+ * disagree on exactly the state the panel opens in.
  */
 function FilterGroupPanel({
   group,
@@ -484,6 +522,9 @@ function FilterGroupPanel({
   const noneLabel = group.variant === "search" ? "Clear" : "None";
   const namedSections = showsSectionHeaders(group, sections);
   const actionApplied = group.action?.isApplied([...selected]) ?? false;
+  // What is ticked across **every** section of the group — the question this
+  // pair answers to, as opposed to what the empty selection *means* (below).
+  const draftState = groupDraftState(group, selected);
 
   return (
     <Stack gap="sm">
@@ -507,13 +548,18 @@ function FilterGroupPanel({
             {state.label}
           </Text>
         </Box>
+        {/* Enabled by what a click would change, not by the state word beside it.
+            A search group's empty draft *means* "All users", and reading that
+            word here left the pair dead in the Users panel at rest — with the
+            members behind department chips, that was the one place "all users in
+            all departments" had to be reachable from, and the only way to it was
+            a department popup at a time. `groupDraftState` asks the question a
+            button answers to: what is ticked, across every section. The write was
+            always whole-group (`allOptionValues`); only the enablement lied. */}
         <AllNoneControls
           label={group.label}
-          allSelected={state.kind === "all"}
-          /* Nothing to clear when the selection is already empty — for a search
-             group an empty draft reads as "All", so the state word alone would
-             leave "Clear" looking live when its click changes nothing. */
-          noneSelected={selected.length === 0}
+          allSelected={draftState === "all"}
+          noneSelected={draftState === "none"}
           noneLabel={noneLabel}
           onAll={onAll}
           onNone={onNone}
@@ -672,6 +718,136 @@ function FilterGroupPanel({
           );
         })
       )}
+    </Stack>
+  );
+}
+
+interface FilterRowProps {
+  title: string;
+  /** What this filter currently does — the row's whole summary. */
+  stateLabel: string;
+  active: boolean;
+  open: boolean;
+  /** React 19 ref-as-prop: the list registers the row so leaving its panel
+   *  returns the caret to exactly where it left. */
+  ref?: (node: HTMLButtonElement | null) => void;
+  onOpen: () => void;
+}
+
+/**
+ * A level-1 row: the filter's name over what it currently does, and a chevron
+ * that says "this opens".
+ *
+ * Every entry renders through this one component — option group and free-text
+ * filter alike — which is the point: sharing the markup (and the 44px floor, the
+ * hover, the focus ring and the `aria-expanded`) is what makes the name read as
+ * the fourth filter rather than as a field that wandered into the list.
+ */
+function FilterRow({ title, stateLabel, active, open, ref, onOpen }: FilterRowProps) {
+  return (
+    <UnstyledButton
+      className="c2-filter-row"
+      data-open={open || undefined}
+      aria-expanded={open}
+      aria-label={`${title}, ${stateLabel}`}
+      ref={ref}
+      onClick={onOpen}
+    >
+      <Group gap="xs" wrap="nowrap" align="center">
+        <Box style={{ minWidth: 0, flex: 1 }}>
+          <Text fw={600} size="sm" truncate>
+            {title}
+          </Text>
+          {/* The state word is the whole summary; the amber tint only reinforces
+              it (colour is never the cue). */}
+          <Text size="xs" className="c2-filter-state" data-active={active || undefined} truncate>
+            {stateLabel}
+          </Text>
+        </Box>
+        <IconChevronRight size={16} aria-hidden style={{ flexShrink: 0 }} />
+      </Group>
+    </UnstyledButton>
+  );
+}
+
+interface FilterTextPanelProps {
+  label: string;
+  state: FilterTextRowState;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  maxLength: number;
+  backRef: RefObject<HTMLButtonElement | null>;
+  onBack: () => void;
+}
+
+/**
+ * Level 2 of the free-text entry: the same header recipe as a group panel —
+ * Back, the entry's name, its state word — over the one control that belongs
+ * here, so drilling into the name filter is the same gesture as drilling into
+ * Users and lands the caret in the same place.
+ *
+ * No All/Clear pair: that pair is the vocabulary of an option group, and this
+ * field's own ✕ is its clear. And no autofocus — the dialog's rule that nothing
+ * in it summons the phone keyboard by itself (1.439) holds for its fourth entry
+ * exactly as it does for the other three.
+ */
+function FilterTextPanel({
+  label,
+  state,
+  value,
+  onChange,
+  placeholder,
+  maxLength,
+  backRef,
+  onBack,
+}: FilterTextPanelProps) {
+  return (
+    <Stack gap="sm">
+      <Group gap="xs" wrap="nowrap" align="center">
+        <ActionIcon
+          ref={backRef}
+          variant="subtle"
+          color="gray"
+          size="lg"
+          radius="md"
+          aria-label="Back to filters"
+          onClick={onBack}
+        >
+          <IconChevronLeft size={18} />
+        </ActionIcon>
+        <Box style={{ minWidth: 0, flex: 1 }}>
+          <Text fw={600} size="sm" truncate>
+            {label}
+          </Text>
+          <Text size="xs" className="c2-filter-state" data-active={state.active || undefined} truncate>
+            {state.label}
+          </Text>
+        </Box>
+      </Group>
+
+      <TextInput
+        aria-label={label}
+        value={value}
+        onChange={(event) => onChange(event.currentTarget.value)}
+        placeholder={placeholder}
+        maxLength={maxLength}
+        leftSection={<IconSearch size={16} />}
+        rightSectionPointerEvents="all"
+        rightSection={
+          value.length > 0 ? (
+            <ActionIcon
+              variant="subtle"
+              color="gray"
+              size="sm"
+              aria-label={`Clear ${label}`}
+              onClick={() => onChange("")}
+            >
+              <IconX size={14} />
+            </ActionIcon>
+          ) : undefined
+        }
+      />
     </Stack>
   );
 }

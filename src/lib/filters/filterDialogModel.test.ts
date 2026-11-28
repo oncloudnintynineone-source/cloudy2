@@ -1,16 +1,20 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  groupDraftState,
   groupPanelRuns,
   groupRowState,
   isGroupSearchable,
+  level1Entries,
   panelSections,
   sectionChipAriaLabel,
   sectionChipText,
   sectionRendersAsChip,
   sectionState,
   showsSectionHeaders,
+  textRowState,
   toApplyGroup,
+  TEXT_ENTRY_KEY,
   type FilterModelGroup,
   type FilterModelOption,
 } from "./filterDialogModel";
@@ -466,5 +470,69 @@ describe("groupPanelRuns", () => {
     const runs = groupPanelRuns([section("Dep1")]);
     expect(runs).toHaveLength(1);
     expect(runs[0]?.kind).toBe("inline");
+  });
+});
+
+describe("level1Entries", () => {
+  it("puts the free-text entry last — the list order is the application order", () => {
+    expect(level1Entries([calendars, users], true).map((e) => [e.kind, e.key])).toEqual([
+      ["group", "Calendars"],
+      ["group", "Users"],
+      ["text", TEXT_ENTRY_KEY],
+    ]);
+  });
+
+  it("carries the group it stands for, so the list maps entries directly", () => {
+    const [entry] = level1Entries([calendars], false);
+    expect(entry?.kind === "group" && entry.group).toBe(calendars);
+  });
+
+  it("omits the text entry for a caller that has none", () => {
+    expect(level1Entries([calendars, users], false).map((e) => e.key)).toEqual([
+      "Calendars",
+      "Users",
+    ]);
+  });
+
+  it("still offers the text entry when there are no option groups", () => {
+    expect(level1Entries([], true)).toEqual([{ kind: "text", key: TEXT_ENTRY_KEY }]);
+  });
+});
+
+describe("textRowState", () => {
+  it("reads as no filter while blank", () => {
+    expect(textRowState("event names", "")).toEqual({ label: "All event names", active: false });
+    expect(textRowState("event names", "   ")).toEqual({ label: "All event names", active: false });
+  });
+
+  it("quotes the trimmed term once there is one", () => {
+    expect(textRowState("event names", "  night duty ")).toEqual({
+      label: "\u201cnight duty\u201d",
+      active: true,
+    });
+  });
+});
+
+describe("groupDraftState", () => {
+  it("asks what is ticked, so a search group's empty draft is 'none' — not 'all'", () => {
+    // The row word for this selection is "All users" (empty = no filter), and
+    // using that word for the All button's disabled state is what left the pair
+    // dead in the Users panel at rest.
+    expect(groupRowState(users, [])).toMatchObject({ kind: "all", label: "All" });
+    expect(groupDraftState(users, [])).toBe("none");
+  });
+
+  it("reports a grid group at rest as already full, so All has nothing to do", () => {
+    expect(groupDraftState(calendars, ["cal-1", "cal-2", "cal-3"])).toBe("all");
+  });
+
+  it("counts a partial selection and ignores ids the group can no longer show", () => {
+    expect(groupDraftState(calendars, ["cal-1"])).toBe("some");
+    expect(groupDraftState(calendars, ["gone"])).toBe("none");
+    expect(groupDraftState(calendars, ["cal-1", "gone"])).toBe("some");
+  });
+
+  it("treats an empty group as having nothing to change", () => {
+    expect(groupDraftState({ label: "Empty", options: [] }, [])).toBe("all");
   });
 });

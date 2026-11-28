@@ -3502,6 +3502,26 @@ html.c2-low-end::view-transition-group(*) {
 }
 
 /*
+  A chip's state IS its fill, and Mantine's `Badge` transitions nothing, so the
+  tap that picks an option repaints instantly. On a plain option chip that is
+  merely abrupt; on a **group** chip it is a missed state change, because the
+  chip sits *behind* the popup the user is looking into — the fill that answers
+  their tap is never on screen when it happens. One colour-only fade (the pair
+  the level-1 rows already use) makes the change readable when the popup closes,
+  and moves nothing: no transform, no layout, and nothing to re-learn under
+  reduced motion, where it simply snaps.
+*/
+@media (prefers-reduced-motion: no-preference) {
+  .mantine-Badge-root.c2-selectable-badge,
+  .mantine-Badge-root.c2-filter-group-chip {
+    transition:
+      background-color var(--c2-dur-micro) var(--c2-ease-out),
+      border-color var(--c2-dur-micro) var(--c2-ease-out),
+      color var(--c2-dur-micro) var(--c2-ease-out);
+  }
+}
+
+/*
   Touch-sized radio choice row (`RadioCardGroup`, docs/accessibility.md §1.9):
   the calendar page's series-scope choosers ("This event" / "This and following"
   / "All events") were bare Mantine `Radio` rows — a 20px indicator beside a
@@ -3559,9 +3579,9 @@ html.c2-low-end::view-transition-group(*) {
 
 /*
   Filter dialog sheet (docs/dashboard-views.md §1.2): the dialog is one column
-  that switches between two levels — the group list and the open group's option
-  panel — and from `lg` (40em) the two sit side by side instead of replacing
-  each other. The modal body is already a flex column with `overflow: hidden`
+  that switches between two levels — the filter list and the open entry's panel —
+  and from `lg` (40em) the two sit side by side instead of replacing each other.
+  The modal body is already a flex column with `overflow: hidden`
   (and `.c2-filter-modal-swap` carries that chain through the crossfade), so the
   sheet takes the remaining height and each column scrolls on its own while the
   footer stays pinned below.
@@ -3580,18 +3600,18 @@ html.c2-low-end::view-transition-group(*) {
   min-height: 0;
 }
 
-/* With the free-text field the sheet is two rows: the field, then the level(s)
-   that scroll. The field spans both columns at `lg`+ so it never gets squeezed
-   into the narrow list column; below `lg` it is a level-1 control, so the
-   attribute is absent while a panel owns the dialog (1.444) and the field gets
-   no row at all. */
-.c2-filter-sheet[data-aside] {
-  grid-template-rows: auto minmax(0, 1fr);
+/* The hairline above the free-text entry — the one mark that says "this row is a
+   different kind of filter: the one applied last", standing in for the sentence
+   that would otherwise have to sit under it. It takes the tokens the rows' own
+   borders use, so it reads as the sheet's rule rather than a new colour. */
+.c2-filter-sheet__rule {
+  height: 1px;
+  margin-block: calc(0.25rem * var(--mantine-scale));
+  background-color: var(--mantine-color-gray-3);
 }
 
-.c2-filter-sheet__aside {
-  grid-column: 1 / -1;
-  min-width: 0;
+[data-mantine-color-scheme="dark"] .c2-filter-sheet__rule {
+  background-color: var(--mantine-color-dark-4);
 }
 
 .c2-filter-sheet__list,
@@ -3636,6 +3656,33 @@ html.c2-low-end::view-transition-group(*) {
 @media (prefers-reduced-motion: no-preference) {
   .c2-filter-sheet__detail {
     animation: c2-filter-panel-enter var(--c2-dur-quick) var(--c2-ease-out);
+  }
+}
+
+/*
+  Stepping back was the one movement in this dialog with no motion of its own:
+  below `lg` the list is the thing that returns, so it slides in from the left —
+  the mirror of the panel's enter from the right, and the only cue that the sheet
+  went back rather than being reopened. `data-nav` comes from the owner of the
+  level in the same commit that re-mounts the list (a class added from an effect
+  would paint the finished frame first), and only `back` matches, so a
+  first-opened list simply appears. Capped at the sheet's own desktop switch
+  (40em): at `lg`+ both levels stay on screen, so there is nothing to follow.
+*/
+@keyframes c2-filter-list-enter {
+  from {
+    opacity: 0;
+    transform: translateX(calc(-1 * var(--c2-dist-sm)));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) and (max-width: 39.9375em) {
+  .c2-filter-sheet[data-nav="back"] .c2-filter-sheet__list {
+    animation: c2-filter-list-enter var(--c2-dur-quick) var(--c2-ease-out);
   }
 }
 

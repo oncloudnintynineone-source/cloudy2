@@ -18,8 +18,9 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.445 (contacts rail floating indicator)** is shipped,
-  including the **1.444** filter-dialog field notes,
+- All work through changelog **1.446 (filter dialog: Event-name last, whole-group All/Clear)** is shipped,
+  including the **1.445** contacts rail section indicator,
+  the **1.444** filter-dialog field notes,
   the **1.443** change-report convention,
   the **1.442** modal-skeleton reveal fix,
   the **1.441** content-width department chips,
@@ -3575,6 +3576,53 @@ size="compact"`), and renames **Duplicate Event** / **Copy to Other Google
   `rgb(180, 201, 239)` dark; `transition: 0s` under emulated reduced motion; no rail and no chip
   below the 4-section floor (the 6-contact dev roster is the no-rail case); zero console errors.
   Docs: `ui-ux-improvements.md` C2.
+
+- 1.446 **Filter dialog: Event-name is the last level-1 row, panel All/Clear reaches every
+  section, step-back motion** — the free-text filter is now a **row** in the sheet's first level
+  rather than a field spanning its top. `level1Entries` (pure, `filterDialogModel.ts`) returns the
+  groups in caller order and the text entry **last**, so the rows read in the order the filters are
+  **applied** — calendars → users → types → name — which is the fact the old top field
+  contradicted (the projection narrows first and matches the name against what survived:
+  `projectRangeEvents` → `filterEventsByText`, `src/lib/dashboard/data.ts:489-499`). A 1px hairline
+  (`.c2-filter-sheet__rule`, gray-3 / dark-4) sits above it as the only new mark: no caption, no
+  glyph, no copy, because nothing in this dialog explains itself. Tapping it drills into a panel
+  with the same header recipe as a group panel (Back · name · state word) over the one field, and
+  lands on **Back** like every other panel — the keyboard still never arrives by itself. Below `lg`
+  the field used to vanish when a panel opened; now it is a row in the list that survives the
+  drill. `textRowState` prints `All event name` / `“night duty”`, so the row says what the field
+  does at a glance. **The panel's All/Clear now means the whole group.** `FilterGroupPanel` fed the
+  pair's enablement from `groupRowState` — variant-aware, and for a search group an empty draft
+  *means* "All" — so at rest on Users **both** buttons were disabled and the pair looked dead
+  exactly where "all users in all departments" is wanted. It now rides `groupDraftState`
+  (variant-blind: what is actually ticked), the same question the write path answers;
+  `allOptionValues` always covered every section, so one tap of All fills every department and the
+  section popups' own pairs are unchanged. Accepted consequence (documented, not a bug): a search
+  group filled to the last id applies as *no filter*, so the row keeps reading `All users` — the
+  unlocked workflow is "fill everything, then untick a few". **Motion audit**: stepping back slides
+  the list in from the left (`data-nav="back"` + `c2-filter-list-enter`, `--c2-dur-quick`
+  `--c2-ease-out`, capped below 40em because at `lg`+ both levels are on screen and nothing moves),
+  and chips fade their fill instead of snapping (`--c2-dur-micro` on background/border/color —
+  Mantine 9's `Badge` has no `transition` prop). Accepted without animation: the `lg`+ grid-track
+  snap (grid tracks are not interpolable 1↔2 and animating them is layout-triggering, `motion.md`
+  §1.6), the field's ✕ appearing, and the row subtitle re-wording. Deleted rather than parked:
+  `.c2-filter-sheet__aside` + `data-aside`, and the row-ref factory (rows take a React 19 `ref`
+  prop now). **Browser-verified** in headless Edge over raw CDP (DevTools MCP is not configured
+  here) at 390×844 and 1280×900, light and dark, plus emulated reduced motion: level 1 lists
+  `Calendars · Users · Event Types · Event name` in that order with exactly **1** 1px rule
+  (`rgb(222,226,230)` light / `rgb(66,66,66)` dark) immediately before the last row;
+  `.c2-filter-sheet__aside` and `data-aside` absent and no `input` inside the list; the name panel
+  focuses `Back to filters` (not the field) with the input 311px wide at 390 / 367px at 1280 and no
+  All/Clear pair; typing `night duty` turns the state word `“night duty”` and reveals the ✕; Back
+  writes `data-nav="back"` and the list computes `0.16s cubic-bezier(0.22, 1, 0.36, 1)
+  c2-filter-list-enter` at 390 and `none` at 1280 (`0s` under reduced motion); the Users panel at
+  rest has **All enabled / Clear disabled** (the fix — both were disabled before) and one tap of All
+  fills all four department chips and flips to All disabled / Clear enabled while the row still
+  reads `All users`; Event Types at rest is unchanged (All disabled, None enabled, labelled `None`);
+  chips compute `background-color, border-color, color` at `0.12s` (`all 0s` under reduced motion);
+  the Users-table dialog (no text filter) still shows 2 rows with **0** rules; every dialog closed
+  on Cancel with nothing applied; zero console errors. 46 unit tests cover the pure model
+  (`level1Entries`, `textRowState`, `groupDraftState`).
+  Docs: `dashboard-views.md` §1.2, `ui-ux-improvements.md` E7, `AGENTS.md` filter bullet.
 
 ## 1.4 Open items & next steps
 

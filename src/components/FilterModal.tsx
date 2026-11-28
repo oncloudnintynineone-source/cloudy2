@@ -117,9 +117,10 @@ export interface FilterGroup {
 }
 
 /**
- * Optional free-text filter rendered above the option groups. It is staged in
- * the same draft as the groups and returned through `FilterApplyMeta.text` on
- * Apply; a blank value means "no text filter".
+ * Optional free-text filter: the **last** entry of the level-1 list, after the
+ * option groups, because it is applied after them — it matches against what the
+ * groups left. It is staged in the same draft as the groups and returned through
+ * `FilterApplyMeta.text` on Apply; a blank value means "no text filter".
  */
 export interface FilterTextGroup {
   label: string;
@@ -151,7 +152,10 @@ export interface FilterModalProps {
   groups: FilterGroup[];
   values: Record<string, string[]>;
   onApply: (values: Record<string, string[]>, meta: FilterApplyMeta) => void | Promise<void>;
-  /** Optional free-text filter rendered above the groups (e.g. event name). */
+  /**
+   * Optional free-text filter — one more row in the list, last, opening its own
+   * panel (e.g. event name). Omit it and the dialog is the option groups alone.
+   */
   textFilter?: FilterTextGroup;
   /**
    * Viewport rect of the trigger button, captured on tap. Drives the modal's
@@ -162,14 +166,18 @@ export interface FilterModalProps {
 }
 
 /**
- * Reusable filter dialog: a **two-level sheet**. Level 1 lists the groups, each
- * row naming what that group currently does ("Calendars · All", "Users · 3 of
- * 12"); tapping a row opens that group's whole option list — search box,
- * sections, selectable chips — in the same dialog (side by side at `lg`+). One
- * gesture per group ("open it, tap chips") replaces the badge wall, the Add/Edit
- * trigger into a nested picker, the folder chips with popovers and the Show/Hide
- * disclosure this dialog used to mix; inside a panel, a section that is a real
- * group hides its members behind its own chip. The footer is the actions only —
+ * Reusable filter dialog: a **two-level sheet**. Level 1 lists the filters, each
+ * row naming what that filter currently does ("Calendars · All", "Users · 3 of
+ * 12", "Event name · “night duty”"), the optional free-text entry last; tapping a
+ * row opens that filter's own level 2 — the group's whole option list (search
+ * box, sections, selectable chips) or the one field — in the same dialog (side by
+ * side at `lg`+). The rows read in the order the filters are **applied**, which is
+ * the whole of how that gets communicated: name last, under a hairline, no copy.
+ * One gesture per group ("open it, tap chips") replaces the badge wall, the
+ * Add/Edit trigger into a nested picker, the folder chips with popovers and the
+ * Show/Hide disclosure this dialog used to mix; inside a panel, a section that is
+ * a real group hides its members behind its own chip, while the panel's own
+ * All/Clear reaches every section at once. The footer is the actions only —
  * Reset filters · Cancel · Apply — because the rows and the panel already say
  * what Apply would do.
  *
@@ -199,6 +207,12 @@ export function FilterModal({
   // is this component's `onClose`, so `close()` is where the level resets; the
   // dialog never reopens into a panel the user left behind.
   const [openLabel, setOpenLabel] = useState<string | null>(null);
+  // Which way the level just moved, so the list can say so in the same commit
+  // that re-mounts it below `lg` (a class added from an effect would paint the
+  // finished frame first). Only `back` animates: a returning list slides in from
+  // the left, mirroring the panel's enter from the right, while a first-opened
+  // list simply appears.
+  const [navDir, setNavDir] = useState<"in" | "back">("in");
   // A section's group chip popup is a layer *inside* the panel: while it is open,
   // Escape and the overlay close that popup and nothing else. The chip reports
   // its state up; this component is where Escape and the overlay land.
@@ -206,8 +220,15 @@ export function FilterModal({
 
   function close() {
     setOpenLabel(null);
+    setNavDir("in");
     setChipOpen(false);
     onClose();
+  }
+
+  /** The one way the level changes, so every path reports its direction. */
+  function openLevel(label: string | null) {
+    setNavDir(label === null ? "back" : "in");
+    setOpenLabel(label);
   }
 
   function stepBack() {
@@ -216,7 +237,7 @@ export function FilterModal({
       return;
     }
     if (openLabel !== null) {
-      setOpenLabel(null);
+      openLevel(null);
       return;
     }
     close();
@@ -278,7 +299,8 @@ export function FilterModal({
           onApply={onApply}
           textFilter={textFilter}
           openLabel={openLabel}
-          onOpenGroup={setOpenLabel}
+          onOpenGroup={openLevel}
+          navDir={navDir}
           onChipOpenChange={setChipOpen}
           onClose={close}
         />

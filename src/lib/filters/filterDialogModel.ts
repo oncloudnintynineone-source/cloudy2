@@ -1,8 +1,8 @@
 /**
  * The filter dialog's presentation model — the pure half of the two-level
- * sheet (`FilterModalBody`): what each group row says, whether a group needs a
- * search box, how its options chunk into sections, and what the dialog's
- * effective-result line reads.
+ * sheet (`FilterModalBody`): what each group row says, in which order the rows
+ * read, whether a group needs a search box, and how its options chunk into
+ * sections.
  *
  * The **semantics** of a selection stay in `resolveFilterApply.ts` (what Apply
  * stores); this module only *names* that state, so a row can never claim
@@ -13,7 +13,7 @@
  * Design: docs/dashboard-views.md §1.2, docs/user-picker.md §1.7.
  */
 
-import { sectionSelectionState } from "./filterSections";
+import { sectionSelectionState, type SectionSelectionState } from "./filterSections";
 import { groupFilterState, type FilterApplyGroup } from "./resolveFilterApply";
 import {
   buildUserGroups,
@@ -134,6 +134,87 @@ export function groupRowState(
     count: state.count,
     optionCount,
   };
+}
+
+/**
+ * What is **ticked** in a group, ignoring what an empty selection *means* there.
+ *
+ * The deliberate second question beside {@link groupRowState}: the row's word is
+ * variant-aware (a search group's empty draft means "All users", a grid group's
+ * means "None"), and that is right for a summary and wrong for a button — it
+ * would leave a search group's **All** disabled at rest, when the one thing the
+ * user wants is to fill every option and untick a few. So the word says what the
+ * selection means and the All/Clear pair says what a click would change.
+ *
+ * Counts only ids the group can actually show (the same rule
+ * {@link sectionSelectionState} uses), so a stored id whose option is gone can
+ * never make a group look fully ticked.
+ */
+export function groupDraftState(
+  group: FilterModelGroup,
+  selected: readonly string[],
+): SectionSelectionState {
+  return sectionSelectionState(group.options, selected);
+}
+
+/**
+ * The sentinel key of the free-text filter's level-1 entry. Group labels come
+ * from callers ("Calendars", "Users", "Event Types"), so the entry is keyed on a
+ * value no group can carry rather than risking a collision with one; the row
+ * still *prints* the caller's own label.
+ */
+export const TEXT_ENTRY_KEY = "__text_filter__";
+
+/** One entry of the dialog's level-1 list, carrying what it stands for. */
+export type FilterLevel1Entry<G> =
+  | { kind: "group"; key: string; group: G }
+  | { kind: "text"; key: typeof TEXT_ENTRY_KEY };
+
+/**
+ * The level-1 list: every option group in the caller's order, then the free-text
+ * entry **last**.
+ *
+ * That order is not decoration — it is the order the filters are applied. The
+ * dashboard projection narrows by calendars, then users, then event types, and
+ * only then matches the name against what is left
+ * (`projectTab` → `filterEventsByText`, `src/lib/dashboard/data.ts`). Reading the
+ * list top to bottom therefore says "this last one narrows what those left",
+ * which is the wordless answer to "is the text filter applied last?" — and
+ * wordless is the only form this dialog accepts: it carries no instructional
+ * copy of any kind, and a caption over it would have aged worse than the gap it
+ * filled.
+ */
+export function level1Entries<G extends { label: string }>(
+  groups: readonly G[],
+  hasTextFilter: boolean,
+): FilterLevel1Entry<G>[] {
+  const entries: FilterLevel1Entry<G>[] = groups.map((group) => ({
+    kind: "group",
+    key: group.label,
+    group,
+  }));
+  if (hasTextFilter) {
+    entries.push({ kind: "text", key: TEXT_ENTRY_KEY });
+  }
+  return entries;
+}
+
+/**
+ * The free-text entry's row state, in the same grammar as a group row's
+ * subtitle: an empty draft is no filter, so it reads "All event names" exactly
+ * where Users reads "All users"; a term reads as the term itself, quoted,
+ * because that is what it matches against.
+ */
+export interface FilterTextRowState {
+  label: string;
+  active: boolean;
+}
+
+export function textRowState(noun: string, draft: string): FilterTextRowState {
+  const term = draft.trim();
+  return term === ""
+    ? { label: `All ${noun}`, active: false }
+    : { label: `\u201c${term}\u201d`, active: true };
 }
 
 /** Whether a group's panel carries a search box. */

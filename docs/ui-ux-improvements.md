@@ -1588,6 +1588,31 @@ unit tests were deleted rather than left unused, and the footer is now Reset fil
 Apply. Row state words, section counts, the All/None/Clear/Reset vocabulary, storage and
 `FilterModalProps` are unchanged.
 
+**Field notes (1.446, 2026-11-28).** Three notes, on order, reach and motion. (1) The
+**Event-name filter is now the last row of level 1** — a row like any other, under a hairline,
+drilling into a panel that holds its field — because the rows read in the order the filters are
+**applied**: `projectRangeEvents` narrows by calendars, users and types, then `resolveDisplayTitles`
+composes the title, then `filterEventsByText` matches against what survived
+(`src/lib/dashboard/data.ts:489-499`). That position is the entire communication: no caption, no
+glyph, no copy. The 1.444 placement — spanning the top of the sheet, above both levels — read as
+"applied first", the opposite of the truth, and it was the one control that vanished when a panel
+opened. `level1Entries` owns the order in the pure model, the row renders through the same `FilterRow`
+a group uses (same 44px floor, hover, `aria-expanded`), and `textRowState` gives it a search group's
+grammar: blank reads `All event names`, a term reads as the term, quoted. (2) The panel's **All/Clear
+belongs to the group, not to a section** — it always wrote every section's ids, but it was enabled off
+the group's *state word*, and in a search group an empty draft already means "All", so at rest **both**
+buttons sat disabled in precisely the panel where "all users in all departments" has to be reachable
+from. Enablement now comes from `groupDraftState` — what is ticked — while the word beside it keeps
+saying what the selection *means*; the two disagree by design on that one state, and the difference is
+unit-tested. Filling every user still applies as no filter (the storage rule stands); what the pair
+buys is fill-everything-then-untick-a-few. (3) **Motion audit**: below `lg` stepping back now slides
+the list in from the left as the panel leaves (`data-nav` comes from `FilterModal`, which owns the
+level and so knows which way it moved), and option chips gained a `--c2-dur-micro` colour transition
+so a tap stops snapping. Accepted without animation: the `lg`+ grid-track snap (1↔2 columns is not
+interpolable and animating a track is layout-triggering — [`motion.md`](motion.md) §1.6), the field's
+✕ appearing, and a row subtitle re-wording. Deleted rather than parked: `.c2-filter-sheet__aside` and
+its `data-aside` rule.
+
 ## 1.9 Held register
 
 Reviewed on **2026-11-22** and **put aside by decision — not to be implemented without a new
@@ -1691,6 +1716,7 @@ land here.
 | E7  | 1.440 (2026-11-28) | Fourth pass, two field notes: the panel's group chips now lay out as a **grid** (`.c2-filter-chip-grid`, `auto-fill minmax(min(100%, 9rem), 1fr)` — two columns on a phone and in the desktop panel, each chip filling its cell) instead of one stair-stepped line per department, and a **sub-department's chip reads `Parent (Department)`** (e.g. `Dep1 (Engineering)`) from the section's `parentLabel` — the nearest *shown* parent, filled by `buildUserGroups` under the same acceptance rule `depth` uses. The qualifier replaces the depth indent for chips (`hierarchyIndent` now only applies to inline sections), and `ChipPopover` grew a `block` mode for the grid cells. Consecutive chip sections share one grid container (`groupPanelRuns`), so section order and inline sections are untouched. Draft/apply path, popup, All/Clear placement, Myself chip and `FilterModalProps` unchanged. [`dashboard-views.md`](dashboard-views.md) §1.2, [`user-picker.md`](user-picker.md) §1.4. |
 | E7  | 1.441 (2026-11-28) | Fifth pass, correcting 1.440's equal-width cells: the chip run is now a plain **`<Group gap={6} wrap="wrap">`** — the app's chip-cloud idiom (the picker pool, the wizard's type step) — so each chip takes only the width its label needs (`Dep1` 73px, `Dep1 (Engineering)` 176px) and they pack several per row. `.c2-filter-chip-grid` and `ChipPopover`'s `block` mode are deleted (never left unused); everything else from 1.440 unchanged — `Parent (Department)` labels, no indent for chips, popups with All/Clear top-right, runs preserving section order. [`dashboard-views.md`](dashboard-views.md) §1.2. |
 | E7  | 1.444 (2026-11-28) | Three subtractions: the **Event-name field is a level-1 control** (below `lg` it disappears when a panel opens and the option list gets the dialog; `lg`+ keeps it above both levels), the level-1 row's **amber inset bar is gone** (the subtitle says the state; the open row keeps its brand tint, and the amber state word stays), and the footer **`Showing: …` line is removed** with `effectiveSetLine` + its 5 tests deleted, so the footer is actions only. Row state words, section counts, All/None/Clear/Reset vocabulary, storage and `FilterModalProps` unchanged. [`dashboard-views.md`](dashboard-views.md) §1.2, [`accessibility.md`](accessibility.md) §1.7/§1.9.2. |
+| E7  | 1.446 (2026-11-28) | The **Event-name filter became the last entry of level 1** — a row like any other, under a hairline, drilling into a panel that holds its field — so the rows read in the order the filters are **applied** (calendars → users → types → name). That position is the whole of how the order is said: no caption, no glyph, no copy. `level1Entries` / `textRowState` / `groupDraftState` added to the pure model (+ unit tests, 46 in the file); the level-1 aside markup and `.c2-filter-sheet__aside` are deleted. The panel's **All/Clear now reaches every section**: enablement moved off the group's state word onto what is actually ticked, which had left both buttons disabled at rest in a search group — the Users panel. Below `lg` stepping back slides the list back in and chips fade their colour instead of snapping. Row state words, All/None/Clear/Reset vocabulary, storage, share tokens and `FilterModalProps` unchanged. [`dashboard-views.md`](dashboard-views.md) §1.2, [`motion.md`](motion.md) §1.6. |
 
 ## 1.11 Implementation guardrails
 
