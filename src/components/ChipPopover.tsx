@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Badge, Group, Popover, UnstyledButton } from "@mantine/core";
+import { Badge, Group, Popover, Stack, UnstyledButton } from "@mantine/core";
 import { IconChevronDown } from "@tabler/icons-react";
 
 import { useMotion } from "@/components/MotionProvider";
@@ -44,6 +44,12 @@ export interface ChipPopoverProps {
   /** Called with the new open state before the popup animates. */
   onOpenChange?: (open: boolean) => void;
   /**
+   * Bulk actions for the grouped options, rendered right-aligned inside the
+   * popup's top edge (the filter dialog's per-section All / Clear). Omitted by
+   * the wizard's single-select tiles.
+   */
+  actions?: ReactNode;
+  /**
    * Controlled open state. Omit to let the chip own it (the filter dialog does);
    * the wizard's single-select tile controls it so a pick can close the popup.
    */
@@ -78,6 +84,7 @@ export function ChipPopover({
   labelNowrap = true,
   focusOnOpen = false,
   onOpenChange,
+  actions,
   open: controlledOpen,
   children,
 }: ChipPopoverProps) {
@@ -92,13 +99,21 @@ export function ChipPopover({
       setUncontrolledOpen(next);
     }
     if (next && focusOnOpen) {
-      // Focus the first chip, so a keyboard user lands inside the popup instead
-      // of having to Tab through the trigger again. The portalled popup mounts a
+      // Focus the first *option* chip, so a keyboard user lands inside the popup
+      // instead of having to Tab through the trigger again — and never on a bulk
+      // action like All, which would look pre-armed. The portalled popup mounts a
       // frame or two after the click, so this retries across two frames (a single
       // rAF can run before the dropdown ref is attached).
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-          dropdownRef.current?.querySelector<HTMLElement>("button")?.focus();
+          const dropdown = dropdownRef.current;
+          if (!dropdown) {
+            return;
+          }
+          const firstChip = dropdown
+            .querySelector<HTMLElement>(".c2-selectable-badge")
+            ?.closest<HTMLButtonElement>("button");
+          (firstChip ?? dropdown.querySelector<HTMLButtonElement>("button"))?.focus();
         });
       });
     } else if (!next && dropdownRef.current?.contains(document.activeElement)) {
@@ -205,9 +220,18 @@ export function ChipPopover({
         </UnstyledButton>
       </Popover.Target>
       <Popover.Dropdown aria-label={optionsLabel} ref={dropdownRef}>
-        <Group gap={6} wrap="wrap" maw={dropdownMaxWidth}>
-          {children}
-        </Group>
+        <Stack gap={6}>
+          {actions ? (
+            /* Bulk actions live *inside* the popup, pinned to its top-right —
+               the panel row is then just the chip. */
+            <Group justify="flex-end" gap={2} wrap="nowrap">
+              {actions}
+            </Group>
+          ) : null}
+          <Group gap={6} wrap="wrap" maw={dropdownMaxWidth}>
+            {children}
+          </Group>
+        </Stack>
       </Popover.Dropdown>
     </Popover>
   );

@@ -18,8 +18,9 @@ Holder (KAH) constraints, with Google Calendar as the event/visibility layer.
 
 ## 1.1 Status
 
-- All work through changelog **1.438 (filter dialog group chips)** is shipped,
-  including the **1.437** filter-dialog chip lists, the **1.436** filter-dialog two-level sheet,
+- All work through changelog **1.439 (filter dialog polish)** is shipped,
+  including the **1.438** filter-dialog group chips, the **1.437** filter-dialog chip lists,
+  the **1.436** filter-dialog two-level sheet,
   the **1.435** resource-usage ledger +
   Egress writer, the **1.434** month-granular
   event-type migration range, the **1.433** UI/UX streamline passes + heading outline, the
@@ -3429,6 +3430,31 @@ size="compact"`), and renames **Duplicate Event** / **Copy to Other Google
   still opens its popup with focus left on itself, and the run reported **zero console errors**.
   Docs: `dashboard-views.md` §1.2, `user-picker.md` §1.4, `event-lifecycle.md` §1.10,
   `ui-ux-improvements.md` E7.
+
+- 1.439 **Filter dialog polish** (four field notes, all applied): **(1)** a section's **All/Clear
+  moved inside its popup, pinned top-right** — `ChipPopover` gained an `actions` slot, so a panel row
+  is now the group chip and nothing else (an inline section, which has no popup, keeps its pair in
+  its header row). **(2)** The group chip **prints no count** — `sectionChipLabel` is gone; the count
+  survives in `aria-label` (`"Dep1, 0 of 2 selected"`), in the panel header's state word and in the
+  `Showing:` line, and the chip's fill still marks all-in vs partly-in. **(3)** **Nothing in the
+  dialog focuses a text field by itself**: panel entry now lands on Back instead of the search box,
+  which used to open the phone keyboard the moment Users was opened — tap-to-type search and the
+  Event-name field are untouched. **(4)** **"Myself" is a chip** — the same `SelectableBadge` with a
+  person glyph (`SelectableBadge` gained an optional `icon`), in the Users panel's header band —
+  replacing the full-width `.c2-filter-quick` button, whose CSS rule is deleted. Also: the popup's
+  open-focus now targets the first **option** chip rather than the All button it had started landing
+  on. Unchanged: the draft/apply path, storage, share tokens, `FilterModalProps`, the level-1 rows,
+  the group All/None/Clear pair, the vocabulary and the `Showing:` line. **Browser-verified** on a
+  production build in Chrome over raw CDP (DevTools MCP is not configured here) at 390/1280px, light
+  and dark, on the dashboard, the Audit Log consumer (as an admin — the page is admin-only) and the
+  wizard's type step: group chips read `Dep1`/`Engineering`/`HR`/`Dep2` with the count only in
+  `aria-label` and **one button per row**, each popup carries `All`/`Clear` at its top edge and
+  clicking `All` takes the section to `2 of 2` / footer `2 of 6 users` while the popup stays open,
+  Escape closes the popup and leaves the panel, `document.activeElement` is a BUTTON after opening
+  the dialog and after entering a panel (never an input), the Myself chip renders at 36px with a
+  glyph, toggles to `aria-label="Myself, selected"` and drives the footer to `1 of 6 users`, the Audit
+  Log shows `Dep1`/`Dep2`/`Other` chips, and the run reported **zero console errors**. Docs:
+  `dashboard-views.md` §1.2, `ui-ux-improvements.md` E7.
 
 ## 1.4 Open items & next steps
 

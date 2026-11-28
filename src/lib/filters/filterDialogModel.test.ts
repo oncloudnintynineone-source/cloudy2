@@ -6,7 +6,6 @@ import {
   isGroupSearchable,
   panelSections,
   sectionChipAriaLabel,
-  sectionChipLabel,
   sectionRendersAsChip,
   sectionState,
   showsSectionHeaders,
@@ -346,7 +345,7 @@ describe("sectionRendersAsChip", () => {
   });
 });
 
-describe("section chip labels", () => {
+describe("section chip aria label", () => {
   const group: FilterModelGroup = {
     label: "Event Types",
     options: [...options("op-", 3), ...options("ad-", 1)],
@@ -356,11 +355,10 @@ describe("section chip labels", () => {
     ],
   };
 
-  it("states the count in words, not just a fill", () => {
+  it("keeps the count for assistive tech even though the chip prints none", () => {
     const [operations] = panelSections(group, "", ["op-1"]);
     expect(operations).toBeDefined();
     if (!operations) return;
-    expect(sectionChipLabel(operations)).toBe("Operations 1 of 3");
     expect(sectionChipAriaLabel(operations)).toBe("Operations, 1 of 3 selected");
   });
 
@@ -368,7 +366,7 @@ describe("section chip labels", () => {
     const [, admin] = panelSections({ ...group, variant: "search" }, "", []);
     expect(admin).toBeDefined();
     if (!admin) return;
-    expect(sectionChipLabel(admin)).toBe("Admin 0 of 1");
+    expect(sectionChipAriaLabel(admin)).toBe("Admin, 0 of 1 selected");
   });
 });
 

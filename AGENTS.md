@@ -214,11 +214,14 @@ doc content here.
   currently does (`All calendars` / `3 of 12 users` / `No event types`), level 2 is that
   group's whole option list as **selectable chips** (`SelectableBadge`, the app-wide 36px
   chip — amber fill = in). A section that is a real group — a department, or an event-type
-  group the admin left `collapsible` — is itself **one group chip** carrying its `n of m`
-  count (`ChipPopover`, the same group-name → popup mechanic as the wizard's folder tiles,
-  multi-select inside), with its All/None pair beside it; inline sections list their chips
-  straight away, and a panel narrowed to one section always lists inline. At `lg`+ the two
-  levels sit side by side. No Show/Hide disclosure or nested picker —
+  group the admin left `collapsible` — is itself **one group chip** printing no count
+  (`ChipPopover`, the same group-name → popup mechanic as the wizard's folder tiles,
+  multi-select inside), with its All/None pair pinned inside the popup's top-right; inline
+  sections list their chips straight away, and a panel narrowed to one section always lists
+  inline. Nothing in the dialog focuses a text field by itself (panel entry lands on Back),
+  so opening it never summons the phone keyboard, and the Users panel's **Myself** quick
+  action is an ordinary `SelectableBadge` chip in the header band. At `lg`+ the two levels
+  sit side by side. No Show/Hide disclosure or nested picker —
   and no instructional copy: because a chip's fill is colour, what a selection *means* is
   always said in words — the section counts, the row state words and the pinned
   `Showing: …` line

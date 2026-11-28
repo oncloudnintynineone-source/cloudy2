@@ -25,7 +25,6 @@ import {
   isGroupSearchable,
   panelSections,
   sectionChipAriaLabel,
-  sectionChipLabel,
   sectionRendersAsChip,
   sectionState,
   showsSectionHeaders,
@@ -160,22 +159,18 @@ export function FilterModalBody({
 
   const openGroup = openLabel !== null ? (groups.find((g) => g.label === openLabel) ?? null) : null;
 
-  // Entering a panel moves the caret to its search box (the fastest way through
-  // a long list); a short list keeps focus on Back, which is where Escape and
-  // the thumb both are. Guarded per group so a parent re-render can't steal the
-  // caret back mid-typing.
+  // Entering a panel puts the caret on its Back button — never on a text field.
+  // Focusing the search box here (what this did until 1.439) opened the phone
+  // keyboard the moment someone opened Users, before they had asked for it; the
+  // search box is still one tap away when they want to type. Guarded per group so
+  // a parent re-render can't steal the caret back mid-typing.
   useEffect(() => {
     if (openLabel === null || focusedPanel.current === openLabel) {
       return;
     }
     focusedPanel.current = openLabel;
-    const group = groups.find((candidate) => candidate.label === openLabel);
-    if (group && isGroupSearchable(group)) {
-      searchRef.current?.focus();
-    } else {
-      backRef.current?.focus();
-    }
-  }, [openLabel, groups]);
+    backRef.current?.focus();
+  }, [openLabel]);
 
   // Leaving a panel — by the Back button or by Escape, which the modal owns —
   // puts the caret back on the row the user came from, so the keyboard never
@@ -553,20 +548,18 @@ function FilterGroupPanel({
       )}
 
       {group.action && (
-        /* The quick action ("Myself") is a row-scale toggle, not a tiny button
-           beside a header: it is the single fastest way to the one calendar most
-           people open this dialog for. */
-        <Button
-          className="c2-filter-quick"
-          variant="light"
-          color="brand"
-          justify="flex-start"
-          leftSection={group.action.icon}
-          aria-pressed={actionApplied}
-          onClick={onAction}
-        >
-          {group.action.label}
-        </Button>
+        /* The quick action ("Myself") is the same chip as every option in this
+           dialog — one idiom, one tap — sitting in the header band above the
+           section chips rather than as a full-width button of its own. */
+        <Group gap={6} wrap="wrap">
+          <SelectableBadge
+            label={group.action.label}
+            icon={group.action.icon}
+            selected={actionApplied}
+            onToggle={onAction}
+            ariaLabel={`${group.action.label}${actionApplied ? ", selected" : ""}`}
+          />
+        </Group>
       )}
 
       {sections.length === 0 ? (
@@ -609,13 +602,14 @@ function FilterGroupPanel({
                 <Group gap="xs" wrap="nowrap" align="center" mb={2}>
                   {asChip ? (
                     /* The wizard's group chip, reused: the group name is what you
-                       tap, its members stay hidden until you do. The count rides
-                       the chip in words ("Logistics 3 of 7") so a group's state is
-                       never just a fill, and All/Clear stay outside it so a whole
-                       department is still one tap away. */
+                       tap, its members stay hidden until you do. The chip carries no
+                       count — its All/Clear pair sits inside the popup's top-right
+                       corner instead, so the panel row is the chip alone. The count
+                       still reaches assistive tech through the aria-label, and the
+                       fill marks the all-in / partly-in state at a glance. */
                     <Box style={{ minWidth: 0 }}>
                       <ChipPopover
-                        label={sectionChipLabel(section)}
+                        label={section.label}
                         ariaLabel={sectionChipAriaLabel(section)}
                         optionsLabel={`${section.label} options`}
                         badgeClassName="c2-filter-group-chip"
@@ -626,6 +620,16 @@ function FilterGroupPanel({
                         selected={sectionSelection === "all"}
                         partial={sectionSelection === "some"}
                         dropdownMaxWidth={320}
+                        actions={
+                          <AllNoneControls
+                            label={section.label}
+                            allSelected={sectionSelection === "all"}
+                            noneSelected={sectionSelection === "none"}
+                            noneLabel={noneLabel}
+                            onAll={() => onSection(section, "all")}
+                            onNone={() => onSection(section, "none")}
+                          />
+                        }
                       >
                         {chips}
                       </ChipPopover>
@@ -646,19 +650,20 @@ function FilterGroupPanel({
                       <Text size="xs" className="c2-filter-state" style={{ flexShrink: 0 }}>
                         {section.selectedCount} of {section.totalCount}
                       </Text>
+                      {/* No popup to hold the pair, so an inline section keeps it here. */}
+                      <Box ml="auto" style={{ flexShrink: 0 }}>
+                        <AllNoneControls
+                          label={section.label}
+                          allSelected={sectionSelection === "all"}
+                          noneSelected={sectionSelection === "none"}
+                          noneLabel={noneLabel}
+                          onAll={() => onSection(section, "all")}
+                          onNone={() => onSection(section, "none")}
+                          size="sm"
+                        />
+                      </Box>
                     </>
                   )}
-                  <Box ml="auto" style={{ flexShrink: 0 }}>
-                    <AllNoneControls
-                      label={section.label}
-                      allSelected={sectionSelection === "all"}
-                      noneSelected={sectionSelection === "none"}
-                      noneLabel={noneLabel}
-                      onAll={() => onSection(section, "all")}
-                      onNone={() => onSection(section, "none")}
-                      size="sm"
-                    />
-                  </Box>
                 </Group>
               )}
               {!asChip && chips}

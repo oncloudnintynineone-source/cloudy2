@@ -1536,6 +1536,18 @@ that needed `FilterModal` to be told a chip is open (`onChipOpenChange`), becaus
 Escape to the modal as well; without it one Escape closed the popup *and* popped the panel, which
 reads as a lost panel.
 
+**Third pass (1.439, 2026-11-28).** Four notes from the field, all applied. The section's
+**All/Clear moved inside its popup, top-right** (`ChipPopover` gained an `actions` slot) so the panel
+row is the chip and nothing else. The chip **stopped printing `n of m`** — the count now lives in its
+`aria-label`, the panel header's state word and the `Showing:` line, with the fill still marking
+all-in vs partly-in (a deliberate trade against the "state in words" rule, recorded here rather than
+silently dropped). **No field in the dialog is focused by the dialog itself** any more: panel entry
+lands on Back, because focusing the search box popped the phone keyboard the instant Users opened —
+tap-to-type is unaffected. And **"Myself" became a chip** — the same `SelectableBadge` with a person
+glyph, in the panel's header band — replacing the full-width `.c2-filter-quick` button (rule deleted).
+`SelectableBadge` grew an optional `icon`, and the popup's open-focus now targets the first option
+chip rather than a bulk action.
+
 ## 1.9 Held register
 
 Reviewed on **2026-11-22** and **put aside by decision — not to be implemented without a new
@@ -1635,6 +1647,7 @@ land here.
 | E7  | 1.436 (2026-11-28) | The filter dialog is a **two-level sheet**: level 1 is one row per group naming what it currently does (`All calendars` · `3 of 12 users` · `No event types` · `Default`), level 2 that group's whole list as 44px checkbox rows under section headers carrying their own `n of m` + All/None pair; at `lg`+ the levels sit side by side, Escape steps back before closing, focus returns to the row. One polarity per group and it is stated in words, so no caption is needed anywhere: grid groups say **None** (nothing will match), search groups say **Clear** (nothing is filtered), the footer says **Reset filters** (role defaults) over a `Showing: …` line built from the same rows. Gone: badge grids, the nested `UserSelectModal`, folder chips whose state was a border, the Show/Hide disclosure, the 5-chip cap with its inert `+N`, and the untick-that-refused-to-empty. Pure model in `src/lib/filters/filterDialogModel.ts` (27 tests) + `SelectableRow.tsx`; storage, share tokens and `FilterModalProps` unchanged. [`dashboard-views.md`](dashboard-views.md) §1.2, [`user-picker.md`](user-picker.md) §1.4/§1.6. |
 | E7  | 1.437 (2026-11-28) | Follow-up on the same dialog, at the user's request: level 2 lists each group's options as **`SelectableBadge` chips** (the app-wide 36px chip, amber fill = in, `aria-pressed`, wrapping long names) instead of checkbox rows, so a picked option looks picked everywhere; `SelectableRow.tsx` + `.c2-check-row` deleted, no flag. Sheet, state words, counts, `Showing:` line, All/None/Clear/Reset vocabulary, storage and `FilterModalProps` unchanged; the 36px chip floor is the app's existing chip-surface exception. [`dashboard-views.md`](dashboard-views.md) §1.2, [`accessibility.md`](accessibility.md) §1.9.2. |
 | E7  | 1.438 (2026-11-28) | Second follow-up, again at the user's request ("all events are hidden behind the group name" in the wizard's type picker — "I want similar implemented here"): inside a filter panel a **section that is a real group** now renders as **one group chip** carrying its `n of m` count, with its member chips in the chip's popup — the wizard's `GroupTile` mechanic extracted into the shared `ChipPopover` (same `zIndex=300`, `popoverTransitionProps`, chevron flip, focus handoff) and used by both surfaces. Users = one chip per **department**; Event Types honour the admin's `collapsible` flag (`EventTypeGroupGrid`'s split); a single remaining section, and any section marked inline, lists its chips straight away. The popup is multi-select and stays open while picking, the section's All/Clear stays beside its chip, and Escape closes the popup **without** stepping the sheet back a level (`FilterModal` now knows a chip is open). Sheet, state words, counts, `Showing:` line, vocabulary, storage and `FilterModalProps` unchanged. [`dashboard-views.md`](dashboard-views.md) §1.2, [`event-lifecycle.md`](event-lifecycle.md) §1.10. |
+| E7  | 1.439 (2026-11-28) | Third pass, on four field notes: (1) a section's **All/Clear moved inside its popup, pinned top-right** — the panel row is the chip alone; (2) the chip **prints no count** (it still reaches AT via `aria-label`, and the fill still marks all-in / partly-in, with the state word and `Showing:` line carrying the words); (3) **nothing in the dialog focuses a text field by itself** — panel entry lands on Back instead of the search box, which used to pop the phone keyboard the moment Users opened; (4) **"Myself" became the dialog's own chip** (`SelectableBadge` + person glyph) in the panel's header band, replacing the full-width `.c2-filter-quick` button (its CSS rule deleted). `ChipPopover` gained an `actions` slot and now focuses the first **option** chip on open, never a bulk action. Draft/apply path, storage, `FilterModalProps` and the vocabulary unchanged. [`dashboard-views.md`](dashboard-views.md) §1.2. |
 
 ## 1.11 Implementation guardrails
 

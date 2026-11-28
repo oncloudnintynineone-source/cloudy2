@@ -251,12 +251,12 @@ export function sectionRendersAsChip(
   return section.collapsible !== false && sections.length >= 2;
 }
 
-/** A group chip's visible text — the count is **words**, never just a fill. */
-export function sectionChipLabel(section: FilterPanelSection): string {
-  return `${section.label} ${section.selectedCount} of ${section.totalCount}`;
-}
-
-/** A group chip's accessible name — the same count, spelled out. */
+/**
+ * A group chip's accessible name. The chip **prints no count** (1.439 — the
+ * panel row is the group name alone); the count still reaches assistive tech
+ * here, and the state stays visible to the eye as the chip's fill plus the
+ * group's own state word and the footer's `Showing:` line.
+ */
 export function sectionChipAriaLabel(section: FilterPanelSection): string {
   return `${section.label}, ${section.selectedCount} of ${section.totalCount} selected`;
 }

@@ -624,35 +624,47 @@ graphic); see [`accessibility.md`](accessibility.md) §1.7.
 A panel is header + sections: back chevron, the group's own state word, its
 **All / None** pair, a search box once the list is longer than
 `FILTER_SEARCH_THRESHOLD` (12) options, then the group's sections. Each section
-carries its own `n of m` count and its own All/None pair, so a folder's state is
-a number rather than a border — and its members are either listed inline or
+carries its own All/None pair, and its members are either listed inline or
 **hidden behind the section's own group chip**:
 
-- **A section that is a real group renders as one chip** — `Logistics 3 of 7 ›`,
-  the count in words — and its option chips live in the chip's popup
-  (`src/components/ChipPopover.tsx`, the same mechanic the wizard's event-type
-  picker uses for a folder group: group name → tap → its chips). This is what
-  stops a 40-department roster from becoming one wall of 200 user chips.
+- **A section that is a real group renders as one chip** — the group's name, a
+  chevron, and nothing else (no count: 1.439 removed it) — and its option chips
+  live in the chip's popup (`src/components/ChipPopover.tsx`, the same mechanic
+  the wizard's event-type picker uses for a folder group: group name → tap → its
+  chips). This is what stops a 40-department roster from becoming one wall of 200
+  user chips.
 - **Which sections group**: a department section (no admin flag exists — a
   department *is* its users' group name) and an event-type section the admin left
   collapsible (`event_type_groups.collapsible`, the wizard's own setting). A
   section the admin marked **inline** lists its chips straight away, as does any
   panel that has **one** section left (a search that narrows to one block shows
   its matches immediately instead of hiding them behind a chip).
-- **A section's All / Clear pair stays beside its chip**, so selecting a whole
-  department never costs the extra tap of opening it.
+- **A section's All / Clear pair lives inside its popup, pinned top-right** (it
+  moved there in 1.439), so the panel row is the chip alone; an inline section —
+  which has no popup — keeps its pair in its own header row.
 - **The popup is multi-select and stays open while picking** (the wizard's tile
   closes on its single pick instead). Escape closes the popup and leaves the
   panel where it is — the sheet only steps back a level on the next Escape.
+- **Nothing in the dialog focuses a text field by itself.** Entering a panel puts
+  the caret on its Back button (it used to jump into the search box, which opened
+  the phone keyboard before the user had asked for it, 1.439); the search box and
+  the Event-name field are only focused by a tap.
+
+The **Myself** quick action (Users only) is an ordinary `SelectableBadge` chip
+with a person glyph, sitting in the header band above the section chips — the
+same one-tap toggle it always was, in the dialog's one visual idiom (1.439).
 
 Options are **`SelectableBadge` chips** (`src/components/SelectableBadge.tsx` —
 the app-wide 36px `--c2-chip-height` chip the user picker's pool and the wizard's
 type step use, `aria-pressed` carrying the state, amber `accent-6` fill = in),
 wrapping freely so a long user name breaks inside its chip instead of being
 truncated. Because a chip's fill is colour, the meaning of a selection is always
-said in words as well — the section counts, the row state words and the pinned
-`Showing: …` line — and the chip keeps a hairline plus the fill-vs-tint switch,
-so picked and unpicked still differ in greyscale.
+said in words as well — the row state words and the pinned `Showing: …` line —
+and the chip keeps a hairline plus the fill-vs-tint switch, so picked and
+unpicked still differ in greyscale. A **group chip** prints no count, so its
+closed state is the fill (all-in / partly-in) plus its `aria-label`; the count is
+still in the panel header's state word, the section's own popup, and that
+`Showing:` line.
 
 The pair's second word names what an empty selection means in that group —
 **None** (nothing will match) for a grid group, **Clear** (no picks, so nothing is
@@ -678,7 +690,7 @@ list for apply/count logic; sections are presentation only.
 The **Users** panel renders the roster as chips grouped into department
 sections (nested by `departmentId`/`departmentParentId`, ordered by
 `departmentSort`), the acting user suffixed **(You)**, and the group's **Myself**
-quick action as a full-width row above the list. Filter scoping is **per tab**:
+quick action as a chip in the header band. Filter scoping is **per tab**:
 each tab stores its own Calendars/Users/Event Types/Event-name selection, and
 clearing one tab's filters never touches the others.
 

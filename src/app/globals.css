@@ -3650,12 +3650,6 @@ html.c2-low-end::view-transition-group(*) {
   color: var(--mantine-color-accent-4);
 }
 
-/* The quick action ("Myself") is a row-scale toggle, not a header-sized button:
-   it is the fastest way to the one calendar most people open the dialog for. */
-.mantine-Button-root.c2-filter-quick {
-  min-height: var(--c2-touch-row-height);
-}
-
 /* The footer's one-line statement of what Apply will do. It wraps rather than
    ellipsizes (the whole point is that it can be read), and a long quoted
    free-text term must not push the footer wider than the dialog. */

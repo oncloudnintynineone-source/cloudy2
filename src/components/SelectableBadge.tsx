@@ -1,6 +1,7 @@
 "use client";
 
 import { Badge, UnstyledButton } from "@mantine/core";
+import type { ReactNode } from "react";
 
 export interface SelectableBadgeProps {
   label: string;
@@ -8,6 +9,8 @@ export interface SelectableBadgeProps {
   onToggle: () => void;
   /** Marks the signed-in user with the amber "mine" treatment and a "(You)" suffix. */
   self?: boolean;
+  /** Optional leading glyph (a quick action like "Myself" reads better with one). */
+  icon?: ReactNode;
   /** Overrides the default accessible name ("<label>, selected"). */
   ariaLabel?: string;
   disabled?: boolean;
@@ -35,6 +38,7 @@ export function SelectableBadge({
   selected,
   onToggle,
   self = false,
+  icon,
   ariaLabel,
   disabled = false,
 }: SelectableBadgeProps) {
@@ -58,6 +62,7 @@ export function SelectableBadge({
         size="lg"
         className={["c2-selectable-badge", self ? "c2-my-badge" : ""].filter(Boolean).join(" ")}
         data-selected={selected || undefined}
+        leftSection={icon}
         style={{
           height: "auto",
           minHeight: "var(--c2-chip-height)",
